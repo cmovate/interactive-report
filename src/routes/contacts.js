@@ -1,6 +1,7 @@
 const express = require('express');
-const router = express.Router();
-const db = require('../db');
+const router  = express.Router();
+const db      = require('../db');
+const { reExtractAll } = require('../enrichment');
 
 // GET /api/contacts?workspace_id=&campaign_id=&q=
 router.get('/', async (req, res) => {
@@ -9,19 +10,13 @@ router.get('/', async (req, res) => {
     const conditions = [];
     const params = [];
 
-    if (workspace_id) {
-      params.push(workspace_id);
-      conditions.push(`c.workspace_id = $${params.length}`);
-    }
-    if (campaign_id) {
-      params.push(campaign_id);
-      conditions.push(`c.campaign_id = $${params.length}`);
-    }
+    if (workspace_id) { params.push(workspace_id); conditions.push(`c.workspace_id = $${params.length}`); }
+    if (campaign_id)  { params.push(campaign_id);  conditions.push(`c.campaign_id  = $${params.length}`); }
     if (q) {
       params.push(`%${q}%`);
       const i = params.length;
       conditions.push(
-        `(c.first_name ILIKE $${i} OR c.last_name ILIKE $${i} OR c.company ILIKE $${i} OR c.email ILIKE $${i})`
+        `(c.first_name ILIKE $${i} OR c.last_name ILIKE $${i} OR c.company ILIKE $${i} OR c.title ILIKE $${i} OR c.email ILIKE $${i})`
       );
     }
 
@@ -40,8 +35,25 @@ router.get('/', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/contacts/re-extract?workspace_id=X
+ *
+ * Re-runs field extraction on all contacts that already have profile_data
+ * stored in the DB — NO new Unipile API calls.
+ * Use this to fix extraction bugs on existing contacts.
+ */
+router.post('/re-extract', async (req, res) => {
+  try {
+    const workspace_id = req.query.workspace_id || req.body.workspace_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const result = await reExtractAll(workspace_id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // DELETE /api/contacts/:id
-// Deletes contact from contacts table (cascade removes from campaign too)
 router.delete('/:id', async (req, res) => {
   try {
     await db.query('DELETE FROM contacts WHERE id = $1', [req.params.id]);
