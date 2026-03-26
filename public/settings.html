@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Settings</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; font-size: 14px; }
+.page { padding: 28px; max-width: 1020px; }
+.page-header { margin-bottom: 28px; }
+.page-title { font-size: 22px; font-weight: 600; }
+.page-sub { font-size: 14px; color: #666; margin-top: 4px; }
+.count { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+.accounts-rail { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.account-tile { background: white; border: 0.5px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.account-tile:hover { border-color: #b0ddd0; }
+.account-tile.active { border: 1.5px solid #1D9E75; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
+.status-dot.disconnected { background: #DC2626; }
+.account-avatar { width: 40px; height: 40px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #1E40AF; flex-shrink: 0; }
+.account-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-handle { font-size: 12px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.add-tile { background: #fafafa; border: 0.5px dashed #d0d0d0; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; min-height: 76px; font-size: 14px; font-weight: 500; color: #aaa; }
+.add-tile:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
+.divider { height: 0.5px; background: #e5e5e5; margin-bottom: 24px; }
+.account-detail { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
+.detail-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+.detail-head-left { display: flex; align-items: center; gap: 12px; }
+.detail-name { font-size: 16px; font-weight: 500; }
+.detail-handle { font-size: 13px; color: #888; margin-top: 2px; }
+.detail-body { padding: 20px; display: flex; flex-direction: column; gap: 24px; }
+.section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 12px; }
+.limits-grid { display: flex; flex-direction: column; gap: 12px; }
+.limit-row { display: grid; grid-template-columns: 170px 1fr 36px; align-items: center; gap: 12px; }
+.limit-name { font-size: 13px; color: #555; }
+.limit-val { font-size: 13px; font-weight: 500; text-align: right; }
+.days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.day-card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+.day-card.off { opacity: 0.4; }
+.day-head { display: flex; align-items: center; justify-content: space-between; }
+.day-name { font-size: 11px; font-weight: 500; color: #555; }
+.day-toggle { width: 28px; height: 16px; border-radius: 8px; background: #ddd; border: none; cursor: pointer; position: relative; }
+.day-toggle.on { background: #1D9E75; }
+.day-toggle::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: left 0.15s; }
+.day-toggle.on::after { left: 14px; }
+.time-inputs { display: flex; flex-direction: column; gap: 4px; }
+.time-row { display: flex; align-items: center; gap: 4px; }
+.time-label { font-size: 10px; color: #aaa; width: 20px; }
+.time-input { flex: 1; font-size: 11px; border: 1px solid #e0e0e0; border-radius: 4px; padding: 3px 4px; background: #fafafa; }
+.day-off-label { font-size: 11px; color: #aaa; text-align: center; }
+.save-row { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #f0f0f0; }
+.save-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 8px 20px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; }
+.save-btn:hover { background: #178f68; }
+.ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px 12px; font-size: 13px; color: #555; cursor: pointer; }
+.ghost-btn:hover { background: #f5f5f5; }
+.ghost-btn.danger:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
+.no-selection { border: 1px solid #e5e5e5; border-radius: 12px; padding: 48px 24px; text-align: center; color: #aaa; font-size: 14px; }
+.error-banner { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; color: #DC2626; font-size: 13px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">Settings</div>
+    <div class="page-sub">Connect LinkedIn accounts and configure limits per account</div>
+  </div>
+  <div id="error-area"></div>
+  <div id="account-count" class="count"></div>
+  <div id="accounts-rail" class="accounts-rail"></div>
+  <div class="divider"></div>
+  <div id="detail-area"></div>
+</div>
+
+<script>
+const LIMITS = [
+  { key:'connection_requests', label:'Connection requests', max:75, default:20 },
+  { key:'messages', label:'Messages', max:100, default:30 },
+  { key:'inmails', label:'InMails', max:25, default:8 },
+  { key:'profile_views', label:'Profile views', max:200, default:50 },
+  { key:'likes', label:'Post likes', max:50, default:15 },
+  { key:'followings', label:'Follows', max:50, default:15 },
+  { key:'company_follow_invites', label:'Company follow invites', max:50, default:10 },
+];
+const DAYS = [{key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},{key:'4',label:'Thu'},{key:'5',label:'Fri'},{key:'6',label:'Sat'},{key:'7',label:'Sun'}];
+
+const params = new URLSearchParams(window.location.search);
+const workspaceId = params.get('workspace_id');
+
+let unipileAccounts = [];
+let activeAccountId = null;
+
+function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function load() {
+  try {
+    const res = await fetch('/api/unipile/accounts');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    unipileAccounts = Array.isArray(data.items) ? data.items : [];
+    if (!activeAccountId && unipileAccounts.length) activeAccountId = unipileAccounts[0].id;
+  } catch(err) {
+    document.getElementById('error-area').innerHTML = `<div class="error-banner">Could not load Unipile accounts: ${esc(err.message)}</div>`;
+  }
+  renderRail();
+  renderDetail();
+}
+
+function renderRail() {
+  const count = unipileAccounts.length;
+  document.getElementById('account-count').textContent = `${count} account${count!==1?'s':''} connected`;
+  const rail = document.getElementById('accounts-rail');
+  rail.innerHTML = unipileAccounts.map(acc => {
+    const name = acc.name || acc.username || acc.public_identifier || acc.id || 'Account';
+    const handle = acc.public_identifier ? `linkedin.com/in/${acc.public_identifier}` : acc.id;
+    const isActive = acc.id === activeAccountId;
+    const isOk = String(acc.connection_state||acc.status||'ok').toLowerCase().includes('ok') || !acc.connection_state;
+    return `
+      <div class="account-tile${isActive?' active':''}" onclick="selectAccount('${acc.id}')">
+        <div class="status-dot${isOk?'':' disconnected'}"></div>
+        <div class="account-avatar">${initials(name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="account-name">${esc(name)}</div>
+          <div class="account-handle">${esc(handle)}</div>
+        </div>
+      </div>`;
+  }).join('') + `
+    <div class="add-tile">
+      <span style="font-size:18px;">+</span>
+      Connect another account
+    </div>`;
+}
+
+function selectAccount(id) {
+  activeAccountId = id;
+  renderRail();
+  renderDetail();
+}
+
+function renderDetail() {
+  const area = document.getElementById('detail-area');
+  const acc = unipileAccounts.find(a => a.id === activeAccountId);
+  if (!acc) {
+    area.innerHTML = unipileAccounts.length
+      ? '<div class="no-selection">Select an account above to configure it</div>'
+      : '<div class="no-selection">No LinkedIn accounts connected to Unipile yet.<br><br>Connect accounts at <strong>unipile.com</strong> then return here.</div>';
+    return;
+  }
+  const name = acc.name || acc.username || acc.id || 'Account';
+  const handle = acc.public_identifier ? `linkedin.com/in/${acc.public_identifier}` : acc.id;
+
+  const limitsHtml = LIMITS.map(l => `
+    <div class="limit-row">
+      <div class="limit-name">${l.label}</div>
+      <input type="range" min="0" max="${l.max}" step="1" value="${l.default}"
+        id="limit-${acc.id}-${l.key}"
+        oninput="document.getElementById('lv-${acc.id}-${l.key}').textContent=this.value">
+      <div class="limit-val" id="lv-${acc.id}-${l.key}">${l.default}</div>
+    </div>`).join('');
+
+  const daysHtml = DAYS.map((d,i) => {
+    const on = i < 5;
+    return `
+    <div class="day-card${on?'':' off'}" id="dc-${acc.id}-${d.key}">
+      <div class="day-head">
+        <span class="day-name">${d.label}</span>
+        <button class="day-toggle${on?' on':''}" id="dt-${acc.id}-${d.key}" onclick="toggleDay('${acc.id}','${d.key}')"></button>
+      </div>
+      <div id="dts-${acc.id}-${d.key}" style="display:${on?'':'none'}">
+        <div class="time-inputs">
+          <div class="time-row"><span class="time-label">from</span><input class="time-input" type="time" value="09:00"></div>
+          <div class="time-row"><span class="time-label">to</span><input class="time-input" type="time" value="18:00"></div>
+        </div>
+      </div>
+      <div id="dof-${acc.id}-${d.key}" class="day-off-label" style="display:${on?'none':''}">off</div>
+    </div>`;
+  }).join('');
+
+  area.innerHTML = `
+    <div class="account-detail">
+      <div class="detail-head">
+        <div class="detail-head-left">
+          <div class="account-avatar">${initials(name)}</div>
+          <div><div class="detail-name">${esc(name)}</div><div class="detail-handle">${esc(handle)}</div></div>
+        </div>
+        <button class="ghost-btn danger">Disconnect</button>
+      </div>
+      <div class="detail-body">
+        <div>
+          <div class="section-label">Daily action limits</div>
+          <div class="limits-grid">${limitsHtml}</div>
+        </div>
+        <div>
+          <div class="section-label">Working hours</div>
+          <div class="days-grid">${daysHtml}</div>
+        </div>
+        <div class="save-row">
+          <button class="save-btn" onclick="alert('Settings saved')">Save settings</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleDay(accountId, dayKey) {
+  const toggle = document.getElementById(`dt-${accountId}-${dayKey}`);
+  const card = document.getElementById(`dc-${accountId}-${dayKey}`);
+  const times = document.getElementById(`dts-${accountId}-${dayKey}`);
+  const off = document.getElementById(`dof-${accountId}-${dayKey}`);
+  if (!toggle) return;
+  const nowOn = toggle.style.background === 'rgb(29, 158, 117)' ? false : !toggle.classList.contains('on');
+  toggle.classList.toggle('on', nowOn);
+  if (card) card.classList.toggle('off', !nowOn);
+  if (times) times.style.display = nowOn ? '' : 'none';
+  if (off) off.style.display = nowOn ? 'none' : '';
+}
+
+load();
+</script>
+</body>
+</html>

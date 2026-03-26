@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>All Data</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; font-size: 14px; }
+.page { padding: 28px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 22px; font-weight: 600; }
+.page-sub { font-size: 14px; color: #666; margin-top: 4px; }
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.search-input { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; width: 240px; font-family: inherit; background: white; }
+.search-input:focus { outline: none; border-color: #1D9E75; }
+.filter-select { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; background: white; font-family: inherit; cursor: pointer; }
+.toolbar-right { margin-left: auto; display: flex; gap: 8px; }
+.ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 14px; font-size: 13px; color: #555; cursor: pointer; white-space: nowrap; }
+.ghost-btn:hover { background: #f5f5f5; }
+.danger-btn { background: white; border: 1px solid #FECACA; border-radius: 8px; padding: 8px 14px; font-size: 13px; color: #DC2626; cursor: pointer; white-space: nowrap; }
+.danger-btn:hover { background: #FEF2F2; }
+.bulk-bar { display: flex; align-items: center; gap: 12px; background: #1D9E75; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 500; }
+.bulk-bar button { background: rgba(255,255,255,0.2); border: none; border-radius: 6px; padding: 5px 12px; font-size: 13px; color: white; cursor: pointer; }
+.bulk-bar button:hover { background: rgba(255,255,255,0.3); }
+.bulk-cancel { background: transparent !important; border: 1px solid rgba(255,255,255,0.4) !important; }
+.stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.stat-chip { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #555; white-space: nowrap; }
+.stat-chip strong { color: #1a1a1a; font-size: 14px; margin-right: 4px; }
+.table-outer { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
+.table-scroll-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 280px); position: relative; }
+table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
+thead th { position: sticky; top: 0; z-index: 3; background: #fafafa; border-bottom: 1px solid #e5e5e5; padding: 11px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; white-space: nowrap; text-align: left; }
+thead th:nth-child(1) { position: sticky; left: 0; z-index: 5; }
+thead th:nth-child(2) { position: sticky; left: 44px; z-index: 5; }
+thead th:nth-child(3) { position: sticky; left: 188px; z-index: 5; border-right: 1px solid #e0e0e0; }
+tbody td { padding: 12px 14px; border-bottom: 1px solid #f5f5f5; white-space: nowrap; font-size: 13px; color: #333; vertical-align: middle; }
+tbody td:nth-child(1) { position: sticky; left: 0; background: white; z-index: 2; }
+tbody td:nth-child(2) { position: sticky; left: 44px; background: white; z-index: 2; }
+tbody td:nth-child(3) { position: sticky; left: 188px; background: white; z-index: 2; border-right: 1px solid #e0e0e0; }
+tbody tr:hover td { background: #fafafa; }
+tbody tr:hover td:nth-child(1), tbody tr:hover td:nth-child(2), tbody tr:hover td:nth-child(3) { background: #fafafa; }
+tbody tr.selected td { background: #F0FBF7; }
+tbody tr.selected td:nth-child(1), tbody tr.selected td:nth-child(2), tbody tr.selected td:nth-child(3) { background: #F0FBF7; }
+tr:last-child td { border-bottom: none; }
+.check-col { width: 44px; text-align: center; padding: 12px 8px; }
+.bool-yes { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
+.bool-no { display: inline-block; background: #f5f5f5; color: #aaa; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+.cell-link { color: #1D9E75; text-decoration: none; font-size: 12px; }
+.cell-link:hover { text-decoration: underline; }
+.cell-muted { color: #aaa; font-size: 12px; }
+.row-del-btn { background: none; border: none; color: #ddd; font-size: 16px; cursor: pointer; padding: 2px 6px; }
+.row-del-btn:hover { color: #DC2626; }
+input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #1D9E75; }
+.confirm-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+.confirm-box { background: white; border-radius: 12px; padding: 24px; width: min(420px,90vw); box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.confirm-box h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+.confirm-box p { font-size: 13px; color: #555; margin-bottom: 20px; line-height: 1.5; }
+.confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.empty-row td { text-align: center; color: #aaa; padding: 48px 16px; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="page-header">
+    <div>
+      <div class="page-title">All Data</div>
+      <div class="page-sub">All contacts across all campaigns in this workspace</div>
+    </div>
+  </div>
+  <div class="toolbar">
+    <input class="search-input" type="search" placeholder="Search by name, company, email..." oninput="applyFilters()" id="search-input">
+    <select class="filter-select" id="campaign-filter" onchange="applyFilters()"><option value="">All campaigns</option></select>
+    <div class="toolbar-right"><button class="ghost-btn" onclick="exportCSV()">Export CSV</button></div>
+  </div>
+  <div id="bulk-bar" style="display:none;" class="bulk-bar">
+    <span id="bulk-count"></span>
+    <button onclick="deleteSelected()">Delete selected</button>
+    <button onclick="selectAll()">Select all (<span id="bulk-total"></span>)</button>
+    <button class="bulk-cancel" onclick="clearSelection()">Cancel</button>
+  </div>
+  <div class="stats-row" id="stats-row"></div>
+  <div class="table-outer">
+    <div class="table-scroll-wrap">
+      <table id="data-table">
+        <thead><tr>
+          <th class="check-col"><input type="checkbox" id="check-all" onchange="toggleAll(this.checked)"></th>
+          <th style="min-width:144px;">First name</th>
+          <th style="min-width:144px;">Last name</th>
+          <th style="min-width:160px;">Company</th>
+          <th style="min-width:180px;">LinkedIn profile</th>
+          <th style="min-width:180px;">LinkedIn company</th>
+          <th style="min-width:200px;">Email</th>
+          <th style="min-width:180px;">Website</th>
+          <th style="min-width:160px;">Campaign</th>
+          <th style="min-width:100px;text-align:center;">Invite sent</th>
+          <th style="min-width:100px;text-align:center;">Invite approved</th>
+          <th style="min-width:100px;text-align:center;">Message sent</th>
+          <th style="min-width:100px;text-align:center;">Replied</th>
+          <th style="min-width:100px;text-align:center;">Positive reply</th>
+          <th style="min-width:60px;"></th>
+        </tr></thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="confirm-modal" class="confirm-backdrop" style="display:none;">
+  <div class="confirm-box">
+    <h3 id="confirm-title">Confirm deletion</h3>
+    <p id="confirm-msg"></p>
+    <div class="confirm-actions">
+      <button class="ghost-btn" onclick="closeConfirm()">Cancel</button>
+      <button class="danger-btn" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const workspaceId = params.get('workspace_id');
+let allContacts = [];
+let campaigns = [];
+let filteredContacts = [];
+let selectedIds = new Set();
+let pendingDeleteIds = null;
+
+async function load() {
+  try {
+    const [cRes, campRes] = await Promise.all([
+      fetch(`/api/contacts?workspace_id=${workspaceId}`),
+      fetch(`/api/campaigns?workspace_id=${workspaceId}`)
+    ]);
+    const cData = await cRes.json();
+    const campData = await campRes.json();
+    allContacts = Array.isArray(cData.items) ? cData.items : [];
+    campaigns = Array.isArray(campData.items) ? campData.items : [];
+
+    const sel = document.getElementById('campaign-filter');
+    sel.innerHTML = '<option value="">All campaigns</option>' +
+      campaigns.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  } catch(e) { console.error(e); }
+  applyFilters();
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '0%'; }
+
+function applyFilters() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const cid = document.getElementById('campaign-filter').value;
+  filteredContacts = allContacts.filter(r => {
+    if (cid && String(r.campaign_id) !== String(cid)) return false;
+    if (q) {
+      const hay = [r.first_name,r.last_name,r.company,r.email,r.website].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  selectedIds = new Set([...selectedIds].filter(id => filteredContacts.find(r => String(r.id)===String(id))));
+  renderTable();
+  renderStats();
+  renderBulkBar();
+}
+
+function renderStats() {
+  const f = filteredContacts;
+  document.getElementById('stats-row').innerHTML = [
+    { label:'Total contacts', val: f.length },
+    { label:'Invites sent', val: f.filter(r=>r.invite_sent).length },
+    { label:'Approved', val: `${f.filter(r=>r.invite_approved).length} (${pct(f.filter(r=>r.invite_approved).length, f.filter(r=>r.invite_sent).length)})` },
+    { label:'Messages sent', val: f.filter(r=>r.msg_sent).length },
+    { label:'Replied', val: `${f.filter(r=>r.msg_replied).length} (${pct(f.filter(r=>r.msg_replied).length, f.filter(r=>r.msg_sent).length)})` },
+    { label:'Positive', val: f.filter(r=>r.positive_reply).length },
+  ].map(s=>`<div class="stat-chip"><strong>${s.val}</strong>${s.label}</div>`).join('');
+}
+
+function renderTable() {
+  const tbody = document.getElementById('table-body');
+  document.getElementById('check-all').checked = filteredContacts.length > 0 && selectedIds.size === filteredContacts.length;
+  if (!filteredContacts.length) {
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="15">No contacts match your filters</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filteredContacts.map(r => {
+    const sel = selectedIds.has(String(r.id));
+    const campaign = campaigns.find(c => String(c.id) === String(r.campaign_id));
+    const bool = v => v ? '<span class="bool-yes">Yes</span>' : '<span class="bool-no">No</span>';
+    return `<tr class="${sel?'selected':''}" id="row-${r.id}">
+      <td class="check-col"><input type="checkbox" ${sel?'checked':''} onchange="toggleRow('${r.id}',this.checked)"></td>
+      <td style="font-weight:500;">${esc(r.first_name)}</td>
+      <td style="font-weight:500;">${esc(r.last_name)}</td>
+      <td>${esc(r.company)}</td>
+      <td>${r.li_profile_url?`<a class="cell-link" href="${esc(r.li_profile_url)}" target="_blank">View profile</a>`:'<span class="cell-muted">—</span>'}</td>
+      <td>${r.li_company_url?`<a class="cell-link" href="${esc(r.li_company_url)}" target="_blank">View company</a>`:'<span class="cell-muted">—</span>'}</td>
+      <td>${r.email?esc(r.email):'<span class="cell-muted">—</span>'}</td>
+      <td>${r.website?`<a class="cell-link" href="https://${esc(r.website)}" target="_blank">${esc(r.website)}</a>`:'<span class="cell-muted">—</span>'}</td>
+      <td style="font-size:12px;color:#888;">${esc(campaign?.name||'—')}</td>
+      <td style="text-align:center;">${bool(r.invite_sent)}</td>
+      <td style="text-align:center;">${bool(r.invite_approved)}</td>
+      <td style="text-align:center;">${bool(r.msg_sent)}</td>
+      <td style="text-align:center;">${bool(r.msg_replied)}</td>
+      <td style="text-align:center;">${bool(r.positive_reply)}</td>
+      <td><button class="row-del-btn" onclick="askDeleteOne('${r.id}')" title="Delete">&times;</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleRow(id, checked) {
+  if (checked) selectedIds.add(String(id)); else selectedIds.delete(String(id));
+  const row = document.getElementById('row-'+id);
+  if (row) row.classList.toggle('selected', checked);
+  document.getElementById('check-all').checked = selectedIds.size === filteredContacts.length;
+  renderBulkBar();
+}
+function toggleAll(checked) {
+  filteredContacts.forEach(r => { if(checked) selectedIds.add(String(r.id)); else selectedIds.delete(String(r.id)); });
+  renderTable(); renderBulkBar();
+}
+function selectAll() { filteredContacts.forEach(r => selectedIds.add(String(r.id))); renderTable(); renderBulkBar(); }
+function clearSelection() { selectedIds.clear(); renderTable(); renderBulkBar(); }
+function renderBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  if (!selectedIds.size) { bar.style.display='none'; return; }
+  bar.style.display='flex';
+  document.getElementById('bulk-count').textContent = selectedIds.size+' selected';
+  document.getElementById('bulk-total').textContent = filteredContacts.length;
+}
+
+function askDeleteOne(id) {
+  const r = allContacts.find(c => String(c.id)===String(id));
+  pendingDeleteIds = [id];
+  document.getElementById('confirm-title').textContent = 'Delete contact';
+  document.getElementById('confirm-msg').textContent = `Delete ${r?.first_name||''} ${r?.last_name||''} from All Data? This will also remove them from their campaign.`;
+  document.getElementById('confirm-modal').style.display='flex';
+}
+function deleteSelected() {
+  if (!selectedIds.size) return;
+  pendingDeleteIds = [...selectedIds];
+  document.getElementById('confirm-title').textContent = `Delete ${selectedIds.size} contact${selectedIds.size>1?'s':''}`;
+  document.getElementById('confirm-msg').textContent = `This will permanently delete ${selectedIds.size} contact${selectedIds.size>1?'s':''} from All Data and their campaigns.`;
+  document.getElementById('confirm-modal').style.display='flex';
+}
+function closeConfirm() { document.getElementById('confirm-modal').style.display='none'; pendingDeleteIds=null; }
+async function confirmDelete() {
+  if (!pendingDeleteIds) return;
+  if (pendingDeleteIds.length === 1) {
+    await fetch(`/api/contacts/${pendingDeleteIds[0]}`, { method:'DELETE' });
+  } else {
+    await fetch('/api/contacts', { method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids: pendingDeleteIds}) });
+  }
+  pendingDeleteIds.forEach(id => selectedIds.delete(String(id)));
+  pendingDeleteIds = null;
+  closeConfirm();
+  await load();
+}
+
+function exportCSV() {
+  const cols = ['first_name','last_name','company','li_profile_url','li_company_url','email','website','campaign_name','invite_sent','invite_approved','msg_sent','msg_replied','positive_reply'];
+  const labels = ['First name','Last name','Company','LinkedIn profile','LinkedIn company','Email','Website','Campaign','Invite sent','Invite approved','Message sent','Replied','Positive reply'];
+  const toExport = selectedIds.size > 0 ? filteredContacts.filter(r=>selectedIds.has(String(r.id))) : filteredContacts;
+  const rows = toExport.map(r => {
+    const campaign = campaigns.find(c=>String(c.id)===String(r.campaign_id));
+    return [...cols.slice(0,8).map(k=>k==='campaign_name'?campaign?.name||'':r[k]||''), r.invite_sent?'Yes':'No', r.invite_approved?'Yes':'No', r.msg_sent?'Yes':'No', r.msg_replied?'Yes':'No', r.positive_reply?'Yes':'No']
+      .map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+  });
+  const csv = '\uFEFF' + labels.map(l=>`"${l}"`).join(',') + '\n' + rows.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='all-data.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+load();
+</script>
+</body>
+</html>
