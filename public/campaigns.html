@@ -46,7 +46,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .user-card:hover, .user-card.selected { border-color: #1D9E75; background: #F0FBF7; }
 .user-avatar { width: 38px; height: 38px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #1E40AF; flex-shrink: 0; }
 .user-name { font-size: 13px; font-weight: 600; }
-.user-handle { font-size: 11px; color: #888; margin-top: 2px; }
 .audience-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
 .audience-option { border: 1.5px solid #e5e5e5; border-radius: 10px; padding: 20px; cursor: pointer; text-align: center; }
 .audience-option:hover, .audience-option.selected { border-color: #1D9E75; background: #F0FBF7; }
@@ -116,6 +115,8 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 16px; font-size: 14px; color: #555; cursor: pointer; }
 .ghost-btn:hover { background: #f5f5f5; }
+.notice-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 14px 16px; font-size: 13px; color: #795548; }
+.notice-box a { color: #1D9E75; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -173,39 +174,49 @@ const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
 const STEPS = ['Account','Audience','Sequence','Name'];
 const ENGAGEMENT_ACTIONS = [
-  { key: 'view_profile', label: 'View profile', sub: 'Once per week' },
-  { key: 'follow_company', label: 'Invite to follow company page', sub: 'Uses company page from Settings' },
-  { key: 'like_posts', label: 'Like posts (personal)', sub: 'Posts from last 7 days' },
-  { key: 'like_comments', label: 'Like comments (personal)', sub: '' },
-  { key: 'company_like_posts', label: 'Like posts via company page', sub: 'Posts from last 7 days' },
-  { key: 'company_like_comments', label: 'Like comments via company page', sub: '' },
+  { key: 'view_profile',          label: 'View profile',                    sub: 'Once per week' },
+  { key: 'follow_company',        label: 'Invite to follow company page',   sub: 'Uses company page from Settings' },
+  { key: 'like_posts',            label: 'Like posts (personal)',           sub: 'Posts from last 7 days' },
+  { key: 'like_comments',         label: 'Like comments (personal)',        sub: '' },
+  { key: 'company_like_posts',    label: 'Like posts via company page',     sub: 'Posts from last 7 days' },
+  { key: 'company_like_comments', label: 'Like comments via company page',  sub: '' },
 ];
 
 let campaigns = [];
-let unipileAccounts = [];
+// ↓ Only accounts connected to this workspace (from Settings)
+let workspaceAccounts = [];
 let currentStep = 0;
 let wizard = resetWizard();
 let activeMsgCanvas = null;
 
 function resetWizard() {
-  return { selectedAccount:null, audienceType:null, urlsPasted:'', companyUrls:'', searchTitles:'', searchStatus:null, searchPct:0, contacts:[], connectionEnabled:true, withdrawEnabled:false, withdrawDays:14, resendEnabled:false, newMessages:[], existingNoHistoryMessages:[], existingWithHistoryMessages:[], engagement:{}, campaignName:'' };
+  return {
+    selectedAccount: null, audienceType: null,
+    urlsPasted: '', companyUrls: '', searchTitles: '',
+    searchStatus: null, searchPct: 0, contacts: [],
+    connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
+    newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
+    engagement: {}, campaignName: ''
+  };
 }
 
-function initials(n) { return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
-function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '—'; }
-function countUrls(t) { return (t.match(/linkedin\.com\/in\//g)||[]).length; }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
+function pct(a,b)    { return b ? Math.round(a/b*100)+'%' : '—'; }
+function countUrls(t){ return (t.match(/linkedin\.com\/in\//g)||[]).length; }
+function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+// ── Load ──────────────────────────────────────────────────────────────────────
 async function load() {
   try {
     const [campRes, accRes] = await Promise.all([
       fetch(`/api/campaigns?workspace_id=${workspaceId}`),
-      fetch('/api/unipile/accounts')
+      // ↓ Only the accounts the user chose in Settings for this workspace
+      fetch(`/api/workspaces/${workspaceId}/accounts`)
     ]);
     const campData = await campRes.json();
-    const accData = await accRes.json();
-    campaigns = Array.isArray(campData.items) ? campData.items : [];
-    unipileAccounts = Array.isArray(accData.items) ? accData.items : [];
+    const accData  = await accRes.json();
+    campaigns        = Array.isArray(campData.items) ? campData.items : [];
+    workspaceAccounts = Array.isArray(accData.items)  ? accData.items  : [];
   } catch(e) { console.error(e); }
   renderCampaigns();
 }
@@ -213,7 +224,11 @@ async function load() {
 function renderCampaigns() {
   const el = document.getElementById('campaigns-area');
   if (!campaigns.length) {
-    el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:12px;opacity:0.3;">&#128203;</div><div style="font-size:16px;font-weight:500;margin-bottom:6px;">No campaigns yet</div><div style="font-size:13px;color:#888;">Create your first campaign to start outreach</div></div>`;
+    el.innerHTML = `<div class="empty-state">
+      <div style="font-size:32px;margin-bottom:12px;opacity:0.3;">&#128203;</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">No campaigns yet</div>
+      <div style="font-size:13px;color:#888;">Create your first campaign to start outreach</div>
+    </div>`;
     return;
   }
   el.innerHTML = `<div class="campaigns-table-wrap"><table class="campaigns-table">
@@ -226,7 +241,7 @@ function renderCampaigns() {
       <td><div class="stat-num">${c.messages_sent||0}</div></td>
       <td><div class="stat-num">${c.positive_replies||0}</div><div class="stat-rate">${pct(c.positive_replies,c.messages_sent)}</div></td>
       <td><span class="status-pill status-${esc(c.status)}">${esc(c.status)}</span></td>
-      <td><div style="display:flex;gap:6px;"><button class="action-btn danger" onclick="deleteCampaign(${c.id})">Delete</button></div></td>
+      <td><button class="action-btn danger" onclick="deleteCampaign(${c.id})">Delete</button></td>
     </tr>`).join('')}</tbody>
   </table></div>`;
 }
@@ -237,13 +252,15 @@ async function deleteCampaign(id) {
   await load();
 }
 
-function openModal() { wizard = resetWizard(); currentStep = 0; document.getElementById('modal').style.display='flex'; renderStep(); }
+// ── Wizard ────────────────────────────────────────────────────────────────────
+function openModal()  { wizard = resetWizard(); currentStep = 0; document.getElementById('modal').style.display='flex'; renderStep(); }
 function closeModal() { document.getElementById('modal').style.display='none'; }
 
 function renderStep() {
-  document.getElementById('modal-steps').innerHTML = STEPS.map((s,i)=>`<div class="modal-step ${i===currentStep?'active':i<currentStep?'done':''}">${i<currentStep?'✓ ':''}${s}</div>`).join('');
-  document.getElementById('btn-back').style.visibility = currentStep===0?'hidden':'visible';
-  document.getElementById('btn-next').textContent = currentStep===STEPS.length-1?'Create campaign':'Continue';
+  document.getElementById('modal-steps').innerHTML =
+    STEPS.map((s,i)=>`<div class="modal-step ${i===currentStep?'active':i<currentStep?'done':''}">${i<currentStep?'✓ ':''}${s}</div>`).join('');
+  document.getElementById('btn-back').style.visibility = currentStep===0 ? 'hidden' : 'visible';
+  document.getElementById('btn-next').textContent = currentStep===STEPS.length-1 ? 'Create campaign' : 'Continue';
   const body = document.getElementById('modal-body');
   [renderStepAccount, renderStepAudience, renderStepSequence, renderStepName][currentStep](body);
 }
@@ -252,35 +269,43 @@ async function nextStep() {
   if (currentStep===0 && !wizard.selectedAccount) return alert('Please select an account.');
   if (currentStep===1) {
     if (!wizard.audienceType) return alert('Please choose how to define your audience.');
-    if (wizard.audienceType==='people' && countUrls(wizard.urlsPasted)===0) return alert('Please paste LinkedIn profile URLs.');
-    if (wizard.audienceType==='company' && wizard.searchStatus!=='done') return alert('Please complete the company search first.');
+    if (wizard.audienceType==='people'  && countUrls(wizard.urlsPasted)===0) return alert('Please paste LinkedIn profile URLs.');
+    if (wizard.audienceType==='company' && wizard.searchStatus!=='done')     return alert('Please complete the company search first.');
   }
   if (currentStep===STEPS.length-1) { await createCampaign(); return; }
   currentStep++; renderStep();
 }
 function prevStep() { if (currentStep>0) { currentStep--; renderStep(); } }
 
+// ── Step 1: Account ───────────────────────────────────────────────────────────
+// Shows only accounts the user added in Settings → not all Unipile accounts
 function renderStepAccount(body) {
-  if (!unipileAccounts.length) {
-    body.innerHTML = `<div style="color:#888;font-size:14px;padding:20px 0;">No LinkedIn accounts connected. Go to Settings to connect a Unipile account.</div>`;
+  if (!workspaceAccounts.length) {
+    body.innerHTML = `<div class="notice-box">
+      No LinkedIn accounts connected to this workspace yet.<br>
+      Go to <strong>Settings</strong> and click <strong>+ Add account</strong> to connect one first.
+    </div>`;
     return;
   }
-  body.innerHTML = `<div class="section-label">Select LinkedIn account</div>
-    <div class="user-grid">${unipileAccounts.map(a=>`
-      <div class="user-card${wizard.selectedAccount===a.id?' selected':''}" onclick="selectAccount('${a.id}')">
-        <div class="user-avatar">${initials(a.name||a.id||'?')}</div>
-        <div><div class="user-name">${esc(a.name||a.id||'Account')}</div><div class="user-handle">${esc(a.public_identifier?'linkedin.com/in/'+a.public_identifier:'')}</div></div>
-      </div>`).join('')}</div>`;
+  body.innerHTML = `
+    <div class="section-label">Select LinkedIn account</div>
+    <div class="user-grid">${workspaceAccounts.map(a => `
+      <div class="user-card${wizard.selectedAccount===a.account_id?' selected':''}"
+           onclick="selectAccount('${a.account_id}')">
+        <div class="user-avatar">${initials(a.display_name)}</div>
+        <div><div class="user-name">${esc(a.display_name)}</div></div>
+      </div>`).join('')}
+    </div>`;
 }
 
 function selectAccount(id) {
   wizard.selectedAccount = id;
   document.querySelectorAll('.user-card').forEach(el => {
-    const onclick = el.getAttribute('onclick') || '';
-    el.classList.toggle('selected', onclick.includes(`'${id}'`));
+    el.classList.toggle('selected', el.getAttribute('onclick') === `selectAccount('${id}')`);
   });
 }
 
+// ── Step 2: Audience ──────────────────────────────────────────────────────────
 function renderStepAudience(body) {
   body.innerHTML = `<div class="section-label">Define audience</div>
     <div class="audience-options">
@@ -302,7 +327,7 @@ function renderStepAudience(body) {
 function selectAudience(type) { wizard.audienceType=type; renderStepAudience(document.getElementById('modal-body')); }
 
 function renderAudienceDetail() {
-  const el=document.getElementById('audience-detail'); if(!el) return;
+  const el = document.getElementById('audience-detail'); if (!el) return;
   if (wizard.audienceType==='people') {
     el.innerHTML=`<div class="field-label">Paste LinkedIn profile URLs (one per line)</div>
       <textarea rows="5" placeholder="https://www.linkedin.com/in/johndoe" oninput="wizard.urlsPasted=this.value">${esc(wizard.urlsPasted)}</textarea>
@@ -330,7 +355,7 @@ function renderAudienceDetail() {
       </div>
       <div class="contacts-list">${wizard.contacts.map((c,i)=>`
         <div class="contact-row">
-          <div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')} ${c.company?'· '+c.company:''}</div></div>
+          <div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' · '+c.company:''}</div></div>
           <button class="contact-remove" onclick="removeContact(${i})">&times;</button>
         </div>`).join('')}</div>`;
     }
@@ -341,8 +366,6 @@ async function startSearch() {
   if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
   if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
   wizard.searchStatus='loading'; wizard.searchPct=0; renderAudienceDetail();
-
-  // Animate progress
   const progressInterval = setInterval(() => {
     if (wizard.searchPct < 85) {
       wizard.searchPct = Math.min(wizard.searchPct + Math.floor(Math.random()*8)+3, 85);
@@ -351,10 +374,9 @@ async function startSearch() {
       if(pctEl) pctEl.textContent=wizard.searchPct+'%';
     }
   }, 400);
-
   try {
     const companyUrls = wizard.companyUrls.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/company/'));
-    const titles = wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean);
+    const titles      = wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean);
     const res = await fetch('/api/campaigns/search-people', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
@@ -362,22 +384,22 @@ async function startSearch() {
     });
     const data = await res.json();
     clearInterval(progressInterval);
-    wizard.searchPct = 100;
-    wizard.searchStatus = 'done';
+    wizard.searchPct=100; wizard.searchStatus='done';
     wizard.contacts = Array.isArray(data.items) ? data.items : [];
   } catch(err) {
     clearInterval(progressInterval);
-    wizard.searchStatus = null;
+    wizard.searchStatus=null;
     alert('Search failed: ' + err.message);
   }
   renderAudienceDetail();
 }
 
-function resetSearch(){wizard.searchStatus=null;wizard.contacts=[];renderAudienceDetail();}
-function removeContact(i){wizard.contacts.splice(i,1);renderAudienceDetail();}
+function resetSearch()    { wizard.searchStatus=null; wizard.contacts=[]; renderAudienceDetail(); }
+function removeContact(i) { wizard.contacts.splice(i,1); renderAudienceDetail(); }
 
+// ── Step 3: Sequence ──────────────────────────────────────────────────────────
 function renderStepSequence(body) {
-  const engHtml=ENGAGEMENT_ACTIONS.map(a=>`
+  const engHtml = ENGAGEMENT_ACTIONS.map(a=>`
     <div class="engagement-item">
       <div><div class="eng-label">${a.label}</div>${a.sub?`<div class="eng-sub">${a.sub}</div>`:''}</div>
       <button class="toggle${wizard.engagement[a.key]?' on':''}" id="eng-${a.key}" onclick="toggleEng('${a.key}')"></button>
@@ -423,7 +445,7 @@ function renderStepSequence(body) {
     <div class="engagement-list">${engHtml}</div>`;
 }
 
-function renderMsgs(msgs,canvas){
+function renderMsgs(msgs,canvas) {
   return msgs.map((m,i)=>`<div class="seq-msg">
     <button class="seq-msg-remove" onclick="removeMsg('${canvas}',${i})">&times;</button>
     <div class="seq-msg-delay">Wait ${m.delay} ${m.unit} then send</div>
@@ -431,26 +453,30 @@ function renderMsgs(msgs,canvas){
   </div>`).join('');
 }
 
-function toggleConn(){wizard.connectionEnabled=!wizard.connectionEnabled;document.getElementById('conn-toggle').classList.toggle('on',wizard.connectionEnabled);document.getElementById('conn-opts').style.display=wizard.connectionEnabled?'':'none';}
-function toggleWithdraw(){wizard.withdrawEnabled=!wizard.withdrawEnabled;document.getElementById('withdraw-toggle').classList.toggle('on',wizard.withdrawEnabled);document.getElementById('resend-row').style.display=wizard.withdrawEnabled?'':'none';}
-function toggleResend(){wizard.resendEnabled=!wizard.resendEnabled;document.getElementById('resend-toggle').classList.toggle('on',wizard.resendEnabled);}
-function toggleEng(key){wizard.engagement[key]=!wizard.engagement[key];document.getElementById('eng-'+key).classList.toggle('on',wizard.engagement[key]);}
-function removeMsg(canvas,i){
-  if(canvas==='new') wizard.newMessages.splice(i,1);
+function toggleConn()    { wizard.connectionEnabled=!wizard.connectionEnabled; document.getElementById('conn-toggle').classList.toggle('on',wizard.connectionEnabled); document.getElementById('conn-opts').style.display=wizard.connectionEnabled?'':'none'; }
+function toggleWithdraw(){ wizard.withdrawEnabled=!wizard.withdrawEnabled; document.getElementById('withdraw-toggle').classList.toggle('on',wizard.withdrawEnabled); document.getElementById('resend-row').style.display=wizard.withdrawEnabled?'':'none'; }
+function toggleResend()  { wizard.resendEnabled=!wizard.resendEnabled; document.getElementById('resend-toggle').classList.toggle('on',wizard.resendEnabled); }
+function toggleEng(key)  { wizard.engagement[key]=!wizard.engagement[key]; document.getElementById('eng-'+key).classList.toggle('on',wizard.engagement[key]); }
+function removeMsg(canvas,i) {
+  if(canvas==='new')        wizard.newMessages.splice(i,1);
   if(canvas==='existingNo') wizard.existingNoHistoryMessages.splice(i,1);
-  if(canvas==='existingYes') wizard.existingWithHistoryMessages.splice(i,1);
+  if(canvas==='existingYes')wizard.existingWithHistoryMessages.splice(i,1);
   renderStep();
 }
 
+// ── Step 4: Name ──────────────────────────────────────────────────────────────
 function renderStepName(body) {
-  const acc = unipileAccounts.find(a=>a.id===wizard.selectedAccount);
-  const audienceSummary = wizard.audienceType==='people' ? countUrls(wizard.urlsPasted)+' profile URLs' : wizard.contacts.length+' contacts from company search';
+  const acc = workspaceAccounts.find(a=>a.account_id===wizard.selectedAccount);
+  const audienceSummary = wizard.audienceType==='people'
+    ? countUrls(wizard.urlsPasted)+' profile URLs'
+    : wizard.contacts.length+' contacts from company search';
   body.innerHTML=`
     <div class="section-label">Campaign name</div>
-    <input class="name-input" type="text" placeholder="e.g. TFT Israel — VP R&D outreach" value="${esc(wizard.campaignName)}" oninput="wizard.campaignName=this.value" autofocus>
+    <input class="name-input" type="text" placeholder="e.g. TFT Israel — VP R&D outreach"
+      value="${esc(wizard.campaignName)}" oninput="wizard.campaignName=this.value" autofocus>
     <div class="summary-box">
       <div style="font-size:12px;font-weight:600;color:#888;margin-bottom:10px;">Summary</div>
-      <div class="summary-row"><span class="summary-key">Account</span><span class="summary-val">${esc(acc?.name||acc?.id||'—')}</span></div>
+      <div class="summary-row"><span class="summary-key">Account</span><span class="summary-val">${esc(acc?.display_name||'—')}</span></div>
       <div class="summary-row"><span class="summary-key">Audience</span><span class="summary-val">${audienceSummary}</span></div>
       <div class="summary-row"><span class="summary-key">Connection requests</span><span class="summary-val">${wizard.connectionEnabled?'Yes':'No'}</span></div>
       <div class="summary-row"><span class="summary-key">New contact messages</span><span class="summary-val">${wizard.newMessages.length} step${wizard.newMessages.length!==1?'s':''}</span></div>
@@ -458,22 +484,22 @@ function renderStepName(body) {
     </div>`;
 }
 
+// ── Create ────────────────────────────────────────────────────────────────────
 async function createCampaign() {
   if (!wizard.campaignName.trim()) return alert('Please enter a campaign name.');
   const btn = document.getElementById('btn-next');
-  btn.disabled = true; btn.textContent = 'Creating...';
+  btn.disabled=true; btn.textContent='Creating...';
 
-  // Build contacts list
   let contacts = [];
-  if (wizard.audienceType === 'people') {
+  if (wizard.audienceType==='people') {
     const urls = wizard.urlsPasted.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/in/'));
     contacts = urls.map(url => ({ li_profile_url: url }));
   } else {
     contacts = wizard.contacts.map(c => ({
       first_name: c.first_name || c.name?.split(' ')[0] || '',
-      last_name: c.last_name || c.name?.split(' ').slice(1).join(' ') || '',
-      company: c.company || '',
-      title: c.headline || c.title || '',
+      last_name:  c.last_name  || c.name?.split(' ').slice(1).join(' ') || '',
+      company:    c.company || '',
+      title:      c.headline || c.title || '',
       li_profile_url: c.public_profile_url || c.li_profile_url || '',
     }));
   }
@@ -484,8 +510,8 @@ async function createCampaign() {
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({
         workspace_id: workspaceId,
-        account_id: wizard.selectedAccount,
-        name: wizard.campaignName,
+        account_id:   wizard.selectedAccount,
+        name:         wizard.campaignName,
         audience_type: wizard.audienceType,
         contacts,
         settings: {
@@ -500,30 +526,33 @@ async function createCampaign() {
     await load();
   } catch(err) {
     alert('Failed to create campaign: ' + err.message);
-    btn.disabled = false; btn.textContent = 'Create campaign';
+    btn.disabled=false; btn.textContent='Create campaign';
   }
 }
 
-function openMsgDialog(canvas){
-  activeMsgCanvas=canvas;
-  const titles={new:'New contacts',existingNo:'Existing — no history',existingYes:'Existing — with history'};
-  document.getElementById('msg-dialog-title').textContent='Add message — '+titles[canvas];
-  document.getElementById('msg-text').value='';
-  document.getElementById('msg-delay-val').value=3;
-  document.getElementById('msg-delay-unit').value='days';
-  document.getElementById('msg-dialog').style.display='flex';
+// ── Message dialog ────────────────────────────────────────────────────────────
+function openMsgDialog(canvas) {
+  activeMsgCanvas = canvas;
+  const titles = { new:'New contacts', existingNo:'Existing — no history', existingYes:'Existing — with history' };
+  document.getElementById('msg-dialog-title').textContent = 'Add message — '+titles[canvas];
+  document.getElementById('msg-text').value = '';
+  document.getElementById('msg-delay-val').value = 3;
+  document.getElementById('msg-delay-unit').value = 'days';
+  document.getElementById('msg-dialog').style.display = 'flex';
 }
-function closeMsgDialog(){document.getElementById('msg-dialog').style.display='none';}
-function insertToken(t){const ta=document.getElementById('msg-text');const p=ta.selectionStart;ta.value=ta.value.slice(0,p)+t+ta.value.slice(p);ta.selectionStart=ta.selectionEnd=p+t.length;ta.focus();}
-function saveMsgDialog(){
+function closeMsgDialog() { document.getElementById('msg-dialog').style.display='none'; }
+function insertToken(t) {
+  const ta=document.getElementById('msg-text'), p=ta.selectionStart;
+  ta.value=ta.value.slice(0,p)+t+ta.value.slice(p);
+  ta.selectionStart=ta.selectionEnd=p+t.length; ta.focus();
+}
+function saveMsgDialog() {
   const text=document.getElementById('msg-text').value.trim();
   if (!text) return alert('Please write a message.');
-  const delay=document.getElementById('msg-delay-val').value;
-  const unit=document.getElementById('msg-delay-unit').value;
-  const msg={text,delay,unit};
-  if(activeMsgCanvas==='new') wizard.newMessages.push(msg);
+  const msg = { text, delay: document.getElementById('msg-delay-val').value, unit: document.getElementById('msg-delay-unit').value };
+  if(activeMsgCanvas==='new')        wizard.newMessages.push(msg);
   if(activeMsgCanvas==='existingNo') wizard.existingNoHistoryMessages.push(msg);
-  if(activeMsgCanvas==='existingYes') wizard.existingWithHistoryMessages.push(msg);
+  if(activeMsgCanvas==='existingYes')wizard.existingWithHistoryMessages.push(msg);
   closeMsgDialog(); renderStep();
 }
 
