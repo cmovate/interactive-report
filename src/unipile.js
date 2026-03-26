@@ -1,6 +1,5 @@
-const UNIPILE_DSN = process.env.UNIPILE_DSN;
+const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
-const UNIPILE_ACCOUNT_ID = process.env.UNIPILE_ACCOUNT_ID;
 
 async function request(endpoint, options = {}) {
   if (!UNIPILE_DSN || !UNIPILE_API_KEY) {
@@ -12,6 +11,7 @@ async function request(endpoint, options = {}) {
     headers: {
       'X-API-KEY': UNIPILE_API_KEY,
       'Content-Type': 'application/json',
+      'accept': 'application/json',
       ...options.headers,
     },
   });
@@ -33,7 +33,6 @@ async function getAccounts() {
 }
 
 // Search people inside a company by job titles
-// Uses POST /api/v1/linkedin/search?account_id=
 async function searchPeople(accountId, companyName, titles = []) {
   const keywords = titles.length
     ? `${titles.join(' OR ')} "${companyName}"`
@@ -54,13 +53,30 @@ async function searchPeople(accountId, companyName, titles = []) {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-// Get full LinkedIn profile for enrichment
-async function getFullProfile(accountId, linkedinUrl) {
-  const identifier = linkedinUrl.split('/in/')[1]?.replace(/\//g, '') || linkedinUrl;
-  const data = await request(
-    `/api/v1/linkedin/profile?account_id=${encodeURIComponent(accountId)}&identifier=${encodeURIComponent(identifier)}`
-  );
+/**
+ * Retrieve full LinkedIn profile using GET /api/v1/users/{identifier}
+ * with linkedin_sections=* to fetch ALL sections.
+ *
+ * identifier is extracted from li_profile_url:
+ *   https://www.linkedin.com/in/johndoe  →  johndoe
+ *
+ * @param {string} accountId   - Unipile account_id to perform the request from
+ * @param {string} li_profile_url - Full LinkedIn profile URL
+ */
+async function enrichProfile(accountId, li_profile_url) {
+  // Extract public_identifier from URL
+  // Handles: linkedin.com/in/johndoe, linkedin.com/in/johndoe/, /in/johndoe
+  const match = li_profile_url.match(/linkedin\.com\/in\/([^/?#]+)/);
+  const identifier = match ? match[1] : li_profile_url;
+
+  const params = new URLSearchParams({
+    account_id: accountId,
+    linkedin_sections: '*',   // all sections, full data
+    notify: 'false',          // do NOT notify the profile owner of a visit
+  });
+
+  const data = await request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
   return data;
 }
 
-module.exports = { getAccounts, searchPeople, getFullProfile };
+module.exports = { getAccounts, searchPeople, enrichProfile };
