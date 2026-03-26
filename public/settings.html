@@ -8,22 +8,30 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; font-size: 14px; }
 .page { padding: 28px; max-width: 1020px; }
-.page-header { margin-bottom: 28px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; }
 .page-title { font-size: 22px; font-weight: 600; }
 .page-sub { font-size: 14px; color: #666; margin-top: 4px; }
+.add-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 9px 18px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; }
+.add-btn:hover { background: #178f68; }
 .count { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+
+/* Account tiles */
 .accounts-rail { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 24px; }
-.account-tile { background: white; border: 0.5px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.account-tile { background: white; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border-color 0.15s; }
 .account-tile:hover { border-color: #b0ddd0; }
 .account-tile.active { border: 1.5px solid #1D9E75; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
-.status-dot.disconnected { background: #DC2626; }
 .account-avatar { width: 40px; height: 40px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #1E40AF; flex-shrink: 0; }
 .account-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-handle { font-size: 12px; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.add-tile { background: #fafafa; border: 0.5px dashed #d0d0d0; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; min-height: 76px; font-size: 14px; font-weight: 500; color: #aaa; }
-.add-tile:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
-.divider { height: 0.5px; background: #e5e5e5; margin-bottom: 24px; }
+.account-handle { font-size: 12px; color: #888; margin-top: 2px; }
+.tile-disconnect { margin-left: auto; background: none; border: none; color: #ddd; font-size: 18px; cursor: pointer; padding: 2px 4px; flex-shrink: 0; }
+.tile-disconnect:hover { color: #DC2626; }
+
+.empty-accounts { background: white; border: 1px dashed #e0e0e0; border-radius: 12px; padding: 40px 24px; text-align: center; color: #aaa; font-size: 14px; }
+
+.divider { height: 1px; background: #e5e5e5; margin-bottom: 24px; }
+
+/* Detail panel */
 .account-detail { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
 .detail-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
 .detail-head-left { display: flex; align-items: center; gap: 12px; }
@@ -40,7 +48,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .day-card.off { opacity: 0.4; }
 .day-head { display: flex; align-items: center; justify-content: space-between; }
 .day-name { font-size: 11px; font-weight: 500; color: #555; }
-.day-toggle { width: 28px; height: 16px; border-radius: 8px; background: #ddd; border: none; cursor: pointer; position: relative; }
+.day-toggle { width: 28px; height: 16px; border-radius: 8px; background: #ddd; border: none; cursor: pointer; position: relative; transition: background 0.15s; }
 .day-toggle.on { background: #1D9E75; }
 .day-toggle::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: left 0.15s; }
 .day-toggle.on::after { left: 14px; }
@@ -54,22 +62,60 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .save-btn:hover { background: #178f68; }
 .ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px 12px; font-size: 13px; color: #555; cursor: pointer; }
 .ghost-btn:hover { background: #f5f5f5; }
-.ghost-btn.danger:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
 .no-selection { border: 1px solid #e5e5e5; border-radius: 12px; padding: 48px 24px; text-align: center; color: #aaa; font-size: 14px; }
+
+/* Add account modal */
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.modal { background: white; border-radius: 14px; width: min(500px, 100%); padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.modal-sub { font-size: 13px; color: #888; margin-bottom: 20px; }
+.accounts-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-bottom: 20px; }
+.selectable-account { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1.5px solid #e5e5e5; border-radius: 10px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.selectable-account:hover { border-color: #1D9E75; background: #F0FBF7; }
+.selectable-account.selected { border-color: #1D9E75; background: #F0FBF7; }
+.selectable-account.already-added { opacity: 0.5; cursor: default; }
+.selectable-account.already-added:hover { border-color: #e5e5e5; background: white; }
+.sel-avatar { width: 36px; height: 36px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #1E40AF; flex-shrink: 0; }
+.sel-name { font-size: 14px; font-weight: 500; }
+.sel-handle { font-size: 12px; color: #888; margin-top: 1px; }
+.sel-badge { margin-left: auto; font-size: 11px; background: #f0f0f0; color: #888; border-radius: 999px; padding: 2px 8px; flex-shrink: 0; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.primary-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 9px 20px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; }
+.primary-btn:hover { background: #178f68; }
+.primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.loading { color: #888; font-size: 13px; padding: 20px 0; text-align: center; }
 .error-banner { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; color: #DC2626; font-size: 13px; margin-bottom: 16px; }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="page-header">
-    <div class="page-title">Settings</div>
-    <div class="page-sub">Connect LinkedIn accounts and configure limits per account</div>
+    <div>
+      <div class="page-title">Settings</div>
+      <div class="page-sub">Manage LinkedIn accounts connected to this workspace</div>
+    </div>
+    <button class="add-btn" onclick="openAddModal()">+ Add account</button>
   </div>
+
   <div id="error-area"></div>
   <div id="account-count" class="count"></div>
   <div id="accounts-rail" class="accounts-rail"></div>
   <div class="divider"></div>
   <div id="detail-area"></div>
+</div>
+
+<!-- Add account modal -->
+<div id="add-modal" class="modal-backdrop" style="display:none;">
+  <div class="modal">
+    <h3>Add account</h3>
+    <p class="modal-sub">Select a LinkedIn account from your Unipile connection to add to this workspace.</p>
+    <div id="modal-error" style="display:none;" class="error-banner"></div>
+    <div id="accounts-list" class="accounts-list"><div class="loading">Loading available accounts...</div></div>
+    <div class="modal-actions">
+      <button class="ghost-btn" onclick="closeAddModal()">Cancel</button>
+      <button class="primary-btn" id="confirm-add-btn" onclick="confirmAdd()" disabled>Add account</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -87,49 +133,61 @@ const DAYS = [{key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
 
-let unipileAccounts = [];
+let connectedAccounts = [];  // accounts saved in DB for this workspace
+let allUnipileAccounts = []; // all accounts available in Unipile
 let activeAccountId = null;
+let selectedToAdd = null;
 
 function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 async function load() {
   try {
-    const res = await fetch('/api/unipile/accounts');
+    const res = await fetch(`/api/workspaces/${workspaceId}/accounts`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    unipileAccounts = Array.isArray(data.items) ? data.items : [];
-    if (!activeAccountId && unipileAccounts.length) activeAccountId = unipileAccounts[0].id;
+    connectedAccounts = Array.isArray(data.items) ? data.items : [];
+    if (!activeAccountId && connectedAccounts.length) {
+      activeAccountId = connectedAccounts[0].account_id;
+    }
   } catch(err) {
-    document.getElementById('error-area').innerHTML = `<div class="error-banner">Could not load Unipile accounts: ${esc(err.message)}</div>`;
+    showError('Could not load accounts: ' + err.message);
   }
   renderRail();
   renderDetail();
 }
 
+function showError(msg) {
+  const el = document.getElementById('error-area');
+  el.innerHTML = msg ? `<div class="error-banner">${esc(msg)}</div>` : '';
+}
+
 function renderRail() {
-  const count = unipileAccounts.length;
-  document.getElementById('account-count').textContent = `${count} account${count!==1?'s':''} connected`;
+  const count = connectedAccounts.length;
+  document.getElementById('account-count').textContent =
+    count ? `${count} account${count!==1?'s':''} connected to this workspace` : '';
+
   const rail = document.getElementById('accounts-rail');
-  rail.innerHTML = unipileAccounts.map(acc => {
-    const name = acc.name || acc.username || acc.public_identifier || acc.id || 'Account';
-    const handle = acc.public_identifier ? `linkedin.com/in/${acc.public_identifier}` : acc.id;
-    const isActive = acc.id === activeAccountId;
-    const isOk = String(acc.connection_state||acc.status||'ok').toLowerCase().includes('ok') || !acc.connection_state;
-    return `
-      <div class="account-tile${isActive?' active':''}" onclick="selectAccount('${acc.id}')">
-        <div class="status-dot${isOk?'':' disconnected'}"></div>
-        <div class="account-avatar">${initials(name)}</div>
-        <div style="flex:1;min-width:0;">
-          <div class="account-name">${esc(name)}</div>
-          <div class="account-handle">${esc(handle)}</div>
-        </div>
-      </div>`;
-  }).join('') + `
-    <div class="add-tile">
-      <span style="font-size:18px;">+</span>
-      Connect another account
+  if (!count) {
+    rail.innerHTML = `<div class="empty-accounts" style="grid-column:1/-1;">
+      No accounts connected yet.<br>Click <strong>+ Add account</strong> to get started.
     </div>`;
+    return;
+  }
+
+  rail.innerHTML = connectedAccounts.map(acc => {
+    const isActive = acc.account_id === activeAccountId;
+    return `
+      <div class="account-tile${isActive?' active':''}" onclick="selectAccount('${acc.account_id}')">
+        <div class="status-dot"></div>
+        <div class="account-avatar">${initials(acc.display_name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="account-name">${esc(acc.display_name)}</div>
+          <div class="account-handle">${esc(acc.account_id)}</div>
+        </div>
+        <button class="tile-disconnect" onclick="event.stopPropagation();disconnectAccount('${acc.account_id}')" title="Disconnect">&times;</button>
+      </div>`;
+  }).join('');
 }
 
 function selectAccount(id) {
@@ -138,42 +196,55 @@ function selectAccount(id) {
   renderDetail();
 }
 
+async function disconnectAccount(accountId) {
+  if (!confirm('Disconnect this account from the workspace?')) return;
+  try {
+    await fetch(`/api/workspaces/${workspaceId}/accounts/${accountId}`, { method: 'DELETE' });
+    if (activeAccountId === accountId) activeAccountId = null;
+    await load();
+  } catch(err) {
+    showError('Failed to disconnect: ' + err.message);
+  }
+}
+
 function renderDetail() {
   const area = document.getElementById('detail-area');
-  const acc = unipileAccounts.find(a => a.id === activeAccountId);
-  if (!acc) {
-    area.innerHTML = unipileAccounts.length
-      ? '<div class="no-selection">Select an account above to configure it</div>'
-      : '<div class="no-selection">No LinkedIn accounts connected to Unipile yet.<br><br>Connect accounts at <strong>unipile.com</strong> then return here.</div>';
+  const acc = connectedAccounts.find(a => a.account_id === activeAccountId);
+
+  if (!connectedAccounts.length) {
+    area.innerHTML = '';
     return;
   }
-  const name = acc.name || acc.username || acc.id || 'Account';
-  const handle = acc.public_identifier ? `linkedin.com/in/${acc.public_identifier}` : acc.id;
+
+  if (!acc) {
+    area.innerHTML = '<div class="no-selection">Select an account above to configure its settings</div>';
+    return;
+  }
 
   const limitsHtml = LIMITS.map(l => `
     <div class="limit-row">
       <div class="limit-name">${l.label}</div>
       <input type="range" min="0" max="${l.max}" step="1" value="${l.default}"
-        id="limit-${acc.id}-${l.key}"
-        oninput="document.getElementById('lv-${acc.id}-${l.key}').textContent=this.value">
-      <div class="limit-val" id="lv-${acc.id}-${l.key}">${l.default}</div>
+        id="limit-${acc.account_id}-${l.key}"
+        oninput="document.getElementById('lv-${acc.account_id}-${l.key}').textContent=this.value">
+      <div class="limit-val" id="lv-${acc.account_id}-${l.key}">${l.default}</div>
     </div>`).join('');
 
   const daysHtml = DAYS.map((d,i) => {
     const on = i < 5;
     return `
-    <div class="day-card${on?'':' off'}" id="dc-${acc.id}-${d.key}">
+    <div class="day-card${on?'':' off'}" id="dc-${acc.account_id}-${d.key}">
       <div class="day-head">
         <span class="day-name">${d.label}</span>
-        <button class="day-toggle${on?' on':''}" id="dt-${acc.id}-${d.key}" onclick="toggleDay('${acc.id}','${d.key}')"></button>
+        <button class="day-toggle${on?' on':''}" id="dt-${acc.account_id}-${d.key}" onclick="toggleDay('${acc.account_id}','${d.key}')"></button>
       </div>
-      <div id="dts-${acc.id}-${d.key}" style="display:${on?'':'none'}">
+      <div id="dts-${acc.account_id}-${d.key}" style="display:${on?'':'none'}">
         <div class="time-inputs">
           <div class="time-row"><span class="time-label">from</span><input class="time-input" type="time" value="09:00"></div>
           <div class="time-row"><span class="time-label">to</span><input class="time-input" type="time" value="18:00"></div>
         </div>
       </div>
-      <div id="dof-${acc.id}-${d.key}" class="day-off-label" style="display:${on?'none':''}">off</div>
+      <div id="dof-${acc.account_id}-${d.key}" class="day-off-label" style="display:${on?'none':''}">off</div>
     </div>`;
   }).join('');
 
@@ -181,10 +252,13 @@ function renderDetail() {
     <div class="account-detail">
       <div class="detail-head">
         <div class="detail-head-left">
-          <div class="account-avatar">${initials(name)}</div>
-          <div><div class="detail-name">${esc(name)}</div><div class="detail-handle">${esc(handle)}</div></div>
+          <div class="account-avatar">${initials(acc.display_name)}</div>
+          <div>
+            <div class="detail-name">${esc(acc.display_name)}</div>
+            <div class="detail-handle">${esc(acc.account_id)}</div>
+          </div>
         </div>
-        <button class="ghost-btn danger">Disconnect</button>
+        <button class="ghost-btn" style="color:#DC2626;border-color:#FECACA;" onclick="disconnectAccount('${acc.account_id}')">Disconnect</button>
       </div>
       <div class="detail-body">
         <div>
@@ -196,7 +270,7 @@ function renderDetail() {
           <div class="days-grid">${daysHtml}</div>
         </div>
         <div class="save-row">
-          <button class="save-btn" onclick="alert('Settings saved')">Save settings</button>
+          <button class="save-btn" onclick="saveSettings('${acc.account_id}')">Save settings</button>
         </div>
       </div>
     </div>`;
@@ -208,11 +282,109 @@ function toggleDay(accountId, dayKey) {
   const times = document.getElementById(`dts-${accountId}-${dayKey}`);
   const off = document.getElementById(`dof-${accountId}-${dayKey}`);
   if (!toggle) return;
-  const nowOn = toggle.style.background === 'rgb(29, 158, 117)' ? false : !toggle.classList.contains('on');
+  const nowOn = !toggle.classList.contains('on');
   toggle.classList.toggle('on', nowOn);
   if (card) card.classList.toggle('off', !nowOn);
   if (times) times.style.display = nowOn ? '' : 'none';
   if (off) off.style.display = nowOn ? 'none' : '';
+}
+
+function saveSettings(accountId) {
+  // TODO: persist limits + hours to DB
+  alert('Settings saved');
+}
+
+// ── Add account modal ──────────────────────────────────────────────────────
+async function openAddModal() {
+  selectedToAdd = null;
+  document.getElementById('confirm-add-btn').disabled = true;
+  document.getElementById('modal-error').style.display = 'none';
+  document.getElementById('accounts-list').innerHTML = '<div class="loading">Loading available accounts...</div>';
+  document.getElementById('add-modal').style.display = 'flex';
+
+  try {
+    const res = await fetch('/api/unipile/accounts');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    allUnipileAccounts = Array.isArray(data.items) ? data.items : [];
+    renderAccountsList();
+  } catch(err) {
+    document.getElementById('accounts-list').innerHTML = '';
+    const errEl = document.getElementById('modal-error');
+    errEl.textContent = 'Could not load Unipile accounts: ' + err.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').style.display = 'none';
+  selectedToAdd = null;
+}
+
+function renderAccountsList() {
+  const connectedIds = new Set(connectedAccounts.map(a => a.account_id));
+  const list = document.getElementById('accounts-list');
+
+  if (!allUnipileAccounts.length) {
+    list.innerHTML = '<div class="loading">No LinkedIn accounts found in Unipile.</div>';
+    return;
+  }
+
+  list.innerHTML = allUnipileAccounts.map(acc => {
+    const name = acc.name || acc.username || acc.public_identifier || acc.id || 'Account';
+    const handle = acc.public_identifier ? `linkedin.com/in/${acc.public_identifier}` : acc.id;
+    const alreadyAdded = connectedIds.has(acc.id);
+    const isSelected = selectedToAdd === acc.id;
+    return `
+      <div class="selectable-account${isSelected?' selected':''}${alreadyAdded?' already-added':''}" onclick="${alreadyAdded?'':"selectToAdd('" + acc.id + "')"}">
+        <div class="sel-avatar">${initials(name)}</div>
+        <div>
+          <div class="sel-name">${esc(name)}</div>
+          <div class="sel-handle">${esc(handle)}</div>
+        </div>
+        ${alreadyAdded ? '<span class="sel-badge">Already added</span>' : ''}
+      </div>`;
+  }).join('');
+}
+
+function selectToAdd(accountId) {
+  selectedToAdd = accountId;
+  document.getElementById('confirm-add-btn').disabled = false;
+  renderAccountsList();
+}
+
+async function confirmAdd() {
+  if (!selectedToAdd) return;
+  const acc = allUnipileAccounts.find(a => a.id === selectedToAdd);
+  if (!acc) return;
+
+  const btn = document.getElementById('confirm-add-btn');
+  btn.disabled = true;
+  btn.textContent = 'Adding...';
+
+  try {
+    const name = acc.name || acc.username || acc.public_identifier || acc.id;
+    const res = await fetch(`/api/workspaces/${workspaceId}/accounts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account_id: acc.id,
+        display_name: name,
+        provider: 'linkedin',
+        status: acc.connection_state || acc.status || 'connected'
+      })
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    closeAddModal();
+    activeAccountId = acc.id;
+    await load();
+  } catch(err) {
+    const errEl = document.getElementById('modal-error');
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Add account';
+  }
 }
 
 load();
