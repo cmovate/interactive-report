@@ -15,30 +15,34 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .add-btn:hover { background: #178f68; }
 .count { font-size: 12px; color: #aaa; margin-bottom: 8px; }
 
-/* Account tiles */
-.accounts-rail { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.accounts-rail { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-bottom: 24px; }
 .account-tile { background: white; border: 1px solid #e5e5e5; border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: border-color 0.15s; }
 .account-tile:hover { border-color: #b0ddd0; }
 .account-tile.active { border: 1.5px solid #1D9E75; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
 .account-avatar { width: 40px; height: 40px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #1E40AF; flex-shrink: 0; }
 .account-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-handle { font-size: 12px; color: #888; margin-top: 2px; }
 .tile-disconnect { margin-left: auto; background: none; border: none; color: #ddd; font-size: 18px; cursor: pointer; padding: 2px 4px; flex-shrink: 0; }
 .tile-disconnect:hover { color: #DC2626; }
 
 .empty-accounts { background: white; border: 1px dashed #e0e0e0; border-radius: 12px; padding: 40px 24px; text-align: center; color: #aaa; font-size: 14px; }
-
 .divider { height: 1px; background: #e5e5e5; margin-bottom: 24px; }
 
-/* Detail panel */
 .account-detail { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
 .detail-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
 .detail-head-left { display: flex; align-items: center; gap: 12px; }
 .detail-name { font-size: 16px; font-weight: 500; }
-.detail-handle { font-size: 13px; color: #888; margin-top: 2px; }
 .detail-body { padding: 20px; display: flex; flex-direction: column; gap: 24px; }
 .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 12px; }
+
+/* Copy settings banner */
+.copy-banner { display: flex; align-items: center; gap: 12px; background: #F0FBF7; border: 1px solid #b0ddd0; border-radius: 10px; padding: 12px 16px; }
+.copy-banner-label { font-size: 13px; color: #1a5c45; font-weight: 500; white-space: nowrap; }
+.copy-select { flex: 1; padding: 7px 10px; border: 1px solid #b0ddd0; border-radius: 8px; font-size: 13px; background: white; font-family: inherit; cursor: pointer; color: #333; }
+.copy-select:focus { outline: none; border-color: #1D9E75; }
+.copy-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: white; cursor: pointer; white-space: nowrap; }
+.copy-btn:hover { background: #178f68; }
+
 .limits-grid { display: flex; flex-direction: column; gap: 12px; }
 .limit-row { display: grid; grid-template-columns: 170px 1fr 36px; align-items: center; gap: 12px; }
 .limit-name { font-size: 13px; color: #555; }
@@ -64,7 +68,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .ghost-btn:hover { background: #f5f5f5; }
 .no-selection { border: 1px solid #e5e5e5; border-radius: 12px; padding: 48px 24px; text-align: center; color: #aaa; font-size: 14px; }
 
-/* Add account modal */
+/* Modal */
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .modal { background: white; border-radius: 14px; width: min(500px, 100%); padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .modal h3 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
@@ -77,7 +81,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .selectable-account.already-added:hover { border-color: #e5e5e5; background: white; }
 .sel-avatar { width: 36px; height: 36px; border-radius: 50%; background: #DBEAFE; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: #1E40AF; flex-shrink: 0; }
 .sel-name { font-size: 14px; font-weight: 500; }
-.sel-handle { font-size: 12px; color: #888; margin-top: 1px; }
 .sel-badge { margin-left: auto; font-size: 11px; background: #f0f0f0; color: #888; border-radius: 999px; padding: 2px 8px; flex-shrink: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .primary-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 9px 20px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; }
@@ -96,7 +99,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
     <button class="add-btn" onclick="openAddModal()">+ Add account</button>
   </div>
-
   <div id="error-area"></div>
   <div id="account-count" class="count"></div>
   <div id="accounts-rail" class="accounts-rail"></div>
@@ -121,26 +123,37 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <script>
 const LIMITS = [
   { key:'connection_requests', label:'Connection requests', max:75, default:20 },
-  { key:'messages', label:'Messages', max:100, default:30 },
-  { key:'inmails', label:'InMails', max:25, default:8 },
-  { key:'profile_views', label:'Profile views', max:200, default:50 },
-  { key:'likes', label:'Post likes', max:50, default:15 },
-  { key:'followings', label:'Follows', max:50, default:15 },
+  { key:'messages',            label:'Messages',            max:100, default:30 },
+  { key:'inmails',             label:'InMails',             max:25,  default:8  },
+  { key:'profile_views',       label:'Profile views',       max:200, default:50 },
+  { key:'likes',               label:'Post likes',          max:50,  default:15 },
+  { key:'followings',          label:'Follows',             max:50,  default:15 },
   { key:'company_follow_invites', label:'Company follow invites', max:50, default:10 },
 ];
-const DAYS = [{key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},{key:'4',label:'Thu'},{key:'5',label:'Fri'},{key:'6',label:'Sat'},{key:'7',label:'Sun'}];
+const DAYS = [
+  {key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},
+  {key:'4',label:'Thu'},{key:'5',label:'Fri'},{key:'6',label:'Sat'},{key:'7',label:'Sun'}
+];
 
-const params = new URLSearchParams(window.location.search);
-const workspaceId = params.get('workspace_id');
+const urlParams = new URLSearchParams(window.location.search);
+const workspaceId = urlParams.get('workspace_id');
 
-let connectedAccounts = [];  // accounts saved in DB for this workspace
-let allUnipileAccounts = []; // all accounts available in Unipile
+// In-memory settings store: { [accountId]: { limits: {}, hours: {} } }
+const settingsStore = {};
+
+let connectedAccounts = [];
+let allUnipileAccounts = [];
 let activeAccountId = null;
 let selectedToAdd = null;
 
-function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function initials(n) {
+  return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
 
+// ── Load ──────────────────────────────────────────────────────────────────────
 async function load() {
   try {
     const res = await fetch(`/api/workspaces/${workspaceId}/accounts`);
@@ -162,6 +175,7 @@ function showError(msg) {
   el.innerHTML = msg ? `<div class="error-banner">${esc(msg)}</div>` : '';
 }
 
+// ── Rail ──────────────────────────────────────────────────────────────────────
 function renderRail() {
   const count = connectedAccounts.length;
   document.getElementById('account-count').textContent =
@@ -177,13 +191,13 @@ function renderRail() {
 
   rail.innerHTML = connectedAccounts.map(acc => {
     const isActive = acc.account_id === activeAccountId;
+    // Show only display_name — no account ID visible
     return `
       <div class="account-tile${isActive?' active':''}" onclick="selectAccount('${acc.account_id}')">
         <div class="status-dot"></div>
         <div class="account-avatar">${initials(acc.display_name)}</div>
         <div style="flex:1;min-width:0;">
           <div class="account-name">${esc(acc.display_name)}</div>
-          <div class="account-handle">${esc(acc.account_id)}</div>
         </div>
         <button class="tile-disconnect" onclick="event.stopPropagation();disconnectAccount('${acc.account_id}')" title="Disconnect">&times;</button>
       </div>`;
@@ -200,67 +214,84 @@ async function disconnectAccount(accountId) {
   if (!confirm('Disconnect this account from the workspace?')) return;
   try {
     await fetch(`/api/workspaces/${workspaceId}/accounts/${accountId}`, { method: 'DELETE' });
-    if (activeAccountId === accountId) activeAccountId = null;
+    if (activeAccountId === accountId) activeAccountId = connectedAccounts.find(a => a.account_id !== accountId)?.account_id || null;
     await load();
   } catch(err) {
     showError('Failed to disconnect: ' + err.message);
   }
 }
 
+// ── Detail ────────────────────────────────────────────────────────────────────
 function renderDetail() {
   const area = document.getElementById('detail-area');
   const acc = connectedAccounts.find(a => a.account_id === activeAccountId);
 
-  if (!connectedAccounts.length) {
-    area.innerHTML = '';
-    return;
-  }
-
+  if (!connectedAccounts.length) { area.innerHTML = ''; return; }
   if (!acc) {
     area.innerHTML = '<div class="no-selection">Select an account above to configure its settings</div>';
     return;
   }
 
+  // Ensure settings entry exists
+  if (!settingsStore[acc.account_id]) {
+    settingsStore[acc.account_id] = {
+      limits: Object.fromEntries(LIMITS.map(l => [l.key, l.default])),
+      hours: Object.fromEntries(DAYS.map((d,i) => [d.key, { on: i < 5, from: '09:00', to: '18:00' }]))
+    };
+  }
+
+  const cfg = settingsStore[acc.account_id];
+
+  // Other accounts (for copy settings)
+  const others = connectedAccounts.filter(a => a.account_id !== acc.account_id);
+  const copyBannerHtml = others.length > 0 ? `
+    <div class="copy-banner">
+      <span class="copy-banner-label">Copy settings from</span>
+      <select class="copy-select" id="copy-select-${acc.account_id}">
+        <option value="">Select an account...</option>
+        ${others.map(o => `<option value="${o.account_id}">${esc(o.display_name)}</option>`).join('')}
+      </select>
+      <button class="copy-btn" onclick="copySettingsFrom('${acc.account_id}')">Copy</button>
+    </div>` : '';
+
   const limitsHtml = LIMITS.map(l => `
     <div class="limit-row">
       <div class="limit-name">${l.label}</div>
-      <input type="range" min="0" max="${l.max}" step="1" value="${l.default}"
+      <input type="range" min="0" max="${l.max}" step="1"
+        value="${cfg.limits[l.key]}"
         id="limit-${acc.account_id}-${l.key}"
-        oninput="document.getElementById('lv-${acc.account_id}-${l.key}').textContent=this.value">
-      <div class="limit-val" id="lv-${acc.account_id}-${l.key}">${l.default}</div>
+        oninput="updateLimit('${acc.account_id}','${l.key}',this.value)">
+      <div class="limit-val" id="lv-${acc.account_id}-${l.key}">${cfg.limits[l.key]}</div>
     </div>`).join('');
 
-  const daysHtml = DAYS.map((d,i) => {
-    const on = i < 5;
+  const daysHtml = DAYS.map(d => {
+    const h = cfg.hours[d.key];
     return `
-    <div class="day-card${on?'':' off'}" id="dc-${acc.account_id}-${d.key}">
+    <div class="day-card${h.on?'':' off'}" id="dc-${acc.account_id}-${d.key}">
       <div class="day-head">
         <span class="day-name">${d.label}</span>
-        <button class="day-toggle${on?' on':''}" id="dt-${acc.account_id}-${d.key}" onclick="toggleDay('${acc.account_id}','${d.key}')"></button>
+        <button class="day-toggle${h.on?' on':''}" id="dt-${acc.account_id}-${d.key}" onclick="toggleDay('${acc.account_id}','${d.key}')"></button>
       </div>
-      <div id="dts-${acc.account_id}-${d.key}" style="display:${on?'':'none'}">
+      <div id="dts-${acc.account_id}-${d.key}" style="display:${h.on?'':'none'}">
         <div class="time-inputs">
-          <div class="time-row"><span class="time-label">from</span><input class="time-input" type="time" value="09:00"></div>
-          <div class="time-row"><span class="time-label">to</span><input class="time-input" type="time" value="18:00"></div>
+          <div class="time-row"><span class="time-label">from</span><input class="time-input" type="time" value="${h.from}" onchange="updateHour('${acc.account_id}','${d.key}','from',this.value)"></div>
+          <div class="time-row"><span class="time-label">to</span><input class="time-input" type="time" value="${h.to}" onchange="updateHour('${acc.account_id}','${d.key}','to',this.value)"></div>
         </div>
       </div>
-      <div id="dof-${acc.account_id}-${d.key}" class="day-off-label" style="display:${on?'none':''}">off</div>
-    </div>`;
-  }).join('');
+      <div id="dof-${acc.account_id}-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div>
+    </div>`; }).join('');
 
   area.innerHTML = `
     <div class="account-detail">
       <div class="detail-head">
         <div class="detail-head-left">
           <div class="account-avatar">${initials(acc.display_name)}</div>
-          <div>
-            <div class="detail-name">${esc(acc.display_name)}</div>
-            <div class="detail-handle">${esc(acc.account_id)}</div>
-          </div>
+          <div><div class="detail-name">${esc(acc.display_name)}</div></div>
         </div>
         <button class="ghost-btn" style="color:#DC2626;border-color:#FECACA;" onclick="disconnectAccount('${acc.account_id}')">Disconnect</button>
       </div>
       <div class="detail-body">
+        ${copyBannerHtml}
         <div>
           <div class="section-label">Daily action limits</div>
           <div class="limits-grid">${limitsHtml}</div>
@@ -276,25 +307,66 @@ function renderDetail() {
     </div>`;
 }
 
+// ── Settings helpers ──────────────────────────────────────────────────────────
+function updateLimit(accountId, key, value) {
+  if (!settingsStore[accountId]) return;
+  settingsStore[accountId].limits[key] = parseInt(value);
+  const el = document.getElementById(`lv-${accountId}-${key}`);
+  if (el) el.textContent = value;
+}
+
+function updateHour(accountId, dayKey, field, value) {
+  if (!settingsStore[accountId]) return;
+  settingsStore[accountId].hours[dayKey][field] = value;
+}
+
 function toggleDay(accountId, dayKey) {
+  if (!settingsStore[accountId]) return;
+  const h = settingsStore[accountId].hours[dayKey];
+  h.on = !h.on;
   const toggle = document.getElementById(`dt-${accountId}-${dayKey}`);
-  const card = document.getElementById(`dc-${accountId}-${dayKey}`);
-  const times = document.getElementById(`dts-${accountId}-${dayKey}`);
-  const off = document.getElementById(`dof-${accountId}-${dayKey}`);
-  if (!toggle) return;
-  const nowOn = !toggle.classList.contains('on');
-  toggle.classList.toggle('on', nowOn);
-  if (card) card.classList.toggle('off', !nowOn);
-  if (times) times.style.display = nowOn ? '' : 'none';
-  if (off) off.style.display = nowOn ? 'none' : '';
+  const card   = document.getElementById(`dc-${accountId}-${dayKey}`);
+  const times  = document.getElementById(`dts-${accountId}-${dayKey}`);
+  const off    = document.getElementById(`dof-${accountId}-${dayKey}`);
+  if (toggle) toggle.classList.toggle('on', h.on);
+  if (card)   card.classList.toggle('off', !h.on);
+  if (times)  times.style.display = h.on ? '' : 'none';
+  if (off)    off.style.display   = h.on ? 'none' : '';
+}
+
+function copySettingsFrom(targetAccountId) {
+  const select = document.getElementById(`copy-select-${targetAccountId}`);
+  const sourceId = select?.value;
+  if (!sourceId) return;
+
+  const source = settingsStore[sourceId];
+  if (!source) return;
+
+  // Deep copy
+  settingsStore[targetAccountId] = {
+    limits: { ...source.limits },
+    hours:  Object.fromEntries(Object.entries(source.hours).map(([k,v]) => [k, {...v}]))
+  };
+
+  // Re-render detail to reflect copied values
+  renderDetail();
+
+  // Visual feedback
+  const btn = document.querySelector(`#copy-select-${targetAccountId}`)?.closest('.copy-banner')?.querySelector('.copy-btn');
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.style.background = '#178f68';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = ''; }, 1500);
+  }
 }
 
 function saveSettings(accountId) {
-  // TODO: persist limits + hours to DB
-  alert('Settings saved');
+  // TODO: persist to DB
+  alert('Settings saved for ' + (connectedAccounts.find(a=>a.account_id===accountId)?.display_name || accountId));
 }
 
-// ── Add account modal ──────────────────────────────────────────────────────
+// ── Add account modal ─────────────────────────────────────────────────────────
 async function openAddModal() {
   selectedToAdd = null;
   document.getElementById('confirm-add-btn').disabled = true;
@@ -331,16 +403,16 @@ function renderAccountsList() {
   }
 
   list.innerHTML = allUnipileAccounts.map(acc => {
-    const name = acc.name || acc.username || acc.public_identifier || acc.id || 'Account';
-    const handle = acc.public_identifier ? `linkedin.com/in/${acc.public_identifier}` : acc.id;
+    // Show only the name — no ID
+    const name = acc.name || acc.username || acc.public_identifier || 'Account';
     const alreadyAdded = connectedIds.has(acc.id);
     const isSelected = selectedToAdd === acc.id;
     return `
-      <div class="selectable-account${isSelected?' selected':''}${alreadyAdded?' already-added':''}" onclick="${alreadyAdded?'':"selectToAdd('" + acc.id + "')"}">
+      <div class="selectable-account${isSelected?' selected':''}${alreadyAdded?' already-added':''}"
+        onclick="${alreadyAdded ? '' : `selectToAdd('${acc.id}')`}">
         <div class="sel-avatar">${initials(name)}</div>
         <div>
           <div class="sel-name">${esc(name)}</div>
-          <div class="sel-handle">${esc(handle)}</div>
         </div>
         ${alreadyAdded ? '<span class="sel-badge">Already added</span>' : ''}
       </div>`;
