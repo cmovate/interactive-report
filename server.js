@@ -20,6 +20,11 @@ app.use('/api/unipile', unipileRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/contacts', contactsRouter);
 
+// Catch-all: serve index.html for SPA routing
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
