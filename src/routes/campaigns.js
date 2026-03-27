@@ -5,6 +5,7 @@ const { searchPeople }       = require('../unipile');
 const { enqueue, getStatus } = require('../enrichment');
 const { countSentThisMonth } = require('../companyFollowSender');
 const engagementScraper      = require('../engagementScraper');
+const likeSender             = require('../likeSender');
 
 // GET /api/campaigns?workspace_id=
 router.get('/', async (req, res) => {
@@ -13,15 +14,17 @@ router.get('/', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const { rows } = await db.query(
       `SELECT c.*,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id)                                              AS contact_count,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true)                       AS invites_sent,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true)                   AS invites_approved,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent = true)                         AS messages_sent,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_replied = true)                      AS messages_replied,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND positive_reply = true)                   AS positive_replies,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_invited = true)           AS follow_invited,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_confirmed = true)         AS follow_confirmed,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND last_profile_view_at IS NOT NULL)        AS profile_views
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id)                                         AS contact_count,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true)                  AS invites_sent,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true)              AS invites_approved,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent = true)                     AS messages_sent,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_replied = true)                  AS messages_replied,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND positive_reply = true)               AS positive_replies,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_invited = true)       AS follow_invited,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_confirmed = true)     AS follow_confirmed,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND last_profile_view_at IS NOT NULL)    AS profile_views,
+        (SELECT COALESCE(SUM(post_likes_sent),0)    FROM contacts WHERE campaign_id = c.id)              AS total_post_likes,
+        (SELECT COALESCE(SUM(comment_likes_sent),0) FROM contacts WHERE campaign_id = c.id)              AS total_comment_likes
        FROM campaigns c WHERE c.workspace_id = $1 ORDER BY c.created_at DESC`,
       [workspace_id]
     );
@@ -52,8 +55,8 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, 'active') RETURNING *`,
       [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {})]
     );
-    const campaign  = rows[0];
-    const toEnrich  = [];
+    const campaign = rows[0];
+    const toEnrich = [];
     if (Array.isArray(contacts) && contacts.length > 0) {
       for (const c of contacts) {
         const { rows: ins } = await db.query(
@@ -77,48 +80,52 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/campaigns/:id/scrape-engagement
-// Triggers engagement scraping for a single campaign.
-// Body: {} (empty) or { force: true } to re-scrape already-classified contacts
 router.post('/:id/scrape-engagement', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
     if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-
-    // If force=true, reset engagement_level for this campaign so all contacts are re-scraped
     if (req.body?.force) {
       await db.query(
-        `UPDATE contacts SET engagement_level = NULL, engagement_scraped_at = NULL
-         WHERE campaign_id = $1`,
+        'UPDATE contacts SET engagement_level = NULL, engagement_scraped_at = NULL WHERE campaign_id = $1',
         [campaignId]
       );
-      console.log(`[API] Reset engagement for campaign ${campaignId}`);
     }
+    engagementScraper.run(campaignId)
+      .then(r => console.log(`[API] Scrape done campaign ${campaignId}:`, JSON.stringify(r)))
+      .catch(e => console.error(`[API] Scrape error:`, e.message));
+    res.json({ status: 'started', campaign_id: campaignId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    // Run scraper asynchronously (non-blocking)
-    engagementScraper.run(campaignId).then(result => {
-      console.log(`[API] Engagement scrape done for campaign ${campaignId}:`, JSON.stringify(result));
-    }).catch(err => {
-      console.error(`[API] Engagement scrape error for campaign ${campaignId}:`, err.message);
-    });
-
+// POST /api/campaigns/:id/send-likes
+// Manually trigger the like sender for a campaign.
+// Body: { force: true } to re-like already-liked contacts.
+router.post('/:id/send-likes', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    likeSender.run(campaignId, { force: !!req.body?.force })
+      .then(r => console.log(`[API] Likes done campaign ${campaignId}:`, JSON.stringify(r)))
+      .catch(e => console.error(`[API] Likes error:`, e.message));
     res.json({ status: 'started', campaign_id: campaignId });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/campaigns/:id/engagement-stats
-// Returns engagement classification counts for a campaign.
 router.get('/:id/engagement-stats', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
     const { rows } = await db.query(
       `SELECT
-         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')      AS un_engaged,
-         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged')  AS average_engaged,
-         COUNT(*) FILTER (WHERE engagement_level = 'engaged')          AS engaged,
-         COUNT(*) FILTER (WHERE engagement_level IS NULL
-                            AND provider_id IS NOT NULL)               AS not_yet_scraped,
-         COUNT(*) FILTER (WHERE provider_id IS NULL)                   AS not_enriched,
-         COUNT(*)                                                       AS total
+         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')     AS un_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged') AS average_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'engaged')         AS engaged,
+         COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS not_yet_scraped,
+         COUNT(*) FILTER (WHERE provider_id IS NULL)                  AS not_enriched,
+         COALESCE(SUM(post_likes_sent),0)                             AS total_post_likes,
+         COALESCE(SUM(comment_likes_sent),0)                          AS total_comment_likes,
+         COUNT(*) FILTER (WHERE post_likes_sent > 0 OR comment_likes_sent > 0) AS contacts_liked,
+         COUNT(*)                                                      AS total
        FROM contacts WHERE campaign_id = $1`,
       [campaignId]
     );
