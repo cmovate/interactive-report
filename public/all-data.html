@@ -60,13 +60,13 @@ tr:last-child td { border-bottom: none; }
 .check-col { width: 44px; text-align: center; padding: 12px 8px; }
 .bool-yes  { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
 .bool-no   { display: inline-block; background: #f5f5f5; color: #aaa; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
-/* Company follow — 3-state badge */
 .follow-confirmed { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
 .follow-invited   { display: inline-block; background: #FEF9E7; color: #B7770D; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
 .follow-none      { display: inline-block; background: #f5f5f5; color: #aaa; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
-/* Profile views count badge */
 .pv-count { display: inline-block; background: #EEF2FF; color: #4338CA; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; min-width: 24px; text-align: center; }
 .pv-none  { display: inline-block; background: #f5f5f5; color: #aaa; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+.provider-id { display: inline-block; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 10px; background: #F3F4F6; color: #374151; border-radius: 4px; padding: 2px 6px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+.provider-id-missing { display: inline-block; background: #FEF3C7; color: #92400E; border-radius: 4px; padding: 2px 6px; font-size: 10px; }
 .cell-link { color: #1D9E75; text-decoration: none; font-size: 12px; }
 .cell-link:hover { text-decoration: underline; }
 .cell-muted { color: #aaa; font-size: 12px; }
@@ -127,6 +127,7 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
           <th style="min-width:200px;">Email</th>
           <th style="min-width:180px;">Website</th>
           <th style="min-width:160px;">Campaign</th>
+          <th style="min-width:200px;" title="LinkedIn internal ID — needed for posts/comments API">Provider ID</th>
           <th style="min-width:100px;text-align:center;">Invite sent</th>
           <th style="min-width:110px;text-align:center;">Invite approved</th>
           <th style="min-width:110px;text-align:center;">Message sent</th>
@@ -168,7 +169,6 @@ let prevContactHash  = '';
 
 const AUTO_REFRESH_MS = 30 * 1000;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '0%'; }
 function safeUrl(url) {
@@ -181,28 +181,35 @@ function formatTime(d) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-/**
- * Profile views — shows the count (1, 2, 3...) or — if never viewed.
- */
 function pvBadge(count) {
   const n = parseInt(count) || 0;
   if (n > 0) return `<span class="pv-count">${n}</span>`;
-  return '<span class="pv-none">—</span>';
+  return '<span class="pv-none">\u2014</span>';
 }
 
-/**
- * Company follow status — 3 states:
- *   confirmed → green  "Following"
- *   invited   → yellow "Invited"
- *   none      → grey   "—"
- */
 function followBadge(invited, confirmed) {
   if (confirmed) return '<span class="follow-confirmed">Following</span>';
   if (invited)   return '<span class="follow-invited">Invited</span>';
-  return '<span class="follow-none">—</span>';
+  return '<span class="follow-none">\u2014</span>';
 }
 
-// Hash includes every visible field for smart diff detection
+/**
+ * Provider ID badge:
+ *   - Grey mono pill  if present (ACoXXX)
+ *   - Yellow warning  if enriched but provider_id not in DB (shouldn't happen with new code)
+ *   - Dash            if not yet enriched
+ */
+function providerIdBadge(providerId, profileData) {
+  if (providerId) {
+    return `<span class="provider-id" title="${esc(providerId)}">${esc(providerId)}</span>`;
+  }
+  const hasProfile = profileData && profileData !== '{}' && profileData !== 'null';
+  if (hasProfile) {
+    return '<span class="provider-id-missing" title="Enriched but provider_id not found">\u26a0 not found</span>';
+  }
+  return '<span class="cell-muted">\u2014</span>';
+}
+
 function hashContacts(contacts) {
   return contacts.map(c =>
     [c.id,
@@ -210,13 +217,13 @@ function hashContacts(contacts) {
      c.msg_sent?1:0, c.msg_replied?1:0, c.positive_reply?1:0,
      c.profile_view_count||0,
      c.company_follow_invited?1:0, c.company_follow_confirmed?1:0,
+     c.provider_id||'',
      c.first_name, c.last_name, c.title, c.company,
      c.email, c.website, c.li_profile_url, c.li_company_url
     ].join(':')
   ).join('|');
 }
 
-// ── Load ──────────────────────────────────────────────────────────────────────
 async function load(silent) {
   try {
     const [cRes, campRes] = await Promise.all([
@@ -228,7 +235,6 @@ async function load(silent) {
     const newContacts  = Array.isArray(cData.items)    ? cData.items    : [];
     const newCampaigns = Array.isArray(campData.items) ? campData.items : [];
 
-    // Detect changed rows for flash animation
     const changedIds = new Set();
     if (allContacts.length > 0) {
       const prevMap = Object.fromEntries(allContacts.map(c => [c.id, c]));
@@ -243,6 +249,7 @@ async function load(silent) {
           (prev.profile_view_count||0)  !== (c.profile_view_count||0)  ||
           prev.company_follow_invited   !== c.company_follow_invited   ||
           prev.company_follow_confirmed !== c.company_follow_confirmed ||
+          (prev.provider_id||'')        !== (c.provider_id||'')        ||
           prev.first_name               !== c.first_name               ||
           prev.last_name                !== c.last_name                ||
           prev.title                    !== c.title                    ||
@@ -253,12 +260,11 @@ async function load(silent) {
       }
     }
 
-    const newHash    = hashContacts(newContacts);
+    const newHash     = hashContacts(newContacts);
     const dataChanged = newHash !== prevContactHash;
-
-    allContacts     = newContacts;
-    campaigns       = newCampaigns;
-    prevContactHash = newHash;
+    allContacts       = newContacts;
+    campaigns         = newCampaigns;
+    prevContactHash   = newHash;
 
     const sel  = document.getElementById('campaign-filter');
     const prev = sel.value;
@@ -267,7 +273,6 @@ async function load(silent) {
     if (prev) sel.value = prev;
 
     if (dataChanged || !silent) applyFilters(changedIds);
-
     document.getElementById('last-updated').textContent = 'Updated ' + formatTime(new Date());
   } catch(e) { console.error(e); }
   updateEnrichStatus();
@@ -289,7 +294,6 @@ async function manualRefresh() {
   icon.innerHTML = '&#x21BB;';
 }
 
-// ── Enrichment status pill ────────────────────────────────────────────────────
 async function updateEnrichStatus() {
   try {
     const res  = await fetch('/api/campaigns/enrichment-status');
@@ -307,14 +311,13 @@ async function updateEnrichStatus() {
   } catch(e) { document.getElementById('enrich-status').innerHTML = ''; }
 }
 
-// ── Filters ───────────────────────────────────────────────────────────────────
 function applyFilters(flashIds) {
   const q   = document.getElementById('search-input').value.trim().toLowerCase();
   const cid = document.getElementById('campaign-filter').value;
   filteredContacts = allContacts.filter(r => {
     if (cid && String(r.campaign_id) !== String(cid)) return false;
     if (q) {
-      const hay = [r.first_name, r.last_name, r.company, r.title, r.email, r.website].join(' ').toLowerCase();
+      const hay = [r.first_name, r.last_name, r.company, r.title, r.email, r.website, r.provider_id].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -325,26 +328,27 @@ function applyFilters(flashIds) {
   renderBulkBar();
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
 function renderStats() {
   const f = filteredContacts;
-  const invited   = f.filter(r => r.company_follow_invited).length;
-  const confirmed = f.filter(r => r.company_follow_confirmed).length;
-  const followVal = confirmed > 0
+  const invited        = f.filter(r => r.company_follow_invited).length;
+  const confirmed      = f.filter(r => r.company_follow_confirmed).length;
+  const followVal      = confirmed > 0
     ? `${confirmed} confirmed / ${invited} invited`
     : `${invited} invited`;
-  const totalViews = f.reduce((sum, r) => sum + (parseInt(r.profile_view_count)||0), 0);
+  const totalViews     = f.reduce((sum, r) => sum + (parseInt(r.profile_view_count)||0), 0);
   const viewedContacts = f.filter(r => (parseInt(r.profile_view_count)||0) > 0).length;
+  const enrichedCount  = f.filter(r => r.provider_id).length;
 
   const chips = [
-    { label: 'Total contacts',  val: f.length },
-    { label: 'Invites sent',    val: f.filter(r=>r.invite_sent).length },
-    { label: 'Approved',        val: `${f.filter(r=>r.invite_approved).length} (${pct(f.filter(r=>r.invite_approved).length, f.filter(r=>r.invite_sent).length)})` },
-    { label: 'Messages sent',   val: f.filter(r=>r.msg_sent).length },
-    { label: 'Replied',         val: `${f.filter(r=>r.msg_replied).length} (${pct(f.filter(r=>r.msg_replied).length, f.filter(r=>r.msg_sent).length)})` },
-    { label: 'Positive',        val: f.filter(r=>r.positive_reply).length },
-    { label: 'Profile views',   val: `${totalViews} views / ${viewedContacts} contacts` },
-    { label: 'Company follow',  val: followVal },
+    { label: 'Total contacts', val: f.length },
+    { label: 'Invites sent',   val: f.filter(r=>r.invite_sent).length },
+    { label: 'Approved',       val: `${f.filter(r=>r.invite_approved).length} (${pct(f.filter(r=>r.invite_approved).length, f.filter(r=>r.invite_sent).length)})` },
+    { label: 'Messages sent',  val: f.filter(r=>r.msg_sent).length },
+    { label: 'Replied',        val: `${f.filter(r=>r.msg_replied).length} (${pct(f.filter(r=>r.msg_replied).length, f.filter(r=>r.msg_sent).length)})` },
+    { label: 'Positive',       val: f.filter(r=>r.positive_reply).length },
+    { label: 'Profile views',  val: `${totalViews} views / ${viewedContacts} contacts` },
+    { label: 'Company follow', val: followVal },
+    { label: 'Enriched',       val: `${enrichedCount} / ${f.length}` },
   ].map(s=>`<div class="stat-chip"><strong>${s.val}</strong>${s.label}</div>`).join('');
 
   const statsRow = document.getElementById('stats-row');
@@ -353,14 +357,13 @@ function renderStats() {
   if (badge) statsRow.appendChild(badge);
 }
 
-// ── Table ─────────────────────────────────────────────────────────────────────
 function renderTable(flashIds) {
   const tbody = document.getElementById('table-body');
   document.getElementById('check-all').checked =
     filteredContacts.length > 0 && selectedIds.size === filteredContacts.length;
 
   if (!filteredContacts.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="18">No contacts match your filters</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="19">No contacts match your filters</td></tr>`;
     return;
   }
 
@@ -391,6 +394,7 @@ function renderTable(flashIds) {
       <td>${r.email ? esc(r.email) : '<span class="cell-muted">\u2014</span>'}</td>
       <td>${website}</td>
       <td style="font-size:12px;color:#888;">${esc(campaign?.name||'\u2014')}</td>
+      <td>${providerIdBadge(r.provider_id, r.profile_data)}</td>
       <td style="text-align:center;">${bool(r.invite_sent)}</td>
       <td style="text-align:center;">${bool(r.invite_approved)}</td>
       <td style="text-align:center;">${bool(r.msg_sent)}</td>
@@ -403,7 +407,6 @@ function renderTable(flashIds) {
   }).join('');
 }
 
-// ── Selection ─────────────────────────────────────────────────────────────────
 function toggleRow(id, checked) {
   if (checked) selectedIds.add(String(id)); else selectedIds.delete(String(id));
   const row = document.getElementById('row-'+id);
@@ -425,7 +428,6 @@ function renderBulkBar() {
   document.getElementById('bulk-total').textContent = filteredContacts.length;
 }
 
-// ── Delete ────────────────────────────────────────────────────────────────────
 function askDeleteOne(id) {
   const r = allContacts.find(c => String(c.id)===String(id));
   pendingDeleteIds = [id];
@@ -456,16 +458,16 @@ async function confirmDelete() {
   await load(false);
 }
 
-// ── Export CSV ────────────────────────────────────────────────────────────────
 function exportCSV() {
   const labels = [
-    'First name', 'Last name', 'Job title', 'Company',
-    'LinkedIn profile', 'LinkedIn company',
-    'Email', 'Website', 'Campaign',
-    'Invite sent', 'Invite approved',
-    'Message sent', 'Replied', 'Positive reply',
+    'First name','Last name','Job title','Company',
+    'LinkedIn profile','LinkedIn company',
+    'Email','Website','Campaign',
+    'Provider ID',
+    'Invite sent','Invite approved',
+    'Message sent','Replied','Positive reply',
     'Profile views',
-    'Company follow invited', 'Company follow confirmed'
+    'Company follow invited','Company follow confirmed'
   ];
   const toExport = selectedIds.size > 0
     ? filteredContacts.filter(r => selectedIds.has(String(r.id)))
@@ -477,6 +479,7 @@ function exportCSV() {
       r.li_profile_url||'', r.li_company_url||'',
       r.email||'', r.website||'',
       campaign?.name||'',
+      r.provider_id||'',
       r.invite_sent    ?'Yes':'No',
       r.invite_approved?'Yes':'No',
       r.msg_sent       ?'Yes':'No',
@@ -497,6 +500,12 @@ function exportCSV() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 load(false);
+
+// Silently trigger re-extract on page load to populate provider_id for all existing contacts
+fetch(`/api/contacts/re-extract?workspace_id=${workspaceId}`, { method: 'POST' })
+  .then(r => r.json())
+  .then(d => { if (d.updated > 0) setTimeout(() => load(true), 3000); })
+  .catch(() => {});
 </script>
 </body>
 </html>
