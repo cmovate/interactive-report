@@ -32,61 +32,60 @@ app.use('/api/webhooks',   webhooksRouter);
 app.use('/api/followers',  followersRouter);
 app.use('/api/stats',      statsRouter);
 
-// Each migration step runs independently — one failure never blocks the rest
-async function safeRun(label, fn) {
-  try {
-    await fn();
-  } catch (err) {
-    console.error(`[DB] ${label}: ${err.message}`);
-  }
+// Each step is independent — one failure never blocks the rest
+async function s(label, fn) {
+  try { await fn(); }
+  catch (err) { console.error(`[DB] ${label}: ${err.message}`); }
 }
 
 (async () => {
-  // ── Core tables ────────────────────────────────────────────────────────────
-  await safeRun('workspaces', () => db.query(`
+
+  // ── Core tables (NO foreign keys in CREATE — added separately below) ───────
+  await s('workspaces', () => db.query(`
     CREATE TABLE IF NOT EXISTS workspaces (
-      id SERIAL PRIMARY KEY,
+      id   SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `));
 
-  await safeRun('unipile_accounts', () => db.query(`
+  await s('unipile_accounts', () => db.query(`
     CREATE TABLE IF NOT EXISTS unipile_accounts (
-      id SERIAL PRIMARY KEY,
-      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
-      account_id VARCHAR(255) NOT NULL UNIQUE,
+      id           SERIAL PRIMARY KEY,
+      workspace_id INTEGER,
+      account_id   VARCHAR(255) NOT NULL UNIQUE,
       display_name VARCHAR(255),
-      provider VARCHAR(50) DEFAULT 'linkedin',
-      status VARCHAR(50),
-      webhook_id VARCHAR(255),
-      settings JSONB DEFAULT '{}',
-      created_at TIMESTAMP DEFAULT NOW()
+      provider     VARCHAR(50)  DEFAULT 'linkedin',
+      status       VARCHAR(50),
+      webhook_id   VARCHAR(255),
+      settings     JSONB DEFAULT '{}',
+      created_at   TIMESTAMP DEFAULT NOW()
     )
   `));
 
-  await safeRun('campaigns', () => db.query(`
+  await s('campaigns', () => db.query(`
     CREATE TABLE IF NOT EXISTS campaigns (
-      id SERIAL PRIMARY KEY,
-      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
-      account_id VARCHAR(255),
-      name VARCHAR(255) NOT NULL,
-      status VARCHAR(50) DEFAULT 'active',
+      id            SERIAL PRIMARY KEY,
+      workspace_id  INTEGER,
+      account_id    VARCHAR(255),
+      name          VARCHAR(255) NOT NULL,
+      status        VARCHAR(50)  DEFAULT 'active',
       audience_type VARCHAR(50),
-      settings JSONB DEFAULT '{}',
-      created_at TIMESTAMP DEFAULT NOW()
+      settings      JSONB DEFAULT '{}',
+      created_at    TIMESTAMP DEFAULT NOW()
     )
   `));
 
-  await safeRun('contacts', () => db.query(`
+  // contacts created WITHOUT FK constraints to avoid "cannot be implemented" error
+  await s('contacts', () => db.query(`
     CREATE TABLE IF NOT EXISTS contacts (
-      id SERIAL PRIMARY KEY,
-      campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
-      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
-      first_name VARCHAR(255), last_name VARCHAR(255),
-      company VARCHAR(255), title VARCHAR(255),
+      id          SERIAL PRIMARY KEY,
+      campaign_id INTEGER,
+      workspace_id INTEGER,
+      first_name  VARCHAR(255), last_name VARCHAR(255),
+      company     VARCHAR(255), title     VARCHAR(255),
       li_profile_url TEXT, li_company_url TEXT,
-      email VARCHAR(255), website VARCHAR(255), location VARCHAR(255),
+      email       VARCHAR(255), website   VARCHAR(255), location VARCHAR(255),
       profile_data JSONB DEFAULT '{}',
       invite_sent              BOOLEAN DEFAULT FALSE,
       invite_approved          BOOLEAN DEFAULT FALSE,
@@ -108,25 +107,25 @@ async function safeRun(label, fn) {
     )
   `));
 
-  await safeRun('company_followers', () => db.query(`
+  await s('company_followers', () => db.query(`
     CREATE TABLE IF NOT EXISTS company_followers (
-      id SERIAL PRIMARY KEY,
-      account_id VARCHAR(255) NOT NULL,
-      follower_id VARCHAR(255) NOT NULL,
+      id           SERIAL PRIMARY KEY,
+      account_id   VARCHAR(255) NOT NULL,
+      follower_id  VARCHAR(255) NOT NULL,
       follower_urn VARCHAR(255),
-      name VARCHAR(255),
-      headline TEXT,
-      profile_url TEXT,
-      first_seen_at TIMESTAMP DEFAULT NOW(),
+      name         VARCHAR(255),
+      headline     TEXT,
+      profile_url  TEXT,
+      first_seen_at       TIMESTAMP DEFAULT NOW(),
       first_seen_position INTEGER,
-      scraped_at TIMESTAMP DEFAULT NOW(),
+      scraped_at   TIMESTAMP DEFAULT NOW(),
       UNIQUE(account_id, follower_id)
     )
   `));
 
-  await safeRun('campaign_daily_stats', () => db.query(`
+  await s('campaign_daily_stats', () => db.query(`
     CREATE TABLE IF NOT EXISTS campaign_daily_stats (
-      id SERIAL PRIMARY KEY,
+      id               SERIAL PRIMARY KEY,
       snapshot_date    DATE         NOT NULL,
       campaign_id      INTEGER      NOT NULL,
       workspace_id     INTEGER,
@@ -147,11 +146,11 @@ async function safeRun(label, fn) {
     )
   `));
 
-  await safeRun('company_page_daily_stats', () => db.query(`
+  await s('company_page_daily_stats', () => db.query(`
     CREATE TABLE IF NOT EXISTS company_page_daily_stats (
-      id SERIAL PRIMARY KEY,
-      snapshot_date   DATE          NOT NULL,
-      account_id      VARCHAR(255)  NOT NULL,
+      id              SERIAL PRIMARY KEY,
+      snapshot_date   DATE         NOT NULL,
+      account_id      VARCHAR(255) NOT NULL,
       workspace_id    INTEGER,
       total_followers INTEGER DEFAULT 0,
       updated_at      TIMESTAMP DEFAULT NOW(),
@@ -161,50 +160,54 @@ async function safeRun(label, fn) {
 
   // ── Indexes ────────────────────────────────────────────────────────────────
   const indexes = [
-    'CREATE INDEX IF NOT EXISTS idx_contacts_campaign         ON contacts(campaign_id)',
-    'CREATE INDEX IF NOT EXISTS idx_contacts_workspace        ON contacts(workspace_id)',
-    'CREATE INDEX IF NOT EXISTS idx_campaigns_workspace       ON campaigns(workspace_id)',
-    'CREATE INDEX IF NOT EXISTS idx_contacts_li_profile       ON contacts(li_profile_url)',
-    'CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent      ON contacts(invite_sent)',
-    'CREATE INDEX IF NOT EXISTS idx_contacts_approved         ON contacts(invite_approved)',
-    'CREATE INDEX IF NOT EXISTS idx_contacts_profile_view     ON contacts(last_profile_view_at)',
-    'CREATE INDEX IF NOT EXISTS idx_followers_account         ON company_followers(account_id)',
-    'CREATE INDEX IF NOT EXISTS idx_followers_profile         ON company_followers(profile_url)',
-    'CREATE INDEX IF NOT EXISTS idx_followers_first_seen      ON company_followers(first_seen_at)',
-    'CREATE INDEX IF NOT EXISTS idx_daily_stats_date          ON campaign_daily_stats(snapshot_date)',
-    'CREATE INDEX IF NOT EXISTS idx_daily_stats_campaign      ON campaign_daily_stats(campaign_id)',
-    'CREATE INDEX IF NOT EXISTS idx_daily_stats_workspace     ON campaign_daily_stats(workspace_id)',
-    'CREATE INDEX IF NOT EXISTS idx_page_stats_date           ON company_page_daily_stats(snapshot_date)',
+    ['idx_contacts_campaign',    'contacts(campaign_id)'],
+    ['idx_contacts_workspace',   'contacts(workspace_id)'],
+    ['idx_campaigns_workspace',  'campaigns(workspace_id)'],
+    ['idx_contacts_li_profile',  'contacts(li_profile_url)'],
+    ['idx_contacts_invite_sent', 'contacts(invite_sent)'],
+    ['idx_contacts_approved',    'contacts(invite_approved)'],
+    ['idx_contacts_profile_view','contacts(last_profile_view_at)'],
+    ['idx_followers_account',    'company_followers(account_id)'],
+    ['idx_followers_profile',    'company_followers(profile_url)'],
+    ['idx_followers_first_seen', 'company_followers(first_seen_at)'],
+    ['idx_daily_stats_date',     'campaign_daily_stats(snapshot_date)'],
+    ['idx_daily_stats_campaign', 'campaign_daily_stats(campaign_id)'],
+    ['idx_daily_stats_workspace','campaign_daily_stats(workspace_id)'],
+    ['idx_page_stats_date',      'company_page_daily_stats(snapshot_date)'],
   ];
-  for (const sql of indexes) {
-    await safeRun(sql.split(' ')[6], () => db.query(sql));
+  for (const [name, col] of indexes) {
+    await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  // ── Migration columns — each independent ──────────────────────────────────
-  const migrations = [
-    ["ua.webhook_id",          "ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)"],
-    ["ua.settings",            "ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'"],
-    ["campaigns.workspace_id", "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS workspace_id INTEGER"],
-    ["campaigns.account_id",   "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS account_id VARCHAR(255)"],
-    ["campaigns.settings",     "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'"],
-    ["campaigns.status",       "ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'active'"],
-    ["contacts.follow_invited",    "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited BOOLEAN DEFAULT FALSE"],
-    ["contacts.follow_confirmed",  "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed BOOLEAN DEFAULT FALSE"],
-    ["contacts.profile_view_at",   "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS last_profile_view_at TIMESTAMP"],
-    ["contacts.profile_view_count","ALTER TABLE contacts ADD COLUMN IF NOT EXISTS profile_view_count INTEGER DEFAULT 0"],
-    ["contacts.invite_sent_at",    "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP"],
-    ["contacts.invite_approved_at","ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_approved_at TIMESTAMP"],
-    ["contacts.msg_sent_at",       "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_sent_at TIMESTAMP"],
-    ["contacts.msg_replied_at",    "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_replied_at TIMESTAMP"],
-    ["contacts.positive_reply_at", "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS positive_reply_at TIMESTAMP"],
-    ["contacts.cf_invited_at",     "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited_at TIMESTAMP"],
-    ["contacts.cf_confirmed_at",   "ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed_at TIMESTAMP"],
-    ["followers.first_seen_at",    "ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMP DEFAULT NOW()"],
-    ["followers.first_seen_pos",   "ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_position INTEGER"],
-    ["daily_stats.profile_views",  "ALTER TABLE campaign_daily_stats ADD COLUMN IF NOT EXISTS profile_views INTEGER DEFAULT 0"],
+  // ── Migration: add missing columns (each independent) ────────────────────
+  const cols = [
+    ['ua.webhook_id',           'unipile_accounts', 'webhook_id',   'VARCHAR(255)'],
+    ['ua.settings',             'unipile_accounts', 'settings',     "JSONB DEFAULT '{}'"],
+    ['campaigns.workspace_id',  'campaigns',        'workspace_id', 'INTEGER'],
+    ['campaigns.account_id',    'campaigns',        'account_id',   'VARCHAR(255)'],
+    ['campaigns.settings',      'campaigns',        'settings',     "JSONB DEFAULT '{}'"],
+    ['campaigns.status',        'campaigns',        'status',       "VARCHAR(50) DEFAULT 'active'"],
+    ['contacts.campaign_id',    'contacts',         'campaign_id',  'INTEGER'],
+    ['contacts.workspace_id',   'contacts',         'workspace_id', 'INTEGER'],
+    ['contacts.follow_inv',     'contacts',         'company_follow_invited',   'BOOLEAN DEFAULT FALSE'],
+    ['contacts.follow_conf',    'contacts',         'company_follow_confirmed', 'BOOLEAN DEFAULT FALSE'],
+    ['contacts.pv_at',          'contacts',         'last_profile_view_at',     'TIMESTAMP'],
+    ['contacts.pv_count',       'contacts',         'profile_view_count',       'INTEGER DEFAULT 0'],
+    ['contacts.inv_sent_at',    'contacts',         'invite_sent_at',           'TIMESTAMP'],
+    ['contacts.inv_appr_at',    'contacts',         'invite_approved_at',       'TIMESTAMP'],
+    ['contacts.msg_sent_at',    'contacts',         'msg_sent_at',              'TIMESTAMP'],
+    ['contacts.msg_rep_at',     'contacts',         'msg_replied_at',           'TIMESTAMP'],
+    ['contacts.pos_rep_at',     'contacts',         'positive_reply_at',        'TIMESTAMP'],
+    ['contacts.cf_inv_at',      'contacts',         'company_follow_invited_at',   'TIMESTAMP'],
+    ['contacts.cf_conf_at',     'contacts',         'company_follow_confirmed_at', 'TIMESTAMP'],
+    ['followers.fsa',           'company_followers','first_seen_at',      'TIMESTAMP DEFAULT NOW()'],
+    ['followers.fsp',           'company_followers','first_seen_position', 'INTEGER'],
+    ['daily.profile_views',     'campaign_daily_stats','profile_views',   'INTEGER DEFAULT 0'],
   ];
-  for (const [label, sql] of migrations) {
-    await safeRun(label, () => db.query(sql));
+  for (const [label, table, col, type] of cols) {
+    await s(label, () => db.query(
+      `ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`
+    ));
   }
 
   console.log('[DB] Schema and migrations complete');
