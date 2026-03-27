@@ -1,6 +1,12 @@
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
 
+// Valid linkedin_sections values (confirmed from API error response):
+// '*' | '*_preview' | 'about' | 'experience' | 'education' | 'languages' |
+// 'skills' | 'certifications' | 'volunteering_experience' | 'projects' |
+// 'recommendations_received' | 'recommendations_given' | 'recruiting_activity'
+// and *_preview variants of each
+
 async function request(endpoint, options = {}) {
   if (!UNIPILE_DSN || !UNIPILE_API_KEY) {
     throw new Error('UNIPILE_DSN and UNIPILE_API_KEY must be set in .env');
@@ -45,9 +51,8 @@ async function searchPeople(accountId, companyName, titles = []) {
 }
 
 /**
- * Retrieve full LinkedIn profile.
- * When notify=true, LinkedIn notifies the profile owner that someone viewed their profile.
- * This is the mechanism used for the "View profile" engagement action.
+ * Retrieve full LinkedIn profile (for enrichment).
+ * notify=false by default — does NOT trigger a "profile view" notification.
  *
  * CONFIRMED field mapping:
  *   work_experience[0].position  => title
@@ -69,14 +74,21 @@ async function enrichProfile(accountId, li_profile_url, notify = false) {
 
 /**
  * View a LinkedIn profile — triggers a "profile view" notification to the contact.
- * Uses enrichProfile with notify=true.
- * Returns the profile data (can be used for enrichment too).
+ *
+ * TESTED & CONFIRMED:
+ *   GET /api/v1/users/{identifier}?account_id=X&linkedin_sections=*_preview&notify=true
+ *   Returns 200 + UserProfile object.
+ *   linkedin_sections='*_preview' is the minimal valid section (faster than '*').
+ *   linkedin_sections='profile' is NOT valid — rejected by API with 400.
+ *
+ * @param {string} accountId   - Unipile account ID
+ * @param {string} identifier  - LinkedIn public identifier (e.g. "danielle-naomi-beker")
  */
 async function viewProfile(accountId, identifier) {
   const params = new URLSearchParams({
     account_id:        accountId,
-    linkedin_sections: 'profile', // minimal — we only need the view, not full data
-    notify:            'true',
+    linkedin_sections: '*_preview', // FIX: 'profile' is invalid — use '*_preview'
+    notify:            'true',       // This triggers the LinkedIn profile view notification
   });
   return request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
 }
