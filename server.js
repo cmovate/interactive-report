@@ -4,11 +4,12 @@ const cors    = require('cors');
 const path    = require('path');
 const db      = require('./src/db');
 
-const workspacesRouter = require('./src/routes/workspaces');
-const unipileRouter    = require('./src/routes/unipile');
-const campaignsRouter  = require('./src/routes/campaigns');
-const contactsRouter   = require('./src/routes/contacts');
-const webhooksRouter   = require('./src/routes/webhooks');
+const workspacesRouter   = require('./src/routes/workspaces');
+const unipileRouter      = require('./src/routes/unipile');
+const campaignsRouter    = require('./src/routes/campaigns');
+const contactsRouter     = require('./src/routes/contacts');
+const webhooksRouter     = require('./src/routes/webhooks');
+const invitationSender   = require('./src/invitationSender');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -27,7 +28,6 @@ app.use('/api/webhooks',   webhooksRouter);
 // Auto-run full schema + migration on every startup (all IF NOT EXISTS — safe to run repeatedly)
 (async () => {
   try {
-    // Full schema
     await db.query(`CREATE TABLE IF NOT EXISTS workspaces (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -42,6 +42,7 @@ app.use('/api/webhooks',   webhooksRouter);
       status VARCHAR(50),
       webhook_id VARCHAR(255),
       invite_sent_at TIMESTAMP,
+      settings JSONB DEFAULT '{}',
       created_at TIMESTAMP DEFAULT NOW()
     )`);
     await db.query(`CREATE TABLE IF NOT EXISTS campaigns (
@@ -49,7 +50,7 @@ app.use('/api/webhooks',   webhooksRouter);
       workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
       account_id VARCHAR(255),
       name VARCHAR(255) NOT NULL,
-      status VARCHAR(50) DEFAULT 'draft',
+      status VARCHAR(50) DEFAULT 'active',
       audience_type VARCHAR(50),
       settings JSONB DEFAULT '{}',
       created_at TIMESTAMP DEFAULT NOW()
@@ -73,6 +74,7 @@ app.use('/api/webhooks',   webhooksRouter);
       msg_sent BOOLEAN DEFAULT FALSE,
       msg_replied BOOLEAN DEFAULT FALSE,
       positive_reply BOOLEAN DEFAULT FALSE,
+      invite_sent_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW()
     )`);
     // Indexes
@@ -81,13 +83,18 @@ app.use('/api/webhooks',   webhooksRouter);
     await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile ON contacts(li_profile_url)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent ON contacts(invite_sent)');
-    // Migration columns (safe — IF NOT EXISTS)
+    // Migration — safe to run repeatedly
     await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)');
     await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP');
+    await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT \'{}\'');
+    await db.query('ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP');
     console.log('[DB] Schema and migrations applied successfully');
   } catch (err) {
     console.error('[DB] Migration error:', err.message);
   }
+
+  // Start the invitation sender scheduler
+  invitationSender.start();
 })();
 
 // Catch-all: serve index.html for SPA routing
