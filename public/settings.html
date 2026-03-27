@@ -38,12 +38,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .copy-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: white; cursor: pointer; white-space: nowrap; }
 .copy-btn:hover { background: #178f68; }
 .limits-grid { display: flex; flex-direction: column; gap: 12px; }
-.limit-row { display: grid; grid-template-columns: 180px 1fr 36px; align-items: center; gap: 12px; }
+.limit-row { display: grid; grid-template-columns: 200px 1fr 36px; align-items: center; gap: 12px; }
 .limit-name { font-size: 13px; color: #555; }
-.limit-val { font-size: 13px; font-weight: 500; text-align: right; }
-.save-row { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px solid #f0f0f0; }
+.limit-val { font-size: 13px; font-weight: 600; text-align: right; color: #1a1a1a; }
+.save-row { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid #f0f0f0; }
 .save-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 8px 20px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; }
 .save-btn:hover { background: #178f68; }
+.save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.save-feedback { font-size: 13px; color: #0F6E56; font-weight: 500; opacity: 0; transition: opacity 0.3s; }
+.save-feedback.visible { opacity: 1; }
 .ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px 12px; font-size: 13px; color: #555; cursor: pointer; }
 .ghost-btn:hover { background: #f5f5f5; }
 .no-selection { border: 1px solid #e5e5e5; border-radius: 12px; padding: 48px 24px; text-align: center; color: #aaa; font-size: 14px; }
@@ -84,7 +87,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div id="detail-area"></div>
 </div>
 
-<!-- Add account modal -->
 <div id="add-modal" class="modal-backdrop" style="display:none;">
   <div class="modal">
     <h3>Add account</h3>
@@ -112,8 +114,8 @@ const LIMITS = [
 const urlParams = new URLSearchParams(window.location.search);
 const workspaceId = urlParams.get('workspace_id');
 
-// In-memory settings store: { [accountId]: { limits: {} } }
-const settingsStore = {};
+// In-memory limits store: populated from DB on load, written back on Save
+const limitsStore = {};
 
 let connectedAccounts = [];
 let allUnipileAccounts = [];
@@ -129,6 +131,15 @@ async function load() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     connectedAccounts = Array.isArray(data.items) ? data.items : [];
+
+    // Populate limitsStore from DB for each account
+    for (const acc of connectedAccounts) {
+      const dbLimits = acc.settings?.limits || {};
+      limitsStore[acc.account_id] = Object.fromEntries(
+        LIMITS.map(l => [l.key, dbLimits[l.key] ?? l.default])
+      );
+    }
+
     if (!activeAccountId && connectedAccounts.length) {
       activeAccountId = connectedAccounts[0].account_id;
     }
@@ -172,6 +183,7 @@ async function disconnectAccount(accountId) {
   try {
     await fetch(`/api/workspaces/${workspaceId}/accounts/${accountId}`, { method: 'DELETE' });
     if (activeAccountId === accountId) activeAccountId = connectedAccounts.find(a => a.account_id !== accountId)?.account_id || null;
+    delete limitsStore[accountId];
     await load();
   } catch(err) { showError('Failed to disconnect: ' + err.message); }
 }
@@ -184,12 +196,13 @@ function renderDetail() {
     area.innerHTML = '<div class="no-selection">Select an account above to configure its settings</div>';
     return;
   }
-  if (!settingsStore[acc.account_id]) {
-    settingsStore[acc.account_id] = {
-      limits: Object.fromEntries(LIMITS.map(l => [l.key, l.default]))
-    };
+
+  // Ensure store has defaults if not yet populated
+  if (!limitsStore[acc.account_id]) {
+    limitsStore[acc.account_id] = Object.fromEntries(LIMITS.map(l => [l.key, l.default]));
   }
-  const cfg = settingsStore[acc.account_id];
+  const lim = limitsStore[acc.account_id];
+
   const others = connectedAccounts.filter(a => a.account_id !== acc.account_id);
   const copyBannerHtml = others.length > 0 ? `
     <div class="copy-banner">
@@ -198,17 +211,17 @@ function renderDetail() {
         <option value="">Select an account...</option>
         ${others.map(o => `<option value="${o.account_id}">${esc(o.display_name)}</option>`).join('')}
       </select>
-      <button class="copy-btn" onclick="copySettingsFrom('${acc.account_id}')">Copy</button>
+      <button class="copy-btn" onclick="copyLimitsFrom('${acc.account_id}')">Copy</button>
     </div>` : '';
 
   const limitsHtml = LIMITS.map(l => `
     <div class="limit-row">
       <div class="limit-name">${l.label}</div>
       <input type="range" min="0" max="${l.max}" step="1"
-        value="${cfg.limits[l.key]}"
+        value="${lim[l.key]}"
         id="limit-${acc.account_id}-${l.key}"
         oninput="updateLimit('${acc.account_id}','${l.key}',this.value)">
-      <div class="limit-val" id="lv-${acc.account_id}-${l.key}">${cfg.limits[l.key]}</div>
+      <div class="limit-val" id="lv-${acc.account_id}-${l.key}">${lim[l.key]}</div>
     </div>`).join('');
 
   area.innerHTML = `
@@ -224,30 +237,29 @@ function renderDetail() {
         ${copyBannerHtml}
         <div>
           <div class="section-label">Daily action limits</div>
-          <div style="font-size:12px;color:#888;margin-bottom:12px;">Working hours are configured per campaign in the campaign wizard.</div>
+          <div style="font-size:12px;color:#888;margin-bottom:14px;">Working hours are configured per campaign in the campaign wizard.</div>
           <div class="limits-grid">${limitsHtml}</div>
         </div>
         <div class="save-row">
-          <button class="save-btn" onclick="saveSettings('${acc.account_id}')">Save settings</button>
+          <span class="save-feedback" id="save-feedback-${acc.account_id}">&#10003; Saved</span>
+          <button class="save-btn" id="save-btn-${acc.account_id}" onclick="saveSettings('${acc.account_id}')">Save settings</button>
         </div>
       </div>
     </div>`;
 }
 
 function updateLimit(accountId, key, value) {
-  if (!settingsStore[accountId]) return;
-  settingsStore[accountId].limits[key] = parseInt(value);
+  if (!limitsStore[accountId]) return;
+  limitsStore[accountId][key] = parseInt(value);
   const el = document.getElementById(`lv-${accountId}-${key}`);
   if (el) el.textContent = value;
 }
 
-function copySettingsFrom(targetAccountId) {
+function copyLimitsFrom(targetAccountId) {
   const select = document.getElementById(`copy-select-${targetAccountId}`);
   const sourceId = select?.value;
-  if (!sourceId) return;
-  const source = settingsStore[sourceId];
-  if (!source) return;
-  settingsStore[targetAccountId] = { limits: { ...source.limits } };
+  if (!sourceId || !limitsStore[sourceId]) return;
+  limitsStore[targetAccountId] = { ...limitsStore[sourceId] };
   renderDetail();
   const btn = document.querySelector(`#copy-select-${targetAccountId}`)?.closest('.copy-banner')?.querySelector('.copy-btn');
   if (btn) {
@@ -258,9 +270,33 @@ function copySettingsFrom(targetAccountId) {
   }
 }
 
-function saveSettings(accountId) {
-  // TODO: persist limits to DB via PATCH /api/workspaces/:id/accounts/:accountId
-  alert('Settings saved for ' + (connectedAccounts.find(a=>a.account_id===accountId)?.display_name || accountId));
+async function saveSettings(accountId) {
+  const btn = document.getElementById(`save-btn-${accountId}`);
+  const feedback = document.getElementById(`save-feedback-${accountId}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+  try {
+    const limits = limitsStore[accountId];
+    const res = await fetch(
+      `/api/workspaces/${workspaceId}/accounts/${accountId}/settings`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limits })
+      }
+    );
+    if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+
+    // Show saved feedback
+    if (feedback) {
+      feedback.classList.add('visible');
+      setTimeout(() => feedback.classList.remove('visible'), 2000);
+    }
+  } catch(err) {
+    alert('Failed to save settings: ' + err.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save settings'; }
+  }
 }
 
 async function openAddModal() {

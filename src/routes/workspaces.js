@@ -10,9 +10,7 @@ router.get('/', async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM workspaces ORDER BY created_at ASC');
     res.json({ items: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/workspaces
@@ -25,15 +23,12 @@ router.post('/', async (req, res) => {
       [name.trim()]
     );
     res.status(201).json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/workspaces/:id
 router.delete('/:id', async (req, res) => {
   try {
-    // Delete webhooks for all accounts in this workspace before deleting
     const { rows: accounts } = await db.query(
       'SELECT account_id, webhook_id FROM unipile_accounts WHERE workspace_id = $1',
       [req.params.id]
@@ -41,14 +36,11 @@ router.delete('/:id', async (req, res) => {
     for (const acc of accounts) {
       if (acc.webhook_id) {
         await deleteWebhook(acc.webhook_id);
-        console.log(`[Workspace] Deleted webhook ${acc.webhook_id} for account ${acc.account_id}`);
       }
     }
     await db.query('DELETE FROM workspaces WHERE id = $1', [req.params.id]);
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/workspaces/:id/accounts
@@ -59,19 +51,15 @@ router.get('/:id/accounts', async (req, res) => {
       [req.params.id]
     );
     res.json({ items: rows });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/workspaces/:id/accounts
-// Connect a Unipile account to this workspace + auto-create new_relation webhook
 router.post('/:id/accounts', async (req, res) => {
   try {
     const { account_id, display_name, provider, status } = req.body;
     if (!account_id) return res.status(400).json({ error: 'account_id is required' });
 
-    // Check if already connected
     const existing = await db.query(
       'SELECT id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
       [req.params.id, account_id]
@@ -80,14 +68,12 @@ router.post('/:id/accounts', async (req, res) => {
       return res.status(409).json({ error: 'Account already connected to this workspace' });
     }
 
-    // Create webhook in Unipile for new_relation events
     let webhookId = null;
     try {
       webhookId = await createRelationWebhook(account_id, SERVER_URL);
       console.log(`[Workspace] Created webhook ${webhookId} for account ${account_id}`);
     } catch (err) {
-      // Don't fail the whole request if webhook creation fails
-      console.warn(`[Workspace] Could not create webhook for account ${account_id}: ${err.message}`);
+      console.warn(`[Workspace] Could not create webhook for ${account_id}: ${err.message}`);
     }
 
     const { rows } = await db.query(
@@ -97,32 +83,48 @@ router.post('/:id/accounts', async (req, res) => {
        provider || 'linkedin', status || 'connected', webhookId]
     );
     res.status(201).json(rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/workspaces/:id/accounts/:accountId/settings
+// Saves daily action limits for an account to the DB.
+// Body: { limits: { connection_requests, messages, profile_views, ... } }
+router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
+  try {
+    const { limits } = req.body;
+    if (!limits || typeof limits !== 'object') {
+      return res.status(400).json({ error: 'limits object required' });
+    }
+    // Merge into existing settings JSONB — only overwrite the limits key
+    const { rows } = await db.query(
+      `UPDATE unipile_accounts
+       SET settings = settings || jsonb_build_object('limits', $1::jsonb)
+       WHERE workspace_id = $2 AND account_id = $3
+       RETURNING *`,
+      [JSON.stringify(limits), req.params.id, req.params.accountId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Account not found' });
+    console.log(`[Settings] Saved limits for account ${req.params.accountId}:`, limits);
+    res.json({ success: true, settings: rows[0].settings });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // DELETE /api/workspaces/:id/accounts/:accountId
-// Disconnect account + delete its webhook from Unipile
 router.delete('/:id/accounts/:accountId', async (req, res) => {
   try {
-    // Get webhook_id before deleting
     const { rows } = await db.query(
       'SELECT webhook_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
       [req.params.id, req.params.accountId]
     );
     if (rows.length > 0 && rows[0].webhook_id) {
       await deleteWebhook(rows[0].webhook_id);
-      console.log(`[Workspace] Deleted webhook ${rows[0].webhook_id} for account ${req.params.accountId}`);
     }
     await db.query(
       'DELETE FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
       [req.params.id, req.params.accountId]
     );
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
