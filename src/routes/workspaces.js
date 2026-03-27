@@ -1,7 +1,9 @@
 const express = require('express');
-const router = express.Router();
-const db = require('../db');
-const { getAccounts } = require('../unipile');
+const router  = express.Router();
+const db      = require('../db');
+const { createRelationWebhook, deleteWebhook } = require('../unipile');
+
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
 // GET /api/workspaces
 router.get('/', async (req, res) => {
@@ -31,8 +33,18 @@ router.post('/', async (req, res) => {
 // DELETE /api/workspaces/:id
 router.delete('/:id', async (req, res) => {
   try {
-    const { id } = req.params;
-    await db.query('DELETE FROM workspaces WHERE id = $1', [id]);
+    // Delete webhooks for all accounts in this workspace before deleting
+    const { rows: accounts } = await db.query(
+      'SELECT account_id, webhook_id FROM unipile_accounts WHERE workspace_id = $1',
+      [req.params.id]
+    );
+    for (const acc of accounts) {
+      if (acc.webhook_id) {
+        await deleteWebhook(acc.webhook_id);
+        console.log(`[Workspace] Deleted webhook ${acc.webhook_id} for account ${acc.account_id}`);
+      }
+    }
+    await db.query('DELETE FROM workspaces WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -40,7 +52,6 @@ router.delete('/:id', async (req, res) => {
 });
 
 // GET /api/workspaces/:id/accounts
-// Returns accounts that have been explicitly connected to this workspace
 router.get('/:id/accounts', async (req, res) => {
   try {
     const { rows } = await db.query(
@@ -54,7 +65,7 @@ router.get('/:id/accounts', async (req, res) => {
 });
 
 // POST /api/workspaces/:id/accounts
-// Connect a Unipile account to this workspace
+// Connect a Unipile account to this workspace + auto-create new_relation webhook
 router.post('/:id/accounts', async (req, res) => {
   try {
     const { account_id, display_name, provider, status } = req.body;
@@ -69,10 +80,21 @@ router.post('/:id/accounts', async (req, res) => {
       return res.status(409).json({ error: 'Account already connected to this workspace' });
     }
 
+    // Create webhook in Unipile for new_relation events
+    let webhookId = null;
+    try {
+      webhookId = await createRelationWebhook(account_id, SERVER_URL);
+      console.log(`[Workspace] Created webhook ${webhookId} for account ${account_id}`);
+    } catch (err) {
+      // Don't fail the whole request if webhook creation fails
+      console.warn(`[Workspace] Could not create webhook for account ${account_id}: ${err.message}`);
+    }
+
     const { rows } = await db.query(
-      `INSERT INTO unipile_accounts (workspace_id, account_id, display_name, provider, status)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.params.id, account_id, display_name || account_id, provider || 'linkedin', status || 'connected']
+      `INSERT INTO unipile_accounts (workspace_id, account_id, display_name, provider, status, webhook_id)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.params.id, account_id, display_name || account_id,
+       provider || 'linkedin', status || 'connected', webhookId]
     );
     res.status(201).json(rows[0]);
   } catch (err) {
@@ -81,9 +103,18 @@ router.post('/:id/accounts', async (req, res) => {
 });
 
 // DELETE /api/workspaces/:id/accounts/:accountId
-// Disconnect an account from this workspace
+// Disconnect account + delete its webhook from Unipile
 router.delete('/:id/accounts/:accountId', async (req, res) => {
   try {
+    // Get webhook_id before deleting
+    const { rows } = await db.query(
+      'SELECT webhook_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
+      [req.params.id, req.params.accountId]
+    );
+    if (rows.length > 0 && rows[0].webhook_id) {
+      await deleteWebhook(rows[0].webhook_id);
+      console.log(`[Workspace] Deleted webhook ${rows[0].webhook_id} for account ${req.params.accountId}`);
+    }
     await db.query(
       'DELETE FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
       [req.params.id, req.params.accountId]

@@ -9,9 +9,9 @@ async function request(endpoint, options = {}) {
   const res = await fetch(url, {
     ...options,
     headers: {
-      'X-API-KEY': UNIPILE_API_KEY,
+      'X-API-KEY':   UNIPILE_API_KEY,
       'Content-Type': 'application/json',
-      'accept': 'application/json',
+      'accept':       'application/json',
       ...options.headers,
     },
   });
@@ -37,46 +37,87 @@ async function searchPeople(accountId, companyName, titles = []) {
   const keywords = titles.length
     ? `${titles.join(' OR ')} "${companyName}"`
     : `"${companyName}"`;
-
   const data = await request(
     `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
     {
       method: 'POST',
-      body: JSON.stringify({
-        api: 'classic',
-        category: 'people',
-        keywords,
-        limit: 10,
-      }),
+      body: JSON.stringify({ api: 'classic', category: 'people', keywords, limit: 10 }),
     }
   );
   return Array.isArray(data?.items) ? data.items : [];
 }
 
 /**
- * Retrieve full LinkedIn profile using GET /api/v1/users/{identifier}
- * with linkedin_sections=* to fetch ALL sections.
- *
- * identifier is extracted from li_profile_url:
- *   https://www.linkedin.com/in/johndoe  →  johndoe
- *
- * @param {string} accountId   - Unipile account_id to perform the request from
- * @param {string} li_profile_url - Full LinkedIn profile URL
+ * Retrieve full LinkedIn profile.
+ * CONFIRMED field mapping from live API:
+ *   work_experience[0].position  => title
+ *   work_experience[0].company   => company name (plain string)
+ *   work_experience[0].company_id => use to build linkedin.com/company/{id}
+ *   websites[0]                  => website
  */
 async function enrichProfile(accountId, li_profile_url) {
-  // Extract public_identifier from URL
-  // Handles: linkedin.com/in/johndoe, linkedin.com/in/johndoe/, /in/johndoe
   const match = li_profile_url.match(/linkedin\.com\/in\/([^/?#]+)/);
   const identifier = match ? match[1] : li_profile_url;
-
   const params = new URLSearchParams({
     account_id: accountId,
-    linkedin_sections: '*',   // all sections, full data
-    notify: 'false',          // do NOT notify the profile owner of a visit
+    linkedin_sections: '*',
+    notify: 'false',
   });
-
   const data = await request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
   return data;
 }
 
-module.exports = { getAccounts, searchPeople, enrichProfile };
+/**
+ * Create a "new_relation" webhook for a specific account.
+ * Called automatically when an account is connected to a workspace.
+ *
+ * @param {string} accountId  - Unipile account_id
+ * @param {string} serverUrl  - Public URL of this server (e.g. https://yourserver.com)
+ * @returns {string} webhook_id
+ */
+async function createRelationWebhook(accountId, serverUrl) {
+  const data = await request('/api/v1/webhooks', {
+    method: 'POST',
+    body: JSON.stringify({
+      source:      'users',
+      name:        `new_relation_${accountId}`,
+      request_url: `${serverUrl}/api/webhooks/unipile`,
+      account_ids: [accountId],
+      events:      ['new_relation'],
+      format:      'json',
+      headers: [
+        { key: 'Content-Type', value: 'application/json' },
+        { key: 'X-Webhook-Secret', value: process.env.WEBHOOK_SECRET || 'elvia-secret' },
+      ],
+    }),
+  });
+  return data.webhook_id;
+}
+
+/**
+ * Delete a webhook by ID.
+ */
+async function deleteWebhook(webhookId) {
+  try {
+    await request(`/api/v1/webhooks/${webhookId}`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn(`[Unipile] Could not delete webhook ${webhookId}: ${err.message}`);
+  }
+}
+
+/**
+ * Send a LinkedIn connection request (invitation).
+ */
+async function sendInvitation(accountId, linkedinUrl, message = '') {
+  const match = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
+  const identifier = match ? match[1] : linkedinUrl;
+  const body = { account_id: accountId, provider_id: identifier };
+  if (message) body.message = message;
+  const data = await request('/api/v1/users/invite', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return data;
+}
+
+module.exports = { getAccounts, searchPeople, enrichProfile, createRelationWebhook, deleteWebhook, sendInvitation };
