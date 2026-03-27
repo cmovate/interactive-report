@@ -29,7 +29,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .action-btn.danger:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
 .empty-state { background: white; border: 1px dashed #e0e0e0; border-radius: 12px; padding: 64px 24px; text-align: center; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.modal { background: white; border-radius: 14px; width: min(820px,100%); max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden; }
+.modal { background: white; border-radius: 14px; width: min(860px,100%); max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden; }
 .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #f0f0f0; background: #fafafa; flex-shrink: 0; }
 .modal-title { font-size: 16px; font-weight: 600; }
 .modal-close { background: none; border: none; font-size: 22px; color: #999; cursor: pointer; }
@@ -105,6 +105,21 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .token-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
 .name-input { width: 100%; padding: 12px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 16px; font-family: inherit; }
 .name-input:focus { outline: none; border-color: #1D9E75; }
+/* Working hours in wizard */
+.hours-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 8px; margin-top: 12px; }
+.day-card { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+.day-card.off { opacity: 0.45; }
+.day-head { display: flex; align-items: center; justify-content: space-between; }
+.day-name { font-size: 11px; font-weight: 500; color: #555; }
+.day-toggle { width: 28px; height: 16px; border-radius: 8px; background: #ddd; border: none; cursor: pointer; position: relative; transition: background 0.15s; }
+.day-toggle.on { background: #1D9E75; }
+.day-toggle::after { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: white; top: 2px; left: 2px; transition: left 0.15s; }
+.day-toggle.on::after { left: 14px; }
+.time-inputs { display: flex; flex-direction: column; gap: 4px; }
+.time-row { display: flex; align-items: center; gap: 4px; }
+.time-lbl { font-size: 10px; color: #aaa; width: 20px; }
+.time-input { flex: 1; font-size: 11px; border: 1px solid #e0e0e0; border-radius: 4px; padding: 3px 4px; background: #fafafa; }
+.day-off-label { font-size: 11px; color: #aaa; text-align: center; }
 .summary-box { margin-top: 24px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; padding: 16px; }
 .summary-row { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #f5f5f5; }
 .summary-row:last-child { border-bottom: none; }
@@ -172,7 +187,11 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 <script>
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
-const STEPS = ['Account','Audience','Sequence','Name'];
+const STEPS = ['Account','Audience','Sequence','Name & Hours'];
+const DAYS  = [
+  {key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},
+  {key:'4',label:'Thu'},{key:'5',label:'Fri'},{key:'6',label:'Sat'},{key:'7',label:'Sun'}
+];
 const ENGAGEMENT_ACTIONS = [
   { key: 'view_profile',          label: 'View profile',                    sub: 'Once per week' },
   { key: 'follow_company',        label: 'Invite to follow company page',   sub: 'Uses company page from Settings' },
@@ -182,8 +201,13 @@ const ENGAGEMENT_ACTIONS = [
   { key: 'company_like_comments', label: 'Like comments via company page',  sub: '' },
 ];
 
+function defaultHours() {
+  return Object.fromEntries(
+    DAYS.map((d, i) => [d.key, { on: i < 5, from: '09:00', to: '18:00' }])
+  );
+}
+
 let campaigns = [];
-// ↓ Only accounts connected to this workspace (from Settings)
 let workspaceAccounts = [];
 let currentStep = 0;
 let wizard = resetWizard();
@@ -196,7 +220,9 @@ function resetWizard() {
     searchStatus: null, searchPct: 0, contacts: [],
     connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
     newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
-    engagement: {}, campaignName: ''
+    engagement: {},
+    campaignName: '',
+    hours: defaultHours()
   };
 }
 
@@ -205,17 +231,15 @@ function pct(a,b)    { return b ? Math.round(a/b*100)+'%' : '—'; }
 function countUrls(t){ return (t.match(/linkedin\.com\/in\//g)||[]).length; }
 function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ── Load ──────────────────────────────────────────────────────────────────────
 async function load() {
   try {
     const [campRes, accRes] = await Promise.all([
       fetch(`/api/campaigns?workspace_id=${workspaceId}`),
-      // ↓ Only the accounts the user chose in Settings for this workspace
       fetch(`/api/workspaces/${workspaceId}/accounts`)
     ]);
     const campData = await campRes.json();
     const accData  = await accRes.json();
-    campaigns        = Array.isArray(campData.items) ? campData.items : [];
+    campaigns         = Array.isArray(campData.items) ? campData.items : [];
     workspaceAccounts = Array.isArray(accData.items)  ? accData.items  : [];
   } catch(e) { console.error(e); }
   renderCampaigns();
@@ -258,7 +282,7 @@ function closeModal() { document.getElementById('modal').style.display='none'; }
 
 function renderStep() {
   document.getElementById('modal-steps').innerHTML =
-    STEPS.map((s,i)=>`<div class="modal-step ${i===currentStep?'active':i<currentStep?'done':''}">${i<currentStep?'✓ ':''}${s}</div>`).join('');
+    STEPS.map((s,i)=>`<div class="modal-step ${i===currentStep?'active':i<currentStep?'done':''}">${i<currentStep?'\u2713 ':''}${s}</div>`).join('');
   document.getElementById('btn-back').style.visibility = currentStep===0 ? 'hidden' : 'visible';
   document.getElementById('btn-next').textContent = currentStep===STEPS.length-1 ? 'Create campaign' : 'Continue';
   const body = document.getElementById('modal-body');
@@ -278,7 +302,6 @@ async function nextStep() {
 function prevStep() { if (currentStep>0) { currentStep--; renderStep(); } }
 
 // ── Step 1: Account ───────────────────────────────────────────────────────────
-// Shows only accounts the user added in Settings → not all Unipile accounts
 function renderStepAccount(body) {
   if (!workspaceAccounts.length) {
     body.innerHTML = `<div class="notice-box">
@@ -355,7 +378,7 @@ function renderAudienceDetail() {
       </div>
       <div class="contacts-list">${wizard.contacts.map((c,i)=>`
         <div class="contact-row">
-          <div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' · '+c.company:''}</div></div>
+          <div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div>
           <button class="contact-remove" onclick="removeContact(${i})">&times;</button>
         </div>`).join('')}</div>`;
     }
@@ -464,24 +487,81 @@ function removeMsg(canvas,i) {
   renderStep();
 }
 
-// ── Step 4: Name ──────────────────────────────────────────────────────────────
+// ── Step 4: Name & Hours ──────────────────────────────────────────────────────
 function renderStepName(body) {
   const acc = workspaceAccounts.find(a=>a.account_id===wizard.selectedAccount);
   const audienceSummary = wizard.audienceType==='people'
     ? countUrls(wizard.urlsPasted)+' profile URLs'
     : wizard.contacts.length+' contacts from company search';
+
+  const daysHtml = DAYS.map(d => {
+    const h = wizard.hours[d.key];
+    return `
+    <div class="day-card${h.on?'':' off'}" id="wdc-${d.key}">
+      <div class="day-head">
+        <span class="day-name">${d.label}</span>
+        <button class="day-toggle${h.on?' on':''}" id="wdt-${d.key}" onclick="wizToggleDay('${d.key}')"></button>
+      </div>
+      <div id="wdts-${d.key}" style="display:${h.on?'':'none'}">
+        <div class="time-inputs">
+          <div class="time-row"><span class="time-lbl">from</span><input class="time-input" type="time" value="${h.from}" onchange="wizUpdateHour('${d.key}','from',this.value)"></div>
+          <div class="time-row"><span class="time-lbl">to</span><input class="time-input" type="time" value="${h.to}" onchange="wizUpdateHour('${d.key}','to',this.value)"></div>
+        </div>
+      </div>
+      <div id="wdof-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div>
+    </div>`;
+  }).join('');
+
+  const activeDays = DAYS.filter(d => wizard.hours[d.key].on).map(d => d.label);
+  const hoursSummary = activeDays.length
+    ? activeDays.join(', ') + ' · ' + wizard.hours[DAYS.find(d=>wizard.hours[d.key].on)?.key]?.from + '\u2013' + wizard.hours[DAYS.find(d=>wizard.hours[d.key].on)?.key]?.to
+    : 'No active days';
+
   body.innerHTML=`
     <div class="section-label">Campaign name</div>
-    <input class="name-input" type="text" placeholder="e.g. TFT Israel — VP R&D outreach"
+    <input class="name-input" type="text" placeholder="e.g. TFT Israel \u2014 VP R&D outreach"
       value="${esc(wizard.campaignName)}" oninput="wizard.campaignName=this.value" autofocus>
+
+    <div style="margin-top:24px;">
+      <div class="section-label">Working hours</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px;">The campaign will only run during these hours. All times are in your server timezone.</div>
+      <div class="hours-grid">${daysHtml}</div>
+    </div>
+
     <div class="summary-box">
       <div style="font-size:12px;font-weight:600;color:#888;margin-bottom:10px;">Summary</div>
-      <div class="summary-row"><span class="summary-key">Account</span><span class="summary-val">${esc(acc?.display_name||'—')}</span></div>
+      <div class="summary-row"><span class="summary-key">Account</span><span class="summary-val">${esc(acc?.display_name||'\u2014')}</span></div>
       <div class="summary-row"><span class="summary-key">Audience</span><span class="summary-val">${audienceSummary}</span></div>
       <div class="summary-row"><span class="summary-key">Connection requests</span><span class="summary-val">${wizard.connectionEnabled?'Yes':'No'}</span></div>
       <div class="summary-row"><span class="summary-key">New contact messages</span><span class="summary-val">${wizard.newMessages.length} step${wizard.newMessages.length!==1?'s':''}</span></div>
       <div class="summary-row"><span class="summary-key">Engagement actions</span><span class="summary-val">${Object.values(wizard.engagement).filter(Boolean).length} enabled</span></div>
+      <div class="summary-row"><span class="summary-key">Working hours</span><span class="summary-val" id="hours-summary">${esc(hoursSummary)}</span></div>
     </div>`;
+}
+
+function wizToggleDay(key) {
+  const h = wizard.hours[key];
+  h.on = !h.on;
+  const card   = document.getElementById('wdc-'+key);
+  const toggle = document.getElementById('wdt-'+key);
+  const times  = document.getElementById('wdts-'+key);
+  const off    = document.getElementById('wdof-'+key);
+  if (toggle) toggle.classList.toggle('on', h.on);
+  if (card)   card.classList.toggle('off', !h.on);
+  if (times)  times.style.display = h.on ? '' : 'none';
+  if (off)    off.style.display   = h.on ? 'none' : '';
+  // Update summary
+  const activeDays = DAYS.filter(d => wizard.hours[d.key].on).map(d => d.label);
+  const firstActive = DAYS.find(d => wizard.hours[d.key].on);
+  const hSummary = activeDays.length
+    ? activeDays.join(', ') + (firstActive ? ' \u00b7 ' + wizard.hours[firstActive.key].from + '\u2013' + wizard.hours[firstActive.key].to : '')
+    : 'No active days';
+  const el = document.getElementById('hours-summary');
+  if (el) el.textContent = hSummary;
+}
+
+function wizUpdateHour(key, field, value) {
+  wizard.hours[key][field] = value;
 }
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -517,7 +597,8 @@ async function createCampaign() {
         settings: {
           connection: { enabled: wizard.connectionEnabled, withdraw_days: wizard.withdrawDays, resend: wizard.resendEnabled },
           engagement: wizard.engagement,
-          messages: { new: wizard.newMessages, existing_no_history: wizard.existingNoHistoryMessages, existing_with_history: wizard.existingWithHistoryMessages }
+          messages: { new: wizard.newMessages, existing_no_history: wizard.existingNoHistoryMessages, existing_with_history: wizard.existingWithHistoryMessages },
+          hours: wizard.hours   // ← working hours saved per campaign
         }
       })
     });
@@ -533,8 +614,8 @@ async function createCampaign() {
 // ── Message dialog ────────────────────────────────────────────────────────────
 function openMsgDialog(canvas) {
   activeMsgCanvas = canvas;
-  const titles = { new:'New contacts', existingNo:'Existing — no history', existingYes:'Existing — with history' };
-  document.getElementById('msg-dialog-title').textContent = 'Add message — '+titles[canvas];
+  const titles = { new:'New contacts', existingNo:'Existing \u2014 no history', existingYes:'Existing \u2014 with history' };
+  document.getElementById('msg-dialog-title').textContent = 'Add message \u2014 '+titles[canvas];
   document.getElementById('msg-text').value = '';
   document.getElementById('msg-delay-val').value = 3;
   document.getElementById('msg-delay-unit').value = 'days';
