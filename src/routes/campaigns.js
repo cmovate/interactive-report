@@ -80,13 +80,14 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/campaigns/:id/scrape-engagement
+// force=true resets all classifications and re-scrapes from scratch
 router.post('/:id/scrape-engagement', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
     if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
     if (req.body?.force) {
       await db.query(
-        'UPDATE contacts SET engagement_level = NULL, engagement_scraped_at = NULL WHERE campaign_id = $1',
+        'UPDATE contacts SET engagement_level = NULL, engagement_scraped_at = NULL, engagement_data = NULL WHERE campaign_id = $1',
         [campaignId]
       );
     }
@@ -97,9 +98,23 @@ router.post('/:id/scrape-engagement', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/campaigns/:id/reclassify
+// Re-applies classification logic to existing engagement_data without new API calls.
+// Use after fixing the classification algorithm.
+router.post('/:id/reclassify', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const result = await engagementScraper.reclassifyFromExistingData(campaignId);
+    // After reclassifying, trigger scraper to continue finding more contacts with content
+    engagementScraper.run(campaignId)
+      .then(r => console.log(`[API] Post-reclassify scrape done:`, JSON.stringify(r)))
+      .catch(e => console.error(`[API] Post-reclassify scrape error:`, e.message));
+    res.json({ ...result, scrape_started: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/campaigns/:id/send-likes
-// Manually trigger the like sender for a campaign.
-// Body: { force: true } to re-like already-liked contacts.
 router.post('/:id/send-likes', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
@@ -120,6 +135,7 @@ router.get('/:id/engagement-stats', async (req, res) => {
          COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')     AS un_engaged,
          COUNT(*) FILTER (WHERE engagement_level = 'average_engaged') AS average_engaged,
          COUNT(*) FILTER (WHERE engagement_level = 'engaged')         AS engaged,
+         COUNT(*) FILTER (WHERE engagement_level IN ('average_engaged','engaged')) AS with_content,
          COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS not_yet_scraped,
          COUNT(*) FILTER (WHERE provider_id IS NULL)                  AS not_enriched,
          COALESCE(SUM(post_likes_sent),0)                             AS total_post_likes,
