@@ -46,23 +46,42 @@ async function searchPeople(accountId, companyName, titles = []) {
 
 /**
  * Retrieve full LinkedIn profile.
+ * When notify=true, LinkedIn notifies the profile owner that someone viewed their profile.
+ * This is the mechanism used for the "View profile" engagement action.
+ *
  * CONFIRMED field mapping:
  *   work_experience[0].position  => title
  *   work_experience[0].company   => company name (plain string)
  *   work_experience[0].company_id => linkedin.com/company/{id}
  *   websites[0]                  => website
- *   member_urn                   => urn:li:fsd_profile:XXX (for company follow invites)
+ *   member_urn                   => urn:li:fsd_profile:XXX
  */
-async function enrichProfile(accountId, li_profile_url) {
+async function enrichProfile(accountId, li_profile_url, notify = false) {
   const match      = li_profile_url.match(/linkedin\.com\/in\/([^/?#]+)/);
   const identifier = match ? match[1] : li_profile_url;
-  const params     = new URLSearchParams({ account_id: accountId, linkedin_sections: '*', notify: 'false' });
+  const params     = new URLSearchParams({
+    account_id:        accountId,
+    linkedin_sections: '*',
+    notify:            notify ? 'true' : 'false',
+  });
   return request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
 }
 
 /**
- * Create a "new_relation" webhook for a specific account.
+ * View a LinkedIn profile — triggers a "profile view" notification to the contact.
+ * Uses enrichProfile with notify=true.
+ * Returns the profile data (can be used for enrichment too).
  */
+async function viewProfile(accountId, identifier) {
+  const params = new URLSearchParams({
+    account_id:        accountId,
+    linkedin_sections: 'profile', // minimal — we only need the view, not full data
+    notify:            'true',
+  });
+  return request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
+}
+
+/** Create a "new_relation" webhook for a specific account */
 async function createRelationWebhook(accountId, serverUrl) {
   const data = await request('/api/v1/webhooks', {
     method: 'POST',
@@ -91,7 +110,7 @@ async function deleteWebhook(webhookId) {
   }
 }
 
-/** Send a LinkedIn connection request (invitation) */
+/** Send a LinkedIn connection request */
 async function sendInvitation(accountId, linkedinUrl, message = '') {
   const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
   const identifier = match ? match[1] : linkedinUrl;
@@ -101,19 +120,13 @@ async function sendInvitation(accountId, linkedinUrl, message = '') {
 }
 
 /**
- * Invite one or more connections to follow the company LinkedIn page.
- *
- * Uses the raw LinkedIn voyager API via Unipile's proxy route.
- *
- * @param {string}   accountId      - Unipile account performing the action
+ * Invite connections to follow the company LinkedIn page.
+ * @param {string}   accountId      - Unipile account
  * @param {string}   companyPageUrn - e.g. "urn:li:fsd_company:38114588"
- * @param {string[]} memberUrns     - array of "urn:li:fsd_profile:XXX" strings (max 250/month)
+ * @param {string[]} memberUrns     - "urn:li:fsd_profile:XXX" strings
  */
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
   if (!memberUrns.length) return;
-
-  // Extract the numeric company ID from the URN
-  // "urn:li:fsd_company:38114588"  →  38114588
   const companyIdMatch = companyPageUrn.match(/(\d+)$/);
   if (!companyIdMatch) throw new Error(`Invalid companyPageUrn: ${companyPageUrn}`);
   const companyId = companyIdMatch[1];
@@ -133,9 +146,7 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
       query_params: {
         inviter: `(organizationUrn:urn%3Ali%3Afsd_company%3A${companyId})`,
       },
-      headers: {
-        'x-restli-method': 'batch_create',
-      },
+      headers: { 'x-restli-method': 'batch_create' },
       encoding: false,
     }),
   });
@@ -145,6 +156,7 @@ module.exports = {
   getAccounts,
   searchPeople,
   enrichProfile,
+  viewProfile,
   createRelationWebhook,
   deleteWebhook,
   sendInvitation,
