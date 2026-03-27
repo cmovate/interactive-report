@@ -11,12 +11,15 @@
  *   4. For each contact: fetch posts + comments from last 14 days
  *   5. Classify into engagement level
  *   6. Save full raw data to DB as JSONB
- *   7. When 20 contacts are classified → trigger likeSender automatically
+ *   7. When 20 contacts with content (non un_engaged) found → trigger likeSender
  *
- * Engagement levels:
+ * Engagement levels (OR logic):
  *   un_engaged       — 0 non-employer posts AND 0 non-employer comments in 14d
- *   average_engaged  — ≥1 non-employer post AND ≥1 non-employer comment in 14d
- *   engaged          — ≥2 non-employer posts AND ≥2 non-employer comments in 14d
+ *   average_engaged  — ≥1 non-employer post OR ≥1 non-employer comment in 14d
+ *   engaged          — ≥2 non-employer posts OR ≥2 non-employer comments in 14d
+ *
+ * Target: 20 contacts with average_engaged or engaged (has content in last 14 days).
+ * un_engaged contacts do NOT count toward the target — keep scanning.
  *
  * "Employer-related" = posted as company page, or parent post author matches company
  *
@@ -26,9 +29,10 @@
 const db      = require('./db');
 const unipile = require('./unipile');
 
-const DAYS_14           = 14 * 24 * 60 * 60 * 1000;
-const TARGET_CLASSIFIED = 20;
-const DELAY_BETWEEN_MS  = 3000 + Math.random() * 2000;
+const DAYS_14                = 14 * 24 * 60 * 60 * 1000;
+const TARGET_WITH_CONTENT    = 20;   // Need 20 contacts with actual content (not un_engaged)
+const BATCH_SIZE             = 30;   // Contacts to process per run
+const DELAY_BETWEEN_MS       = 3000 + Math.random() * 2000;
 
 let isRunning = false;
 
@@ -98,20 +102,26 @@ async function run(campaignId = null) {
 async function processCampaign(campaign) {
   console.log(`[EngagementScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
-  const { rows: alreadyDone } = await db.query(
+  // Count contacts WITH content (average_engaged or engaged) — these are the target
+  const { rows: withContent } = await db.query(
     `SELECT COUNT(*) AS cnt FROM contacts
-     WHERE campaign_id = $1 AND engagement_level IS NOT NULL`,
+     WHERE campaign_id = $1
+       AND engagement_level IN ('average_engaged', 'engaged')`,
     [campaign.id]
   );
-  const alreadyClassified = parseInt(alreadyDone[0].cnt, 10);
+  const contentCount = parseInt(withContent[0].cnt, 10);
 
-  if (alreadyClassified >= TARGET_CLASSIFIED) {
-    console.log(`[EngagementScraper] Campaign ${campaign.id}: already ${alreadyClassified} classified`);
-    return { skipped: true, already_classified: alreadyClassified };
+  if (contentCount >= TARGET_WITH_CONTENT) {
+    console.log(`[EngagementScraper] Campaign ${campaign.id}: already has ${contentCount} contacts with content — triggering LikeSender`);
+    const likeSender = require('./likeSender');
+    likeSender.run(campaign.id).catch(err => console.error('[EngagementScraper] LikeSender error:', err.message));
+    return { skipped: true, content_count: contentCount };
   }
 
-  const remaining = TARGET_CLASSIFIED - alreadyClassified;
+  const remaining = TARGET_WITH_CONTENT - contentCount;
+  console.log(`[EngagementScraper] Campaign ${campaign.id}: need ${remaining} more contacts with content`);
 
+  // Get unscraped enriched contacts (no engagement_level yet)
   const { rows: contacts } = await db.query(
     `SELECT id, first_name, last_name, company, provider_id
      FROM contacts
@@ -120,49 +130,51 @@ async function processCampaign(campaign) {
        AND provider_id != ''
        AND engagement_level IS NULL
      ORDER BY RANDOM()
-     LIMIT 30`,
-    [campaign.id]
+     LIMIT $2`,
+    [campaign.id, BATCH_SIZE]
   );
 
   if (!contacts.length) {
-    console.log(`[EngagementScraper] Campaign ${campaign.id}: no unscraped enriched contacts`);
+    console.log(`[EngagementScraper] Campaign ${campaign.id}: no more unscraped enriched contacts`);
     return { contacts_scraped: 0 };
   }
 
-  let scraped    = 0;
-  let classified = 0;
+  let scraped      = 0;
+  let foundContent = 0;
 
   for (const contact of contacts) {
-    if (classified >= remaining) break;
     try {
       const result = await scrapeContact(contact, campaign.account_id);
-      if (result) { scraped++; classified++; }
+      scraped++;
+      if (result && result.engagement_level !== 'un_engaged') {
+        foundContent++;
+      }
     } catch (err) {
       console.error(`[EngagementScraper] ✗ contact ${contact.id}: ${err.message}`);
     }
     if (scraped < contacts.length) await sleep(DELAY_BETWEEN_MS);
   }
 
-  // Check if we've now reached 20 — if so, trigger likeSender automatically
+  // Re-check total with content after this batch
   const { rows: totalNow } = await db.query(
     `SELECT COUNT(*) AS cnt FROM contacts
-     WHERE campaign_id = $1 AND engagement_level IS NOT NULL`,
+     WHERE campaign_id = $1
+       AND engagement_level IN ('average_engaged', 'engaged')`,
     [campaign.id]
   );
-  const totalClassified = parseInt(totalNow[0].cnt, 10);
+  const totalWithContent = parseInt(totalNow[0].cnt, 10);
 
-  if (totalClassified >= TARGET_CLASSIFIED) {
-    console.log(`[EngagementScraper] Campaign ${campaign.id}: reached ${totalClassified} classified — triggering LikeSender`);
-    // Import here to avoid circular dep at startup
+  console.log(`[EngagementScraper] Campaign ${campaign.id}: ${totalWithContent}/${TARGET_WITH_CONTENT} contacts with content`);
+
+  if (totalWithContent >= TARGET_WITH_CONTENT) {
+    console.log(`[EngagementScraper] Campaign ${campaign.id}: reached target — triggering LikeSender`);
     const likeSender = require('./likeSender');
-    likeSender.run(campaign.id).then(r => {
-      console.log(`[EngagementScraper] LikeSender result for campaign ${campaign.id}:`, JSON.stringify(r));
-    }).catch(err => {
-      console.error(`[EngagementScraper] LikeSender error:`, err.message);
-    });
+    likeSender.run(campaign.id)
+      .then(r => console.log(`[LikeSender] done:`, JSON.stringify(r)))
+      .catch(err => console.error('[LikeSender] error:', err.message));
   }
 
-  return { contacts_scraped: scraped, contacts_classified: classified, total_classified: totalClassified };
+  return { contacts_scraped: scraped, found_with_content: foundContent, total_with_content: totalWithContent };
 }
 
 async function scrapeContact(contact, accountId) {
@@ -213,13 +225,65 @@ async function scrapeContact(contact, accountId) {
     [level, JSON.stringify(engagementData), contact.id]
   );
 
-  console.log(`[EngagementScraper] ✓ ${contact.first_name} ${contact.last_name} → ${level}`);
+  console.log(`[EngagementScraper] ✓ ${contact.first_name} ${contact.last_name} → ${level} (posts_14d=${nonEmployerPosts.length} comments_14d=${nonEmployerComments.length})`);
   return { engagement_level: level };
 }
 
+/**
+ * Re-classify contacts from existing engagement_data in DB.
+ * No API calls — just re-applies the classification logic.
+ * Used after fixing the classification logic without losing scraped data.
+ */
+async function reclassifyFromExistingData(campaignId) {
+  const { rows } = await db.query(
+    `SELECT id, first_name, last_name, engagement_data
+     FROM contacts
+     WHERE campaign_id = $1
+       AND engagement_data IS NOT NULL
+       AND engagement_level IS NOT NULL`,
+    [campaignId]
+  );
+
+  console.log(`[Reclassify] ${rows.length} contacts to reclassify for campaign ${campaignId}`);
+  let updated = 0;
+
+  for (const row of rows) {
+    const d = typeof row.engagement_data === 'string'
+      ? JSON.parse(row.engagement_data)
+      : row.engagement_data;
+
+    const nep = d.non_employer_posts_14d    || 0;
+    const nec = d.non_employer_comments_14d || 0;
+    const newLevel = classifyEngagement(nep, nec);
+    const oldLevel = d.engagement_level;
+
+    // Update the level in engagement_data too
+    d.engagement_level = newLevel;
+
+    await db.query(
+      `UPDATE contacts SET engagement_level = $1, engagement_data = $2 WHERE id = $3`,
+      [newLevel, JSON.stringify(d), row.id]
+    );
+
+    if (newLevel !== oldLevel) {
+      console.log(`[Reclassify] ${row.first_name} ${row.last_name}: ${oldLevel} → ${newLevel} (posts=${nep} comments=${nec})`);
+    }
+    updated++;
+  }
+
+  return { reclassified: updated };
+}
+
+// ── Classification (OR logic) ────────────────────────────────────────────────────────
+/**
+ * OR-based classification:
+ *   engaged         = ≥2 non-employer posts OR ≥2 non-employer comments
+ *   average_engaged = ≥1 non-employer post  OR ≥1 non-employer comment
+ *   un_engaged      = 0 posts AND 0 comments in last 14 days
+ */
 function classifyEngagement(nonEmployerPosts, nonEmployerComments) {
-  if (nonEmployerPosts >= 2 && nonEmployerComments >= 2) return 'engaged';
-  if (nonEmployerPosts >= 1 && nonEmployerComments >= 1) return 'average_engaged';
+  if (nonEmployerPosts >= 2 || nonEmployerComments >= 2) return 'engaged';
+  if (nonEmployerPosts >= 1 || nonEmployerComments >= 1) return 'average_engaged';
   return 'un_engaged';
 }
 
@@ -236,16 +300,16 @@ function isEmployerRelated(item, company, type) {
     if (item.as_organization) return true;
     const headline = (item.author?.headline || item.author_headline || '').toLowerCase();
     const co       = (item.author?.company  || item.author_company  || '').toLowerCase();
-    if (co && co.includes(company))       return true;
+    if (co && co.includes(company))             return true;
     if (headline && headline.includes(company)) return true;
     const reshared = (item.reshared?.author?.name || item.reshared_from || '').toLowerCase();
     if (reshared && reshared.includes(company)) return true;
   }
   if (type === 'comment') {
     if (item.post?.as_organization || item.parent_post?.as_organization) return true;
-    const postHeadline = (item.post?.author?.headline || item.parent_post?.author?.headline || item.post_author_headline || '').toLowerCase();
-    const postCo       = (item.post?.author?.company  || item.parent_post?.author?.company  || item.post_author_company  || '').toLowerCase();
-    if (postCo && postCo.includes(company))           return true;
+    const postHeadline = (item.post?.author?.headline || item.parent_post?.author?.headline || '').toLowerCase();
+    const postCo       = (item.post?.author?.company  || item.parent_post?.author?.company  || '').toLowerCase();
+    if (postCo && postCo.includes(company))             return true;
     if (postHeadline && postHeadline.includes(company)) return true;
   }
   return false;
@@ -253,4 +317,4 @@ function isEmployerRelated(item, company, type) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-module.exports = { start, run, scrapeContact };
+module.exports = { start, run, scrapeContact, reclassifyFromExistingData };
