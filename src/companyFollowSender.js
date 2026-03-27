@@ -92,20 +92,19 @@ async function run() {
       const settings      = acc.settings || {};
       const companyPageUrn = settings.company_page_urn;
 
-      // Check working hours
       if (!isWithinWorkingHours(settings)) {
         console.log(`[CompanyFollow] Account ${acc.account_id} outside working hours`);
         continue;
       }
 
       // ── Monthly reset on 1st of month ─────────────────────────────────────
-      const nowDate  = new Date();
-      const cfMonth  = settings.cf_month || '';
+      const nowDate   = new Date();
+      const cfMonth   = settings.cf_month || '';
       const thisMonth = `${nowDate.getFullYear()}-${String(nowDate.getMonth()+1).padStart(2,'0')}`;
 
       if (cfMonth !== thisMonth) {
         console.log(`[CompanyFollow] New month — resetting state for ${acc.account_id}`);
-        await updateCfSettings(acc.account_id, {
+        await patchSettings(acc.account_id, {
           cf_state:           'normal',
           cf_state_since:     new Date().toISOString(),
           cf_month:           thisMonth,
@@ -130,7 +129,7 @@ async function run() {
         const daysPassed = daysBetween(stateSince, nowDate);
         if (daysPassed >= 5) {
           console.log(`[CompanyFollow] ${acc.account_id}: 5 days passed → entering drip mode`);
-          await updateCfSettings(acc.account_id, { cf_state: 'drip', cf_state_since: new Date().toISOString() });
+          await patchSettings(acc.account_id, { cf_state: 'drip', cf_state_since: new Date().toISOString() });
           settings.cf_state = 'drip';
         } else {
           console.log(`[CompanyFollow] ${acc.account_id}: waiting_5d — ${daysPassed.toFixed(1)} days elapsed, need 5`);
@@ -142,7 +141,7 @@ async function run() {
         const daysPassed = daysBetween(stateSince, nowDate);
         if (daysPassed >= 7) {
           console.log(`[CompanyFollow] ${acc.account_id}: 7 days passed → resuming drip mode`);
-          await updateCfSettings(acc.account_id, { cf_state: 'drip', cf_state_since: new Date().toISOString() });
+          await patchSettings(acc.account_id, { cf_state: 'drip', cf_state_since: new Date().toISOString() });
           settings.cf_state = 'drip';
         } else {
           console.log(`[CompanyFollow] ${acc.account_id}: waiting_7d — ${daysPassed.toFixed(1)} days elapsed, need 7`);
@@ -159,7 +158,7 @@ async function run() {
 
         if (remaining <= 0) {
           console.log(`[CompanyFollow] ${acc.account_id}: reached 250 → waiting_5d`);
-          await updateCfSettings(acc.account_id, { cf_state: 'waiting_5d', cf_state_since: new Date().toISOString() });
+          await patchSettings(acc.account_id, { cf_state: 'waiting_5d', cf_state_since: new Date().toISOString() });
           continue;
         }
 
@@ -179,8 +178,7 @@ async function run() {
         let dripSentToday = (dripDate === todayStr) ? (settings.cf_drip_sent_today || 0) : 0;
 
         if (dripDate !== todayStr) {
-          // New day — reset daily counter
-          await updateCfSettings(acc.account_id, { cf_drip_date: todayStr, cf_drip_sent_today: 0 });
+          await patchSettings(acc.account_id, { cf_drip_date: todayStr, cf_drip_sent_today: 0 });
           dripSentToday = 0;
         }
 
@@ -214,9 +212,14 @@ async function sendBatch(accountId, companyPageUrn, contacts, settings, mode) {
     const chunk = contacts.slice(i, i + BATCH_SIZE);
 
     const elements = chunk.map(c => {
-      const pd = typeof c.profile_data === 'string'
-        ? JSON.parse(c.profile_data || '{}')
-        : (c.profile_data || {});
+      // FIX: safe profile_data parsing — JSON.parse('null') returns null, not {}
+      let pd = {};
+      try {
+        const raw = typeof c.profile_data === 'string'
+          ? JSON.parse(c.profile_data)
+          : c.profile_data;
+        if (raw && typeof raw === 'object') pd = raw;
+      } catch (_) {}
 
       const memberUrn  = pd.member_urn  || null;
       const providerId = pd.provider_id || null;
@@ -226,7 +229,10 @@ async function sendBatch(accountId, companyPageUrn, contacts, settings, mode) {
       return inviteeMember ? { id: c.id, inviteeMember } : null;
     }).filter(Boolean);
 
-    if (!elements.length) continue;
+    if (!elements.length) {
+      console.warn(`[CompanyFollow] Chunk has no valid URNs — contacts may need enrichment`);
+      continue;
+    }
 
     try {
       await sendCompanyFollowInvites(accountId, companyPageUrn, elements.map(e => e.inviteeMember));
@@ -237,13 +243,12 @@ async function sendBatch(accountId, companyPageUrn, contacts, settings, mode) {
         [ids]
       );
 
-      // Update drip counter if in drip mode
       if (mode === 'drip') {
         const todayStr    = toDateStr(new Date());
         const dripDate    = settings.cf_drip_date || '';
         const prevSent    = (dripDate === todayStr) ? (settings.cf_drip_sent_today || 0) : 0;
         const newSent     = prevSent + ids.length;
-        await updateCfSettings(accountId, { cf_drip_date: todayStr, cf_drip_sent_today: newSent });
+        await patchSettings(accountId, { cf_drip_date: todayStr, cf_drip_sent_today: newSent });
         settings.cf_drip_date       = todayStr;
         settings.cf_drip_sent_today = newSent;
       }
@@ -252,26 +257,23 @@ async function sendBatch(accountId, companyPageUrn, contacts, settings, mode) {
     } catch (err) {
       console.error(`[CompanyFollow] ✗ API error for ${accountId}: ${err.message}`);
 
-      // API error in drip mode → waiting_7d
       if (mode === 'drip') {
         console.log(`[CompanyFollow] API error in drip — entering waiting_7d for ${accountId}`);
-        await updateCfSettings(accountId, { cf_state: 'waiting_7d', cf_state_since: new Date().toISOString() });
+        await patchSettings(accountId, { cf_state: 'waiting_7d', cf_state_since: new Date().toISOString() });
       }
-      break; // Stop current batch on error
+      break;
     }
 
-    // Delay between batches
     const delay = 60000 + Math.random() * 60000;
     console.log(`[CompanyFollow] Waiting ${(delay/1000).toFixed(0)}s...`);
     await sleep(delay);
   }
 
-  // Check if we just hit 250 (only in normal mode)
   if (mode === 'normal') {
     const nowSent = await countSentThisMonth(accountId);
     if (nowSent >= MONTHLY_LIMIT) {
       console.log(`[CompanyFollow] ${accountId}: hit 250 → waiting_5d`);
-      await updateCfSettings(accountId, { cf_state: 'waiting_5d', cf_state_since: new Date().toISOString() });
+      await patchSettings(accountId, { cf_state: 'waiting_5d', cf_state_since: new Date().toISOString() });
     }
   }
 
@@ -304,16 +306,26 @@ async function getPendingContacts(accountId, limit) {
   return rows;
 }
 
-async function updateCfSettings(accountId, patch) {
-  // Merge patch into existing settings JSONB
-  const setParts = Object.entries(patch)
-    .map(([k, v]) => `'${k}', ${typeof v === 'number' ? v : `'${v}'`}`)
-    .join(', ');
+/**
+ * Safe patch of settings JSONB using parameterized query.
+ * Builds jsonb_build_object($2, $3, $4, $5, ...) to avoid SQL injection.
+ */
+async function patchSettings(accountId, patch) {
+  const entries = Object.entries(patch);
+  if (!entries.length) return;
+
+  const args  = [accountId];
+  const parts = [];
+  for (const [k, v] of entries) {
+    args.push(k, v === undefined ? null : v);
+    parts.push(`$${args.length - 1}, $${args.length}`);
+  }
+
   await db.query(
     `UPDATE unipile_accounts
-     SET settings = settings || jsonb_build_object(${setParts})
+     SET settings = settings || jsonb_build_object(${parts.join(', ')})
      WHERE account_id = $1`,
-    [accountId]
+    args
   );
 }
 

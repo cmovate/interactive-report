@@ -25,23 +25,20 @@
  *   cf_scrape_learning_start: ISO timestamp
  *   cf_scrape_last_run:       ISO timestamp
  *
+ * ═══ COMPANY ID ════════════════════════════════════════════════════════════
+ *   Read from unipile_accounts.settings.company_page_urn
+ *   e.g. "urn:li:fsd_company:93249487"  →  user_id = 93249487
+ *
  * ═══ AFTER EVERY SCRAPE ════════════════════════════════════════════════════
  *   - Upserts followers into company_followers (with first_seen_at on insert)
  *   - Cross-references contacts with company_follow_invited=true
  *     → marks company_follow_confirmed=true for matches
- *
- * ═══ TABLE: company_followers ═══════════════════════════════════════════════
- *   follower_id, follower_urn, name, headline, profile_url
- *   first_seen_at       ← set ONCE on first insert
- *   first_seen_position ← position index (0-based) when first seen
- *   scraped_at          ← updated every scrape
  */
 
 const db = require('./db');
 
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
-const COMPANY_ID      = '93249487'; // CMO'vate LinkedIn company numeric ID
 
 const BATCH_LIMIT           = 100;   // Max per Unipile page (API cap)
 const PAGE_DELAY_MS         = 4000;  // Delay between pages (human-like)
@@ -49,7 +46,7 @@ const LEARNING_DAYS         = 7;     // Days to stay in learning mode
 const LEARNING_INTERVAL_MS  = 8 * 60 * 60 * 1000;   // 3× per day = every 8h
 const FULL_INTERVAL_MS      = 24 * 60 * 60 * 1000;  // Once per day
 const INCREMENTAL_PAGES     = 3;     // Pages to fetch in incremental mode
-const INCREMENTAL_THRESHOLD = 50;   // New followers must be in top 50 positions
+const INCREMENTAL_THRESHOLD = 50;    // New followers must be in top 50 positions
 
 let isScraping = false;
 let lastScrapeResult = null;
@@ -72,8 +69,7 @@ function getStatus() {
 async function scheduleNext() {
   clearTimeout(scheduleTimer);
 
-  // Determine which mode the account is in (use first configured account)
-  let intervalMs = LEARNING_INTERVAL_MS; // default to learning cadence
+  let intervalMs = LEARNING_INTERVAL_MS;
   try {
     const { rows } = await db.query(
       `SELECT settings FROM unipile_accounts
@@ -99,28 +95,46 @@ async function runScrape(forcedAccountId) {
   const startTime = Date.now();
 
   try {
-    // Find account
+    // Find account with company_page_urn configured
     let accountId = forcedAccountId;
+    let accountSettings = {};
+
     if (!accountId) {
       const { rows } = await db.query(
         `SELECT account_id, settings FROM unipile_accounts
-         WHERE settings->>'company_page_urn' IS NOT NULL LIMIT 1`
+         WHERE settings->>'company_page_urn' IS NOT NULL
+           AND settings->>'company_page_urn' != ''
+         LIMIT 1`
       );
-      if (!rows.length) throw new Error('No account with company_page_urn configured');
-      accountId = rows[0].account_id;
+      if (!rows.length) {
+        console.log('[FollowerScraper] No account with company_page_urn configured — skipping');
+        isScraping = false;
+        return { skipped: true, reason: 'no_company_page_urn' };
+      }
+      accountId       = rows[0].account_id;
+      accountSettings = rows[0].settings || {};
+    } else {
+      const { rows } = await db.query(
+        'SELECT settings FROM unipile_accounts WHERE account_id = $1',
+        [accountId]
+      );
+      accountSettings = rows[0]?.settings || {};
     }
 
-    // Load current settings
-    const { rows: accRows } = await db.query(
-      'SELECT settings FROM unipile_accounts WHERE account_id = $1',
-      [accountId]
-    );
-    const settings = accRows[0]?.settings || {};
+    // ── FIX: Extract company numeric ID from company_page_urn ────────────────
+    // company_page_urn = "urn:li:fsd_company:93249487"
+    const companyPageUrn = accountSettings.company_page_urn || '';
+    const companyIdMatch = companyPageUrn.match(/(\d+)$/);
+    if (!companyIdMatch) {
+      throw new Error(`Cannot extract company ID from company_page_urn: "${companyPageUrn}"`);
+    }
+    const COMPANY_ID = companyIdMatch[1];
+    console.log(`[FollowerScraper] Company ID: ${COMPANY_ID}, account: ${accountId}`);
 
     // Determine mode
-    let mode = settings.cf_scrape_mode || 'learning';
-    const learningStart = settings.cf_scrape_learning_start
-      ? new Date(settings.cf_scrape_learning_start)
+    let mode = accountSettings.cf_scrape_mode || 'learning';
+    const learningStart = accountSettings.cf_scrape_learning_start
+      ? new Date(accountSettings.cf_scrape_learning_start)
       : null;
 
     // Initialise learning mode on first run
@@ -140,10 +154,10 @@ async function runScrape(forcedAccountId) {
       }
     }
 
-    console.log(`[FollowerScraper] Mode: ${mode}, account: ${accountId}`);
+    console.log(`[FollowerScraper] Mode: ${mode}`);
 
     // ── Fetch followers ──────────────────────────────────────────────────────
-    const followers = await fetchFollowers(accountId, mode);
+    const followers = await fetchFollowers(accountId, COMPANY_ID, mode);
 
     // ── Upsert into DB ───────────────────────────────────────────────────────
     let newFollowers = 0;
@@ -193,6 +207,7 @@ async function runScrape(forcedAccountId) {
     lastScrapeResult = {
       scraped_at:      new Date().toISOString(),
       mode,
+      company_id:      COMPANY_ID,
       total_fetched:   followers.length,
       new_followers:   newFollowers,
       newly_confirmed: confirmed,
@@ -216,7 +231,7 @@ async function runScrape(forcedAccountId) {
 
 // ── Fetch followers (full or incremental) ─────────────────────────────────────
 
-async function fetchFollowers(accountId, mode) {
+async function fetchFollowers(accountId, companyId, mode) {
   const isIncremental = mode === 'incremental';
   const maxPages = isIncremental ? INCREMENTAL_PAGES : Infinity;
 
@@ -228,7 +243,7 @@ async function fetchFollowers(accountId, mode) {
     page++;
     const params = new URLSearchParams({
       account_id: accountId,
-      user_id:    COMPANY_ID,
+      user_id:    companyId,
       limit:      BATCH_LIMIT,
     });
     if (cursor) params.set('cursor', cursor);
@@ -250,7 +265,7 @@ async function fetchFollowers(accountId, mode) {
 
     // In incremental mode — stop early if all items on this page already exist
     if (isIncremental && items.length > 0) {
-      const ids   = items.map(f => f.id || f.urn).filter(Boolean);
+      const ids = items.map(f => f.id || f.urn).filter(Boolean);
       if (ids.length > 0) {
         const { rows } = await db.query(
           `SELECT COUNT(*) AS cnt FROM company_followers
@@ -265,7 +280,6 @@ async function fetchFollowers(accountId, mode) {
       }
     }
 
-    // Next cursor
     cursor = null;
     if (data.cursor) {
       cursor = typeof data.cursor === 'object' ? data.cursor.value : data.cursor;
@@ -284,7 +298,6 @@ async function fetchFollowers(accountId, mode) {
 async function evaluateAndSwitchMode(accountId, learningStart) {
   console.log('[FollowerScraper] Evaluating ordering after learning phase...');
 
-  // Find followers discovered AFTER learning started
   const { rows: newOnes } = await db.query(
     `SELECT first_seen_position FROM company_followers
      WHERE account_id = $1
@@ -295,18 +308,17 @@ async function evaluateAndSwitchMode(accountId, learningStart) {
   );
 
   if (newOnes.length < 5) {
-    // Not enough data — stay in learning for now (but cap at 14 days)
-    console.log('[FollowerScraper] Not enough new followers to evaluate ordering — staying in full mode');
+    console.log('[FollowerScraper] Not enough new followers to evaluate — staying in full mode');
     await patchSettings(accountId, { cf_scrape_mode: 'full' });
     return 'full';
   }
 
-  const positions = newOnes.map(r => parseInt(r.first_seen_position, 10));
-  const allNearTop = positions.every(p => p < INCREMENTAL_THRESHOLD);
+  const positions   = newOnes.map(r => parseInt(r.first_seen_position, 10));
+  const allNearTop  = positions.every(p => p < INCREMENTAL_THRESHOLD);
   const avgPosition = positions.reduce((a, b) => a + b, 0) / positions.length;
 
   console.log(
-    `[FollowerScraper] ${newOnes.length} new followers since learning start. ` +
+    `[FollowerScraper] ${newOnes.length} new followers since learning. ` +
     `Avg position: ${avgPosition.toFixed(1)}. All near top (<${INCREMENTAL_THRESHOLD}): ${allNearTop}`
   );
 
@@ -323,15 +335,27 @@ async function evaluateAndSwitchMode(accountId, learningStart) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Safe patch of settings JSONB using parameterized query.
+ * Converts patch object to jsonb_build_object with proper $N parameters.
+ */
 async function patchSettings(accountId, patch) {
-  const setParts = Object.entries(patch)
-    .map(([k, v]) => `'${k}', ${typeof v === 'number' ? v : `'${String(v).replace(/'/g, "''")}'`}`)
-    .join(', ');
+  const entries = Object.entries(patch);
+  if (!entries.length) return;
+
+  // Build: jsonb_build_object($2, $3, $4, $5, ...)
+  const args   = [accountId];
+  const parts  = [];
+  for (const [k, v] of entries) {
+    args.push(k, v);
+    parts.push(`$${args.length - 1}, $${args.length}`);
+  }
+
   await db.query(
     `UPDATE unipile_accounts
-     SET settings = settings || jsonb_build_object(${setParts})
+     SET settings = settings || jsonb_build_object(${parts.join(', ')})
      WHERE account_id = $1`,
-    [accountId]
+    args
   );
 }
 

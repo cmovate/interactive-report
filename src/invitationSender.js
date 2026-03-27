@@ -11,6 +11,7 @@
  *   For each account:
  *     1. Check working hours (from account settings)
  *     2. Check daily limit (connection_requests limit from Settings)
+ *        FIX: uses calendar day (date_trunc), not rolling 24h window
  *     3. Pull pending contacts from campaigns where connection is enabled
  *     4. Send with 30-90s random delay between each
  *     5. Mark invite_sent = true, invite_sent_at = now
@@ -92,7 +93,6 @@ async function run() {
 
       console.log(`[InvitationSender] Account ${accountId}: ${sentToday}/${dailyLimit} sent today, can send ${canSend} more`);
 
-      // Only from campaigns where connection toggle is enabled (already filtered above)
       const campaignIds = accountCampaigns.map(c => c.id);
       const contacts    = await getPendingContacts(campaignIds, canSend);
 
@@ -156,20 +156,21 @@ function isWithinWorkingHours(settings) {
 }
 
 async function countSentToday(accountId) {
+  // FIX: use calendar day (date_trunc), NOT rolling 24h window.
+  // Rolling window allowed sending 20 at 11:59pm + 20 at 12:01am = 40 in 2 minutes.
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE camp.account_id = $1
       AND c.invite_sent = true
-      AND c.invite_sent_at >= NOW() - INTERVAL '24 hours'
+      AND c.invite_sent_at >= date_trunc('day', NOW())
   `, [accountId]);
   return parseInt(rows[0].cnt, 10);
 }
 
 /**
  * Only returns contacts from campaigns where the connection toggle is enabled.
- * Campaign-level filtering is the source of truth — not just account-level.
  */
 async function getPendingContacts(campaignIds, limit) {
   const { rows } = await db.query(`
