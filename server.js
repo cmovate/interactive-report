@@ -112,6 +112,8 @@ async function nukeIfBroken() {
       engagement_data       JSONB,
       post_likes_sent       INTEGER DEFAULT 0,
       comment_likes_sent    INTEGER DEFAULT 0,
+      likes_sent_at         TIMESTAMP,          -- last time we liked something for this contact
+      liked_ids             JSONB DEFAULT '[]',  -- array of post/comment IDs already liked
       created_at TIMESTAMP DEFAULT NOW()
     )
   `));
@@ -160,6 +162,7 @@ async function nukeIfBroken() {
     ['idx_contacts_approved',       'contacts(invite_approved)'],
     ['idx_contacts_profile_view',   'contacts(last_profile_view_at)'],
     ['idx_contacts_engagement',     'contacts(engagement_level)'],
+    ['idx_contacts_likes_sent_at',  'contacts(likes_sent_at)'],
     ['idx_followers_account',       'company_followers(account_id)'],
     ['idx_followers_profile',       'company_followers(profile_url)'],
     ['idx_followers_first_seen',    'company_followers(first_seen_at)'],
@@ -203,6 +206,9 @@ async function nukeIfBroken() {
     ['ct.eng_data',         'contacts',               'engagement_data',             'JSONB'],
     ['ct.post_likes',       'contacts',               'post_likes_sent',             'INTEGER DEFAULT 0'],
     ['ct.comment_likes',    'contacts',               'comment_likes_sent',          'INTEGER DEFAULT 0'],
+    // New columns for like cooldown + deduplication
+    ['ct.likes_sent_at',    'contacts',               'likes_sent_at',               'TIMESTAMP'],
+    ['ct.liked_ids',        'contacts',               'liked_ids',                   "JSONB DEFAULT '[]'"],
   ];
   for (const [label, table, col, type] of cols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
