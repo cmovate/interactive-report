@@ -30,7 +30,7 @@ app.use('/api/followers',  followersRouter);
 
 (async () => {
   try {
-    // ── Core tables ─────────────────────────────────────────────────────────
+    // ── Core tables ──────────────────────────────────────────────────────────
     await db.query(`CREATE TABLE IF NOT EXISTS workspaces (
       id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT NOW()
     )`);
@@ -76,7 +76,7 @@ app.use('/api/followers',  followersRouter);
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
-    // ── Company followers table ──────────────────────────────────────────────
+    // ── Company followers table ───────────────────────────────────────────────
     await db.query(`CREATE TABLE IF NOT EXISTS company_followers (
       id SERIAL PRIMARY KEY,
       account_id VARCHAR(255) NOT NULL,
@@ -85,19 +85,22 @@ app.use('/api/followers',  followersRouter);
       name VARCHAR(255),
       headline TEXT,
       profile_url TEXT,
+      first_seen_at TIMESTAMP DEFAULT NOW(),
+      first_seen_position INTEGER,
       scraped_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(account_id, follower_id)
     )`);
 
-    // ── Indexes ──────────────────────────────────────────────────────────────
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign    ON contacts(campaign_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace   ON contacts(workspace_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace  ON campaigns(workspace_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile  ON contacts(li_profile_url)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent ON contacts(invite_sent)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved    ON contacts(invite_approved)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_account    ON company_followers(account_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_profile    ON company_followers(profile_url)');
+    // ── Indexes ───────────────────────────────────────────────────────────────
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign       ON contacts(campaign_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace      ON contacts(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace     ON campaigns(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile     ON contacts(li_profile_url)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent    ON contacts(invite_sent)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved       ON contacts(invite_approved)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_account       ON company_followers(account_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_profile       ON company_followers(profile_url)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_first_seen    ON company_followers(first_seen_at)');
 
     // ── Migration columns (safe — IF NOT EXISTS) ──────────────────────────
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)");
@@ -106,13 +109,15 @@ app.use('/api/followers',  followersRouter);
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited BOOLEAN DEFAULT FALSE");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited_at TIMESTAMP");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed BOOLEAN DEFAULT FALSE");
+    await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMP DEFAULT NOW()");
+    await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_position INTEGER");
 
     console.log('[DB] Schema and migrations applied successfully');
   } catch (err) {
     console.error('[DB] Migration error:', err.message);
   }
 
-  // ── Start scheduled services ─────────────────────────────────────────────
+  // ── Start scheduled services ──────────────────────────────────────────────
   invitationSender.start();
   companyFollowSender.start();
   followerScraper.start();
