@@ -3,6 +3,8 @@
  * Processes ONE contact at a time with 5-10s random delay.
  *
  * Field mapping confirmed from live Unipile API:
+ *   profile.provider_id                  => LinkedIn internal ID (ACoXXX) ← needed for posts/comments API
+ *   profile.member_urn                   => numeric LinkedIn URN (e.g. "854151091")
  *   profile.work_experience[0].position  => title
  *   profile.work_experience[0].company   => company name (plain STRING)
  *   profile.work_experience[0].company_id => linkedin.com/company/{id}
@@ -34,36 +36,41 @@ function getStatus() {
 }
 
 function extractFields(profile, contactId) {
-  // CONFIRMED: Unipile uses work_experience (not experience/experiences/positions)
+  // ── LinkedIn identifiers ─────────────────────────────────────────────────────
+  // provider_id: e.g. "ACoAADLpT7MBOJZCKBaNIEP1RkDlOXnyKWJootE"
+  //   → used as {identifier} in /api/v1/users/{identifier}/posts and /comments
+  const providerId = profile.provider_id || '';
+
+  // member_urn: e.g. "854151091" (numeric)
+  //   → used to build urn:li:fsd_profile:{member_urn} for company follow invites
+  const memberUrn = profile.member_urn || '';
+
+  // ── Work experience ─────────────────────────────────────────────────────
   const expArray = profile.work_experience || [];
   const exp = Array.isArray(expArray) && expArray.length > 0 ? expArray[0] : null;
 
-  // CONFIRMED: field is .position (not .title)
   const title =
     exp?.position ||
     exp?.title    ||
     profile.headline ||
     '';
 
-  // CONFIRMED: company is a plain STRING (not an object)
   const company =
     (typeof exp?.company === 'string' ? exp.company : '') ||
     (typeof exp?.company === 'object' ? (exp?.company?.name || '') : '') ||
     exp?.company_name ||
     '';
 
-  // CONFIRMED: company_id is numeric, build LinkedIn URL from it
   const liCompanyUrl = exp?.company_id
     ? 'https://www.linkedin.com/company/' + exp.company_id
     : (exp?.company_url || exp?.company_linkedin_url || '');
 
-  // CONFIRMED: websites is an array of strings at root level
+  // ── Contact info ─────────────────────────────────────────────────────
   const website =
     (Array.isArray(profile.websites) && profile.websites.length > 0 ? profile.websites[0] : '') ||
     (profile.contact_info && profile.contact_info.websites && profile.contact_info.websites[0]) ||
     '';
 
-  // contact_info.emails may or may not be present
   const email =
     (profile.contact_info && profile.contact_info.emails && profile.contact_info.emails[0]) ||
     (profile.emails && profile.emails[0]) ||
@@ -74,9 +81,14 @@ function extractFields(profile, contactId) {
   const lastName  = profile.last_name  || '';
   const location  = profile.location   || '';
 
-  console.log('[Enrichment] contact=' + contactId + ' title="' + title + '" company="' + company + '" website="' + website + '" liCompanyUrl="' + liCompanyUrl + '" email="' + email + '"');
+  console.log(
+    `[Enrichment] contact=${contactId}` +
+    ` provider_id="${providerId}"` +
+    ` member_urn="${memberUrn}"` +
+    ` title="${title}" company="${company}"`
+  );
 
-  return { firstName, lastName, title, company, location, email, website, liCompanyUrl };
+  return { firstName, lastName, title, company, location, email, website, liCompanyUrl, providerId, memberUrn };
 }
 
 function randomDelay() {
@@ -111,21 +123,23 @@ async function processNext() {
 }
 
 async function applyToDb(contactId, fields, profile) {
-  const { firstName, lastName, title, company, location, email, website, liCompanyUrl } = fields;
+  const { firstName, lastName, title, company, location, email, website, liCompanyUrl, providerId, memberUrn } = fields;
   await db.query(
     `UPDATE contacts SET
-       first_name     = COALESCE(NULLIF($1,''), first_name),
-       last_name      = COALESCE(NULLIF($2,''), last_name),
-       title          = COALESCE(NULLIF($3,''), title),
-       company        = COALESCE(NULLIF($4,''), company),
-       location       = COALESCE(NULLIF($5,''), location),
-       email          = COALESCE(NULLIF($6,''), email),
-       website        = COALESCE(NULLIF($7,''), website),
-       li_company_url = COALESCE(NULLIF($8,''), li_company_url),
-       profile_data   = $9
-     WHERE id = $10`,
+       first_name     = COALESCE(NULLIF($1,''),  first_name),
+       last_name      = COALESCE(NULLIF($2,''),  last_name),
+       title          = COALESCE(NULLIF($3,''),  title),
+       company        = COALESCE(NULLIF($4,''),  company),
+       location       = COALESCE(NULLIF($5,''),  location),
+       email          = COALESCE(NULLIF($6,''),  email),
+       website        = COALESCE(NULLIF($7,''),  website),
+       li_company_url = COALESCE(NULLIF($8,''),  li_company_url),
+       provider_id    = COALESCE(NULLIF($9,''),  provider_id),
+       member_urn     = COALESCE(NULLIF($10,''), member_urn),
+       profile_data   = $11
+     WHERE id = $12`,
     [firstName, lastName, title, company, location, email, website, liCompanyUrl,
-     JSON.stringify(profile), contactId]
+     providerId, memberUrn, JSON.stringify(profile), contactId]
   );
 }
 
@@ -151,17 +165,20 @@ async function reExtractAll(workspaceId) {
 
       await db.query(
         `UPDATE contacts SET
-           first_name     = COALESCE(NULLIF($1,''), first_name),
-           last_name      = COALESCE(NULLIF($2,''), last_name),
-           title          = COALESCE(NULLIF($3,''), title),
-           company        = COALESCE(NULLIF($4,''), company),
-           location       = COALESCE(NULLIF($5,''), location),
-           email          = COALESCE(NULLIF($6,''), email),
-           website        = COALESCE(NULLIF($7,''), website),
-           li_company_url = COALESCE(NULLIF($8,''), li_company_url)
-         WHERE id = $9`,
+           first_name     = COALESCE(NULLIF($1,''),  first_name),
+           last_name      = COALESCE(NULLIF($2,''),  last_name),
+           title          = COALESCE(NULLIF($3,''),  title),
+           company        = COALESCE(NULLIF($4,''),  company),
+           location       = COALESCE(NULLIF($5,''),  location),
+           email          = COALESCE(NULLIF($6,''),  email),
+           website        = COALESCE(NULLIF($7,''),  website),
+           li_company_url = COALESCE(NULLIF($8,''),  li_company_url),
+           provider_id    = COALESCE(NULLIF($9,''),  provider_id),
+           member_urn     = COALESCE(NULLIF($10,''), member_urn)
+         WHERE id = $11`,
         [fields.firstName, fields.lastName, fields.title, fields.company,
-         fields.location, fields.email, fields.website, fields.liCompanyUrl, row.id]
+         fields.location, fields.email, fields.website, fields.liCompanyUrl,
+         fields.providerId, fields.memberUrn, row.id]
       );
       ok++;
     } catch (err) {
