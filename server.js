@@ -4,13 +4,15 @@ const cors    = require('cors');
 const path    = require('path');
 const db      = require('./src/db');
 
-const workspacesRouter  = require('./src/routes/workspaces');
-const unipileRouter     = require('./src/routes/unipile');
-const campaignsRouter   = require('./src/routes/campaigns');
-const contactsRouter    = require('./src/routes/contacts');
-const webhooksRouter    = require('./src/routes/webhooks');
-const invitationSender  = require('./src/invitationSender');
+const workspacesRouter    = require('./src/routes/workspaces');
+const unipileRouter       = require('./src/routes/unipile');
+const campaignsRouter     = require('./src/routes/campaigns');
+const contactsRouter      = require('./src/routes/contacts');
+const webhooksRouter      = require('./src/routes/webhooks');
+const followersRouter     = require('./src/routes/followers');
+const invitationSender    = require('./src/invitationSender');
 const companyFollowSender = require('./src/companyFollowSender');
+const followerScraper     = require('./src/followerScraper');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -24,10 +26,11 @@ app.use('/api/unipile',    unipileRouter);
 app.use('/api/campaigns',  campaignsRouter);
 app.use('/api/contacts',   contactsRouter);
 app.use('/api/webhooks',   webhooksRouter);
+app.use('/api/followers',  followersRouter);
 
 (async () => {
   try {
-    // Full schema (IF NOT EXISTS — safe to run on every startup)
+    // ── Core tables ─────────────────────────────────────────────────────────
     await db.query(`CREATE TABLE IF NOT EXISTS workspaces (
       id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT NOW()
     )`);
@@ -67,34 +70,52 @@ app.use('/api/webhooks',   webhooksRouter);
       msg_replied BOOLEAN DEFAULT FALSE,
       positive_reply BOOLEAN DEFAULT FALSE,
       company_follow_invited BOOLEAN DEFAULT FALSE,
+      company_follow_confirmed BOOLEAN DEFAULT FALSE,
       invite_sent_at TIMESTAMP,
       company_follow_invited_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
-    // Indexes
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign   ON contacts(campaign_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace  ON contacts(workspace_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile ON contacts(li_profile_url)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent ON contacts(invite_sent)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved   ON contacts(invite_approved)');
+    // ── Company followers table ──────────────────────────────────────────────
+    await db.query(`CREATE TABLE IF NOT EXISTS company_followers (
+      id SERIAL PRIMARY KEY,
+      account_id VARCHAR(255) NOT NULL,
+      follower_id VARCHAR(255) NOT NULL,
+      follower_urn VARCHAR(255),
+      name VARCHAR(255),
+      headline TEXT,
+      profile_url TEXT,
+      scraped_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(account_id, follower_id)
+    )`);
 
-    // Migration columns — safe to add repeatedly
+    // ── Indexes ──────────────────────────────────────────────────────────────
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign    ON contacts(campaign_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace   ON contacts(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace  ON campaigns(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile  ON contacts(li_profile_url)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent ON contacts(invite_sent)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved    ON contacts(invite_approved)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_account    ON company_followers(account_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_profile    ON company_followers(profile_url)');
+
+    // ── Migration columns (safe — IF NOT EXISTS) ──────────────────────────
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)");
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited BOOLEAN DEFAULT FALSE");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited_at TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed BOOLEAN DEFAULT FALSE");
 
     console.log('[DB] Schema and migrations applied successfully');
   } catch (err) {
     console.error('[DB] Migration error:', err.message);
   }
 
-  // Start scheduled senders
+  // ── Start scheduled services ─────────────────────────────────────────────
   invitationSender.start();
   companyFollowSender.start();
+  followerScraper.start();
 })();
 
 app.get('*', (req, res) => {
