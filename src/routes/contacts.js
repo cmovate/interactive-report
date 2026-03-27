@@ -26,7 +26,6 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/contacts/debug-profile/:id
-// Returns the raw Unipile profile_data + a flat key inventory for debugging
 router.get('/debug-profile/:id', async (req, res) => {
   try {
     const { rows } = await db.query(
@@ -38,7 +37,6 @@ router.get('/debug-profile/:id', async (req, res) => {
     const raw = row.profile_data
       ? (typeof row.profile_data === 'string' ? JSON.parse(row.profile_data) : row.profile_data)
       : null;
-
     function inventory(obj, prefix) {
       prefix = prefix || '';
       const result = {};
@@ -58,15 +56,10 @@ router.get('/debug-profile/:id', async (req, res) => {
       }
       return result;
     }
-
     res.json({
-      contact_id:      row.id,
-      stored_name:     row.first_name + ' ' + row.last_name,
-      li_profile_url:  row.li_profile_url,
-      has_profile_data: !!raw,
-      field_map:       raw ? inventory(raw) : null,
-      experience_0:    raw ? (raw.experience && raw.experience[0]) || (raw.experiences && raw.experiences[0]) || (raw.positions && raw.positions[0]) || null : null,
-      raw_profile:     raw,
+      contact_id: row.id, stored_name: row.first_name + ' ' + row.last_name,
+      li_profile_url: row.li_profile_url, has_profile_data: !!raw,
+      field_map: raw ? inventory(raw) : null, raw_profile: raw,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -78,6 +71,25 @@ router.post('/re-extract', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const result = await reExtractAll(workspace_id);
     res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/contacts/:id/simulate-view  ← TEMPORARY TEST ENDPOINT
+// Simulates exactly what profileViewer.js does: increments profile_view_count + sets last_profile_view_at
+router.post('/:id/simulate-view', async (req, res) => {
+  try {
+    await db.query(
+      `UPDATE contacts
+       SET last_profile_view_at = NOW(),
+           profile_view_count   = COALESCE(profile_view_count, 0) + 1
+       WHERE id = $1`,
+      [req.params.id]
+    );
+    const { rows } = await db.query(
+      'SELECT id, profile_view_count, last_profile_view_at FROM contacts WHERE id = $1',
+      [req.params.id]
+    );
+    res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
