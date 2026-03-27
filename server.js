@@ -24,16 +24,69 @@ app.use('/api/campaigns',  campaignsRouter);
 app.use('/api/contacts',   contactsRouter);
 app.use('/api/webhooks',   webhooksRouter);
 
-// ONE-TIME migration endpoint — auto-runs on startup then removes itself
+// Auto-run full schema + migration on every startup (all IF NOT EXISTS — safe to run repeatedly)
 (async () => {
   try {
-    await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)');
-    await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP');
+    // Full schema
+    await db.query(`CREATE TABLE IF NOT EXISTS workspaces (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await db.query(`CREATE TABLE IF NOT EXISTS unipile_accounts (
+      id SERIAL PRIMARY KEY,
+      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
+      account_id VARCHAR(255) NOT NULL UNIQUE,
+      display_name VARCHAR(255),
+      provider VARCHAR(50) DEFAULT 'linkedin',
+      status VARCHAR(50),
+      webhook_id VARCHAR(255),
+      invite_sent_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await db.query(`CREATE TABLE IF NOT EXISTS campaigns (
+      id SERIAL PRIMARY KEY,
+      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
+      account_id VARCHAR(255),
+      name VARCHAR(255) NOT NULL,
+      status VARCHAR(50) DEFAULT 'draft',
+      audience_type VARCHAR(50),
+      settings JSONB DEFAULT '{}',
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await db.query(`CREATE TABLE IF NOT EXISTS contacts (
+      id SERIAL PRIMARY KEY,
+      campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+      workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE,
+      first_name VARCHAR(255),
+      last_name VARCHAR(255),
+      company VARCHAR(255),
+      title VARCHAR(255),
+      li_profile_url TEXT,
+      li_company_url TEXT,
+      email VARCHAR(255),
+      website VARCHAR(255),
+      location VARCHAR(255),
+      profile_data JSONB DEFAULT '{}',
+      invite_sent BOOLEAN DEFAULT FALSE,
+      invite_approved BOOLEAN DEFAULT FALSE,
+      msg_sent BOOLEAN DEFAULT FALSE,
+      msg_replied BOOLEAN DEFAULT FALSE,
+      positive_reply BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    // Indexes
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign ON contacts(campaign_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace ON contacts(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace ON campaigns(workspace_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile ON contacts(li_profile_url)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent ON contacts(invite_sent)');
-    console.log('[Migration] schema_migration.sql applied successfully');
+    // Migration columns (safe — IF NOT EXISTS)
+    await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)');
+    await db.query('ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP');
+    console.log('[DB] Schema and migrations applied successfully');
   } catch (err) {
-    console.error('[Migration] Error:', err.message);
+    console.error('[DB] Migration error:', err.message);
   }
 })();
 
