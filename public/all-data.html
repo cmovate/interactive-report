@@ -195,15 +195,24 @@ function followBadge(invited, confirmed) {
 
 /**
  * Provider ID badge:
- *   - Grey mono pill  if present (ACoXXX)
- *   - Yellow warning  if enriched but provider_id not in DB (shouldn't happen with new code)
- *   - Dash            if not yet enriched
+ *   - Grey mono pill if present (ACoXXX...)
+ *   - Yellow warning  if profile_data has real content but provider_id missing
+ *   - Dash            if not yet enriched (profile_data is empty {} or null)
+ *
+ * FIX: profile_data arrives as a JS object {}, which is truthy — must check
+ * Object.keys().length > 0 to detect real enrichment.
  */
 function providerIdBadge(providerId, profileData) {
   if (providerId) {
     return `<span class="provider-id" title="${esc(providerId)}">${esc(providerId)}</span>`;
   }
-  const hasProfile = profileData && profileData !== '{}' && profileData !== 'null';
+  // Determine if contact was actually enriched (has real profile_data)
+  let hasProfile = false;
+  if (profileData && typeof profileData === 'object') {
+    hasProfile = Object.keys(profileData).length > 0;
+  } else if (typeof profileData === 'string') {
+    hasProfile = profileData !== '' && profileData !== '{}' && profileData !== 'null';
+  }
   if (hasProfile) {
     return '<span class="provider-id-missing" title="Enriched but provider_id not found">\u26a0 not found</span>';
   }
@@ -501,7 +510,7 @@ function exportCSV() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 load(false);
 
-// Silently trigger re-extract on page load to populate provider_id for all existing contacts
+// Silently trigger re-extract on page load to populate provider_id for existing contacts
 fetch(`/api/contacts/re-extract?workspace_id=${workspaceId}`, { method: 'POST' })
   .then(r => r.json())
   .then(d => { if (d.updated > 0) setTimeout(() => load(true), 3000); })
