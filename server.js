@@ -15,6 +15,7 @@ const invitationSender    = require('./src/invitationSender');
 const companyFollowSender = require('./src/companyFollowSender');
 const followerScraper     = require('./src/followerScraper');
 const statsSnapshotter    = require('./src/statsSnapshotter');
+const profileViewer       = require('./src/profileViewer');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -75,7 +76,10 @@ app.use('/api/stats',      statsRouter);
       positive_reply           BOOLEAN DEFAULT FALSE,
       company_follow_invited   BOOLEAN DEFAULT FALSE,
       company_follow_confirmed BOOLEAN DEFAULT FALSE,
-      -- Event timestamps (when each milestone was first reached)
+      -- Profile view tracking
+      last_profile_view_at     TIMESTAMP,
+      profile_view_count       INTEGER DEFAULT 0,
+      -- Event timestamps
       invite_sent_at              TIMESTAMP,
       invite_approved_at          TIMESTAMP,
       msg_sent_at                 TIMESTAMP,
@@ -102,28 +106,27 @@ app.use('/api/stats',      statsRouter);
     )`);
 
     // ── Historical snapshots ─────────────────────────────────────────────────
-    // Captures daily funnel metrics per campaign — enables time-based comparisons
     await db.query(`CREATE TABLE IF NOT EXISTS campaign_daily_stats (
       id SERIAL PRIMARY KEY,
-      snapshot_date   DATE          NOT NULL,
-      campaign_id     INTEGER       NOT NULL,
-      workspace_id    INTEGER,
-      account_id      VARCHAR(255),
-      campaign_name   VARCHAR(255),
-      campaign_status VARCHAR(50),
-      total_contacts  INTEGER DEFAULT 0,
-      invites_sent    INTEGER DEFAULT 0,
+      snapshot_date    DATE         NOT NULL,
+      campaign_id      INTEGER      NOT NULL,
+      workspace_id     INTEGER,
+      account_id       VARCHAR(255),
+      campaign_name    VARCHAR(255),
+      campaign_status  VARCHAR(50),
+      total_contacts   INTEGER DEFAULT 0,
+      invites_sent     INTEGER DEFAULT 0,
       invites_approved INTEGER DEFAULT 0,
-      messages_sent   INTEGER DEFAULT 0,
+      messages_sent    INTEGER DEFAULT 0,
       messages_replied INTEGER DEFAULT 0,
       positive_replies INTEGER DEFAULT 0,
-      follow_invited  INTEGER DEFAULT 0,
+      follow_invited   INTEGER DEFAULT 0,
       follow_confirmed INTEGER DEFAULT 0,
-      updated_at      TIMESTAMP DEFAULT NOW(),
+      profile_views    INTEGER DEFAULT 0,
+      updated_at       TIMESTAMP DEFAULT NOW(),
       UNIQUE(snapshot_date, campaign_id)
     )`);
 
-    // Daily follower count for company page — enables follower growth tracking
     await db.query(`CREATE TABLE IF NOT EXISTS company_page_daily_stats (
       id SERIAL PRIMARY KEY,
       snapshot_date   DATE          NOT NULL,
@@ -141,6 +144,7 @@ app.use('/api/stats',      statsRouter);
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile       ON contacts(li_profile_url)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent      ON contacts(invite_sent)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved         ON contacts(invite_approved)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_profile_view     ON contacts(last_profile_view_at)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_followers_account         ON company_followers(account_id)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_followers_profile         ON company_followers(profile_url)');
     await db.query('CREATE INDEX IF NOT EXISTS idx_followers_first_seen      ON company_followers(first_seen_at)');
@@ -152,10 +156,10 @@ app.use('/api/stats',      statsRouter);
     // ── Migration columns (safe — IF NOT EXISTS) ──────────────────────────
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)");
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'");
-    // Contact flag columns
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited   BOOLEAN DEFAULT FALSE");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed BOOLEAN DEFAULT FALSE");
-    // Contact timestamp columns — the full set
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS last_profile_view_at     TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS profile_view_count       INTEGER DEFAULT 0");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_sent_at              TIMESTAMP");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_approved_at          TIMESTAMP");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_sent_at                 TIMESTAMP");
@@ -163,9 +167,9 @@ app.use('/api/stats',      statsRouter);
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS positive_reply_at           TIMESTAMP");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited_at   TIMESTAMP");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed_at TIMESTAMP");
-    // company_followers columns
     await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_at       TIMESTAMP DEFAULT NOW()");
     await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_position INTEGER");
+    await db.query("ALTER TABLE campaign_daily_stats ADD COLUMN IF NOT EXISTS profile_views INTEGER DEFAULT 0");
 
     console.log('[DB] Schema and migrations applied successfully');
   } catch (err) {
@@ -177,6 +181,7 @@ app.use('/api/stats',      statsRouter);
   companyFollowSender.start();
   followerScraper.start();
   statsSnapshotter.start();
+  profileViewer.start();
 })();
 
 app.get('*', (req, res) => {
