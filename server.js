@@ -10,9 +10,11 @@ const campaignsRouter     = require('./src/routes/campaigns');
 const contactsRouter      = require('./src/routes/contacts');
 const webhooksRouter      = require('./src/routes/webhooks');
 const followersRouter     = require('./src/routes/followers');
+const statsRouter         = require('./src/routes/stats');
 const invitationSender    = require('./src/invitationSender');
 const companyFollowSender = require('./src/companyFollowSender');
 const followerScraper     = require('./src/followerScraper');
+const statsSnapshotter    = require('./src/statsSnapshotter');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +29,7 @@ app.use('/api/campaigns',  campaignsRouter);
 app.use('/api/contacts',   contactsRouter);
 app.use('/api/webhooks',   webhooksRouter);
 app.use('/api/followers',  followersRouter);
+app.use('/api/stats',      statsRouter);
 
 (async () => {
   try {
@@ -64,15 +67,22 @@ app.use('/api/followers',  followersRouter);
       li_profile_url TEXT, li_company_url TEXT,
       email VARCHAR(255), website VARCHAR(255), location VARCHAR(255),
       profile_data JSONB DEFAULT '{}',
-      invite_sent BOOLEAN DEFAULT FALSE,
-      invite_approved BOOLEAN DEFAULT FALSE,
-      msg_sent BOOLEAN DEFAULT FALSE,
-      msg_replied BOOLEAN DEFAULT FALSE,
-      positive_reply BOOLEAN DEFAULT FALSE,
-      company_follow_invited BOOLEAN DEFAULT FALSE,
+      -- Status flags
+      invite_sent              BOOLEAN DEFAULT FALSE,
+      invite_approved          BOOLEAN DEFAULT FALSE,
+      msg_sent                 BOOLEAN DEFAULT FALSE,
+      msg_replied              BOOLEAN DEFAULT FALSE,
+      positive_reply           BOOLEAN DEFAULT FALSE,
+      company_follow_invited   BOOLEAN DEFAULT FALSE,
       company_follow_confirmed BOOLEAN DEFAULT FALSE,
-      invite_sent_at TIMESTAMP,
-      company_follow_invited_at TIMESTAMP,
+      -- Event timestamps (when each milestone was first reached)
+      invite_sent_at              TIMESTAMP,
+      invite_approved_at          TIMESTAMP,
+      msg_sent_at                 TIMESTAMP,
+      msg_replied_at              TIMESTAMP,
+      positive_reply_at           TIMESTAMP,
+      company_follow_invited_at   TIMESTAMP,
+      company_follow_confirmed_at TIMESTAMP,
       created_at TIMESTAMP DEFAULT NOW()
     )`);
 
@@ -91,25 +101,70 @@ app.use('/api/followers',  followersRouter);
       UNIQUE(account_id, follower_id)
     )`);
 
+    // ── Historical snapshots ─────────────────────────────────────────────────
+    // Captures daily funnel metrics per campaign — enables time-based comparisons
+    await db.query(`CREATE TABLE IF NOT EXISTS campaign_daily_stats (
+      id SERIAL PRIMARY KEY,
+      snapshot_date   DATE          NOT NULL,
+      campaign_id     INTEGER       NOT NULL,
+      workspace_id    INTEGER,
+      account_id      VARCHAR(255),
+      campaign_name   VARCHAR(255),
+      campaign_status VARCHAR(50),
+      total_contacts  INTEGER DEFAULT 0,
+      invites_sent    INTEGER DEFAULT 0,
+      invites_approved INTEGER DEFAULT 0,
+      messages_sent   INTEGER DEFAULT 0,
+      messages_replied INTEGER DEFAULT 0,
+      positive_replies INTEGER DEFAULT 0,
+      follow_invited  INTEGER DEFAULT 0,
+      follow_confirmed INTEGER DEFAULT 0,
+      updated_at      TIMESTAMP DEFAULT NOW(),
+      UNIQUE(snapshot_date, campaign_id)
+    )`);
+
+    // Daily follower count for company page — enables follower growth tracking
+    await db.query(`CREATE TABLE IF NOT EXISTS company_page_daily_stats (
+      id SERIAL PRIMARY KEY,
+      snapshot_date   DATE          NOT NULL,
+      account_id      VARCHAR(255)  NOT NULL,
+      workspace_id    INTEGER,
+      total_followers INTEGER DEFAULT 0,
+      updated_at      TIMESTAMP DEFAULT NOW(),
+      UNIQUE(snapshot_date, account_id)
+    )`);
+
     // ── Indexes ───────────────────────────────────────────────────────────────
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign       ON contacts(campaign_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace      ON contacts(workspace_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace     ON campaigns(workspace_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile     ON contacts(li_profile_url)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent    ON contacts(invite_sent)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved       ON contacts(invite_approved)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_account       ON company_followers(account_id)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_profile       ON company_followers(profile_url)');
-    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_first_seen    ON company_followers(first_seen_at)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_campaign         ON contacts(campaign_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_workspace        ON contacts(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_campaigns_workspace       ON campaigns(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_li_profile       ON contacts(li_profile_url)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_invite_sent      ON contacts(invite_sent)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_contacts_approved         ON contacts(invite_approved)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_account         ON company_followers(account_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_profile         ON company_followers(profile_url)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_followers_first_seen      ON company_followers(first_seen_at)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_daily_stats_date          ON campaign_daily_stats(snapshot_date)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_daily_stats_campaign      ON campaign_daily_stats(campaign_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_daily_stats_workspace     ON campaign_daily_stats(workspace_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_page_stats_date           ON company_page_daily_stats(snapshot_date)');
 
     // ── Migration columns (safe — IF NOT EXISTS) ──────────────────────────
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS webhook_id VARCHAR(255)");
     await db.query("ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'");
-    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_sent_at TIMESTAMP");
-    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited BOOLEAN DEFAULT FALSE");
-    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited_at TIMESTAMP");
+    // Contact flag columns
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited   BOOLEAN DEFAULT FALSE");
     await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed BOOLEAN DEFAULT FALSE");
-    await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMP DEFAULT NOW()");
+    // Contact timestamp columns — the full set
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_sent_at              TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS invite_approved_at          TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_sent_at                 TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_replied_at              TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS positive_reply_at           TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_invited_at   TIMESTAMP");
+    await db.query("ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_follow_confirmed_at TIMESTAMP");
+    // company_followers columns
+    await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_at       TIMESTAMP DEFAULT NOW()");
     await db.query("ALTER TABLE company_followers ADD COLUMN IF NOT EXISTS first_seen_position INTEGER");
 
     console.log('[DB] Schema and migrations applied successfully');
@@ -121,6 +176,7 @@ app.use('/api/followers',  followersRouter);
   invitationSender.start();
   companyFollowSender.start();
   followerScraper.start();
+  statsSnapshotter.start();
 })();
 
 app.get('*', (req, res) => {
