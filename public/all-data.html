@@ -65,15 +65,12 @@ tr:last-child td { border-bottom: none; }
 .follow-none      { display:inline-block; background:#f5f5f5; color:#aaa;    border-radius:999px; padding:2px 8px; font-size:11px; }
 .pv-count { display:inline-block; background:#EEF2FF; color:#4338CA; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; min-width:24px; text-align:center; }
 .pv-none  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
-/* Provider ID */
 .provider-id { display:inline-block; font-family:'SFMono-Regular',Consolas,monospace; font-size:10px; background:#F3F4F6; color:#374151; border-radius:4px; padding:2px 6px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
 .provider-id-missing { display:inline-block; background:#FEF3C7; color:#92400E; border-radius:4px; padding:2px 6px; font-size:10px; }
-/* Engagement level */
 .eng-engaged   { display:inline-block; background:#DCFCE7; color:#166534; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:600; }
 .eng-average   { display:inline-block; background:#FEF9C3; color:#854D0E; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:500; }
 .eng-unengaged { display:inline-block; background:#FEE2E2; color:#991B1B; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:500; }
 .eng-pending   { display:inline-block; background:#f0f0f0; color:#aaa;    border-radius:999px; padding:3px 10px; font-size:11px; }
-/* Like counters */
 .like-count { display:inline-block; background:#FFF7ED; color:#C2410C; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; min-width:24px; text-align:center; }
 .like-none  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
 .cell-link  { color:#1D9E75; text-decoration:none; font-size:12px; }
@@ -128,9 +125,9 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
         <th style="min-width:180px;">Website</th>
         <th style="min-width:160px;">Campaign</th>
         <th style="min-width:200px;" title="LinkedIn internal ID">Provider ID</th>
-        <th style="min-width:130px;text-align:center;" title="Engagement classification">Engagement</th>
-        <th style="min-width:120px;text-align:center;" title="Post likes we sent">Post likes 👍</th>
-        <th style="min-width:130px;text-align:center;" title="Comment likes we sent">Comment likes 👍</th>
+        <th style="min-width:130px;text-align:center;">Engagement</th>
+        <th style="min-width:120px;text-align:center;" title="Post likes we sent to this contact">Post likes &#128077;</th>
+        <th style="min-width:130px;text-align:center;" title="Comment likes we sent to this contact">Comment likes &#128077;</th>
         <th style="min-width:100px;text-align:center;">Invite sent</th>
         <th style="min-width:110px;text-align:center;">Invite approved</th>
         <th style="min-width:110px;text-align:center;">Message sent</th>
@@ -171,10 +168,10 @@ function safeUrl(u) { if(!u)return''; u=u.trim(); return /^https?:\/\//i.test(u)
 function fmtTime(d) { return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
 
 function pvBadge(n) {
-  n = parseInt(n)||0;
+  n=parseInt(n)||0;
   return n>0 ? `<span class="pv-count">${n}</span>` : '<span class="pv-none">—</span>';
 }
-function followBadge(inv,conf) {
+function followBadge(inv, conf) {
   if(conf) return '<span class="follow-confirmed">Following</span>';
   if(inv)  return '<span class="follow-invited">Invited</span>';
   return '<span class="follow-none">—</span>';
@@ -194,19 +191,19 @@ function engBadge(level) {
   return '<span class="eng-pending">—</span>';
 }
 function likeBadge(n) {
-  n = parseInt(n)||0;
+  n=parseInt(n)||0;
   return n>0 ? `<span class="like-count">${n}</span>` : '<span class="like-none">—</span>';
 }
 
 function hashC(cs) {
   return cs.map(c=>[
-    c.id, c.invite_sent?1:0, c.invite_approved?1:0,
-    c.msg_sent?1:0, c.msg_replied?1:0, c.positive_reply?1:0,
+    c.id,c.invite_sent?1:0,c.invite_approved?1:0,
+    c.msg_sent?1:0,c.msg_replied?1:0,c.positive_reply?1:0,
     c.profile_view_count||0,
-    c.company_follow_invited?1:0, c.company_follow_confirmed?1:0,
-    c.provider_id||'', c.engagement_level||'',
-    c.post_likes_sent||0, c.comment_likes_sent||0,
-    c.first_name, c.last_name, c.title, c.company,
+    c.company_follow_invited?1:0,c.company_follow_confirmed?1:0,
+    c.provider_id||'',c.engagement_level||'',
+    c.post_likes_sent||0,c.comment_likes_sent||0,
+    c.first_name,c.last_name,c.title,c.company,
   ].join(':')).join('|');
 }
 
@@ -216,13 +213,13 @@ async function load(silent) {
       fetch(`/api/contacts?workspace_id=${workspaceId}`),
       fetch(`/api/campaigns?workspace_id=${workspaceId}`)
     ]);
-    const cD = await cR.json(), campD = await campR.json();
-    const nc = Array.isArray(cD.items)?cD.items:[];
-    const ng = Array.isArray(campD.items)?campD.items:[];
+    const cD=await cR.json(), campD=await campR.json();
+    const nc=Array.isArray(cD.items)?cD.items:[];
+    const ng=Array.isArray(campD.items)?campD.items:[];
 
-    const changed = new Set();
+    const changed=new Set();
     if(allContacts.length>0) {
-      const pm = Object.fromEntries(allContacts.map(c=>[c.id,c]));
+      const pm=Object.fromEntries(allContacts.map(c=>[c.id,c]));
       for(const c of nc) {
         const p=pm[c.id];
         if(p&&(
@@ -230,24 +227,22 @@ async function load(silent) {
           p.msg_sent!==c.msg_sent||p.msg_replied!==c.msg_replied||p.positive_reply!==c.positive_reply||
           (p.profile_view_count||0)!==(c.profile_view_count||0)||
           p.company_follow_invited!==c.company_follow_invited||p.company_follow_confirmed!==c.company_follow_confirmed||
-          (p.provider_id||')!==(c.provider_id||')||(p.engagement_level||'')!==(c.engagement_level||'')||
+          (p.provider_id||'')!==(c.provider_id||'')||(p.engagement_level||'')!==(c.engagement_level||'')||
           (p.post_likes_sent||0)!==(c.post_likes_sent||0)||(p.comment_likes_sent||0)!==(c.comment_likes_sent||0)||
           p.first_name!==c.first_name||p.last_name!==c.last_name||p.company!==c.company
         )) changed.add(String(c.id));
       }
     }
-    const nh = hashC(nc);
-    const changed2 = nh!==prevContactHash;
+    const nh=hashC(nc), ch=nh!==prevContactHash;
     allContacts=nc; campaigns=ng; prevContactHash=nh;
 
     const sel=document.getElementById('campaign-filter'), prev=sel.value;
     sel.innerHTML='<option value="">All campaigns</option>'+ng.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
     if(prev) sel.value=prev;
-    if(changed2||!silent) applyFilters(changed);
+    if(ch||!silent) applyFilters(changed);
     document.getElementById('last-updated').textContent='Updated '+fmtTime(new Date());
   } catch(e){console.error(e);}
-  updateEnrichStatus();
-  scheduleAutoRefresh();
+  updateEnrichStatus(); scheduleAutoRefresh();
 }
 
 function scheduleAutoRefresh() {
@@ -255,7 +250,7 @@ function scheduleAutoRefresh() {
   autoRefreshTimer=setTimeout(()=>load(true),AUTO_REFRESH_MS);
 }
 async function manualRefresh() {
-  const btn=document.getElementById('refresh-btn'), icon=document.getElementById('refresh-icon');
+  const btn=document.getElementById('refresh-btn'),icon=document.getElementById('refresh-icon');
   btn.disabled=true; icon.innerHTML='<span class="spin">&#x21BB;</span>';
   await load(false);
   btn.disabled=false; icon.innerHTML='&#x21BB;';
@@ -280,10 +275,10 @@ function applyFilters(flashIds) {
   const q=document.getElementById('search-input').value.trim().toLowerCase();
   const cid=document.getElementById('campaign-filter').value;
   filteredContacts=allContacts.filter(r=>{
-    if(cid&&String(r.campaign_id)!==String(cid))return false;
-    if(q){
+    if(cid&&String(r.campaign_id)!==String(cid)) return false;
+    if(q) {
       const hay=[r.first_name,r.last_name,r.company,r.title,r.email,r.website,r.provider_id].join(' ').toLowerCase();
-      if(!hay.includes(q))return false;
+      if(!hay.includes(q)) return false;
     }
     return true;
   });
@@ -299,9 +294,9 @@ function renderStats() {
   const tv=f.reduce((s,r)=>s+(parseInt(r.profile_view_count)||0),0);
   const vc=f.filter(r=>(parseInt(r.profile_view_count)||0)>0).length;
   const ec=f.filter(r=>r.provider_id).length;
-  const engCount=f.filter(r=>r.engagement_level&&r.engagement_level!=='un_engaged').length;
-  const plCount=f.reduce((s,r)=>s+(parseInt(r.post_likes_sent)||0),0);
-  const clCount=f.reduce((s,r)=>s+(parseInt(r.comment_likes_sent)||0),0);
+  const engC=f.filter(r=>r.engagement_level&&r.engagement_level!=='un_engaged').length;
+  const plC=f.reduce((s,r)=>s+(parseInt(r.post_likes_sent)||0),0);
+  const clC=f.reduce((s,r)=>s+(parseInt(r.comment_likes_sent)||0),0);
 
   const chips=[
     {label:'Total contacts',val:f.length},
@@ -313,12 +308,12 @@ function renderStats() {
     {label:'Profile views',val:`${tv} / ${vc} contacts`},
     {label:'Company follow',val:fv},
     {label:'Enriched',val:`${ec} / ${f.length}`},
-    {label:'Engaged contacts',val:engCount},
-    {label:'Post likes sent',val:plCount},
-    {label:'Comment likes sent',val:clCount},
+    {label:'Engaged contacts',val:engC},
+    {label:'Post likes sent',val:plC},
+    {label:'Comment likes sent',val:clC},
   ].map(s=>`<div class="stat-chip"><strong>${s.val}</strong>${s.label}</div>`).join('');
 
-  const sr=document.getElementById('stats-row'), badge=document.getElementById('last-updated')?.parentElement;
+  const sr=document.getElementById('stats-row'),badge=document.getElementById('last-updated')?.parentElement;
   sr.innerHTML=chips;
   if(badge) sr.appendChild(badge);
 }
@@ -327,7 +322,7 @@ function renderTable(flashIds) {
   const tbody=document.getElementById('table-body');
   document.getElementById('check-all').checked=filteredContacts.length>0&&selectedIds.size===filteredContacts.length;
   if(!filteredContacts.length) {
-    tbody.innerHTML=`<tr class="empty-row"><td colspan="22">No contacts match your filters</td></tr>`;
+    tbody.innerHTML='<tr class="empty-row"><td colspan="22">No contacts match your filters</td></tr>';
     return;
   }
   tbody.innerHTML=filteredContacts.map(r=>{
@@ -385,20 +380,21 @@ function askDeleteOne(id){
   const r=allContacts.find(c=>String(c.id)===String(id));
   pendingDeleteIds=[id];
   document.getElementById('confirm-title').textContent='Delete contact';
-  document.getElementById('confirm-msg').textContent=`Delete ${r?.first_name||''} ${r?.last_name||''} from All Data?`;
+  document.getElementById('confirm-msg').textContent='Delete '+( r?.first_name||'')+' '+(r?.last_name||'')+' from All Data? This will also remove them from their campaign.';
   document.getElementById('confirm-modal').style.display='flex';
 }
 function deleteSelected(){
-  if(!selectedIds.size)return;
+  if(!selectedIds.size) return;
   pendingDeleteIds=[...selectedIds];
-  document.getElementById('confirm-title').textContent=`Delete ${selectedIds.size} contact${selectedIds.size>1?'s':''}`;
-  document.getElementById('confirm-msg').textContent=`Permanently delete ${selectedIds.size} contact${selectedIds.size>1?'s':''}?`;
+  const n=selectedIds.size;
+  document.getElementById('confirm-title').textContent='Delete '+n+' contact'+(n>1?'s':'');
+  document.getElementById('confirm-msg').textContent='Permanently delete '+n+' contact'+(n>1?'s':'')+' from All Data and their campaigns.';
   document.getElementById('confirm-modal').style.display='flex';
 }
 function closeConfirm(){document.getElementById('confirm-modal').style.display='none';pendingDeleteIds=null;}
 async function confirmDelete(){
-  if(!pendingDeleteIds)return;
-  if(pendingDeleteIds.length===1) await fetch(`/api/contacts/${pendingDeleteIds[0]}`,{method:'DELETE'});
+  if(!pendingDeleteIds) return;
+  if(pendingDeleteIds.length===1) await fetch('/api/contacts/'+pendingDeleteIds[0],{method:'DELETE'});
   else await fetch('/api/contacts',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:pendingDeleteIds})});
   pendingDeleteIds.forEach(id=>selectedIds.delete(String(id)));
   pendingDeleteIds=null; closeConfirm(); await load(false);
@@ -415,22 +411,22 @@ function exportCSV(){
     return [
       r.first_name||'',r.last_name||'',r.title||'',r.company||'',
       r.li_profile_url||'',r.li_company_url||'',r.email||'',r.website||'',
-      c?.name||'',r.provider_id||'',r.engagement_level||'',
+      c?c.name:'',r.provider_id||'',r.engagement_level||'',
       parseInt(r.post_likes_sent)||0,parseInt(r.comment_likes_sent)||0,
       r.invite_sent?'Yes':'No',r.invite_approved?'Yes':'No',
       r.msg_sent?'Yes':'No',r.msg_replied?'Yes':'No',r.positive_reply?'Yes':'No',
       parseInt(r.profile_view_count)||0,
       r.company_follow_invited?'Yes':'No',r.company_follow_confirmed?'Yes':'No',
-    ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
+    ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
-  const csv='\uFEFF'+labels.map(l=>`"${l}"`).join(',')+\'\n\'+rows.join(\'\n\');
-  const blob=new Blob([csv],{type:\'text/csv;charset=utf-8;\'});
-  const url=URL.createObjectURL(blob),a=document.createElement(\'a\');
-  a.href=url;a.download=\'all-data.csv\';a.click();URL.revokeObjectURL(url);
+  const csv='\uFEFF'+labels.map(l=>'"'+l+'"').join(',')+"\n"+rows.join("\n");
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url; a.download='all-data.csv'; a.click(); URL.revokeObjectURL(url);
 }
 
 load(false);
-fetch(`/api/contacts/re-extract?workspace_id=${workspaceId}`,{method:\'POST\'})
+fetch('/api/contacts/re-extract?workspace_id='+workspaceId,{method:'POST'})
   .then(r=>r.json()).then(d=>{if(d.updated>0)setTimeout(()=>load(true),3000);})
   .catch(()=>{});
 </script>
