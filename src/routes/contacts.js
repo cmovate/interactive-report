@@ -74,25 +74,6 @@ router.post('/re-extract', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/contacts/:id/simulate-view  ← TEMPORARY TEST ENDPOINT
-// Simulates exactly what profileViewer.js does: increments profile_view_count + sets last_profile_view_at
-router.post('/:id/simulate-view', async (req, res) => {
-  try {
-    await db.query(
-      `UPDATE contacts
-       SET last_profile_view_at = NOW(),
-           profile_view_count   = COALESCE(profile_view_count, 0) + 1
-       WHERE id = $1`,
-      [req.params.id]
-    );
-    const { rows } = await db.query(
-      'SELECT id, profile_view_count, last_profile_view_at FROM contacts WHERE id = $1',
-      [req.params.id]
-    );
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
 // DELETE /api/contacts/:id
 router.delete('/:id', async (req, res) => {
   try {
