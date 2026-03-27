@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
-const { reExtractAll } = require('../enrichment');
+const { reExtractAll, enqueue, getStatus } = require('../enrichment');
 
 // GET /api/contacts?workspace_id=&campaign_id=&q=
 router.get('/', async (req, res) => {
@@ -65,12 +65,73 @@ router.get('/debug-profile/:id', async (req, res) => {
 });
 
 // POST /api/contacts/re-extract?workspace_id=X
+// Re-extracts fields from existing profile_data JSONB (fast, no API call)
 router.post('/re-extract', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body.workspace_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const result = await reExtractAll(workspace_id);
     res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/contacts/re-enrich?workspace_id=X&campaign_id=Y
+// Re-queues contacts that have no profile_data yet for full Unipile enrichment.
+// Useful after server restart when the in-memory queue was lost.
+// Query params:
+//   workspace_id (required)
+//   campaign_id  (optional) — restrict to a single campaign
+//   limit        (optional, default 50) — max contacts to queue per call
+router.post('/re-enrich', async (req, res) => {
+  try {
+    const workspace_id = req.query.workspace_id || req.body.workspace_id;
+    const campaign_id  = req.query.campaign_id  || req.body.campaign_id;
+    const limit        = parseInt(req.query.limit || req.body.limit || '50', 10);
+
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Find contacts that still need enrichment:
+    //   - profile_data is empty ({}) OR null
+    //   - have a valid li_profile_url
+    const params = [workspace_id];
+    let sql = `
+      SELECT c.id, c.li_profile_url, camp.account_id
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      WHERE c.workspace_id = $1
+        AND c.li_profile_url IS NOT NULL
+        AND c.li_profile_url != ''
+        AND c.li_profile_url LIKE '%linkedin.com/in/%'
+        AND (
+          c.profile_data IS NULL
+          OR c.profile_data::text = 'null'
+          OR c.profile_data::text = '{}'
+        )
+    `;
+    if (campaign_id) {
+      params.push(campaign_id);
+      sql += ` AND c.campaign_id = $${params.length}`;
+    }
+    params.push(limit);
+    sql += ` ORDER BY c.created_at ASC LIMIT $${params.length}`;
+
+    const { rows } = await db.query(sql, params);
+
+    // Queue each for enrichment
+    let queued = 0;
+    for (const row of rows) {
+      if (row.account_id && row.li_profile_url) {
+        enqueue(row.id, row.account_id, row.li_profile_url);
+        queued++;
+      }
+    }
+
+    console.log(`[re-enrich] Queued ${queued} contacts for enrichment (workspace ${workspace_id}${campaign_id ? ', campaign ' + campaign_id : ''})`);
+    res.json({
+      queued,
+      total_needing_enrich: rows.length,
+      enrichment_status: getStatus(),
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
