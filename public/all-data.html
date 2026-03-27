@@ -25,9 +25,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .bulk-bar button { background: rgba(255,255,255,0.2); border: none; border-radius: 6px; padding: 5px 12px; font-size: 13px; color: white; cursor: pointer; }
 .bulk-bar button:hover { background: rgba(255,255,255,0.3); }
 .bulk-cancel { background: transparent !important; border: 1px solid rgba(255,255,255,0.4) !important; }
-.stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
 .stat-chip { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #555; white-space: nowrap; }
 .stat-chip strong { color: #1a1a1a; font-size: 14px; margin-right: 4px; }
+/* Auto-refresh indicator */
+.live-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #888; margin-left: auto; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #1D9E75; animation: livepulse 2s ease-in-out infinite; }
+@keyframes livepulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+/* Flash animation when row updates */
+@keyframes rowflash { 0%{background:#E1F5EE} 100%{background:transparent} }
+.row-flash td { animation: rowflash 1.5s ease-out forwards; }
 /* Enrichment status pill */
 .enrich-pill { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
 .enrich-pill.idle   { background: #f0f0f0; color: #888; }
@@ -35,7 +42,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .enrich-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .enrich-dot.pulse { animation: pulse 1s infinite; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-/* spin icon */
 .spin { display: inline-block; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .table-outer { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
@@ -55,8 +61,8 @@ tbody tr.selected td { background: #F0FBF7; }
 tbody tr.selected td:nth-child(1), tbody tr.selected td:nth-child(2), tbody tr.selected td:nth-child(3) { background: #F0FBF7; }
 tr:last-child td { border-bottom: none; }
 .check-col { width: 44px; text-align: center; padding: 12px 8px; }
-.bool-yes { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
-.bool-no  { display: inline-block; background: #f5f5f5; color: #aaa; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
+.bool-yes  { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
+.bool-no   { display: inline-block; background: #f5f5f5; color: #aaa; border-radius: 999px; padding: 2px 8px; font-size: 11px; }
 .cell-link { color: #1D9E75; text-decoration: none; font-size: 12px; }
 .cell-link:hover { text-decoration: underline; }
 .cell-muted { color: #aaa; font-size: 12px; }
@@ -85,7 +91,7 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
     <select class="filter-select" id="campaign-filter" onchange="applyFilters()"><option value="">All campaigns</option></select>
     <div class="toolbar-right">
       <div id="enrich-status" class="enrich-pill idle" title="Enrichment queue status"></div>
-      <button class="ghost-btn" id="refresh-btn" onclick="refreshData()" title="Refresh data">
+      <button class="ghost-btn" id="refresh-btn" onclick="manualRefresh()" title="Refresh data">
         <span id="refresh-icon">&#x21BB;</span> Refresh
       </button>
       <button class="ghost-btn" onclick="exportCSV()">Export CSV</button>
@@ -97,7 +103,12 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
     <button onclick="selectAll()">Select all (<span id="bulk-total"></span>)</button>
     <button class="bulk-cancel" onclick="clearSelection()">Cancel</button>
   </div>
-  <div class="stats-row" id="stats-row"></div>
+  <div class="stats-row" id="stats-row">
+    <div class="live-badge">
+      <span class="live-dot"></span>
+      <span id="last-updated">Loading...</span>
+    </div>
+  </div>
   <div class="table-outer">
     <div class="table-scroll-wrap">
       <table id="data-table">
@@ -117,6 +128,7 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
           <th style="min-width:110px;text-align:center;">Message sent</th>
           <th style="min-width:90px;text-align:center;">Replied</th>
           <th style="min-width:100px;text-align:center;">Positive reply</th>
+          <th style="min-width:120px;text-align:center;">Company follow</th>
           <th style="min-width:60px;"></th>
         </tr></thead>
         <tbody id="table-body"></tbody>
@@ -139,27 +151,41 @@ input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-colo
 <script>
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
-let allContacts = [];
-let campaigns = [];
+
+let allContacts     = [];
+let campaigns       = [];
 let filteredContacts = [];
-let selectedIds = new Set();
+let selectedIds     = new Set();
 let pendingDeleteIds = null;
 let enrichPollTimer = null;
+let autoRefreshTimer = null;
+
+// Track previous state to detect changes (for smart re-render)
+let prevContactHash = '';
+
+const AUTO_REFRESH_MS = 30 * 1000; // 30 seconds
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '0%'; }
-
-// Ensure URL has https:// prefix
 function safeUrl(url) {
   if (!url) return '';
   url = url.trim();
   if (/^https?:\/\//i.test(url)) return url;
   return 'https://' + url;
 }
+function formatTime(d) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+// Quick hash to detect if contacts data changed
+function hashContacts(contacts) {
+  return contacts.map(c =>
+    `${c.id}:${c.invite_sent?1:0}:${c.invite_approved?1:0}:${c.msg_sent?1:0}:${c.msg_replied?1:0}:${c.positive_reply?1:0}:${c.company_follow_invited?1:0}:${c.first_name}:${c.last_name}:${c.title}:${c.company}`
+  ).join('|');
+}
 
-// ── Load ──────────────────────────────────────────────────────────────────────
-async function load() {
+// ── Load (silent = don't show spinner) ───────────────────────────────────────
+async function load(silent) {
   try {
     const [cRes, campRes] = await Promise.all([
       fetch(`/api/contacts?workspace_id=${workspaceId}`),
@@ -167,25 +193,72 @@ async function load() {
     ]);
     const cData    = await cRes.json();
     const campData = await campRes.json();
-    allContacts = Array.isArray(cData.items)    ? cData.items    : [];
-    campaigns   = Array.isArray(campData.items) ? campData.items : [];
+    const newContacts = Array.isArray(cData.items)    ? cData.items    : [];
+    const newCampaigns = Array.isArray(campData.items) ? campData.items : [];
 
-    const sel = document.getElementById('campaign-filter');
+    // Detect which contact IDs changed status
+    const changedIds = new Set();
+    if (allContacts.length > 0) {
+      const prevMap = Object.fromEntries(allContacts.map(c => [c.id, c]));
+      for (const c of newContacts) {
+        const prev = prevMap[c.id];
+        if (prev && (
+          prev.invite_sent      !== c.invite_sent      ||
+          prev.invite_approved  !== c.invite_approved  ||
+          prev.msg_sent         !== c.msg_sent         ||
+          prev.msg_replied      !== c.msg_replied      ||
+          prev.positive_reply   !== c.positive_reply   ||
+          prev.company_follow_invited !== c.company_follow_invited ||
+          prev.first_name       !== c.first_name       ||
+          prev.last_name        !== c.last_name        ||
+          prev.title            !== c.title            ||
+          prev.company          !== c.company
+        )) {
+          changedIds.add(String(c.id));
+        }
+      }
+    }
+
+    const newHash = hashContacts(newContacts);
+    const dataChanged = newHash !== prevContactHash;
+
+    allContacts  = newContacts;
+    campaigns    = newCampaigns;
+    prevContactHash = newHash;
+
+    // Update campaign dropdown
+    const sel  = document.getElementById('campaign-filter');
     const prev = sel.value;
     sel.innerHTML = '<option value="">All campaigns</option>' +
       campaigns.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
     if (prev) sel.value = prev;
-  } catch(e) { console.error(e); }
-  applyFilters();
+
+    if (dataChanged || !silent) {
+      applyFilters(changedIds);
+    }
+
+    // Update last-updated timestamp
+    document.getElementById('last-updated').textContent =
+      'Updated ' + formatTime(new Date());
+
+  } catch(e) {
+    console.error(e);
+  }
   updateEnrichStatus();
+  scheduleAutoRefresh();
 }
 
-async function refreshData() {
+function scheduleAutoRefresh() {
+  clearTimeout(autoRefreshTimer);
+  autoRefreshTimer = setTimeout(() => load(true), AUTO_REFRESH_MS);
+}
+
+async function manualRefresh() {
   const btn  = document.getElementById('refresh-btn');
   const icon = document.getElementById('refresh-icon');
   btn.disabled = true;
   icon.innerHTML = '<span class="spin">&#x21BB;</span>';
-  await load();
+  await load(false);
   btn.disabled = false;
   icon.innerHTML = '&#x21BB;';
 }
@@ -199,9 +272,9 @@ async function updateEnrichStatus() {
     if (data.queued > 0 || data.running) {
       pill.className = 'enrich-pill active';
       pill.innerHTML = `<span class="enrich-dot pulse"></span> Enriching ${data.queued} contact${data.queued!==1?'s':''}…`;
-      // Poll every 8 seconds while active
+      // While enriching, refresh every 8s
       clearTimeout(enrichPollTimer);
-      enrichPollTimer = setTimeout(async () => { await load(); }, 8000);
+      enrichPollTimer = setTimeout(() => load(true), 8000);
     } else {
       pill.className = 'enrich-pill idle';
       pill.innerHTML = `<span class="enrich-dot"></span> Enriched: ${data.processed}`;
@@ -212,7 +285,7 @@ async function updateEnrichStatus() {
 }
 
 // ── Filters ───────────────────────────────────────────────────────────────────
-function applyFilters() {
+function applyFilters(flashIds) {
   const q   = document.getElementById('search-input').value.trim().toLowerCase();
   const cid = document.getElementById('campaign-filter').value;
   filteredContacts = allContacts.filter(r => {
@@ -224,32 +297,39 @@ function applyFilters() {
     return true;
   });
   selectedIds = new Set([...selectedIds].filter(id => filteredContacts.find(r => String(r.id)===String(id))));
-  renderTable();
   renderStats();
+  renderTable(flashIds);
   renderBulkBar();
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 function renderStats() {
   const f = filteredContacts;
-  document.getElementById('stats-row').innerHTML = [
-    { label:'Total contacts',  val: f.length },
-    { label:'Invites sent',    val: f.filter(r=>r.invite_sent).length },
-    { label:'Approved',        val: `${f.filter(r=>r.invite_approved).length} (${pct(f.filter(r=>r.invite_approved).length, f.filter(r=>r.invite_sent).length)})` },
-    { label:'Messages sent',   val: f.filter(r=>r.msg_sent).length },
-    { label:'Replied',         val: `${f.filter(r=>r.msg_replied).length} (${pct(f.filter(r=>r.msg_replied).length, f.filter(r=>r.msg_sent).length)})` },
-    { label:'Positive',        val: f.filter(r=>r.positive_reply).length },
+  const chips = [
+    { label:'Total contacts',   val: f.length },
+    { label:'Invites sent',     val: f.filter(r=>r.invite_sent).length },
+    { label:'Approved',         val: `${f.filter(r=>r.invite_approved).length} (${pct(f.filter(r=>r.invite_approved).length, f.filter(r=>r.invite_sent).length)})` },
+    { label:'Messages sent',    val: f.filter(r=>r.msg_sent).length },
+    { label:'Replied',          val: `${f.filter(r=>r.msg_replied).length} (${pct(f.filter(r=>r.msg_replied).length, f.filter(r=>r.msg_sent).length)})` },
+    { label:'Positive',         val: f.filter(r=>r.positive_reply).length },
+    { label:'Company follows',  val: f.filter(r=>r.company_follow_invited).length },
   ].map(s=>`<div class="stat-chip"><strong>${s.val}</strong>${s.label}</div>`).join('');
+
+  const statsRow = document.getElementById('stats-row');
+  // Re-insert chips but keep the live-badge at the end
+  const badge = document.getElementById('last-updated')?.parentElement;
+  statsRow.innerHTML = chips;
+  if (badge) statsRow.appendChild(badge);
 }
 
 // ── Table ─────────────────────────────────────────────────────────────────────
-function renderTable() {
+function renderTable(flashIds) {
   const tbody = document.getElementById('table-body');
   document.getElementById('check-all').checked =
     filteredContacts.length > 0 && selectedIds.size === filteredContacts.length;
 
   if (!filteredContacts.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="16">No contacts match your filters</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="17">No contacts match your filters</td></tr>`;
     return;
   }
 
@@ -257,23 +337,19 @@ function renderTable() {
     const sel      = selectedIds.has(String(r.id));
     const campaign = campaigns.find(c => String(c.id) === String(r.campaign_id));
     const bool     = v => v ? '<span class="bool-yes">Yes</span>' : '<span class="bool-no">No</span>';
+    const shouldFlash = flashIds && flashIds.has(String(r.id));
 
-    // LinkedIn profile URL — open directly in new tab
     const liProfile = r.li_profile_url
       ? `<a class="cell-link" href="${esc(safeUrl(r.li_profile_url))}" target="_blank" rel="noopener">View profile</a>`
       : '<span class="cell-muted">—</span>';
-
-    // LinkedIn company URL
     const liCompany = r.li_company_url
       ? `<a class="cell-link" href="${esc(safeUrl(r.li_company_url))}" target="_blank" rel="noopener">View company</a>`
       : '<span class="cell-muted">—</span>';
-
-    // Website
     const website = r.website
       ? `<a class="cell-link" href="${esc(safeUrl(r.website))}" target="_blank" rel="noopener">${esc(r.website)}</a>`
       : '<span class="cell-muted">—</span>';
 
-    return `<tr class="${sel?'selected':''}" id="row-${r.id}">
+    return `<tr class="${sel?'selected':''}${shouldFlash?' row-flash':''}" id="row-${r.id}">
       <td class="check-col"><input type="checkbox" ${sel?'checked':''} onchange="toggleRow('${r.id}',this.checked)"></td>
       <td style="font-weight:500;">${esc(r.first_name)}</td>
       <td style="font-weight:500;">${esc(r.last_name)}</td>
@@ -289,6 +365,7 @@ function renderTable() {
       <td style="text-align:center;">${bool(r.msg_sent)}</td>
       <td style="text-align:center;">${bool(r.msg_replied)}</td>
       <td style="text-align:center;">${bool(r.positive_reply)}</td>
+      <td style="text-align:center;">${bool(r.company_follow_invited)}</td>
       <td><button class="row-del-btn" onclick="askDeleteOne('${r.id}')" title="Delete">&times;</button></td>
     </tr>`;
   }).join('');
@@ -306,9 +383,8 @@ function toggleAll(checked) {
   filteredContacts.forEach(r => { if(checked) selectedIds.add(String(r.id)); else selectedIds.delete(String(r.id)); });
   renderTable(); renderBulkBar();
 }
-function selectAll()     { filteredContacts.forEach(r => selectedIds.add(String(r.id))); renderTable(); renderBulkBar(); }
-function clearSelection(){ selectedIds.clear(); renderTable(); renderBulkBar(); }
-
+function selectAll()      { filteredContacts.forEach(r => selectedIds.add(String(r.id))); renderTable(); renderBulkBar(); }
+function clearSelection() { selectedIds.clear(); renderTable(); renderBulkBar(); }
 function renderBulkBar() {
   const bar = document.getElementById('bulk-bar');
   if (!selectedIds.size) { bar.style.display='none'; return; }
@@ -345,13 +421,13 @@ async function confirmDelete() {
   pendingDeleteIds.forEach(id => selectedIds.delete(String(id)));
   pendingDeleteIds = null;
   closeConfirm();
-  await load();
+  await load(false);
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
 function exportCSV() {
-  const cols   = ['first_name','last_name','title','company','li_profile_url','li_company_url','email','website','campaign_name','invite_sent','invite_approved','msg_sent','msg_replied','positive_reply'];
-  const labels = ['First name','Last name','Job title','Company','LinkedIn profile','LinkedIn company','Email','Website','Campaign','Invite sent','Invite approved','Message sent','Replied','Positive reply'];
+  const cols   = ['first_name','last_name','title','company','li_profile_url','li_company_url','email','website','campaign_name','invite_sent','invite_approved','msg_sent','msg_replied','positive_reply','company_follow_invited'];
+  const labels = ['First name','Last name','Job title','Company','LinkedIn profile','LinkedIn company','Email','Website','Campaign','Invite sent','Invite approved','Message sent','Replied','Positive reply','Company follow'];
   const toExport = selectedIds.size > 0
     ? filteredContacts.filter(r => selectedIds.has(String(r.id)))
     : filteredContacts;
@@ -363,7 +439,8 @@ function exportCSV() {
       r.email||'', r.website||'',
       campaign?.name||'',
       r.invite_sent?'Yes':'No', r.invite_approved?'Yes':'No',
-      r.msg_sent?'Yes':'No', r.msg_replied?'Yes':'No', r.positive_reply?'Yes':'No'
+      r.msg_sent?'Yes':'No', r.msg_replied?'Yes':'No',
+      r.positive_reply?'Yes':'No', r.company_follow_invited?'Yes':'No'
     ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',');
   });
   const csv  = '\uFEFF' + labels.map(l=>`"${l}"`).join(',') + '\n' + rows.join('\n');
@@ -373,7 +450,8 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
-load();
+// ── Init ──────────────────────────────────────────────────────────────────────
+load(false);
 </script>
 </body>
 </html>
