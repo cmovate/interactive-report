@@ -3,18 +3,8 @@
  *
  * Sends LinkedIn connection requests for active campaigns.
  *
- * === GATING — campaign must have enabled in Sequence step ===
- *   campaign.settings.connection.enabled = true
- *   (the "Send connection requests" toggle in the wizard)
- *
- * === LOGIC ===
- *   For each account:
- *     1. Check working hours (from account settings)
- *     2. Check daily limit (connection_requests limit from Settings)
- *        FIX: uses calendar day (date_trunc), not rolling 24h window
- *     3. Pull pending contacts from campaigns where connection is enabled
- *     4. Send with 30-90s random delay between each
- *     5. Mark invite_sent = true, invite_sent_at = now
+ * Working hours are now per-campaign (campaign.settings.hours).
+ * Daily limits are per-account (accSettings.limits.connection_requests).
  *
  * Scheduled: every 15 minutes.
  */
@@ -44,7 +34,7 @@ function start() {
 async function run() {
   console.log('[InvitationSender] Running check...');
   try {
-    // Only campaigns where the "Send connection requests" toggle is ON
+    // Only campaigns where connection toggle is ON
     const { rows: campaigns } = await db.query(`
       SELECT c.id, c.account_id, c.name, c.workspace_id, c.settings
       FROM campaigns c
@@ -58,7 +48,7 @@ async function run() {
       return;
     }
 
-    // Group by account to respect per-account daily limits
+    // Group by account to check per-account daily limit once
     const byAccount = {};
     for (const camp of campaigns) {
       if (!byAccount[camp.account_id]) byAccount[camp.account_id] = [];
@@ -77,11 +67,7 @@ async function run() {
       );
       const accSettings = accRows[0]?.settings || {};
 
-      if (!isWithinWorkingHours(accSettings)) {
-        console.log(`[InvitationSender] Account ${accountId} outside working hours, skipping`);
-        continue;
-      }
-
+      // Check daily limit (per account)
       const dailyLimit = accSettings.limits?.connection_requests ?? DEFAULT_DAILY_LIMIT;
       const sentToday  = await countSentToday(accountId);
       const canSend    = dailyLimit - sentToday;
@@ -93,15 +79,27 @@ async function run() {
 
       console.log(`[InvitationSender] Account ${accountId}: ${sentToday}/${dailyLimit} sent today, can send ${canSend} more`);
 
-      const campaignIds = accountCampaigns.map(c => c.id);
-      const contacts    = await getPendingContacts(campaignIds, canSend);
+      // For each campaign, check its own working hours
+      let remaining = canSend;
+      for (const campaign of accountCampaigns) {
+        if (remaining <= 0) break;
 
-      if (!contacts.length) {
-        console.log(`[InvitationSender] Account ${accountId}: no pending contacts`);
-        continue;
+        // Working hours come from campaign settings (fallback: account settings, then default)
+        const hours = campaign.settings?.hours || accSettings.hours || null;
+        if (!isWithinWorkingHours(hours)) {
+          console.log(`[InvitationSender] Campaign ${campaign.id} outside working hours`);
+          continue;
+        }
+
+        const contacts = await getPendingContactsForCampaign(campaign.id, remaining);
+        if (!contacts.length) {
+          console.log(`[InvitationSender] Campaign ${campaign.id}: no pending contacts`);
+          continue;
+        }
+
+        remaining -= contacts.length;
+        sendBatch(accountId, contacts);
       }
-
-      sendBatch(accountId, contacts);
     }
   } catch (err) {
     console.error('[InvitationSender] Error in run():', err.message);
@@ -130,7 +128,6 @@ async function sendBatch(accountId, contacts) {
       console.log(`[InvitationSender] ✓ Sent to ${identifier} (contact ${contact.id}, campaign ${contact.campaign_id})`);
 
       const delay = 30000 + Math.random() * 60000;
-      console.log(`[InvitationSender] Waiting ${(delay/1000).toFixed(0)}s...`);
       await sleep(delay);
     } catch (err) {
       console.error(`[InvitationSender] ✗ contact ${contact.id}: ${err.message}`);
@@ -143,21 +140,26 @@ async function sendBatch(accountId, contacts) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function isWithinWorkingHours(settings) {
+/**
+ * isWithinWorkingHours
+ * @param {object|null} hours - campaign.settings.hours structure
+ *   { '1': { on: true, from: '09:00', to: '18:00' }, ... }
+ *   Keys are '1'=Mon ... '7'=Sun
+ * Fallback to default Mon-Fri 9-18 if not configured.
+ */
+function isWithinWorkingHours(hours) {
   const now    = new Date();
   const jsDay  = now.getDay();
   const dayKey = String(jsDay === 0 ? 7 : jsDay);
-  const hours  = settings.hours?.[dayKey] ?? DEFAULT_WORKING_HOURS[dayKey];
-  if (!hours?.on) return false;
-  const [fromH, fromM] = (hours.from || '09:00').split(':').map(Number);
-  const [toH,   toM  ] = (hours.to   || '18:00').split(':').map(Number);
+  const h      = (hours && hours[dayKey]) || DEFAULT_WORKING_HOURS[dayKey];
+  if (!h?.on) return false;
+  const [fromH, fromM] = (h.from || '09:00').split(':').map(Number);
+  const [toH,   toM  ] = (h.to   || '18:00').split(':').map(Number);
   const nowMin = now.getHours() * 60 + now.getMinutes();
   return nowMin >= fromH * 60 + fromM && nowMin < toH * 60 + toM;
 }
 
 async function countSentToday(accountId) {
-  // FIX: use calendar day (date_trunc), NOT rolling 24h window.
-  // Rolling window allowed sending 20 at 11:59pm + 20 at 12:01am = 40 in 2 minutes.
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c
@@ -169,15 +171,12 @@ async function countSentToday(accountId) {
   return parseInt(rows[0].cnt, 10);
 }
 
-/**
- * Only returns contacts from campaigns where the connection toggle is enabled.
- */
-async function getPendingContacts(campaignIds, limit) {
+async function getPendingContactsForCampaign(campaignId, limit) {
   const { rows } = await db.query(`
     SELECT c.id, c.li_profile_url, c.first_name, c.last_name, c.campaign_id
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.id = ANY($1)
+    WHERE camp.id = $1
       AND camp.status = 'active'
       AND (camp.settings->'connection'->>'enabled')::boolean = true
       AND c.invite_sent = false
@@ -185,7 +184,7 @@ async function getPendingContacts(campaignIds, limit) {
       AND c.li_profile_url != ''
     ORDER BY c.created_at ASC
     LIMIT $2
-  `, [campaignIds, limit]);
+  `, [campaignId, limit]);
   return rows;
 }
 
