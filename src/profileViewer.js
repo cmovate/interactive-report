@@ -1,38 +1,34 @@
 /**
  * Profile Viewer
  *
- * Views LinkedIn profiles on behalf of the account, once per day per run.
+ * Views LinkedIn profiles on behalf of the account.
  *
  * === GATING ===
  *   campaign.settings.engagement.view_profile = true
- *   (the "View profile" toggle in the Sequence step)
  *
  * === RULES ===
- *   - Each contact is viewed at most ONCE EVERY 7 DAYS
- *   - Respects daily limit from account settings:
- *       settings.limits.profile_views (default: 40)
- *   - Respects working hours from account settings
- *   - Independent of any other action — no prerequisite on invite_sent or approved
- *   - Random 30-90s delay between each profile view (human-like pacing)
+ *   - Each contact viewed at most ONCE EVERY 7 DAYS
+ *   - Daily limit: settings.limits.profile_views (default 40)
+ *   - Respects working hours
+ *   - Independent of any other action
+ *   - 30-90s random delay between views
  *
  * === ORDERING ===
- *   Contacts who have never been viewed come first (last_profile_view_at IS NULL),
- *   then by oldest last viewed (ASC), so the whole list rotates evenly.
+ *   Never-viewed first (NULLS FIRST), then oldest-viewed ASC.
  *
  * === DB ===
  *   contacts.last_profile_view_at  — timestamp of most recent view
- *   contacts.profile_view_count    — total views sent
+ *   contacts.profile_view_count    — total views sent for this contact
  *
- * Scheduled: every 15 minutes (checks, but rate-limits per day).
+ * Scheduled: every 15 minutes.
  */
 
-const db     = require('./db');
+const db      = require('./db');
 const unipile = require('./unipile');
 
-const DEFAULT_DAILY_LIMIT  = 40;
-const MIN_DAYS_BETWEEN     = 7;   // must be at least 7 days between views
-const CHECK_INTERVAL_MS    = 15 * 60 * 1000; // 15 min
-const DELAY_BETWEEN_MS     = () => 30000 + Math.random() * 60000; // 30-90s
+const DEFAULT_DAILY_LIMIT = 40;
+const MIN_DAYS_BETWEEN    = 7;
+const CHECK_INTERVAL_MS   = 15 * 60 * 1000;
 
 const DEFAULT_WORKING_HOURS = {
   1: { on: true,  from: '09:00', to: '18:00' },
@@ -46,20 +42,15 @@ const DEFAULT_WORKING_HOURS = {
 
 const activelySending = new Set();
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 function start() {
   console.log('[ProfileViewer] Started — checking every 15 minutes');
   run();
   setInterval(run, CHECK_INTERVAL_MS);
 }
 
-// ── Main runner ───────────────────────────────────────────────────────────────
-
 async function run() {
   console.log('[ProfileViewer] Running check...');
   try {
-    // Get all active campaigns where view_profile is enabled
     const { rows: campaigns } = await db.query(`
       SELECT c.id, c.account_id, c.workspace_id
       FROM campaigns c
@@ -86,7 +77,6 @@ async function run() {
         continue;
       }
 
-      // Load account settings
       const { rows: accRows } = await db.query(
         'SELECT settings FROM unipile_accounts WHERE account_id = $1',
         [accountId]
@@ -98,16 +88,16 @@ async function run() {
         continue;
       }
 
-      const dailyLimit = accSettings.limits?.profile_views ?? DEFAULT_DAILY_LIMIT;
+      const dailyLimit  = accSettings.limits?.profile_views ?? DEFAULT_DAILY_LIMIT;
       const viewedToday = await countViewedToday(accountId);
-      const canView    = dailyLimit - viewedToday;
+      const canView     = dailyLimit - viewedToday;
 
       if (canView <= 0) {
         console.log(`[ProfileViewer] Account ${accountId} reached daily limit (${dailyLimit})`);
         continue;
       }
 
-      console.log(`[ProfileViewer] Account ${accountId}: ${viewedToday}/${dailyLimit} viewed today, can view ${canView} more`);
+      console.log(`[ProfileViewer] Account ${accountId}: ${viewedToday}/${dailyLimit} today, can view ${canView} more`);
 
       const campaignIds = accountCampaigns.map(c => c.id);
       const contacts    = await getPendingContacts(campaignIds, canView);
@@ -117,7 +107,7 @@ async function run() {
         continue;
       }
 
-      // Non-blocking batch
+      // Fire-and-forget batch
       sendBatch(accountId, contacts);
     }
   } catch (err) {
@@ -125,11 +115,9 @@ async function run() {
   }
 }
 
-// ── Batch viewer ──────────────────────────────────────────────────────────────
-
 async function sendBatch(accountId, contacts) {
   activelySending.add(accountId);
-  console.log(`[ProfileViewer] Starting batch for ${accountId}: ${contacts.length} contacts`);
+  console.log(`[ProfileViewer] Batch for ${accountId}: ${contacts.length} contacts`);
 
   for (const contact of contacts) {
     try {
@@ -139,10 +127,9 @@ async function sendBatch(accountId, contacts) {
         continue;
       }
 
-      // Call Unipile with notify=true — triggers a LinkedIn profile view
+      // CONFIRMED: *_preview + notify=true → 200 OK (tested live)
       await unipile.viewProfile(accountId, identifier);
 
-      // Record in DB
       await db.query(
         `UPDATE contacts
          SET last_profile_view_at = NOW(),
@@ -153,12 +140,11 @@ async function sendBatch(accountId, contacts) {
 
       console.log(`[ProfileViewer] ✓ Viewed ${identifier} (contact ${contact.id}, campaign ${contact.campaign_id})`);
 
-      const delay = DELAY_BETWEEN_MS();
-      console.log(`[ProfileViewer] Waiting ${(delay/1000).toFixed(0)}s...`);
+      const delay = 30000 + Math.random() * 60000; // 30-90s
       await sleep(delay);
     } catch (err) {
       console.error(`[ProfileViewer] ✗ contact ${contact.id}: ${err.message}`);
-      // Continue to next contact — don't stop the batch on individual failure
+      // Continue on individual failure
     }
   }
 
@@ -166,14 +152,12 @@ async function sendBatch(accountId, contacts) {
   console.log(`[ProfileViewer] Batch done for ${accountId}`);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 /**
- * Contacts eligible for viewing:
+ * Eligible contacts:
  *   - Campaign has view_profile = true
- *   - Have a valid LinkedIn URL
+ *   - Valid LinkedIn URL
  *   - Never viewed OR last viewed >= 7 days ago
- *   - Order: never-viewed first, then oldest-viewed-at ASC (even rotation)
+ *   - Order: never-viewed first, then oldest-viewed ASC
  */
 async function getPendingContacts(campaignIds, limit) {
   const { rows } = await db.query(`
@@ -187,7 +171,7 @@ async function getPendingContacts(campaignIds, limit) {
       AND c.li_profile_url != ''
       AND (
         c.last_profile_view_at IS NULL
-        OR c.last_profile_view_at < NOW() - INTERVAL '${MIN_DAYS_BETWEEN} days'
+        OR c.last_profile_view_at < NOW() - INTERVAL '7 days'
       )
     ORDER BY
       c.last_profile_view_at ASC NULLS FIRST,
@@ -198,7 +182,6 @@ async function getPendingContacts(campaignIds, limit) {
 }
 
 async function countViewedToday(accountId) {
-  // Calendar day — same fix as invitationSender
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c

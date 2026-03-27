@@ -12,12 +12,15 @@ router.get('/', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const { rows } = await db.query(
       `SELECT c.*,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id)                                    AS contact_count,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent     = true)         AS invites_sent,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved  = true)        AS invites_approved,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent        = true)         AS messages_sent,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND positive_reply  = true)         AS positive_replies,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_invited = true)  AS company_follows
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id)                                              AS contact_count,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true)                       AS invites_sent,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true)                   AS invites_approved,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent = true)                         AS messages_sent,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_replied = true)                      AS messages_replied,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND positive_reply = true)                   AS positive_replies,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_invited = true)           AS follow_invited,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_confirmed = true)         AS follow_confirmed,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND last_profile_view_at IS NOT NULL)        AS profile_views
        FROM campaigns c WHERE c.workspace_id = $1 ORDER BY c.created_at DESC`,
       [workspace_id]
     );
@@ -29,7 +32,6 @@ router.get('/', async (req, res) => {
 router.get('/enrichment-status', (_req, res) => res.json(getStatus()));
 
 // GET /api/campaigns/company-follow-status?account_id=
-// Returns monthly company-follow stats for an account
 router.get('/company-follow-status', async (req, res) => {
   try {
     const { account_id } = req.query;
@@ -79,6 +81,20 @@ router.patch('/:id/status', async (req, res) => {
     const { status } = req.body;
     if (!['active','paused'].includes(status)) return res.status(400).json({ error: 'status must be active or paused' });
     const { rows } = await db.query('UPDATE campaigns SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/campaigns/:id/settings
+router.patch('/:id/settings', async (req, res) => {
+  try {
+    const { settings } = req.body;
+    if (!settings) return res.status(400).json({ error: 'settings required' });
+    const { rows } = await db.query(
+      'UPDATE campaigns SET settings=$1 WHERE id=$2 RETURNING *',
+      [JSON.stringify(settings), req.params.id]
+    );
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }

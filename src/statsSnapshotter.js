@@ -1,24 +1,16 @@
 /**
  * Daily Stats Snapshotter
  *
- * Runs once per day (at midnight UTC) and saves a snapshot of each
- * campaign's funnel metrics into `campaign_daily_stats`.
+ * Runs once per day and saves a snapshot of each campaign's funnel
+ * metrics into `campaign_daily_stats`.
  *
- * This enables:
- *   - Seeing how metrics evolved over time (week-over-week, month-over-month)
- *   - Comparing campaigns at any point in history
- *   - Plotting funnel charts with a time axis
- *
- * The snapshot is idempotent: if it already ran today for a campaign,
- * it updates rather than duplicates (ON CONFLICT DO UPDATE).
- *
- * Scheduled: runs immediately on startup (to catch any missed day),
- *            then every 24 hours.
+ * Idempotent: ON CONFLICT DO UPDATE — safe to re-run.
+ * Scheduled: runs on startup (catches missed days), then every 24h.
  */
 
 const db = require('./db');
 
-const SNAPSHOT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+const SNAPSHOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 function start() {
   console.log('[StatsSnapshotter] Started — daily snapshot enabled');
@@ -31,7 +23,6 @@ async function run() {
   try {
     const today = toDateStr(new Date());
 
-    // Snapshot all campaigns
     const { rows: campaigns } = await db.query(
       `SELECT id, workspace_id, account_id, name, status FROM campaigns`
     );
@@ -42,7 +33,6 @@ async function run() {
       snapped++;
     }
 
-    // Also snapshot workspace-level follower counts
     const { rows: accounts } = await db.query(
       `SELECT account_id, workspace_id FROM unipile_accounts`
     );
@@ -59,14 +49,15 @@ async function run() {
 async function snapshotCampaign(campaign, date) {
   const { rows } = await db.query(`
     SELECT
-      COUNT(*)                                                       AS total_contacts,
-      COUNT(*) FILTER (WHERE invite_sent = true)                     AS invites_sent,
-      COUNT(*) FILTER (WHERE invite_approved = true)                 AS invites_approved,
-      COUNT(*) FILTER (WHERE msg_sent = true)                       AS messages_sent,
-      COUNT(*) FILTER (WHERE msg_replied = true)                    AS messages_replied,
-      COUNT(*) FILTER (WHERE positive_reply = true)                 AS positive_replies,
-      COUNT(*) FILTER (WHERE company_follow_invited = true)         AS follow_invited,
-      COUNT(*) FILTER (WHERE company_follow_confirmed = true)       AS follow_confirmed
+      COUNT(*)                                                         AS total_contacts,
+      COUNT(*) FILTER (WHERE invite_sent = true)                       AS invites_sent,
+      COUNT(*) FILTER (WHERE invite_approved = true)                   AS invites_approved,
+      COUNT(*) FILTER (WHERE msg_sent = true)                         AS messages_sent,
+      COUNT(*) FILTER (WHERE msg_replied = true)                      AS messages_replied,
+      COUNT(*) FILTER (WHERE positive_reply = true)                   AS positive_replies,
+      COUNT(*) FILTER (WHERE company_follow_invited = true)           AS follow_invited,
+      COUNT(*) FILTER (WHERE company_follow_confirmed = true)         AS follow_confirmed,
+      COUNT(*) FILTER (WHERE last_profile_view_at IS NOT NULL)        AS profile_views
     FROM contacts
     WHERE campaign_id = $1
   `, [campaign.id]);
@@ -77,8 +68,8 @@ async function snapshotCampaign(campaign, date) {
     INSERT INTO campaign_daily_stats
       (snapshot_date, campaign_id, workspace_id, account_id, campaign_name, campaign_status,
        total_contacts, invites_sent, invites_approved, messages_sent, messages_replied,
-       positive_replies, follow_invited, follow_confirmed)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       positive_replies, follow_invited, follow_confirmed, profile_views)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
     ON CONFLICT (snapshot_date, campaign_id) DO UPDATE SET
       campaign_name    = EXCLUDED.campaign_name,
       campaign_status  = EXCLUDED.campaign_status,
@@ -90,6 +81,7 @@ async function snapshotCampaign(campaign, date) {
       positive_replies = EXCLUDED.positive_replies,
       follow_invited   = EXCLUDED.follow_invited,
       follow_confirmed = EXCLUDED.follow_confirmed,
+      profile_views    = EXCLUDED.profile_views,
       updated_at       = NOW()
   `, [
     date, campaign.id, campaign.workspace_id, campaign.account_id,
@@ -102,6 +94,7 @@ async function snapshotCampaign(campaign, date) {
     parseInt(s.positive_replies),
     parseInt(s.follow_invited),
     parseInt(s.follow_confirmed),
+    parseInt(s.profile_views),
   ]);
 }
 
