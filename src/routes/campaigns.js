@@ -4,6 +4,7 @@ const db       = require('../db');
 const { searchPeople }       = require('../unipile');
 const { enqueue, getStatus } = require('../enrichment');
 const { countSentThisMonth } = require('../companyFollowSender');
+const engagementScraper      = require('../engagementScraper');
 
 // GET /api/campaigns?workspace_id=
 router.get('/', async (req, res) => {
@@ -72,6 +73,56 @@ router.post('/', async (req, res) => {
     }
     res.status(201).json({ ...campaign, enrichment_queued: toEnrich.length });
     for (const c of toEnrich) enqueue(c.id, account_id, c.li_profile_url);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/scrape-engagement
+// Triggers engagement scraping for a single campaign.
+// Body: {} (empty) or { force: true } to re-scrape already-classified contacts
+router.post('/:id/scrape-engagement', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+
+    // If force=true, reset engagement_level for this campaign so all contacts are re-scraped
+    if (req.body?.force) {
+      await db.query(
+        `UPDATE contacts SET engagement_level = NULL, engagement_scraped_at = NULL
+         WHERE campaign_id = $1`,
+        [campaignId]
+      );
+      console.log(`[API] Reset engagement for campaign ${campaignId}`);
+    }
+
+    // Run scraper asynchronously (non-blocking)
+    engagementScraper.run(campaignId).then(result => {
+      console.log(`[API] Engagement scrape done for campaign ${campaignId}:`, JSON.stringify(result));
+    }).catch(err => {
+      console.error(`[API] Engagement scrape error for campaign ${campaignId}:`, err.message);
+    });
+
+    res.json({ status: 'started', campaign_id: campaignId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/campaigns/:id/engagement-stats
+// Returns engagement classification counts for a campaign.
+router.get('/:id/engagement-stats', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    const { rows } = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')      AS un_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged')  AS average_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'engaged')          AS engaged,
+         COUNT(*) FILTER (WHERE engagement_level IS NULL
+                            AND provider_id IS NOT NULL)               AS not_yet_scraped,
+         COUNT(*) FILTER (WHERE provider_id IS NULL)                   AS not_enriched,
+         COUNT(*)                                                       AS total
+       FROM contacts WHERE campaign_id = $1`,
+      [campaignId]
+    );
+    res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
