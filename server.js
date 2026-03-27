@@ -32,15 +32,48 @@ app.use('/api/webhooks',   webhooksRouter);
 app.use('/api/followers',  followersRouter);
 app.use('/api/stats',      statsRouter);
 
-// Each step is independent — one failure never blocks the rest
+// Silent per-step runner
 async function s(label, fn) {
   try { await fn(); }
   catch (err) { console.error(`[DB] ${label}: ${err.message}`); }
 }
 
-(async () => {
+/**
+ * Detect if the DB contains old Codex schema (UUID primary keys).
+ * If yes — drop everything and start fresh.
+ * This runs once on startup and is a no-op on a clean DB.
+ */
+async function nukeIfBroken() {
+  try {
+    const { rows } = await db.query(`
+      SELECT data_type
+      FROM information_schema.columns
+      WHERE table_name = 'campaigns' AND column_name = 'id'
+    `);
+    const idType = rows[0]?.data_type || '';
+    if (idType === 'uuid') {
+      console.log('[DB] Detected old Codex UUID schema — dropping all tables and starting fresh...');
+      await db.query(`
+        DROP TABLE IF EXISTS
+          contacts, campaigns, unipile_accounts,
+          company_followers, company_page_daily_stats,
+          campaign_daily_stats, workspaces
+        CASCADE
+      `);
+      console.log('[DB] All old tables dropped.');
+    } else if (idType) {
+      console.log(`[DB] Schema OK (campaigns.id type: ${idType})`);
+    }
+    // If table doesn't exist yet — nothing to drop, proceed normally
+  } catch (err) {
+    console.log('[DB] nukeIfBroken check skipped:', err.message);
+  }
+}
 
-  // ── Core tables (NO foreign keys in CREATE — added separately below) ───────
+(async () => {
+  await nukeIfBroken();
+
+  // ── Core tables (no FK constraints — keeps things clean on legacy DBs) ───
   await s('workspaces', () => db.query(`
     CREATE TABLE IF NOT EXISTS workspaces (
       id   SERIAL PRIMARY KEY,
@@ -76,16 +109,15 @@ async function s(label, fn) {
     )
   `));
 
-  // contacts created WITHOUT FK constraints to avoid "cannot be implemented" error
   await s('contacts', () => db.query(`
     CREATE TABLE IF NOT EXISTS contacts (
-      id          SERIAL PRIMARY KEY,
-      campaign_id INTEGER,
+      id           SERIAL PRIMARY KEY,
+      campaign_id  INTEGER,
       workspace_id INTEGER,
-      first_name  VARCHAR(255), last_name VARCHAR(255),
-      company     VARCHAR(255), title     VARCHAR(255),
+      first_name   VARCHAR(255), last_name  VARCHAR(255),
+      company      VARCHAR(255), title      VARCHAR(255),
       li_profile_url TEXT, li_company_url TEXT,
-      email       VARCHAR(255), website   VARCHAR(255), location VARCHAR(255),
+      email        VARCHAR(255), website    VARCHAR(255), location VARCHAR(255),
       profile_data JSONB DEFAULT '{}',
       invite_sent              BOOLEAN DEFAULT FALSE,
       invite_approved          BOOLEAN DEFAULT FALSE,
@@ -158,51 +190,52 @@ async function s(label, fn) {
     )
   `));
 
-  // ── Indexes ────────────────────────────────────────────────────────────────
+  // ── Indexes ──────────────────────────────────────────────────────────────
   const indexes = [
-    ['idx_contacts_campaign',    'contacts(campaign_id)'],
-    ['idx_contacts_workspace',   'contacts(workspace_id)'],
-    ['idx_campaigns_workspace',  'campaigns(workspace_id)'],
-    ['idx_contacts_li_profile',  'contacts(li_profile_url)'],
-    ['idx_contacts_invite_sent', 'contacts(invite_sent)'],
-    ['idx_contacts_approved',    'contacts(invite_approved)'],
-    ['idx_contacts_profile_view','contacts(last_profile_view_at)'],
-    ['idx_followers_account',    'company_followers(account_id)'],
-    ['idx_followers_profile',    'company_followers(profile_url)'],
-    ['idx_followers_first_seen', 'company_followers(first_seen_at)'],
-    ['idx_daily_stats_date',     'campaign_daily_stats(snapshot_date)'],
-    ['idx_daily_stats_campaign', 'campaign_daily_stats(campaign_id)'],
-    ['idx_daily_stats_workspace','campaign_daily_stats(workspace_id)'],
-    ['idx_page_stats_date',      'company_page_daily_stats(snapshot_date)'],
+    ['idx_contacts_campaign',     'contacts(campaign_id)'],
+    ['idx_contacts_workspace',    'contacts(workspace_id)'],
+    ['idx_campaigns_workspace',   'campaigns(workspace_id)'],
+    ['idx_contacts_li_profile',   'contacts(li_profile_url)'],
+    ['idx_contacts_invite_sent',  'contacts(invite_sent)'],
+    ['idx_contacts_approved',     'contacts(invite_approved)'],
+    ['idx_contacts_profile_view', 'contacts(last_profile_view_at)'],
+    ['idx_followers_account',     'company_followers(account_id)'],
+    ['idx_followers_profile',     'company_followers(profile_url)'],
+    ['idx_followers_first_seen',  'company_followers(first_seen_at)'],
+    ['idx_daily_stats_date',      'campaign_daily_stats(snapshot_date)'],
+    ['idx_daily_stats_campaign',  'campaign_daily_stats(campaign_id)'],
+    ['idx_daily_stats_workspace', 'campaign_daily_stats(workspace_id)'],
+    ['idx_page_stats_date',       'company_page_daily_stats(snapshot_date)'],
   ];
   for (const [name, col] of indexes) {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  // ── Migration: add missing columns (each independent) ────────────────────
+  // ── Add any missing columns (safe on existing tables) ───────────────────
   const cols = [
-    ['ua.webhook_id',           'unipile_accounts', 'webhook_id',   'VARCHAR(255)'],
-    ['ua.settings',             'unipile_accounts', 'settings',     "JSONB DEFAULT '{}'"],
-    ['campaigns.workspace_id',  'campaigns',        'workspace_id', 'INTEGER'],
-    ['campaigns.account_id',    'campaigns',        'account_id',   'VARCHAR(255)'],
-    ['campaigns.settings',      'campaigns',        'settings',     "JSONB DEFAULT '{}'"],
-    ['campaigns.status',        'campaigns',        'status',       "VARCHAR(50) DEFAULT 'active'"],
-    ['contacts.campaign_id',    'contacts',         'campaign_id',  'INTEGER'],
-    ['contacts.workspace_id',   'contacts',         'workspace_id', 'INTEGER'],
-    ['contacts.follow_inv',     'contacts',         'company_follow_invited',   'BOOLEAN DEFAULT FALSE'],
-    ['contacts.follow_conf',    'contacts',         'company_follow_confirmed', 'BOOLEAN DEFAULT FALSE'],
-    ['contacts.pv_at',          'contacts',         'last_profile_view_at',     'TIMESTAMP'],
-    ['contacts.pv_count',       'contacts',         'profile_view_count',       'INTEGER DEFAULT 0'],
-    ['contacts.inv_sent_at',    'contacts',         'invite_sent_at',           'TIMESTAMP'],
-    ['contacts.inv_appr_at',    'contacts',         'invite_approved_at',       'TIMESTAMP'],
-    ['contacts.msg_sent_at',    'contacts',         'msg_sent_at',              'TIMESTAMP'],
-    ['contacts.msg_rep_at',     'contacts',         'msg_replied_at',           'TIMESTAMP'],
-    ['contacts.pos_rep_at',     'contacts',         'positive_reply_at',        'TIMESTAMP'],
-    ['contacts.cf_inv_at',      'contacts',         'company_follow_invited_at',   'TIMESTAMP'],
-    ['contacts.cf_conf_at',     'contacts',         'company_follow_confirmed_at', 'TIMESTAMP'],
-    ['followers.fsa',           'company_followers','first_seen_at',      'TIMESTAMP DEFAULT NOW()'],
-    ['followers.fsp',           'company_followers','first_seen_position', 'INTEGER'],
-    ['daily.profile_views',     'campaign_daily_stats','profile_views',   'INTEGER DEFAULT 0'],
+    ['ua.webhook_id',       'unipile_accounts',       'webhook_id',                'VARCHAR(255)'],
+    ['ua.settings',         'unipile_accounts',       'settings',                  "JSONB DEFAULT '{}'"],
+    ['c.workspace_id',      'campaigns',              'workspace_id',              'INTEGER'],
+    ['c.account_id',        'campaigns',              'account_id',                'VARCHAR(255)'],
+    ['c.settings',          'campaigns',              'settings',                  "JSONB DEFAULT '{}'"],
+    ['c.status',            'campaigns',              'status',                    "VARCHAR(50) DEFAULT 'active'"],
+    ['c.audience_type',     'campaigns',              'audience_type',             'VARCHAR(50)'],
+    ['ct.campaign_id',      'contacts',               'campaign_id',               'INTEGER'],
+    ['ct.workspace_id',     'contacts',               'workspace_id',              'INTEGER'],
+    ['ct.follow_inv',       'contacts',               'company_follow_invited',    'BOOLEAN DEFAULT FALSE'],
+    ['ct.follow_conf',      'contacts',               'company_follow_confirmed',  'BOOLEAN DEFAULT FALSE'],
+    ['ct.pv_at',            'contacts',               'last_profile_view_at',      'TIMESTAMP'],
+    ['ct.pv_count',         'contacts',               'profile_view_count',        'INTEGER DEFAULT 0'],
+    ['ct.inv_sent_at',      'contacts',               'invite_sent_at',            'TIMESTAMP'],
+    ['ct.inv_appr_at',      'contacts',               'invite_approved_at',        'TIMESTAMP'],
+    ['ct.msg_sent_at',      'contacts',               'msg_sent_at',               'TIMESTAMP'],
+    ['ct.msg_rep_at',       'contacts',               'msg_replied_at',            'TIMESTAMP'],
+    ['ct.pos_rep_at',       'contacts',               'positive_reply_at',         'TIMESTAMP'],
+    ['ct.cf_inv_at',        'contacts',               'company_follow_invited_at', 'TIMESTAMP'],
+    ['ct.cf_conf_at',       'contacts',               'company_follow_confirmed_at','TIMESTAMP'],
+    ['cf.fsa',              'company_followers',      'first_seen_at',             'TIMESTAMP DEFAULT NOW()'],
+    ['cf.fsp',              'company_followers',      'first_seen_position',       'INTEGER'],
+    ['ds.profile_views',    'campaign_daily_stats',   'profile_views',             'INTEGER DEFAULT 0'],
   ];
   for (const [label, table, col, type] of cols) {
     await s(label, () => db.query(
@@ -210,9 +243,9 @@ async function s(label, fn) {
     ));
   }
 
-  console.log('[DB] Schema and migrations complete');
+  console.log('[DB] Schema ready');
 
-  // ── Start scheduled services ────────────────────────────────────────────
+  // ── Start scheduled services ─────────────────────────────────────────────
   invitationSender.start();
   companyFollowSender.start();
   followerScraper.start();
