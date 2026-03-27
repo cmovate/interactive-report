@@ -32,17 +32,11 @@ app.use('/api/webhooks',   webhooksRouter);
 app.use('/api/followers',  followersRouter);
 app.use('/api/stats',      statsRouter);
 
-// Silent per-step runner
 async function s(label, fn) {
   try { await fn(); }
   catch (err) { console.error(`[DB] ${label}: ${err.message}`); }
 }
 
-/**
- * Detect if the DB contains old Codex schema (UUID primary keys).
- * If yes — drop everything and start fresh.
- * This runs once on startup and is a no-op on a clean DB.
- */
 async function nukeIfBroken() {
   try {
     const { rows } = await db.query(`
@@ -64,7 +58,6 @@ async function nukeIfBroken() {
     } else if (idType) {
       console.log(`[DB] Schema OK (campaigns.id type: ${idType})`);
     }
-    // If table doesn't exist yet — nothing to drop, proceed normally
   } catch (err) {
     console.log('[DB] nukeIfBroken check skipped:', err.message);
   }
@@ -73,7 +66,6 @@ async function nukeIfBroken() {
 (async () => {
   await nukeIfBroken();
 
-  // ── Core tables (no FK constraints — keeps things clean on legacy DBs) ───
   await s('workspaces', () => db.query(`
     CREATE TABLE IF NOT EXISTS workspaces (
       id   SERIAL PRIMARY KEY,
@@ -119,6 +111,10 @@ async function nukeIfBroken() {
       li_profile_url TEXT, li_company_url TEXT,
       email        VARCHAR(255), website    VARCHAR(255), location VARCHAR(255),
       profile_data JSONB DEFAULT '{}',
+      -- LinkedIn identifiers (critical for posts/comments API)
+      provider_id  VARCHAR(255),   -- e.g. ACoAADLpT7MBOJZCKBaNIEP1Rk... (needed for /users/{id}/posts)
+      member_urn   VARCHAR(255),   -- numeric e.g. 854151091
+      -- Status flags
       invite_sent              BOOLEAN DEFAULT FALSE,
       invite_approved          BOOLEAN DEFAULT FALSE,
       msg_sent                 BOOLEAN DEFAULT FALSE,
@@ -128,6 +124,7 @@ async function nukeIfBroken() {
       company_follow_confirmed BOOLEAN DEFAULT FALSE,
       last_profile_view_at     TIMESTAMP,
       profile_view_count       INTEGER DEFAULT 0,
+      -- Event timestamps
       invite_sent_at              TIMESTAMP,
       invite_approved_at          TIMESTAMP,
       msg_sent_at                 TIMESTAMP,
@@ -196,6 +193,7 @@ async function nukeIfBroken() {
     ['idx_contacts_workspace',    'contacts(workspace_id)'],
     ['idx_campaigns_workspace',   'campaigns(workspace_id)'],
     ['idx_contacts_li_profile',   'contacts(li_profile_url)'],
+    ['idx_contacts_provider_id',  'contacts(provider_id)'],
     ['idx_contacts_invite_sent',  'contacts(invite_sent)'],
     ['idx_contacts_approved',     'contacts(invite_approved)'],
     ['idx_contacts_profile_view', 'contacts(last_profile_view_at)'],
@@ -211,7 +209,7 @@ async function nukeIfBroken() {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  // ── Add any missing columns (safe on existing tables) ───────────────────
+  // ── Add missing columns (safe on existing tables) ────────────────────────
   const cols = [
     ['ua.webhook_id',       'unipile_accounts',       'webhook_id',                'VARCHAR(255)'],
     ['ua.settings',         'unipile_accounts',       'settings',                  "JSONB DEFAULT '{}'"],
@@ -222,10 +220,15 @@ async function nukeIfBroken() {
     ['c.audience_type',     'campaigns',              'audience_type',             'VARCHAR(50)'],
     ['ct.campaign_id',      'contacts',               'campaign_id',               'INTEGER'],
     ['ct.workspace_id',     'contacts',               'workspace_id',              'INTEGER'],
+    // LinkedIn identifiers — critical for posts/comments API
+    ['ct.provider_id',      'contacts',               'provider_id',               'VARCHAR(255)'],
+    ['ct.member_urn',       'contacts',               'member_urn',                'VARCHAR(255)'],
+    // Engagement flags
     ['ct.follow_inv',       'contacts',               'company_follow_invited',    'BOOLEAN DEFAULT FALSE'],
     ['ct.follow_conf',      'contacts',               'company_follow_confirmed',  'BOOLEAN DEFAULT FALSE'],
     ['ct.pv_at',            'contacts',               'last_profile_view_at',      'TIMESTAMP'],
     ['ct.pv_count',         'contacts',               'profile_view_count',        'INTEGER DEFAULT 0'],
+    // Timestamps
     ['ct.inv_sent_at',      'contacts',               'invite_sent_at',            'TIMESTAMP'],
     ['ct.inv_appr_at',      'contacts',               'invite_approved_at',        'TIMESTAMP'],
     ['ct.msg_sent_at',      'contacts',               'msg_sent_at',               'TIMESTAMP'],
@@ -245,7 +248,6 @@ async function nukeIfBroken() {
 
   console.log('[DB] Schema ready');
 
-  // ── Start scheduled services ─────────────────────────────────────────────
   invitationSender.start();
   companyFollowSender.start();
   followerScraper.start();
