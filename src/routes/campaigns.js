@@ -39,17 +39,16 @@ router.post('/', async (req, res) => {
     const { workspace_id, account_id, name, audience_type, contacts, settings } = req.body;
     if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' });
 
-    // 1. Create campaign
+    // Create campaign with status 'active' so the sender picks it up
     const { rows } = await db.query(
-      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status)
+       VALUES ($1, $2, $3, $4, $5, 'active') RETURNING *`,
       [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {})]
     );
     const campaign = rows[0];
 
-    // 2. Save contacts and collect IDs for enrichment
-    const toEnrich = []; // { id, li_profile_url }
-
+    // Save contacts and collect IDs for enrichment
+    const toEnrich = [];
     if (Array.isArray(contacts) && contacts.length > 0) {
       for (const c of contacts) {
         const { rows: inserted } = await db.query(
@@ -74,16 +73,34 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // 3. Reply immediately — enrichment runs in background
+    // Reply immediately — enrichment runs in background
     res.status(201).json({
       ...campaign,
       enrichment_queued: toEnrich.length,
     });
 
-    // 4. Queue enrichment (fires after response is sent)
+    // Queue enrichment (fires after response)
     for (const c of toEnrich) {
       enqueue(c.id, account_id, c.li_profile_url);
     }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/campaigns/:id/status  — pause/resume/activate
+router.patch('/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body; // 'active' | 'paused'
+    if (!['active', 'paused'].includes(status)) {
+      return res.status(400).json({ error: 'status must be active or paused' });
+    }
+    const { rows } = await db.query(
+      'UPDATE campaigns SET status = $1 WHERE id = $2 RETURNING *',
+      [status, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Campaign not found' });
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -106,7 +123,6 @@ router.post('/search-people', async (req, res) => {
     if (!account_id || !company_urls?.length) {
       return res.status(400).json({ error: 'account_id and company_urls required' });
     }
-
     const results = [];
     for (const url of company_urls) {
       const companyName = url.split('/company/')[1]?.replace(/\//g, '').replace(/-/g, ' ') || url;
@@ -118,7 +134,6 @@ router.post('/search-people', async (req, res) => {
       }
       await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
     }
-
     res.json({ items: results });
   } catch (err) {
     res.status(500).json({ error: err.message });
