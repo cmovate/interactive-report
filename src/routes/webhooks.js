@@ -9,12 +9,15 @@
  *
  * new_message   — an incoming LinkedIn message was received
  *   → If the sender is a contact we messaged, marks msg_replied = true
+ *   → Increments reply_count, updates reply_N columns
+ *   → Schedules conversation analysis (debounced 3 min)
  *   → Clears msg_sequence (stops the sequence entirely)
  */
 
-const express = require('express');
-const router  = express.Router();
-const db      = require('../db');
+const express  = require('express');
+const router   = express.Router();
+const db       = require('../db');
+const { scheduleAnalysis } = require('../conversationAnalyzer');
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'elvia-secret';
 
@@ -28,7 +31,7 @@ router.post('/unipile', async (req, res) => {
   const payload = req.body;
   console.log('[Webhook] Received event:', payload?.event, '| account:', payload?.account_id);
 
-  // Always respond 200 immediately so Unipile doesn't retry
+  // Always respond 200 immediately so Unipile doesn\'t retry
   res.json({ received: true });
 
   try {
@@ -42,7 +45,7 @@ router.post('/unipile', async (req, res) => {
   }
 });
 
-// ─── new_relation ──────────────────────────────────────────────────────────────
+// ── new_relation ───────────────────────────────────────────────────────────
 
 async function handleNewRelation(payload) {
   const { account_id, user_public_identifier, user_profile_url, user_full_name } = payload;
@@ -94,13 +97,12 @@ async function handleNewRelation(payload) {
   }
 }
 
-// ─── new_message (reply detection) ────────────────────────────────────────────
+// ── new_message (reply detection + conversation analysis) ───────────────────
 
 async function handleNewMessage(payload) {
-  const { account_id, chat_id, sender_id, is_sender } = payload;
+  const { account_id, chat_id, sender_id, is_sender, text: msgText } = payload;
 
   // Only process incoming messages (not messages we sent)
-  // is_sender = true means WE sent it — ignore those
   if (is_sender === true || is_sender === 'true') return;
 
   if (!account_id || !sender_id) {
@@ -108,18 +110,13 @@ async function handleNewMessage(payload) {
     return;
   }
 
-  // Find contacts where:
-  // - They belong to a campaign with this account_id
-  // - They have been messaged (msg_sent = true)
-  // - They haven't already replied
-  // - Their provider_id matches the sender, OR their chat_id matches
   const { rows: contacts } = await db.query(
-    `SELECT c.id, c.first_name, c.last_name, c.msg_sequence, c.msg_step
+    `SELECT c.id, c.first_name, c.last_name, c.msg_sequence, c.msg_step,
+            c.msg_replied, c.reply_count
      FROM contacts c
      INNER JOIN campaigns camp ON camp.id = c.campaign_id
      WHERE camp.account_id = $1
        AND c.msg_sent = true
-       AND c.msg_replied = false
        AND (c.provider_id = $2 OR c.chat_id = $3)`,
     [account_id, sender_id, chat_id || '']
   );
@@ -130,18 +127,26 @@ async function handleNewMessage(payload) {
   }
 
   for (const contact of contacts) {
+    const newReplyCount = (parseInt(contact.reply_count) || 0) + 1;
+
+    // Update: mark replied + increment counter + stop sequence
     await db.query(
       `UPDATE contacts SET
          msg_replied    = true,
-         msg_replied_at = NOW(),
+         msg_replied_at = COALESCE(msg_replied_at, NOW()),
+         reply_count    = $2,
          msg_sequence   = NULL
        WHERE id = $1`,
-      [contact.id]
+      [contact.id, newReplyCount]
     );
+
     console.log(
-      `[Webhook] Reply detected — contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
-      ` — sequence stopped (was: ${contact.msg_sequence}, step: ${contact.msg_step})`
+      `[Webhook] Reply #${newReplyCount} detected — contact ${contact.id}` +
+      ` (${contact.first_name} ${contact.last_name})`
     );
+
+    // Schedule conversation analysis (debounced 3 min)
+    scheduleAnalysis(contact.id);
   }
 }
 
