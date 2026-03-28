@@ -22,17 +22,9 @@ async function request(endpoint, options = {}) {
   return res.json();
 }
 
-/**
- * Resolve a LinkedIn identifier from either:
- *   - A provider_id (ACoXXX format)  → use as-is
- *   - A LinkedIn profile URL         → extract vanity slug
- *   - Anything else                  → use as-is
- */
 function resolveIdentifier(input) {
   if (!input) return null;
-  // Already a provider_id (starts with ACo or is not a URL)
   if (!input.includes('linkedin.com')) return input;
-  // Extract vanity slug from URL
   const match = input.match(/linkedin\.com\/in\/([^/?#]+)/);
   return match ? match[1] : input;
 }
@@ -138,14 +130,45 @@ async function sendInvitation(accountId, identifier, message = '') {
 }
 
 /**
+ * List pending sent invitations.
+ * Returns items with id, provider_id, etc.
+ */
+async function listSentInvitations(accountId, limit = 100) {
+  const params = new URLSearchParams({ account_id: accountId, limit: String(limit) });
+  const data = await request(`/api/v1/users/invite/sent?${params}`);
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+/**
  * Withdraw (cancel) a pending LinkedIn connection request.
+ * Flow:
+ *   1. List pending sent invitations
+ *   2. Find the one matching the target's provider_id
+ *   3. DELETE /api/v1/users/invite/sent/{invitation_id}
+ *
  * @param {string} accountId   - Unipile account ID
  * @param {string} identifier  - provider_id (ACoXXX) OR LinkedIn profile URL
  */
 async function withdrawInvitation(accountId, identifier) {
-  const providerId = resolveIdentifier(identifier);
+  const targetProviderId = resolveIdentifier(identifier);
+
+  const invitations = await listSentInvitations(accountId);
+
+  // Try to match by any provider_id field name
+  const inv = invitations.find(i =>
+    i.provider_id === targetProviderId ||
+    i.invitee_id  === targetProviderId ||
+    i.attendee_provider_id === targetProviderId
+  );
+
+  if (!inv) {
+    console.warn(`[Unipile] withdrawInvitation: no pending invite for ${targetProviderId}. Items: ${JSON.stringify(invitations.slice(0, 3))}`);
+    throw new Error(`No pending invitation found for: ${targetProviderId}`);
+  }
+
+  const invitationId = inv.id || inv.invitation_id;
   return request(
-    `/api/v1/users/invite?account_id=${encodeURIComponent(accountId)}&provider_id=${encodeURIComponent(providerId)}`,
+    `/api/v1/users/invite/sent/${encodeURIComponent(invitationId)}?account_id=${encodeURIComponent(accountId)}`,
     { method: 'DELETE' }
   );
 }
@@ -186,6 +209,7 @@ module.exports = {
   createRelationWebhook,
   deleteWebhook,
   sendInvitation,
+  listSentInvitations,
   withdrawInvitation,
   sendCompanyFollowInvites,
 };
