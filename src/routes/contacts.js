@@ -2,6 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
 const { reExtractAll, enqueue, getStatus } = require('../enrichment');
+const { sendInvitation, withdrawInvitation } = require('../unipile');
 
 // GET /api/contacts?workspace_id=&campaign_id=&q=
 router.get('/', async (req, res) => {
@@ -65,7 +66,6 @@ router.get('/debug-profile/:id', async (req, res) => {
 });
 
 // POST /api/contacts/re-extract?workspace_id=X
-// Re-extracts fields from existing profile_data JSONB (fast, no API call)
 router.post('/re-extract', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body.workspace_id;
@@ -76,23 +76,12 @@ router.post('/re-extract', async (req, res) => {
 });
 
 // POST /api/contacts/re-enrich?workspace_id=X&campaign_id=Y
-// Re-queues contacts that have no profile_data yet for full Unipile enrichment.
-// Useful after server restart when the in-memory queue was lost.
-// Query params:
-//   workspace_id (required)
-//   campaign_id  (optional) — restrict to a single campaign
-//   limit        (optional, default 50) — max contacts to queue per call
 router.post('/re-enrich', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body.workspace_id;
     const campaign_id  = req.query.campaign_id  || req.body.campaign_id;
     const limit        = parseInt(req.query.limit || req.body.limit || '50', 10);
-
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-
-    // Find contacts that still need enrichment:
-    //   - profile_data is empty ({}) OR null
-    //   - have a valid li_profile_url
     const params = [workspace_id];
     let sql = `
       SELECT c.id, c.li_profile_url, camp.account_id
@@ -108,30 +97,76 @@ router.post('/re-enrich', async (req, res) => {
           OR c.profile_data::text = '{}'
         )
     `;
-    if (campaign_id) {
-      params.push(campaign_id);
-      sql += ` AND c.campaign_id = $${params.length}`;
-    }
+    if (campaign_id) { params.push(campaign_id); sql += ` AND c.campaign_id = $${params.length}`; }
     params.push(limit);
     sql += ` ORDER BY c.created_at ASC LIMIT $${params.length}`;
-
     const { rows } = await db.query(sql, params);
-
-    // Queue each for enrichment
     let queued = 0;
     for (const row of rows) {
-      if (row.account_id && row.li_profile_url) {
-        enqueue(row.id, row.account_id, row.li_profile_url);
-        queued++;
-      }
+      if (row.account_id && row.li_profile_url) { enqueue(row.id, row.account_id, row.li_profile_url); queued++; }
     }
+    res.json({ queued, total_needing_enrich: rows.length, enrichment_status: getStatus() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    console.log(`[re-enrich] Queued ${queued} contacts for enrichment (workspace ${workspace_id}${campaign_id ? ', campaign ' + campaign_id : ''})`);
-    res.json({
-      queued,
-      total_needing_enrich: rows.length,
-      enrichment_status: getStatus(),
-    });
+// POST /api/contacts/:id/send-invite
+// Manually send a connection request to a single contact.
+router.post('/:id/send-invite', async (req, res) => {
+  try {
+    const contactId = parseInt(req.params.id, 10);
+    const { rows } = await db.query(
+      `SELECT c.id, c.first_name, c.last_name, c.li_profile_url,
+              c.invite_sent, c.invite_approved, c.invite_withdrawn,
+              camp.account_id
+       FROM contacts c
+       JOIN campaigns camp ON camp.id = c.campaign_id
+       WHERE c.id = $1`,
+      [contactId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
+    const contact = rows[0];
+    if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
+    if (contact.invite_sent)    return res.status(400).json({ error: 'Invite already sent' });
+
+    await sendInvitation(contact.account_id, contact.li_profile_url);
+    await db.query(
+      'UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1',
+      [contactId]
+    );
+
+    console.log(`[API] Sent invite to ${contact.first_name} ${contact.last_name} (contact ${contactId})`);
+    res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/contacts/:id/withdraw-invite
+// Manually withdraw a pending connection request for a single contact.
+router.post('/:id/withdraw-invite', async (req, res) => {
+  try {
+    const contactId = parseInt(req.params.id, 10);
+    const { rows } = await db.query(
+      `SELECT c.id, c.first_name, c.last_name, c.li_profile_url,
+              c.invite_sent, c.invite_approved, c.invite_withdrawn,
+              camp.account_id
+       FROM contacts c
+       JOIN campaigns camp ON camp.id = c.campaign_id
+       WHERE c.id = $1`,
+      [contactId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
+    const contact = rows[0];
+    if (!contact.invite_sent)    return res.status(400).json({ error: 'No invite sent yet' });
+    if (contact.invite_approved) return res.status(400).json({ error: 'Invite already approved — cannot withdraw' });
+    if (contact.invite_withdrawn) return res.status(400).json({ error: 'Invite already withdrawn' });
+
+    await withdrawInvitation(contact.account_id, contact.li_profile_url);
+    await db.query(
+      'UPDATE contacts SET invite_withdrawn = true, invite_withdrawn_at = NOW() WHERE id = $1',
+      [contactId]
+    );
+
+    console.log(`[API] Withdrew invite for ${contact.first_name} ${contact.last_name} (contact ${contactId})`);
+    res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
