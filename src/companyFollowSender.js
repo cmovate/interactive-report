@@ -1,28 +1,21 @@
 /**
  * Company Follow Sender
  *
- * Working hours are now per-campaign (campaign.settings.hours).
- * State machine (normal/waiting_5d/drip/waiting_7d) remains per-account.
+ * Working hours check: runs if ANY eligible campaign for the account
+ * is within working hours (union logic, not just the first campaign).
+ *
+ * State machine (normal/waiting_5d/drip/waiting_7d) is per-account.
  *
  * Scheduled: every 30 minutes.
  */
 
 const db = require('./db');
 const { sendCompanyFollowInvites } = require('./unipile');
+const { DEFAULT_WORKING_HOURS } = require('./constants');
 
 const MONTHLY_LIMIT  = 250;
 const BATCH_SIZE     = 5;
 const CHECK_INTERVAL = 30 * 60 * 1000;
-
-const DEFAULT_WORKING_HOURS = {
-  1: { on: true,  from: '09:00', to: '18:00' },
-  2: { on: true,  from: '09:00', to: '18:00' },
-  3: { on: true,  from: '09:00', to: '18:00' },
-  4: { on: true,  from: '09:00', to: '18:00' },
-  5: { on: true,  from: '09:00', to: '18:00' },
-  6: { on: false, from: '09:00', to: '18:00' },
-  7: { on: false, from: '09:00', to: '18:00' },
-};
 
 const activelySending = new Set();
 
@@ -65,17 +58,20 @@ async function run() {
       const settings      = acc.settings || {};
       const companyPageUrn = settings.company_page_urn;
 
-      // Check working hours: use first eligible campaign's hours
+      // Working hours: allow if ANY eligible campaign is within working hours.
+      // This is fairer than using only the first campaign arbitrarily.
       const { rows: eligibleCamps } = await db.query(`
         SELECT settings FROM campaigns
         WHERE account_id = $1 AND status = 'active'
           AND (settings->'engagement'->>'follow_company')::boolean = true
-        LIMIT 1
       `, [acc.account_id]);
-      const campHours = eligibleCamps[0]?.settings?.hours || null;
 
-      if (!isWithinWorkingHours(campHours)) {
-        console.log(`[CompanyFollow] Account ${acc.account_id} outside working hours`);
+      const anyWithinHours = eligibleCamps.some(camp =>
+        isWithinWorkingHours(camp.settings?.hours || null)
+      );
+
+      if (!anyWithinHours) {
+        console.log(`[CompanyFollow] Account ${acc.account_id} outside working hours for all campaigns`);
         continue;
       }
 

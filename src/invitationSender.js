@@ -4,7 +4,7 @@
  * Sends LinkedIn connection requests for active campaigns.
  * Uses provider_id (ACoXXX) — not vanity slug — as required by Unipile.
  *
- * Working hours are now per-campaign (campaign.settings.hours).
+ * Working hours are per-campaign (campaign.settings.hours).
  * Daily limits are per-account (accSettings.limits.connection_requests).
  *
  * Scheduled: every 15 minutes.
@@ -12,18 +12,9 @@
 
 const db = require('./db');
 const { sendInvitation } = require('./unipile');
+const { DEFAULT_WORKING_HOURS } = require('./constants');
 
 const DEFAULT_DAILY_LIMIT = 20;
-const DEFAULT_WORKING_HOURS = {
-  1: { on: true,  from: '09:00', to: '18:00' },
-  2: { on: true,  from: '09:00', to: '18:00' },
-  3: { on: true,  from: '09:00', to: '18:00' },
-  4: { on: true,  from: '09:00', to: '18:00' },
-  5: { on: true,  from: '09:00', to: '18:00' },
-  6: { on: false, from: '09:00', to: '18:00' },
-  7: { on: false, from: '09:00', to: '18:00' },
-};
-
 const activelySending = new Set();
 
 function start() {
@@ -112,19 +103,13 @@ async function sendBatch(accountId, contacts) {
         console.warn(`[InvitationSender] No provider_id for contact ${contact.id} — skipping`);
         continue;
       }
-
-      // Use provider_id (ACoXXX) directly — Unipile requires this format
       await sendInvitation(accountId, contact.provider_id);
-
       await db.query(
         'UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1',
         [contact.id]
       );
-
       console.log(`[InvitationSender] ✓ Sent to ${contact.provider_id} (contact ${contact.id}, campaign ${contact.campaign_id})`);
-
-      const delay = 30000 + Math.random() * 60000;
-      await sleep(delay);
+      await sleep(30000 + Math.random() * 60000);
     } catch (err) {
       console.error(`[InvitationSender] ✗ contact ${contact.id}: ${err.message}`);
     }
