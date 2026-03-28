@@ -264,6 +264,7 @@ function resetWizard() {
   return {
     selectedAccount: null, audienceType: null,
     urlsPasted: '', companyUrls: '', searchTitles: '',
+    maxPerCompany: 10,
     searchStatus: null, searchPct: 0, contacts: [],
     connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
     newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
@@ -272,7 +273,6 @@ function resetWizard() {
 }
 
 function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
-// Fix: parse integers so string "0" doesn't cause NaN%
 function pct(a, b) { const bn = parseInt(b) || 0; return bn > 0 ? Math.round((parseInt(a)||0) / bn * 100) + '%' : '—'; }
 function countUrls(t){ return (t.match(/linkedin\.com\/in\//g)||[]).length; }
 function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -433,7 +433,7 @@ function renderAudienceDetail() {
     el.querySelector('textarea').addEventListener('input',function(){document.getElementById('url-count').textContent=countUrls(this.value)+' URLs detected';});
   } else if (wizard.audienceType==='company') {
     if (!wizard.searchStatus) {
-      el.innerHTML=`<div class="field-label">Paste LinkedIn company URLs (one per line)</div><textarea rows="3" placeholder="https://www.linkedin.com/company/microsoft" style="margin-bottom:12px;" oninput="wizard.companyUrls=this.value">${esc(wizard.companyUrls)}</textarea><div class="field-label">Job titles to search for</div><textarea rows="2" placeholder="VP R&D, Head of Engineering, CTO" oninput="wizard.searchTitles=this.value">${esc(wizard.searchTitles)}</textarea><div style="margin-top:12px;"><button class="primary-btn" onclick="startSearch()">Search</button></div>`;
+      el.innerHTML=`<div class="field-label">Paste LinkedIn company URLs (one per line)</div><textarea rows="3" placeholder="https://www.linkedin.com/company/microsoft" style="margin-bottom:12px;" oninput="wizard.companyUrls=this.value">${esc(wizard.companyUrls)}</textarea><div class="field-label">Job titles to search for</div><textarea rows="2" placeholder="VP R&D, Head of Engineering, CTO" oninput="wizard.searchTitles=this.value">${esc(wizard.searchTitles)}</textarea><div class="conn-opt-row" style="margin-top:14px;"><div class="conn-opt-label">Max people per company</div><input class="num-input" type="number" min="1" max="500" value="${wizard.maxPerCompany}" oninput="wizard.maxPerCompany=Math.max(1,parseInt(this.value)||1)"></div><div style="margin-top:12px;"><button class="primary-btn" onclick="startSearch()">Search</button></div>`;
     } else if (wizard.searchStatus==='loading') {
       el.innerHTML=`<div class="search-progress"><div class="progress-pct" id="search-pct">${wizard.searchPct}%</div><div class="progress-bar-wrap" style="width:100%;"><div class="progress-bar-fill" id="search-bar" style="width:${wizard.searchPct}%;"></div></div><div style="font-size:13px;color:#888;">Searching...</div></div>`;
     } else {
@@ -444,6 +444,8 @@ function renderAudienceDetail() {
 async function startSearch() {
   if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
   if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
+  const limit = Math.max(1, parseInt(wizard.maxPerCompany) || 10);
+  wizard.maxPerCompany = limit;
   wizard.searchStatus='loading'; wizard.searchPct=0; renderAudienceDetail();
   const progressInterval = setInterval(() => {
     if (wizard.searchPct < 85) { wizard.searchPct = Math.min(wizard.searchPct + Math.floor(Math.random()*8)+3, 85); const bar=document.getElementById('search-bar'), pctEl=document.getElementById('search-pct'); if(bar) bar.style.width=wizard.searchPct+'%'; if(pctEl) pctEl.textContent=wizard.searchPct+'%'; }
@@ -451,7 +453,7 @@ async function startSearch() {
   try {
     const companyUrls = wizard.companyUrls.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/company/'));
     const titles = wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean);
-    const res = await fetch('/api/campaigns/search-people', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ account_id: wizard.selectedAccount, company_urls: companyUrls, titles }) });
+    const res = await fetch('/api/campaigns/search-people', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ account_id: wizard.selectedAccount, company_urls: companyUrls, titles, limit }) });
     const data = await res.json();
     clearInterval(progressInterval); wizard.searchPct=100; wizard.searchStatus='done';
     wizard.contacts = Array.isArray(data.items) ? data.items : [];
