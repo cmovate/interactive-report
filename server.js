@@ -133,6 +133,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       msg_sent_at TIMESTAMP, msg_replied_at TIMESTAMP,
       positive_reply_at TIMESTAMP,
       company_follow_invited_at TIMESTAMP, company_follow_confirmed_at TIMESTAMP,
+      -- Personal account likes
       engagement_level      VARCHAR(30),
       engagement_scraped_at TIMESTAMP,
       engagement_data       JSONB,
@@ -140,6 +141,11 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       comment_likes_sent    INTEGER DEFAULT 0,
       likes_sent_at         TIMESTAMP,
       liked_ids             JSONB DEFAULT '[]',
+      -- Company page likes (separate identity, same-day isolation with personal)
+      company_post_likes_sent    INTEGER DEFAULT 0,
+      company_comment_likes_sent INTEGER DEFAULT 0,
+      company_likes_sent_at      TIMESTAMP,
+      company_liked_ids          JSONB DEFAULT '[]',
       -- Conversation analysis
       conversation_stage       VARCHAR(30),
       conversation_score       INTEGER,
@@ -222,6 +228,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_contacts_profile_view',      'contacts(last_profile_view_at)'],
     ['idx_contacts_engagement',        'contacts(engagement_level)'],
     ['idx_contacts_likes_sent_at',     'contacts(likes_sent_at)'],
+    ['idx_contacts_comp_likes_at',     'contacts(company_likes_sent_at)'],
     ['idx_contacts_conv_stage',        'contacts(conversation_stage)'],
     ['idx_contacts_conv_score',        'contacts(conversation_score)'],
     ['idx_camp_companies_campaign',    'campaign_companies(campaign_id)'],
@@ -240,7 +247,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  // Fixed columns (non-message, non-conversation)
+  // Fixed columns — idempotent ALTER TABLE ADD COLUMN IF NOT EXISTS
   const fixedCols = [
     ['ua.webhook_id',              'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
     ['ua.settings',                'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
@@ -277,6 +284,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['cf.fsa',                     'company_followers',   'first_seen_at',               'TIMESTAMP DEFAULT NOW()'],
     ['cf.fsp',                     'company_followers',   'first_seen_position',         'INTEGER'],
     ['ds.profile_views',           'campaign_daily_stats','profile_views',               'INTEGER DEFAULT 0'],
+    // Personal likes
     ['ct.eng_level',               'contacts',            'engagement_level',            'VARCHAR(30)'],
     ['ct.eng_scraped_at',          'contacts',            'engagement_scraped_at',       'TIMESTAMP'],
     ['ct.eng_data',                'contacts',            'engagement_data',             'JSONB'],
@@ -284,6 +292,12 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['ct.comment_likes',           'contacts',            'comment_likes_sent',          'INTEGER DEFAULT 0'],
     ['ct.likes_sent_at',           'contacts',            'likes_sent_at',               'TIMESTAMP'],
     ['ct.liked_ids',               'contacts',            'liked_ids',                   "JSONB DEFAULT '[]'"],
+    // Company page likes (separate identity, same-day isolation with personal likes)
+    ['ct.co_post_likes',           'contacts',            'company_post_likes_sent',     'INTEGER DEFAULT 0'],
+    ['ct.co_comment_likes',        'contacts',            'company_comment_likes_sent',  'INTEGER DEFAULT 0'],
+    ['ct.co_likes_sent_at',        'contacts',            'company_likes_sent_at',       'TIMESTAMP'],
+    ['ct.co_liked_ids',            'contacts',            'company_liked_ids',           "JSONB DEFAULT '[]'"],
+    // Campaign companies
     ['cc.eng_level',               'campaign_companies',  'engagement_level',            'VARCHAR(30)'],
     ['cc.eng_scraped_at',          'campaign_companies',  'engagement_scraped_at',       'TIMESTAMP'],
     ['cc.eng_data',                'campaign_companies',  'engagement_data',             'JSONB'],
@@ -291,7 +305,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['cc.likes_sent_at',           'campaign_companies',  'likes_sent_at',               'TIMESTAMP'],
     ['cc.liked_ids',               'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
     ['cc.contact_count',           'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
-    // Conversation analysis columns
+    // Conversation analysis
     ['ct.conv_stage',              'contacts',            'conversation_stage',          'VARCHAR(30)'],
     ['ct.conv_score',              'contacts',            'conversation_score',          'INTEGER'],
     ['ct.conv_signals',            'contacts',            'conversation_signals',        'JSONB'],
@@ -400,7 +414,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   engagementScraper.start();
   companyEngagementScraper.start();
   messageSender.start();
-  conversationQueue.start();
+  await conversationQueue.start(); // await: runs recoverFromRestart() before poll begins
 })();
 
 app.get('*', (req, res) => {
