@@ -4,21 +4,22 @@ const cors    = require('cors');
 const path    = require('path');
 const db      = require('./src/db');
 
-const workspacesRouter          = require('./src/routes/workspaces');
-const unipileRouter             = require('./src/routes/unipile');
-const campaignsRouter           = require('./src/routes/campaigns');
-const contactsRouter            = require('./src/routes/contacts');
-const companiesRouter           = require('./src/routes/companies');
-const webhooksRouter            = require('./src/routes/webhooks');
-const followersRouter           = require('./src/routes/followers');
-const statsRouter               = require('./src/routes/stats');
-const invitationSender          = require('./src/invitationSender');
-const companyFollowSender       = require('./src/companyFollowSender');
-const followerScraper           = require('./src/followerScraper');
-const statsSnapshotter          = require('./src/statsSnapshotter');
-const profileViewer             = require('./src/profileViewer');
-const engagementScraper         = require('./src/engagementScraper');
-const companyEngagementScraper  = require('./src/companyEngagementScraper');
+const workspacesRouter         = require('./src/routes/workspaces');
+const unipileRouter            = require('./src/routes/unipile');
+const campaignsRouter          = require('./src/routes/campaigns');
+const contactsRouter           = require('./src/routes/contacts');
+const companiesRouter          = require('./src/routes/companies');
+const webhooksRouter           = require('./src/routes/webhooks');
+const followersRouter          = require('./src/routes/followers');
+const statsRouter              = require('./src/routes/stats');
+const invitationSender         = require('./src/invitationSender');
+const withdrawSender           = require('./src/withdrawSender');
+const companyFollowSender      = require('./src/companyFollowSender');
+const followerScraper          = require('./src/followerScraper');
+const statsSnapshotter         = require('./src/statsSnapshotter');
+const profileViewer            = require('./src/profileViewer');
+const engagementScraper        = require('./src/engagementScraper');
+const companyEngagementScraper = require('./src/companyEngagementScraper');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -101,6 +102,7 @@ async function nukeIfBroken() {
       provider_id  VARCHAR(255),
       member_urn   VARCHAR(255),
       invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLEAN DEFAULT FALSE,
+      invite_withdrawn BOOLEAN DEFAULT FALSE, invite_withdrawn_at TIMESTAMP,
       msg_sent BOOLEAN DEFAULT FALSE, msg_replied BOOLEAN DEFAULT FALSE,
       positive_reply BOOLEAN DEFAULT FALSE,
       company_follow_invited BOOLEAN DEFAULT FALSE,
@@ -113,16 +115,10 @@ async function nukeIfBroken() {
       engagement_level      VARCHAR(30),
       engagement_scraped_at TIMESTAMP,
       engagement_data       JSONB,
-      -- Personal account likes
-      post_likes_sent          INTEGER DEFAULT 0,
-      comment_likes_sent       INTEGER DEFAULT 0,
-      likes_sent_at            TIMESTAMP,
-      liked_ids                JSONB DEFAULT '[]',
-      -- Company page likes (tracked separately — same-day isolation enforced)
-      company_post_likes_sent    INTEGER DEFAULT 0,
-      company_comment_likes_sent INTEGER DEFAULT 0,
-      company_likes_sent_at      TIMESTAMP,
-      company_liked_ids          JSONB DEFAULT '[]',
+      post_likes_sent       INTEGER DEFAULT 0,
+      comment_likes_sent    INTEGER DEFAULT 0,
+      likes_sent_at         TIMESTAMP,
+      liked_ids             JSONB DEFAULT '[]',
       created_at TIMESTAMP DEFAULT NOW()
     )
   `));
@@ -182,80 +178,75 @@ async function nukeIfBroken() {
   `));
 
   const indexes = [
-    ['idx_contacts_campaign',             'contacts(campaign_id)'],
-    ['idx_contacts_workspace',            'contacts(workspace_id)'],
-    ['idx_campaigns_workspace',           'campaigns(workspace_id)'],
-    ['idx_contacts_li_profile',           'contacts(li_profile_url)'],
-    ['idx_contacts_provider_id',          'contacts(provider_id)'],
-    ['idx_contacts_invite_sent',          'contacts(invite_sent)'],
-    ['idx_contacts_approved',             'contacts(invite_approved)'],
-    ['idx_contacts_profile_view',         'contacts(last_profile_view_at)'],
-    ['idx_contacts_engagement',           'contacts(engagement_level)'],
-    ['idx_contacts_likes_sent_at',        'contacts(likes_sent_at)'],
-    ['idx_contacts_co_likes_sent_at',     'contacts(company_likes_sent_at)'],
-    ['idx_camp_companies_campaign',       'campaign_companies(campaign_id)'],
-    ['idx_camp_companies_workspace',      'campaign_companies(workspace_id)'],
-    ['idx_camp_companies_linkedin_id',    'campaign_companies(company_linkedin_id)'],
-    ['idx_camp_companies_engagement',     'campaign_companies(engagement_level)'],
-    ['idx_followers_account',             'company_followers(account_id)'],
-    ['idx_followers_profile',             'company_followers(profile_url)'],
-    ['idx_followers_first_seen',          'company_followers(first_seen_at)'],
-    ['idx_daily_stats_date',              'campaign_daily_stats(snapshot_date)'],
-    ['idx_daily_stats_campaign',          'campaign_daily_stats(campaign_id)'],
-    ['idx_daily_stats_workspace',         'campaign_daily_stats(workspace_id)'],
-    ['idx_page_stats_date',               'company_page_daily_stats(snapshot_date)'],
+    ['idx_contacts_campaign',          'contacts(campaign_id)'],
+    ['idx_contacts_workspace',         'contacts(workspace_id)'],
+    ['idx_campaigns_workspace',        'campaigns(workspace_id)'],
+    ['idx_contacts_li_profile',        'contacts(li_profile_url)'],
+    ['idx_contacts_provider_id',       'contacts(provider_id)'],
+    ['idx_contacts_invite_sent',       'contacts(invite_sent)'],
+    ['idx_contacts_approved',          'contacts(invite_approved)'],
+    ['idx_contacts_withdrawn',         'contacts(invite_withdrawn)'],
+    ['idx_contacts_profile_view',      'contacts(last_profile_view_at)'],
+    ['idx_contacts_engagement',        'contacts(engagement_level)'],
+    ['idx_contacts_likes_sent_at',     'contacts(likes_sent_at)'],
+    ['idx_camp_companies_campaign',    'campaign_companies(campaign_id)'],
+    ['idx_camp_companies_workspace',   'campaign_companies(workspace_id)'],
+    ['idx_camp_companies_linkedin_id', 'campaign_companies(company_linkedin_id)'],
+    ['idx_camp_companies_engagement',  'campaign_companies(engagement_level)'],
+    ['idx_followers_account',          'company_followers(account_id)'],
+    ['idx_followers_profile',          'company_followers(profile_url)'],
+    ['idx_followers_first_seen',       'company_followers(first_seen_at)'],
+    ['idx_daily_stats_date',           'campaign_daily_stats(snapshot_date)'],
+    ['idx_daily_stats_campaign',       'campaign_daily_stats(campaign_id)'],
+    ['idx_daily_stats_workspace',      'campaign_daily_stats(workspace_id)'],
+    ['idx_page_stats_date',            'company_page_daily_stats(snapshot_date)'],
   ];
   for (const [name, col] of indexes) {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
   const cols = [
-    ['ua.webhook_id',            'unipile_accounts',    'webhook_id',                        'VARCHAR(255)'],
-    ['ua.settings',              'unipile_accounts',    'settings',                          "JSONB DEFAULT '{}'"],
-    ['c.workspace_id',           'campaigns',           'workspace_id',                      'INTEGER'],
-    ['c.account_id',             'campaigns',           'account_id',                        'VARCHAR(255)'],
-    ['c.settings',               'campaigns',           'settings',                          "JSONB DEFAULT '{}'"],
-    ['c.status',                 'campaigns',           'status',                            "VARCHAR(50) DEFAULT 'active'"],
-    ['c.audience_type',          'campaigns',           'audience_type',                     'VARCHAR(50)'],
-    ['ct.campaign_id',           'contacts',            'campaign_id',                       'INTEGER'],
-    ['ct.workspace_id',          'contacts',            'workspace_id',                      'INTEGER'],
-    ['ct.provider_id',           'contacts',            'provider_id',                       'VARCHAR(255)'],
-    ['ct.member_urn',            'contacts',            'member_urn',                        'VARCHAR(255)'],
-    ['ct.follow_inv',            'contacts',            'company_follow_invited',            'BOOLEAN DEFAULT FALSE'],
-    ['ct.follow_conf',           'contacts',            'company_follow_confirmed',          'BOOLEAN DEFAULT FALSE'],
-    ['ct.pv_at',                 'contacts',            'last_profile_view_at',              'TIMESTAMP'],
-    ['ct.pv_count',              'contacts',            'profile_view_count',                'INTEGER DEFAULT 0'],
-    ['ct.inv_sent_at',           'contacts',            'invite_sent_at',                   'TIMESTAMP'],
-    ['ct.inv_appr_at',           'contacts',            'invite_approved_at',               'TIMESTAMP'],
-    ['ct.msg_sent_at',           'contacts',            'msg_sent_at',                      'TIMESTAMP'],
-    ['ct.msg_rep_at',            'contacts',            'msg_replied_at',                   'TIMESTAMP'],
-    ['ct.pos_rep_at',            'contacts',            'positive_reply_at',                'TIMESTAMP'],
-    ['ct.cf_inv_at',             'contacts',            'company_follow_invited_at',        'TIMESTAMP'],
-    ['ct.cf_conf_at',            'contacts',            'company_follow_confirmed_at',      'TIMESTAMP'],
-    ['cf.fsa',                   'company_followers',   'first_seen_at',                    'TIMESTAMP DEFAULT NOW()'],
-    ['cf.fsp',                   'company_followers',   'first_seen_position',              'INTEGER'],
-    ['ds.profile_views',         'campaign_daily_stats','profile_views',                    'INTEGER DEFAULT 0'],
-    ['ct.eng_level',             'contacts',            'engagement_level',                 'VARCHAR(30)'],
-    ['ct.eng_scraped_at',        'contacts',            'engagement_scraped_at',            'TIMESTAMP'],
-    ['ct.eng_data',              'contacts',            'engagement_data',                  'JSONB'],
-    // Personal account likes
-    ['ct.post_likes',            'contacts',            'post_likes_sent',                  'INTEGER DEFAULT 0'],
-    ['ct.comment_likes',         'contacts',            'comment_likes_sent',               'INTEGER DEFAULT 0'],
-    ['ct.likes_sent_at',         'contacts',            'likes_sent_at',                    'TIMESTAMP'],
-    ['ct.liked_ids',             'contacts',            'liked_ids',                        "JSONB DEFAULT '[]'"],
-    // Company page likes of contact content (separate tracking, same-day isolation)
-    ['ct.co_post_likes',         'contacts',            'company_post_likes_sent',          'INTEGER DEFAULT 0'],
-    ['ct.co_comment_likes',      'contacts',            'company_comment_likes_sent',       'INTEGER DEFAULT 0'],
-    ['ct.co_likes_sent_at',      'contacts',            'company_likes_sent_at',            'TIMESTAMP'],
-    ['ct.co_liked_ids',          'contacts',            'company_liked_ids',                "JSONB DEFAULT '[]'"],
-    // campaign_companies
-    ['cc.eng_level',             'campaign_companies',  'engagement_level',                 'VARCHAR(30)'],
-    ['cc.eng_scraped_at',        'campaign_companies',  'engagement_scraped_at',            'TIMESTAMP'],
-    ['cc.eng_data',              'campaign_companies',  'engagement_data',                  'JSONB'],
-    ['cc.post_likes',            'campaign_companies',  'post_likes_sent',                  'INTEGER DEFAULT 0'],
-    ['cc.likes_sent_at',         'campaign_companies',  'likes_sent_at',                    'TIMESTAMP'],
-    ['cc.liked_ids',             'campaign_companies',  'liked_ids',                        "JSONB DEFAULT '[]'"],
-    ['cc.contact_count',         'campaign_companies',  'contact_count',                    'INTEGER DEFAULT 1'],
+    ['ua.webhook_id',       'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
+    ['ua.settings',         'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
+    ['c.workspace_id',      'campaigns',           'workspace_id',                'INTEGER'],
+    ['c.account_id',        'campaigns',           'account_id',                  'VARCHAR(255)'],
+    ['c.settings',          'campaigns',           'settings',                    "JSONB DEFAULT '{}'"],
+    ['c.status',            'campaigns',           'status',                      "VARCHAR(50) DEFAULT 'active'"],
+    ['c.audience_type',     'campaigns',           'audience_type',               'VARCHAR(50)'],
+    ['ct.campaign_id',      'contacts',            'campaign_id',                 'INTEGER'],
+    ['ct.workspace_id',     'contacts',            'workspace_id',                'INTEGER'],
+    ['ct.provider_id',      'contacts',            'provider_id',                 'VARCHAR(255)'],
+    ['ct.member_urn',       'contacts',            'member_urn',                  'VARCHAR(255)'],
+    ['ct.follow_inv',       'contacts',            'company_follow_invited',      'BOOLEAN DEFAULT FALSE'],
+    ['ct.follow_conf',      'contacts',            'company_follow_confirmed',    'BOOLEAN DEFAULT FALSE'],
+    ['ct.pv_at',            'contacts',            'last_profile_view_at',        'TIMESTAMP'],
+    ['ct.pv_count',         'contacts',            'profile_view_count',          'INTEGER DEFAULT 0'],
+    ['ct.inv_sent_at',      'contacts',            'invite_sent_at',              'TIMESTAMP'],
+    ['ct.inv_appr_at',      'contacts',            'invite_approved_at',          'TIMESTAMP'],
+    ['ct.inv_withdrawn',    'contacts',            'invite_withdrawn',            'BOOLEAN DEFAULT FALSE'],
+    ['ct.inv_wdn_at',       'contacts',            'invite_withdrawn_at',         'TIMESTAMP'],
+    ['ct.msg_sent_at',      'contacts',            'msg_sent_at',                 'TIMESTAMP'],
+    ['ct.msg_rep_at',       'contacts',            'msg_replied_at',              'TIMESTAMP'],
+    ['ct.pos_rep_at',       'contacts',            'positive_reply_at',           'TIMESTAMP'],
+    ['ct.cf_inv_at',        'contacts',            'company_follow_invited_at',   'TIMESTAMP'],
+    ['ct.cf_conf_at',       'contacts',            'company_follow_confirmed_at', 'TIMESTAMP'],
+    ['cf.fsa',              'company_followers',   'first_seen_at',               'TIMESTAMP DEFAULT NOW()'],
+    ['cf.fsp',              'company_followers',   'first_seen_position',         'INTEGER'],
+    ['ds.profile_views',    'campaign_daily_stats','profile_views',               'INTEGER DEFAULT 0'],
+    ['ct.eng_level',        'contacts',            'engagement_level',            'VARCHAR(30)'],
+    ['ct.eng_scraped_at',   'contacts',            'engagement_scraped_at',       'TIMESTAMP'],
+    ['ct.eng_data',         'contacts',            'engagement_data',             'JSONB'],
+    ['ct.post_likes',       'contacts',            'post_likes_sent',             'INTEGER DEFAULT 0'],
+    ['ct.comment_likes',    'contacts',            'comment_likes_sent',          'INTEGER DEFAULT 0'],
+    ['ct.likes_sent_at',    'contacts',            'likes_sent_at',               'TIMESTAMP'],
+    ['ct.liked_ids',        'contacts',            'liked_ids',                   "JSONB DEFAULT '[]'"],
+    ['cc.eng_level',        'campaign_companies',  'engagement_level',            'VARCHAR(30)'],
+    ['cc.eng_scraped_at',   'campaign_companies',  'engagement_scraped_at',       'TIMESTAMP'],
+    ['cc.eng_data',         'campaign_companies',  'engagement_data',             'JSONB'],
+    ['cc.post_likes',       'campaign_companies',  'post_likes_sent',             'INTEGER DEFAULT 0'],
+    ['cc.likes_sent_at',    'campaign_companies',  'likes_sent_at',               'TIMESTAMP'],
+    ['cc.liked_ids',        'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
+    ['cc.contact_count',    'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
   ];
   for (const [label, table, col, type] of cols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
@@ -311,25 +302,20 @@ async function nukeIfBroken() {
         AND campaign_id IS NOT NULL
       ORDER BY campaign_id, profile_data->'work_experience'->0->>'company_id'
     `);
-
     if (!contacts.length) return;
-
     const groups = {};
     for (const c of contacts) {
       const key = `${c.campaign_id}:${c.company_linkedin_id}`;
       if (!groups[key]) {
         groups[key] = {
-          campaign_id:         c.campaign_id,
-          workspace_id:        c.workspace_id,
-          company_name:        c.company_from_exp || c.company || '',
-          li_company_url:      c.li_company_url || `https://www.linkedin.com/company/${c.company_linkedin_id}`,
-          company_linkedin_id: c.company_linkedin_id,
-          count: 0,
+          campaign_id: c.campaign_id, workspace_id: c.workspace_id,
+          company_name: c.company_from_exp || c.company || '',
+          li_company_url: c.li_company_url || `https://www.linkedin.com/company/${c.company_linkedin_id}`,
+          company_linkedin_id: c.company_linkedin_id, count: 0,
         };
       }
       groups[key].count++;
     }
-
     let upserted = 0;
     for (const g of Object.values(groups)) {
       await db.query(
@@ -337,10 +323,9 @@ async function nukeIfBroken() {
            (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (campaign_id, company_linkedin_id)
-         DO UPDATE SET
-           company_name   = EXCLUDED.company_name,
-           li_company_url = EXCLUDED.li_company_url,
-           contact_count  = EXCLUDED.contact_count`,
+         DO UPDATE SET company_name = EXCLUDED.company_name,
+                       li_company_url = EXCLUDED.li_company_url,
+                       contact_count  = EXCLUDED.contact_count`,
         [g.campaign_id, g.workspace_id, g.company_name, g.li_company_url, g.company_linkedin_id, g.count]
       );
       upserted++;
@@ -351,6 +336,7 @@ async function nukeIfBroken() {
   console.log('[DB] Schema ready');
 
   invitationSender.start();
+  withdrawSender.start();
   companyFollowSender.start();
   followerScraper.start();
   statsSnapshotter.start();
