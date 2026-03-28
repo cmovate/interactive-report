@@ -32,8 +32,7 @@ async function getAccounts() {
 }
 
 /**
- * [LEGACY] Keyword-based people search. Kept for backward compatibility.
- * Prefer searchPeopleByCompany for company-targeted searches.
+ * [LEGACY] Keyword-based people search.
  */
 async function searchPeople(accountId, companyName, titles = []) {
   const keywords = titles.length
@@ -47,96 +46,81 @@ async function searchPeople(accountId, companyName, titles = []) {
 }
 
 /**
- * Resolve a LinkedIn company slug or numeric ID to a company object.
- *
- * Handles two URL patterns:
- *   linkedin.com/company/1234567/  → numeric ID, skip lookup
- *   linkedin.com/company/microsoft → slug, search companies to get numeric ID
- *
- * Returns { id, name } or null.
+ * Resolve a LinkedIn company slug or numeric ID to { id, name }.
  */
 async function lookupCompany(accountId, slugOrId) {
-  // Already a numeric ID — no lookup needed
   if (/^\d+$/.test(slugOrId)) {
-    console.log(`[Unipile] lookupCompany: numeric ID ${slugOrId}, skipping search`);
     return { id: slugOrId, name: slugOrId };
   }
-
-  // Search companies by slug (normalise hyphens to spaces)
   const keywords = slugOrId.replace(/-/g, ' ');
   let items = [];
   try {
     const data = await request(
       `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ api: 'classic', category: 'companies', keywords, limit: 5 }),
-      }
+      { method: 'POST', body: JSON.stringify({ api: 'classic', category: 'companies', keywords, limit: 5 }) }
     );
     items = Array.isArray(data?.items) ? data.items : [];
   } catch (err) {
     console.warn(`[Unipile] lookupCompany search failed for "${slugOrId}": ${err.message}`);
     return null;
   }
-
-  if (!items.length) {
-    console.warn(`[Unipile] lookupCompany: no company results for "${slugOrId}"`);
-    return null;
-  }
-
-  // Prefer exact slug match, fall back to first result
+  if (!items.length) return null;
   const exact = items.find(c => {
     const cn = String(c.universal_name || c.vanity_name || c.slug || c.name || '').toLowerCase();
     return cn === slugOrId.toLowerCase() || cn === keywords.toLowerCase();
   });
   const company = exact || items[0];
-
-  // Extract numeric ID from various possible field names / URNs
   const id =
     company.id ||
     company.company_id ||
     company.entity_urn?.match(/(\d+)$/)?.[1] ||
     company.urn?.match(/(\d+)$/)?.[1] ||
     null;
-
   const name = company.name || company.company_name || keywords;
-
   console.log(`[Unipile] lookupCompany: "${slugOrId}" → id=${id} name="${name}"`);
   return id ? { id: String(id), name } : { id: null, name };
 }
 
 /**
  * Search for people scoped to a specific company.
- *
- * When a numeric company ID is available, uses LinkedIn’s currentCompany filter
- * (much more precise than keyword-only search). Falls back to keyword search
- * when no ID is available.
- *
- * @param {string}   accountId   Unipile account ID
- * @param {string|null} companyId  Numeric LinkedIn company ID (or null)
- * @param {string}   companyName  Human-readable name (used in keyword fallback)
- * @param {string[]} titles       Job title keywords to filter by
- * @param {number}   limit        Max results per call
  */
 async function searchPeopleByCompany(accountId, companyId, companyName, titles = [], limit = 10) {
   const body = { api: 'classic', category: 'people', limit };
-
   if (companyId) {
-    // Precise: company ID filter + optional title keywords
     body.filters = { currentCompany: [companyId] };
     if (titles.length) body.keywords = titles.join(' OR ');
   } else {
-    // Fallback: keyword search — less precise
     body.keywords = titles.length
       ? `(${titles.join(' OR ')}) "${companyName}"`
       : `"${companyName}"`;
   }
-
   const data = await request(
     `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
     { method: 'POST', body: JSON.stringify(body) }
   );
   return Array.isArray(data?.items) ? data.items : [];
+}
+
+/**
+ * Fetch all messages from a LinkedIn chat thread.
+ * Used by conversationAnalyzer to build the full transcript.
+ *
+ * Paginates automatically — fetches up to 200 messages (sufficient for
+ * any realistic LinkedIn outreach conversation).
+ *
+ * @param {string} accountId  Unipile account ID
+ * @param {string} chatId     Unipile chat ID
+ * @returns {Promise<object[]>} Array of message objects, oldest first
+ */
+async function getChatMessages(accountId, chatId, limit = 200) {
+  const params = new URLSearchParams({
+    account_id: accountId,
+    limit: String(Math.min(limit, 200)),
+  });
+  const data  = await request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages?${params}`);
+  const items = Array.isArray(data?.items) ? data.items : [];
+  // Unipile returns newest-first; reverse so transcript is chronological
+  return items.reverse();
 }
 
 async function enrichProfile(accountId, li_profile_url, notify = false) {
@@ -233,11 +217,7 @@ async function sendMessage(accountId, chatId, text) {
 async function startDirectMessage(accountId, providerId, text) {
   return request('/api/v1/chats', {
     method: 'POST',
-    body: JSON.stringify({
-      account_id:    accountId,
-      attendees_ids: [providerId],
-      text,
-    }),
+    body: JSON.stringify({ account_id: accountId, attendees_ids: [providerId], text }),
   });
 }
 
@@ -246,10 +226,7 @@ async function getChatsByAttendee(accountId, providerId) {
   const data   = await request(`/api/v1/chats?${params}`);
   const items  = Array.isArray(data?.items) ? data.items : [];
   const match  = items.find(c => c.attendee_provider_id === providerId);
-  if (match) {
-    console.log(`[Unipile] getChatsByAttendee: found chat for ${providerId}`);
-    return [match];
-  }
+  if (match) { console.log(`[Unipile] getChatsByAttendee: found chat for ${providerId}`); return [match]; }
   console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId}`);
   return [];
 }
@@ -259,10 +236,7 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
   const companyIdMatch = companyPageUrn.match(/(\d+)$/);
   if (!companyIdMatch) throw new Error(`Invalid companyPageUrn: ${companyPageUrn}`);
   const companyId = companyIdMatch[1];
-  const elements = memberUrns.map(urn => ({
-    inviteeMember:         urn,
-    genericInvitationType: 'ORGANIZATION',
-  }));
+  const elements = memberUrns.map(urn => ({ inviteeMember: urn, genericInvitationType: 'ORGANIZATION' }));
   return request('/api/v1/linkedin', {
     method: 'POST',
     body: JSON.stringify({
@@ -270,9 +244,7 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
       request_url: 'https://www.linkedin.com/voyager/api/voyagerRelationshipsDashInvitations',
       method:      'POST',
       body:        { elements },
-      query_params: {
-        inviter: `(organizationUrn:urn%3Ali%3Afsd_company%3A${companyId})`,
-      },
+      query_params: { inviter: `(organizationUrn:urn%3Ali%3Afsd_company%3A${companyId})` },
       headers: { 'x-restli-method': 'batch_create' },
       encoding: false,
     }),
@@ -284,6 +256,7 @@ module.exports = {
   searchPeople,
   searchPeopleByCompany,
   lookupCompany,
+  getChatMessages,
   enrichProfile,
   viewProfile,
   getUserPosts,
