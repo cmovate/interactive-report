@@ -4,12 +4,12 @@
  * Companies are automatically populated from enriched contacts' profile_data.
  * Each row = one unique employer company per campaign.
  */
-const express = require('express');
-const router  = express.Router();
-const db      = require('../db');
+const express              = require('express');
+const router               = express.Router();
+const db                   = require('../db');
+const companyEngagementScraper = require('../companyEngagementScraper');
 
 // GET /api/companies?workspace_id=&campaign_id=
-// Returns all companies for a workspace (optionally filtered by campaign)
 router.get('/', async (req, res) => {
   try {
     const { workspace_id, campaign_id } = req.query;
@@ -37,19 +37,173 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/companies/:id/engagement-stats?campaign_id=X
+// Returns engagement stats for all companies in a campaign
+router.get('/stats', async (req, res) => {
+  try {
+    const { workspace_id, campaign_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    const params = [workspace_id];
+    let where = 'WHERE workspace_id = $1';
+    if (campaign_id) { params.push(campaign_id); where += ` AND campaign_id = $${params.length}`; }
+
+    const { rows } = await db.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE engagement_level = 'engaged')         AS engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged')  AS average_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')       AS un_engaged,
+         COUNT(*) FILTER (WHERE engagement_level IS NULL)              AS not_yet_scraped,
+         COUNT(*) FILTER (WHERE engagement_level IN ('engaged','average_engaged')) AS with_content,
+         COALESCE(SUM(post_likes_sent), 0)                            AS total_post_likes,
+         COUNT(*) FILTER (WHERE post_likes_sent > 0)                  AS companies_liked,
+         COUNT(*)                                                       AS total
+       FROM campaign_companies ${where}`,
+      params
+    );
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/companies/scrape-engagement?workspace_id=X&campaign_id=Y
+// Triggers company engagement scraping (async, non-blocking)
+// Body: { force: true } to reset and re-scrape all
+router.post('/scrape-engagement', async (req, res) => {
+  try {
+    const workspace_id = req.query.workspace_id || req.body?.workspace_id;
+    const campaign_id  = req.query.campaign_id  || req.body?.campaign_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    if (req.body?.force) {
+      const params = [workspace_id];
+      let where = 'WHERE workspace_id = $1';
+      if (campaign_id) { params.push(campaign_id); where += ` AND campaign_id = $${params.length}`; }
+      await db.query(
+        `UPDATE campaign_companies SET engagement_level = NULL, engagement_scraped_at = NULL, engagement_data = NULL ${where}`,
+        params
+      );
+      console.log(`[API] Reset company engagement (workspace=${workspace_id} campaign=${campaign_id||'all'})`);
+    }
+
+    const campId = campaign_id ? parseInt(campaign_id, 10) : null;
+    companyEngagementScraper.run(campId)
+      .then(r => console.log('[API] Company scrape done:', JSON.stringify(r)))
+      .catch(e => console.error('[API] Company scrape error:', e.message));
+
+    res.json({ status: 'started', campaign_id: campId || 'all' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/companies/send-likes?workspace_id=X&campaign_id=Y
+// Manually trigger likes on company posts for already-scraped companies with content
+router.post('/send-likes', async (req, res) => {
+  try {
+    const workspace_id = req.query.workspace_id || req.body?.workspace_id;
+    const campaign_id  = req.query.campaign_id  || req.body?.campaign_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    const COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000;
+    const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS).toISOString();
+    const MAX_LIKES = 3;
+
+    const params = [workspace_id, cooldownCutoff];
+    let where = `
+      WHERE cc.workspace_id = $1
+        AND cc.engagement_level IN ('engaged','average_engaged')
+        AND cc.company_linkedin_id IS NOT NULL
+        AND (cc.likes_sent_at IS NULL OR cc.likes_sent_at < $2)
+        AND COALESCE(cc.post_likes_sent, 0) < ${MAX_LIKES}
+    `;
+    if (campaign_id) { params.push(campaign_id); where += ` AND cc.campaign_id = $${params.length}`; }
+
+    const { rows: companies } = await db.query(
+      `SELECT cc.id, cc.company_name, cc.company_linkedin_id,
+              cc.post_likes_sent, cc.liked_ids, cc.engagement_data,
+              c.account_id
+       FROM campaign_companies cc
+       JOIN campaigns c ON c.id = cc.campaign_id
+       ${where}
+       ORDER BY CASE cc.engagement_level WHEN 'engaged' THEN 0 ELSE 1 END, cc.id ASC
+       LIMIT 20`,
+      params
+    );
+
+    if (!companies.length) {
+      return res.json({ status: 'no_eligible_companies', liked: 0 });
+    }
+
+    res.json({ status: 'started', companies_queued: companies.length });
+
+    // Run async
+    (async () => {
+      const rand  = (min, max) => min + Math.random() * (max - min);
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      let totalLiked = 0;
+
+      for (const company of companies) {
+        try {
+          const d = typeof company.engagement_data === 'string'
+            ? JSON.parse(company.engagement_data) : (company.engagement_data || {});
+          const posts14d = d.posts_14d_data || d.posts || [];
+
+          const alreadyLiked = new Set(Array.isArray(company.liked_ids) ? company.liked_ids : []);
+          const alreadySent  = company.post_likes_sent || 0;
+          const remaining    = MAX_LIKES - alreadySent;
+          if (remaining <= 0) continue;
+
+          const newPosts = posts14d.filter(p => {
+            const sid = String(p.social_id || p.id || p.post_id || '');
+            return sid && !alreadyLiked.has(sid);
+          });
+
+          let liked = 0;
+          const newIds = [];
+          for (const post of newPosts) {
+            if (liked >= remaining) break;
+            const sid = String(post.social_id || post.id || post.post_id || '');
+            if (!sid) continue;
+            try {
+              await unipile.likePost(company.account_id, sid);
+              newIds.push(sid); liked++;
+              console.log(`[API send-likes] 👍 ${company.company_name}`);
+              if (liked < remaining) await sleep(rand(5000, 15000));
+            } catch (err) {
+              console.error(`[API send-likes] ✗ ${company.company_name}: ${err.message}`);
+            }
+          }
+
+          if (liked > 0) {
+            const merged = [...alreadyLiked, ...newIds];
+            await db.query(
+              `UPDATE campaign_companies
+               SET post_likes_sent = COALESCE(post_likes_sent,0) + $1,
+                   likes_sent_at   = NOW(),
+                   liked_ids       = $2::jsonb
+               WHERE id = $3`,
+              [liked, JSON.stringify(merged), company.id]
+            );
+            totalLiked += liked;
+          }
+        } catch (err) {
+          console.error(`[API send-likes] error ${company.company_name}:`, err.message);
+        }
+        await sleep(rand(10000, 30000));
+      }
+      console.log(`[API send-likes] Done. Total liked: ${totalLiked}`);
+    })();
+
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/companies/backfill?workspace_id=X
-// Re-populates campaign_companies from all enriched contacts in the workspace.
-// Safe to run multiple times (upsert with ON CONFLICT).
+// Re-populates campaign_companies from all enriched contacts.
 router.post('/backfill', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body?.workspace_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
-    // Find all enriched contacts with a company_linkedin_id extractable from profile_data
     const { rows: contacts } = await db.query(
-      `SELECT id, campaign_id, workspace_id, company,
-              li_company_url,
-              profile_data->>'provider_id' AS provider_id,
+      `SELECT id, campaign_id, workspace_id, company, li_company_url,
               profile_data->'work_experience'->0->>'company_id' AS company_linkedin_id,
               profile_data->'work_experience'->0->>'company'    AS company_from_exp
        FROM contacts
@@ -65,44 +219,36 @@ router.post('/backfill', async (req, res) => {
 
     let upserted = 0;
     const seen = new Set();
-
     for (const c of contacts) {
-      const cid  = c.company_linkedin_id;
-      const key  = `${c.campaign_id}:${cid}`;
+      const cid = c.company_linkedin_id;
+      const key = `${c.campaign_id}:${cid}`;
       if (!cid || !c.campaign_id) continue;
-
-      const companyName = c.company_from_exp || c.company || '';
-      const companyUrl  = c.li_company_url || `https://www.linkedin.com/company/${cid}`;
+      const name = c.company_from_exp || c.company || '';
+      const url  = c.li_company_url || `https://www.linkedin.com/company/${cid}`;
 
       if (seen.has(key)) {
-        // Just increment count for this campaign+company
         await db.query(
-          `UPDATE campaign_companies
-           SET contact_count = contact_count + 1
-           WHERE campaign_id = $1 AND company_linkedin_id = $2`,
+          'UPDATE campaign_companies SET contact_count = contact_count + 1 WHERE campaign_id = $1 AND company_linkedin_id = $2',
           [c.campaign_id, cid]
         );
       } else {
         seen.add(key);
         await db.query(
-          `INSERT INTO campaign_companies
-             (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
-           VALUES ($1, $2, $3, $4, $5, 1)
+          `INSERT INTO campaign_companies (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
+           VALUES ($1,$2,$3,$4,$5,1)
            ON CONFLICT (campaign_id, company_linkedin_id)
-           DO UPDATE SET
-             company_name   = EXCLUDED.company_name,
-             li_company_url = EXCLUDED.li_company_url`,
-          [c.campaign_id, c.workspace_id, companyName, companyUrl, cid]
+           DO UPDATE SET company_name = EXCLUDED.company_name, li_company_url = EXCLUDED.li_company_url`,
+          [c.campaign_id, c.workspace_id, name, url, cid]
         );
         upserted++;
       }
     }
 
-    res.json({
-      contacts_scanned:   contacts.length,
-      companies_upserted: upserted,
-    });
+    res.json({ contacts_scanned: contacts.length, companies_upserted: upserted });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// Need unipile for send-likes inline
+const unipile = require('../unipile');
 
 module.exports = router;
