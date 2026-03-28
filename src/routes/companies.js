@@ -4,9 +4,10 @@
  * Companies are automatically populated from enriched contacts' profile_data.
  * Each row = one unique employer company per campaign.
  */
-const express              = require('express');
-const router               = express.Router();
-const db                   = require('../db');
+const express                  = require('express');
+const router                   = express.Router();
+const db                       = require('../db');
+const unipile                  = require('../unipile');          // must be at top
 const companyEngagementScraper = require('../companyEngagementScraper');
 
 // GET /api/companies?workspace_id=&campaign_id=
@@ -37,8 +38,7 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/companies/:id/engagement-stats?campaign_id=X
-// Returns engagement stats for all companies in a campaign
+// GET /api/companies/stats?workspace_id=&campaign_id=
 router.get('/stats', async (req, res) => {
   try {
     const { workspace_id, campaign_id } = req.query;
@@ -65,9 +65,7 @@ router.get('/stats', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/companies/scrape-engagement?workspace_id=X&campaign_id=Y
-// Triggers company engagement scraping (async, non-blocking)
-// Body: { force: true } to reset and re-scrape all
+// POST /api/companies/scrape-engagement
 router.post('/scrape-engagement', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body?.workspace_id;
@@ -94,15 +92,14 @@ router.post('/scrape-engagement', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/companies/send-likes?workspace_id=X&campaign_id=Y
-// Manually trigger likes on company posts for already-scraped companies with content
+// POST /api/companies/send-likes
 router.post('/send-likes', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body?.workspace_id;
     const campaign_id  = req.query.campaign_id  || req.body?.campaign_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
-    const COOLDOWN_MS = 3 * 24 * 60 * 60 * 1000;
+    const COOLDOWN_MS    = 3 * 24 * 60 * 60 * 1000;
     const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS).toISOString();
     const MAX_LIKES = 3;
 
@@ -195,60 +192,57 @@ router.post('/send-likes', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/companies/backfill?workspace_id=X
+// POST /api/companies/backfill
 // Re-populates campaign_companies from all enriched contacts.
+// Uses correct GROUP BY count (not +1 per iteration) to avoid double-counting.
 router.post('/backfill', async (req, res) => {
   try {
     const workspace_id = req.query.workspace_id || req.body?.workspace_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
-    const { rows: contacts } = await db.query(
-      `SELECT id, campaign_id, workspace_id, company, li_company_url,
-              profile_data->'work_experience'->0->>'company_id' AS company_linkedin_id,
-              profile_data->'work_experience'->0->>'company'    AS company_from_exp
+    // Count contacts per company per campaign in one pass
+    const { rows: groups } = await db.query(
+      `SELECT
+         campaign_id, workspace_id, company, li_company_url,
+         profile_data->'work_experience'->0->>'company_id' AS company_linkedin_id,
+         profile_data->'work_experience'->0->>'company'    AS company_from_exp,
+         COUNT(*) AS contact_count
        FROM contacts
        WHERE workspace_id = $1
          AND profile_data IS NOT NULL
          AND profile_data::text != '{}'
          AND profile_data::text != 'null'
-         AND profile_data->'work_experience'->0->>'company_id' IS NOT NULL`,
+         AND profile_data->'work_experience'->0->>'company_id' IS NOT NULL
+         AND campaign_id IS NOT NULL
+       GROUP BY campaign_id, workspace_id, company, li_company_url,
+                profile_data->'work_experience'->0->>'company_id',
+                profile_data->'work_experience'->0->>'company'`,
       [workspace_id]
     );
 
-    console.log(`[Companies backfill] Found ${contacts.length} contacts with company_linkedin_id`);
+    console.log(`[Companies backfill] Found ${groups.length} company/campaign pairs`);
 
     let upserted = 0;
-    const seen = new Set();
-    for (const c of contacts) {
-      const cid = c.company_linkedin_id;
-      const key = `${c.campaign_id}:${cid}`;
-      if (!cid || !c.campaign_id) continue;
-      const name = c.company_from_exp || c.company || '';
-      const url  = c.li_company_url || `https://www.linkedin.com/company/${cid}`;
-
-      if (seen.has(key)) {
-        await db.query(
-          'UPDATE campaign_companies SET contact_count = contact_count + 1 WHERE campaign_id = $1 AND company_linkedin_id = $2',
-          [c.campaign_id, cid]
-        );
-      } else {
-        seen.add(key);
-        await db.query(
-          `INSERT INTO campaign_companies (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
-           VALUES ($1,$2,$3,$4,$5,1)
-           ON CONFLICT (campaign_id, company_linkedin_id)
-           DO UPDATE SET company_name = EXCLUDED.company_name, li_company_url = EXCLUDED.li_company_url`,
-          [c.campaign_id, c.workspace_id, name, url, cid]
-        );
-        upserted++;
-      }
+    for (const g of groups) {
+      if (!g.company_linkedin_id || !g.campaign_id) continue;
+      const name = g.company_from_exp || g.company || '';
+      const url  = g.li_company_url || `https://www.linkedin.com/company/${g.company_linkedin_id}`;
+      await db.query(
+        `INSERT INTO campaign_companies
+           (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (campaign_id, company_linkedin_id)
+         DO UPDATE SET
+           company_name  = EXCLUDED.company_name,
+           li_company_url = EXCLUDED.li_company_url,
+           contact_count  = EXCLUDED.contact_count`,
+        [g.campaign_id, g.workspace_id, name, url, g.company_linkedin_id, parseInt(g.contact_count)]
+      );
+      upserted++;
     }
 
-    res.json({ contacts_scanned: contacts.length, companies_upserted: upserted });
+    res.json({ companies_upserted: upserted });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
-// Need unipile for send-likes inline
-const unipile = require('../unipile');
 
 module.exports = router;

@@ -16,18 +16,9 @@
 
 const db      = require('./db');
 const unipile = require('./unipile');
+const { DEFAULT_WORKING_HOURS } = require('./constants');
 
 const DEFAULT_DAILY_LIMIT = 40;
-const DEFAULT_WORKING_HOURS = {
-  1: { on: true,  from: '09:00', to: '18:00' },
-  2: { on: true,  from: '09:00', to: '18:00' },
-  3: { on: true,  from: '09:00', to: '18:00' },
-  4: { on: true,  from: '09:00', to: '18:00' },
-  5: { on: true,  from: '09:00', to: '18:00' },
-  6: { on: false, from: '09:00', to: '18:00' },
-  7: { on: false, from: '09:00', to: '18:00' },
-};
-
 const activelySending = new Set();
 
 function start() {
@@ -52,7 +43,6 @@ async function run() {
       return;
     }
 
-    // Group by account
     const byAccount = {};
     for (const camp of campaigns) {
       if (!byAccount[camp.account_id]) byAccount[camp.account_id] = [];
@@ -84,7 +74,6 @@ async function run() {
       for (const campaign of accountCampaigns) {
         if (canView <= 0) break;
 
-        // Working hours from campaign settings
         const hours = campaign.settings?.hours || null;
         if (!isWithinWorkingHours(hours)) {
           console.log(`[ProfileViewer] Campaign ${campaign.id} outside working hours`);
@@ -115,7 +104,6 @@ async function sendBatch(accountId, contacts) {
       const identifier = extractIdentifier(contact.li_profile_url);
       if (!identifier) { console.warn(`[ProfileViewer] No identifier for contact ${contact.id}`); continue; }
 
-      // CONFIRMED: *_preview + notify=true → 200 OK
       await unipile.viewProfile(accountId, identifier);
 
       await db.query(
