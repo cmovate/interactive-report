@@ -4,20 +4,21 @@ const cors    = require('cors');
 const path    = require('path');
 const db      = require('./src/db');
 
-const workspacesRouter    = require('./src/routes/workspaces');
-const unipileRouter       = require('./src/routes/unipile');
-const campaignsRouter     = require('./src/routes/campaigns');
-const contactsRouter      = require('./src/routes/contacts');
-const companiesRouter     = require('./src/routes/companies');
-const webhooksRouter      = require('./src/routes/webhooks');
-const followersRouter     = require('./src/routes/followers');
-const statsRouter         = require('./src/routes/stats');
-const invitationSender    = require('./src/invitationSender');
-const companyFollowSender = require('./src/companyFollowSender');
-const followerScraper     = require('./src/followerScraper');
-const statsSnapshotter    = require('./src/statsSnapshotter');
-const profileViewer       = require('./src/profileViewer');
-const engagementScraper   = require('./src/engagementScraper');
+const workspacesRouter          = require('./src/routes/workspaces');
+const unipileRouter             = require('./src/routes/unipile');
+const campaignsRouter           = require('./src/routes/campaigns');
+const contactsRouter            = require('./src/routes/contacts');
+const companiesRouter           = require('./src/routes/companies');
+const webhooksRouter            = require('./src/routes/webhooks');
+const followersRouter           = require('./src/routes/followers');
+const statsRouter               = require('./src/routes/stats');
+const invitationSender          = require('./src/invitationSender');
+const companyFollowSender       = require('./src/companyFollowSender');
+const followerScraper           = require('./src/followerScraper');
+const statsSnapshotter          = require('./src/statsSnapshotter');
+const profileViewer             = require('./src/profileViewer');
+const engagementScraper         = require('./src/engagementScraper');
+const companyEngagementScraper  = require('./src/companyEngagementScraper');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -120,11 +121,6 @@ async function nukeIfBroken() {
     )
   `));
 
-  // campaign_companies: one row per unique employer company per campaign.
-  // Populated automatically:
-  //   1. On every contact enrichment (real-time, via upsertCampaignCompany in enrichment.js)
-  //   2. On server startup (backfill for already-enriched contacts)
-  //   3. On re-extract (whenever All Data page loads)
   await s('campaign_companies', () => db.query(`
     CREATE TABLE IF NOT EXISTS campaign_companies (
       id                   SERIAL PRIMARY KEY,
@@ -132,9 +128,9 @@ async function nukeIfBroken() {
       workspace_id         INTEGER,
       company_name         VARCHAR(255),
       li_company_url       TEXT,
-      company_linkedin_id  VARCHAR(50),           -- numeric LinkedIn company ID for posts API
-      contact_count        INTEGER DEFAULT 1,      -- contacts from this company in this campaign
-      engagement_level      VARCHAR(30),           -- un_engaged | average_engaged | engaged
+      company_linkedin_id  VARCHAR(50),
+      contact_count        INTEGER DEFAULT 1,
+      engagement_level      VARCHAR(30),
       engagement_scraped_at TIMESTAMP,
       engagement_data       JSONB,
       post_likes_sent      INTEGER DEFAULT 0,
@@ -251,7 +247,7 @@ async function nukeIfBroken() {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
   }
 
-  // ── Repair: backfill likes_sent_at + liked_ids ────────────────────────────
+  // Repair likes_sent_at + liked_ids for contacts liked before columns existed
   await s('repair.likes_sent_at', async () => {
     const { rowCount } = await db.query(`
       UPDATE contacts SET likes_sent_at = NOW()
@@ -286,9 +282,7 @@ async function nukeIfBroken() {
     }
   });
 
-  // ── Auto-backfill campaign_companies from all enriched contacts ───────────
-  // Runs on every server start. Safe: uses ON CONFLICT DO UPDATE.
-  // Ensures campaign_companies is always in sync even after restarts.
+  // Auto-backfill campaign_companies on every startup
   await s('backfill.campaign_companies', async () => {
     const { rows: contacts } = await db.query(`
       SELECT
@@ -306,7 +300,6 @@ async function nukeIfBroken() {
 
     if (!contacts.length) return;
 
-    // Group by campaign_id + company_linkedin_id to get accurate contact_count
     const groups = {};
     for (const c of contacts) {
       const key = `${c.campaign_id}:${c.company_linkedin_id}`;
@@ -338,8 +331,7 @@ async function nukeIfBroken() {
       );
       upserted++;
     }
-
-    console.log(`[DB] campaign_companies backfill: ${upserted} companies upserted from ${contacts.length} contacts`);
+    console.log(`[DB] campaign_companies backfill: ${upserted} companies from ${contacts.length} contacts`);
   });
 
   console.log('[DB] Schema ready');
@@ -350,6 +342,7 @@ async function nukeIfBroken() {
   statsSnapshotter.start();
   profileViewer.start();
   engagementScraper.start();
+  companyEngagementScraper.start();
 })();
 
 app.get('*', (req, res) => {
