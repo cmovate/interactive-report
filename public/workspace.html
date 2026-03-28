@@ -12,9 +12,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .sidebar-ws { font-size: 15px; font-weight: 600; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-back { font-size: 12px; color: #1D9E75; cursor: pointer; margin-top: 4px; display: inline-block; }
 .sidebar-back:hover { text-decoration: underline; }
-.nav-item { display: flex; align-items: center; padding: 10px 16px; font-size: 14px; color: #555; cursor: pointer; border-radius: 0; transition: background 0.1s; }
+.nav-section { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #bbb; padding: 12px 16px 4px; }
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 14px; color: #555; cursor: pointer; border-radius: 0; transition: background 0.1s; }
 .nav-item:hover { background: #f5f5f5; color: #111; }
 .nav-item.active { background: #F0FBF7; color: #1D9E75; font-weight: 500; border-right: 2px solid #1D9E75; }
+.nav-item .nav-icon { font-size: 15px; }
+.nav-new-badge { font-size: 9px; font-weight: 700; background: #1D9E75; color: white; border-radius: 3px; padding: 1px 4px; margin-left: 4px; }
 .content { flex: 1; overflow: auto; }
 .screen { display: none; }
 .screen.active { display: block; }
@@ -24,15 +27,32 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <div class="sidebar">
   <div class="sidebar-header">
     <div class="sidebar-ws" id="ws-name">Workspace</div>
-    <span class="sidebar-back" onclick="window.location.href='/'">&larr; All workspaces</span>
+    <span class="sidebar-back" onclick="window.location.href='/'">&#8592; All workspaces</span>
   </div>
-  <div class="nav-item active" onclick="showScreen('campaigns')" id="nav-campaigns">Campaigns</div>
-  <div class="nav-item" onclick="showScreen('all-data')" id="nav-all-data">All Data</div>
-  <div class="nav-item" onclick="showScreen('settings')" id="nav-settings">Settings</div>
+
+  <div class="nav-section">Outreach</div>
+  <div class="nav-item active" onclick="showScreen('campaigns')" id="nav-campaigns">
+    <span class="nav-icon">&#128203;</span> Campaigns
+  </div>
+  <div class="nav-item" onclick="showScreen('all-data')" id="nav-all-data">
+    <span class="nav-icon">&#128101;</span> All Data
+  </div>
+
+  <div class="nav-section">Intelligence</div>
+  <div class="nav-item" onclick="showScreen('opportunities')" id="nav-opportunities">
+    <span class="nav-icon">&#128161;</span> Opportunities
+    <span class="nav-new-badge">NEW</span>
+  </div>
+
+  <div class="nav-section">Account</div>
+  <div class="nav-item" onclick="showScreen('settings')" id="nav-settings">
+    <span class="nav-icon">&#9881;</span> Settings
+  </div>
 </div>
 <div class="content">
   <div class="screen active" id="screen-campaigns"></div>
   <div class="screen" id="screen-all-data"></div>
+  <div class="screen" id="screen-opportunities"></div>
   <div class="screen" id="screen-settings"></div>
 </div>
 
