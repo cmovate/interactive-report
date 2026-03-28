@@ -112,8 +112,8 @@ async function nukeIfBroken() {
       engagement_data       JSONB,
       post_likes_sent       INTEGER DEFAULT 0,
       comment_likes_sent    INTEGER DEFAULT 0,
-      likes_sent_at         TIMESTAMP,          -- last time we liked something for this contact
-      liked_ids             JSONB DEFAULT '[]',  -- array of post/comment IDs already liked
+      likes_sent_at         TIMESTAMP,
+      liked_ids             JSONB DEFAULT '[]',
       created_at TIMESTAMP DEFAULT NOW()
     )
   `));
@@ -206,13 +206,61 @@ async function nukeIfBroken() {
     ['ct.eng_data',         'contacts',               'engagement_data',             'JSONB'],
     ['ct.post_likes',       'contacts',               'post_likes_sent',             'INTEGER DEFAULT 0'],
     ['ct.comment_likes',    'contacts',               'comment_likes_sent',          'INTEGER DEFAULT 0'],
-    // New columns for like cooldown + deduplication
     ['ct.likes_sent_at',    'contacts',               'likes_sent_at',               'TIMESTAMP'],
     ['ct.liked_ids',        'contacts',               'liked_ids',                   "JSONB DEFAULT '[]'"],
   ];
   for (const [label, table, col, type] of cols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
   }
+
+  // ── Repair: backfill likes_sent_at + liked_ids for contacts liked before these columns existed ──
+  await s('repair.likes_sent_at', async () => {
+    const { rowCount } = await db.query(`
+      UPDATE contacts
+      SET likes_sent_at = NOW()
+      WHERE (post_likes_sent > 0 OR comment_likes_sent > 0)
+        AND likes_sent_at IS NULL
+    `);
+    if (rowCount > 0) console.log(`[DB] Repaired likes_sent_at for ${rowCount} contact(s)`);
+  });
+
+  await s('repair.liked_ids', async () => {
+    // Reconstruct liked_ids from engagement_data for contacts that were liked
+    // but don't have liked_ids recorded yet.
+    const { rows } = await db.query(`
+      SELECT id, first_name, last_name,
+             post_likes_sent, comment_likes_sent,
+             engagement_data
+      FROM contacts
+      WHERE (post_likes_sent > 0 OR comment_likes_sent > 0)
+        AND (liked_ids IS NULL OR liked_ids::text = '[]' OR liked_ids::text = 'null')
+        AND engagement_data IS NOT NULL
+    `);
+    for (const row of rows) {
+      const d = typeof row.engagement_data === 'string'
+        ? JSON.parse(row.engagement_data) : row.engagement_data;
+      const ids = [];
+      // Reconstruct post liked_ids (take first post_likes_sent posts)
+      const posts = d.non_employer_posts_14d_data || d.posts_14d_data || [];
+      for (let i = 0; i < Math.min(row.post_likes_sent, posts.length); i++) {
+        const sid = String(posts[i].social_id || posts[i].id || posts[i].post_id || '');
+        if (sid) ids.push(sid);
+      }
+      // Reconstruct comment liked_ids (take first comment_likes_sent comments)
+      const comments = d.non_employer_comments_14d_data || d.comments_14d_data || [];
+      for (let i = 0; i < Math.min(row.comment_likes_sent, comments.length); i++) {
+        const cid = String(comments[i].id || comments[i].comment_id || '');
+        if (cid) ids.push(`comment:${cid}`);
+      }
+      if (ids.length > 0) {
+        await db.query(
+          'UPDATE contacts SET liked_ids = $1::jsonb WHERE id = $2',
+          [JSON.stringify(ids), row.id]
+        );
+        console.log(`[DB] Repaired liked_ids for ${row.first_name} ${row.last_name}: [${ids.join(', ')}]`);
+      }
+    }
+  });
 
   console.log('[DB] Schema ready');
 
