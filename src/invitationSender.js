@@ -2,6 +2,7 @@
  * Invitation Sender
  *
  * Sends LinkedIn connection requests for active campaigns.
+ * Uses provider_id (ACoXXX) — not vanity slug — as required by Unipile.
  *
  * Working hours are now per-campaign (campaign.settings.hours).
  * Daily limits are per-account (accSettings.limits.connection_requests).
@@ -34,7 +35,6 @@ function start() {
 async function run() {
   console.log('[InvitationSender] Running check...');
   try {
-    // Only campaigns where connection toggle is ON
     const { rows: campaigns } = await db.query(`
       SELECT c.id, c.account_id, c.name, c.workspace_id, c.settings
       FROM campaigns c
@@ -48,7 +48,6 @@ async function run() {
       return;
     }
 
-    // Group by account to check per-account daily limit once
     const byAccount = {};
     for (const camp of campaigns) {
       if (!byAccount[camp.account_id]) byAccount[camp.account_id] = [];
@@ -67,7 +66,6 @@ async function run() {
       );
       const accSettings = accRows[0]?.settings || {};
 
-      // Check daily limit (per account)
       const dailyLimit = accSettings.limits?.connection_requests ?? DEFAULT_DAILY_LIMIT;
       const sentToday  = await countSentToday(accountId);
       const canSend    = dailyLimit - sentToday;
@@ -79,12 +77,10 @@ async function run() {
 
       console.log(`[InvitationSender] Account ${accountId}: ${sentToday}/${dailyLimit} sent today, can send ${canSend} more`);
 
-      // For each campaign, check its own working hours
       let remaining = canSend;
       for (const campaign of accountCampaigns) {
         if (remaining <= 0) break;
 
-        // Working hours come from campaign settings (fallback: account settings, then default)
         const hours = campaign.settings?.hours || accSettings.hours || null;
         if (!isWithinWorkingHours(hours)) {
           console.log(`[InvitationSender] Campaign ${campaign.id} outside working hours`);
@@ -112,20 +108,20 @@ async function sendBatch(accountId, contacts) {
 
   for (const contact of contacts) {
     try {
-      const identifier = extractIdentifier(contact.li_profile_url);
-      if (!identifier) {
-        console.warn(`[InvitationSender] No identifier for: ${contact.li_profile_url}`);
+      if (!contact.provider_id) {
+        console.warn(`[InvitationSender] No provider_id for contact ${contact.id} — skipping`);
         continue;
       }
 
-      await sendInvitation(accountId, contact.li_profile_url);
+      // Use provider_id (ACoXXX) directly — Unipile requires this format
+      await sendInvitation(accountId, contact.provider_id);
 
       await db.query(
         'UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1',
         [contact.id]
       );
 
-      console.log(`[InvitationSender] ✓ Sent to ${identifier} (contact ${contact.id}, campaign ${contact.campaign_id})`);
+      console.log(`[InvitationSender] ✓ Sent to ${contact.provider_id} (contact ${contact.id}, campaign ${contact.campaign_id})`);
 
       const delay = 30000 + Math.random() * 60000;
       await sleep(delay);
@@ -138,15 +134,6 @@ async function sendBatch(accountId, contacts) {
   console.log(`[InvitationSender] Batch done for ${accountId}`);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * isWithinWorkingHours
- * @param {object|null} hours - campaign.settings.hours structure
- *   { '1': { on: true, from: '09:00', to: '18:00' }, ... }
- *   Keys are '1'=Mon ... '7'=Sun
- * Fallback to default Mon-Fri 9-18 if not configured.
- */
 function isWithinWorkingHours(hours) {
   const now    = new Date();
   const jsDay  = now.getDay();
@@ -173,24 +160,20 @@ async function countSentToday(accountId) {
 
 async function getPendingContactsForCampaign(campaignId, limit) {
   const { rows } = await db.query(`
-    SELECT c.id, c.li_profile_url, c.first_name, c.last_name, c.campaign_id
+    SELECT c.id, c.li_profile_url, c.provider_id, c.first_name, c.last_name, c.campaign_id
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE camp.id = $1
       AND camp.status = 'active'
       AND (camp.settings->'connection'->>'enabled')::boolean = true
       AND c.invite_sent = false
+      AND c.provider_id IS NOT NULL
       AND c.li_profile_url IS NOT NULL
       AND c.li_profile_url != ''
     ORDER BY c.created_at ASC
     LIMIT $2
   `, [campaignId, limit]);
   return rows;
-}
-
-function extractIdentifier(url) {
-  const match = (url || '').match(/linkedin\.com\/in\/([^/?#]+)/);
-  return match ? match[1] : null;
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

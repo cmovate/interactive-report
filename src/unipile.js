@@ -22,6 +22,21 @@ async function request(endpoint, options = {}) {
   return res.json();
 }
 
+/**
+ * Resolve a LinkedIn identifier from either:
+ *   - A provider_id (ACoXXX format)  → use as-is
+ *   - A LinkedIn profile URL         → extract vanity slug
+ *   - Anything else                  → use as-is
+ */
+function resolveIdentifier(input) {
+  if (!input) return null;
+  // Already a provider_id (starts with ACo or is not a URL)
+  if (!input.includes('linkedin.com')) return input;
+  // Extract vanity slug from URL
+  const match = input.match(/linkedin\.com\/in\/([^/?#]+)/);
+  return match ? match[1] : input;
+}
+
 async function getAccounts() {
   const data  = await request('/api/v1/accounts');
   const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
@@ -109,24 +124,28 @@ async function deleteWebhook(webhookId) {
   }
 }
 
-async function sendInvitation(accountId, linkedinUrl, message = '') {
-  const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
-  const identifier = match ? match[1] : linkedinUrl;
-  const body       = { account_id: accountId, provider_id: identifier };
+/**
+ * Send a LinkedIn connection request.
+ * @param {string} accountId   - Unipile account ID
+ * @param {string} identifier  - provider_id (ACoXXX) OR LinkedIn profile URL
+ * @param {string} [message]   - optional note (leave empty for no-note invite)
+ */
+async function sendInvitation(accountId, identifier, message = '') {
+  const providerId = resolveIdentifier(identifier);
+  const body = { account_id: accountId, provider_id: providerId };
   if (message) body.message = message;
   return request('/api/v1/users/invite', { method: 'POST', body: JSON.stringify(body) });
 }
 
 /**
  * Withdraw (cancel) a pending LinkedIn connection request.
- * @param {string} accountId   - Unipile account
- * @param {string} linkedinUrl - LinkedIn profile URL of the contact
+ * @param {string} accountId   - Unipile account ID
+ * @param {string} identifier  - provider_id (ACoXXX) OR LinkedIn profile URL
  */
-async function withdrawInvitation(accountId, linkedinUrl) {
-  const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
-  const identifier = match ? match[1] : linkedinUrl;
+async function withdrawInvitation(accountId, identifier) {
+  const providerId = resolveIdentifier(identifier);
   return request(
-    `/api/v1/users/invite?account_id=${encodeURIComponent(accountId)}&provider_id=${encodeURIComponent(identifier)}`,
+    `/api/v1/users/invite?account_id=${encodeURIComponent(accountId)}&provider_id=${encodeURIComponent(providerId)}`,
     { method: 'DELETE' }
   );
 }

@@ -115,7 +115,7 @@ router.post('/:id/send-invite', async (req, res) => {
   try {
     const contactId = parseInt(req.params.id, 10);
     const { rows } = await db.query(
-      `SELECT c.id, c.first_name, c.last_name, c.li_profile_url,
+      `SELECT c.id, c.first_name, c.last_name, c.li_profile_url, c.provider_id,
               c.invite_sent, c.invite_approved, c.invite_withdrawn,
               camp.account_id
        FROM contacts c
@@ -126,16 +126,18 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (contact.invite_sent)    return res.status(400).json({ error: 'Invite already sent' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet — provider_id missing' });
+    if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
 
-    await sendInvitation(contact.account_id, contact.li_profile_url);
+    // Pass provider_id directly — Unipile requires the ACoXXX format, not the vanity slug
+    await sendInvitation(contact.account_id, contact.provider_id);
     await db.query(
       'UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1',
       [contactId]
     );
 
-    console.log(`[API] Sent invite to ${contact.first_name} ${contact.last_name} (contact ${contactId})`);
-    res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}` });
+    console.log(`[API] Sent invite to ${contact.first_name} ${contact.last_name} (contact ${contactId}, provider_id ${contact.provider_id})`);
+    res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}`, provider_id: contact.provider_id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -145,7 +147,7 @@ router.post('/:id/withdraw-invite', async (req, res) => {
   try {
     const contactId = parseInt(req.params.id, 10);
     const { rows } = await db.query(
-      `SELECT c.id, c.first_name, c.last_name, c.li_profile_url,
+      `SELECT c.id, c.first_name, c.last_name, c.li_profile_url, c.provider_id,
               c.invite_sent, c.invite_approved, c.invite_withdrawn,
               camp.account_id
        FROM contacts c
@@ -155,11 +157,13 @@ router.post('/:id/withdraw-invite', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.invite_sent)    return res.status(400).json({ error: 'No invite sent yet' });
-    if (contact.invite_approved) return res.status(400).json({ error: 'Invite already approved — cannot withdraw' });
+    if (!contact.invite_sent)     return res.status(400).json({ error: 'No invite sent yet' });
+    if (contact.invite_approved)  return res.status(400).json({ error: 'Invite already approved — cannot withdraw' });
     if (contact.invite_withdrawn) return res.status(400).json({ error: 'Invite already withdrawn' });
+    if (!contact.provider_id)     return res.status(400).json({ error: 'Contact not enriched yet — provider_id missing' });
 
-    await withdrawInvitation(contact.account_id, contact.li_profile_url);
+    // Pass provider_id directly — Unipile requires the ACoXXX format, not the vanity slug
+    await withdrawInvitation(contact.account_id, contact.provider_id);
     await db.query(
       'UPDATE contacts SET invite_withdrawn = true, invite_withdrawn_at = NOW() WHERE id = $1',
       [contactId]
