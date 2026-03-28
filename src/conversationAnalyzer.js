@@ -1,207 +1,176 @@
 /**
  * conversationAnalyzer.js
  *
- * Analyzes a LinkedIn conversation for a contact:
- *   1. Fetches the full chat from Unipile
- *   2. Separates prospect replies from our sent messages
- *   3. Saves per-reply data: text, length, timestamp (up to MAX_REPLY_SLOTS)
- *   4. Sends the full transcript to Claude API for scoring:
- *        - reply_scores[]: 1-10 per prospect message
- *        - overall_score:  1-10 for the whole conversation
- *        - stage:          engaged | cold_reply | meeting_intent |
- *                          meeting_booked | not_interested | ghost
- *   5. Writes everything to the contacts table
+ * Analyzes a full LinkedIn conversation thread and produces:
+ *   - stage       : no_reply | cold_reply | engaged | meeting_intent | meeting_booked | not_interested | ghost
+ *   - score       : 1-10 probability of converting to a meeting
+ *   - signals     : [{type: 'positive'|'negative', text: '...'}]
+ *   - suggested_action : what the sender should do next
+ *   - exchange_depth   : total number of messages in the thread
+ *   - prospect_msgs    : how many messages the prospect sent
+ *   - summary     : one-sentence summary
+ *
+ * Everything is written in English regardless of conversation language.
  */
 
-const db = require('./db');
+const db          = require('./db');
+const { getChatMessages } = require('./unipile');
 
-const UNIPILE_DSN     = process.env.UNIPILE_DSN;
-const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const UNIPILE_ACCOUNT_ID = process.env.DEFAULT_ACCOUNT_ID; // fallback
+const ANTHROPIC_API_KEY  = process.env.ANTHROPIC_API_KEY;
+const MODEL              = 'claude-sonnet-4-20250514';
 
-const MAX_REPLY_SLOTS = 10; // columns reply_1..reply_10
+/**
+ * Build a compact, timestamped transcript from Unipile chat messages.
+ * Format: "[Day N — YYYY-MM-DD] Sender: message text"
+ */
+function buildTranscript(messages, contactName) {
+  if (!messages || !messages.length) return '(no messages)';
 
-// ── Fetch chat messages from Unipile ─────────────────────────────────────────
+  const sorted = [...messages].sort((a, b) =>
+    new Date(a.created_at || a.timestamp || 0) - new Date(b.created_at || b.timestamp || 0)
+  );
 
-async function fetchChatMessages(accountId, chatId) {
-  if (!chatId) return [];
-  const url = `${UNIPILE_DSN}/api/v1/chats/${encodeURIComponent(chatId)}/messages` +
-    `?account_id=${encodeURIComponent(accountId)}&limit=100`;
-  const res = await fetch(url, {
-    headers: {
-      'X-API-KEY': UNIPILE_API_KEY,
-      'accept':    'application/json',
-    },
-  });
-  if (!res.ok) throw new Error(`Unipile ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  return Array.isArray(data?.items) ? data.items : [];
+  const first = new Date(sorted[0].created_at || sorted[0].timestamp || Date.now());
+
+  return sorted.map(m => {
+    const ts      = new Date(m.created_at || m.timestamp || Date.now());
+    const dayN    = Math.floor((ts - first) / 86400000) + 1;
+    const dateStr = ts.toISOString().slice(0, 10);
+    const sender  = m.is_sender ? 'You' : (contactName || 'Prospect');
+    const text    = (m.text || m.body || m.content || '').replace(/\n+/g, ' ').trim();
+    return `[Day ${dayN} — ${dateStr}] ${sender}: ${text}`;
+  }).join('\n');
 }
 
-// ── Score the conversation with Claude ───────────────────────────────────────
+/**
+ * Call the Anthropic API and parse the JSON response.
+ */
+async function callClaude(transcript, contactName) {
+  const systemPrompt = `You are an expert B2B sales analyst evaluating LinkedIn outreach conversations.
+Always respond ONLY with valid JSON — no preamble, no markdown fences.
+All text fields must be in English regardless of the conversation language.`;
 
-async function scoreWithClaude(transcript, prospectMessageCount) {
-  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not set');
+  const userPrompt = `Analyze this LinkedIn outreach conversation with ${contactName || 'the prospect'}.
 
-  const systemPrompt = `You are an expert B2B sales analyst. You analyze LinkedIn outreach conversations.
-
-You will receive a full conversation transcript and must return a JSON object.
-The conversation may be in English or Hebrew — handle both.
-
-Return ONLY valid JSON with these exact keys:
-{
-  "overall_score": <integer 1-10>,
-  "stage": <one of: "no_reply"|"cold_reply"|"engaged"|"meeting_intent"|"meeting_booked"|"not_interested"|"ghost">,
-  "reply_scores": [<integer 1-10 per prospect message, in order>],
-  "signals": [<array of short English strings describing key signals>],
-  "suggested_action": "<one sentence in English>"
-}
-
-Scoring guide for overall_score:
-  1-2  = clear rejection or no engagement
-  3-4  = polite but uninterested
-  5-6  = mild interest, non-committal
-  7-8  = genuine interest, asking questions or sharing context
-  9-10 = strong buying signals or explicit meeting request
-
-For reply_scores: score each prospect message individually (1-10) based on
-how much engagement and buying intent it shows.
-
-Do not include any text outside the JSON object.`;
-
-  const userPrompt = `Conversation transcript:
-
+Full conversation transcript:
 ${transcript}
 
-Number of prospect messages to score: ${prospectMessageCount}`;
+Respond with this exact JSON structure:
+{
+  "stage": "<one of: no_reply | cold_reply | engaged | meeting_intent | meeting_booked | not_interested | ghost>",
+  "score": <integer 1-10>,
+  "signals": [
+    { "type": "positive" | "negative", "text": "<specific signal observed>" }
+  ],
+  "suggested_action": "<concrete next step the sender should take>",
+  "exchange_depth": <total number of messages in the thread>,
+  "prospect_msgs": <number of messages sent by the prospect>,
+  "summary": "<one sentence describing the conversation quality and status>"
+}
+
+Stage definitions:
+- no_reply: prospect has not responded at all
+- cold_reply: replied politely but showed no real interest (e.g. "thanks, not now")
+- engaged: showing genuine interest, asking questions, sharing context
+- meeting_intent: clear or implied desire to meet/talk
+- meeting_booked: explicitly confirmed a meeting or call
+- not_interested: clear rejection
+- ghost: was previously engaged but has gone silent (2+ days no reply after engagement)
+
+Score guide:
+1-3: Very unlikely to convert (rejection, ghost, cold reply)
+4-5: Uncertain / neutral
+6-7: Moderate interest
+8-9: High interest / meeting intent
+10: Meeting already confirmed`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'Content-Type':      'application/json',
-      'x-api-key':         ANTHROPIC_API_KEY,
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model:      'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system:     systemPrompt,
-      messages:   [{ role: 'user', content: userPrompt }],
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
     }),
   });
 
-  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Claude API ${res.status}: ${text}`);
+  }
+
   const data = await res.json();
-  const text = data.content?.[0]?.text || '{}';
-  return JSON.parse(text.replace(/```json|```/g, '').trim());
+  const raw  = data.content?.[0]?.text || '';
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
 }
 
-// ── Main: analyze a contact's conversation ───────────────────────────────────
-
-async function analyzeContact(contactId) {
-  // Load contact
-  const { rows } = await db.query(
-    `SELECT c.id, c.chat_id, c.provider_id, c.first_name, c.last_name,
-            camp.account_id
-     FROM contacts c
-     INNER JOIN campaigns camp ON camp.id = c.campaign_id
-     WHERE c.id = $1`,
+/**
+ * Main entry point.
+ * Fetches the full chat thread, analyzes it, and writes results to the DB.
+ *
+ * @param {number} contactId
+ * @param {string} accountId   Unipile account ID
+ * @param {string} chatId      Unipile chat ID
+ */
+async function analyzeConversation(contactId, accountId, chatId) {
+  // 1. Load contact name from DB
+  const { rows: contactRows } = await db.query(
+    'SELECT first_name, last_name FROM contacts WHERE id = $1',
     [contactId]
   );
-  const contact = rows[0];
-  if (!contact) { console.warn(`[Analyzer] Contact ${contactId} not found`); return; }
-  if (!contact.chat_id) { console.log(`[Analyzer] Contact ${contactId} has no chat_id, skipping`); return; }
+  if (!contactRows.length) throw new Error(`Contact ${contactId} not found`);
+  const contact = contactRows[0];
+  const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
 
-  console.log(`[Analyzer] Analyzing contact ${contactId} (${contact.first_name} ${contact.last_name})`);
-
-  // Fetch messages
-  const messages = await fetchChatMessages(contact.account_id, contact.chat_id);
-  if (!messages.length) { console.log(`[Analyzer] No messages found for contact ${contactId}`); return; }
-
-  // Sort chronologically
-  messages.sort((a, b) => new Date(a.created_at || a.timestamp || 0) - new Date(b.created_at || b.timestamp || 0));
-
-  // Separate prospect messages from ours
-  // Unipile marks our messages with is_sender=true or sender_id matching account's provider_id
-  const prospectMessages = messages.filter(m => !m.is_sender && m.text?.trim());
-  const allMessages      = messages.filter(m => m.text?.trim());
-
-  if (!prospectMessages.length) {
-    console.log(`[Analyzer] No prospect messages for contact ${contactId}`);
-    return;
-  }
-
-  // Build update object for per-reply columns
-  const updateFields = {};
-  updateFields.reply_count = prospectMessages.length;
-
-  for (let i = 0; i < Math.min(prospectMessages.length, MAX_REPLY_SLOTS); i++) {
-    const msg  = prospectMessages[i];
-    const text = (msg.text || '').trim();
-    const slot = i + 1;
-    updateFields[`reply_${slot}_text`]   = text;
-    updateFields[`reply_${slot}_length`] = text.length;
-    updateFields[`reply_${slot}_at`]     = msg.created_at || msg.timestamp || null;
-  }
-
-  // Build transcript for Claude
-  const transcript = allMessages.map(m => {
-    const who  = m.is_sender ? 'Sender' : 'Prospect';
-    const time = m.created_at ? new Date(m.created_at).toISOString().slice(0,16).replace('T',' ') : '';
-    return `[${time}] ${who}: ${(m.text||'').trim()}`;
-  }).join('\n');
-
-  // Score with Claude
-  let analysis = null;
+  // 2. Fetch full chat history from Unipile
+  let messages = [];
   try {
-    analysis = await scoreWithClaude(transcript, prospectMessages.length);
-    console.log(`[Analyzer] Contact ${contactId} — score: ${analysis.overall_score} stage: ${analysis.stage}`);
+    messages = await getChatMessages(accountId, chatId);
   } catch (err) {
-    console.error(`[Analyzer] Claude API error for contact ${contactId}:`, err.message);
-    // Still save the raw reply data even if scoring fails
+    console.warn(`[ConvAnalyzer] Could not fetch messages for chat ${chatId}: ${err.message}`);
   }
 
-  if (analysis) {
-    updateFields.conversation_score   = analysis.overall_score || null;
-    updateFields.conversation_stage   = analysis.stage || null;
-    updateFields.conversation_signals = JSON.stringify({
-      signals:          analysis.signals          || [],
-      suggested_action: analysis.suggested_action || '',
-      reply_scores:     analysis.reply_scores     || [],
-    });
+  // 3. Build transcript
+  const transcript = buildTranscript(messages, name);
 
-    // Write individual reply scores back
-    const replyScores = analysis.reply_scores || [];
-    for (let i = 0; i < Math.min(replyScores.length, MAX_REPLY_SLOTS); i++) {
-      updateFields[`reply_${i+1}_score`] = replyScores[i] || null;
-    }
-  }
+  // 4. Call Claude
+  const result = await callClaude(transcript, name);
 
-  updateFields.conversation_analyzed_at = new Date().toISOString();
+  // 5. Validate stage
+  const VALID_STAGES = ['no_reply','cold_reply','engaged','meeting_intent','meeting_booked','not_interested','ghost'];
+  const stage = VALID_STAGES.includes(result.stage) ? result.stage : 'cold_reply';
+  const score = Math.min(10, Math.max(1, parseInt(result.score) || 5));
 
-  // Build parameterized UPDATE
-  const keys    = Object.keys(updateFields);
-  const setStr  = keys.map((k, i) => `${k} = $${i+2}`).join(', ');
-  const values  = [contactId, ...keys.map(k => updateFields[k])];
+  // 6. Save to DB
+  await db.query(`
+    UPDATE contacts SET
+      conversation_stage      = $1,
+      conversation_score      = $2,
+      conversation_signals    = $3,
+      conversation_analyzed_at = NOW()
+    WHERE id = $4
+  `, [
+    stage,
+    score,
+    JSON.stringify({
+      signals:          result.signals          || [],
+      suggested_action: result.suggested_action || '',
+      exchange_depth:   result.exchange_depth   || messages.length,
+      prospect_msgs:    result.prospect_msgs    || 0,
+      summary:          result.summary          || '',
+    }),
+    contactId,
+  ]);
 
-  await db.query(`UPDATE contacts SET ${setStr} WHERE id = $1`, values);
-  console.log(`[Analyzer] Saved analysis for contact ${contactId} (${keys.length} fields updated)`);
+  console.log(`[ConvAnalyzer] contact=${contactId} stage=${stage} score=${score} exchange_depth=${result.exchange_depth}`);
+  return { contactId, stage, score };
 }
 
-// Debounced analysis — waits 3 min after last trigger before running,
-// so that bursts of incoming messages don't cause redundant API calls.
-const debounceTimers = new Map();
-const DEBOUNCE_MS = 3 * 60 * 1000;
-
-function scheduleAnalysis(contactId) {
-  if (debounceTimers.has(contactId)) clearTimeout(debounceTimers.get(contactId));
-  const timer = setTimeout(async () => {
-    debounceTimers.delete(contactId);
-    try { await analyzeContact(contactId); }
-    catch (err) { console.error(`[Analyzer] Unhandled error for contact ${contactId}:`, err.message); }
-  }, DEBOUNCE_MS);
-  debounceTimers.set(contactId, timer);
-  console.log(`[Analyzer] Scheduled analysis for contact ${contactId} in ${DEBOUNCE_MS/60000} min`);
-}
-
-module.exports = { analyzeContact, scheduleAnalysis, MAX_REPLY_SLOTS };
+module.exports = { analyzeConversation };
