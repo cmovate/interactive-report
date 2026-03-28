@@ -1,15 +1,15 @@
 /**
  * Like Sender (manual / API-triggered)
  *
- * Sends likes on behalf of the personal LinkedIn account.
- * Respects the same-day isolation rule:
- *   Contacts liked by the company page TODAY are excluded.
+ * Sends personal-account likes on LinkedIn.
+ * Same-day isolation: skips contacts the company page liked today
+ * (tracked via company_likes_sent_at).
  *
  * Rules:
- *   - Only contacts with engagement_level != 'un_engaged'
- *   - Skip contacts liked by personal account in last 3 days (likes_sent_at)
- *   - Skip contacts liked by company page TODAY (company_follow_invited_at)
- *   - Never like the same post/comment twice (dedup via liked_ids)
+ *   - Only contacts with engagement_level in (engaged, average_engaged)
+ *   - Skip contacts personal-liked in last 3 days (likes_sent_at)
+ *   - Skip contacts company-liked TODAY (company_likes_sent_at)
+ *   - Never like the same post/comment twice (liked_ids dedup)
  *   - Up to 3 likes per contact per run
  *   - Random delays: 10-30s between contacts, 5-15s between likes
  */
@@ -49,13 +49,10 @@ async function run(campaignId, options = {}) {
     const cooldownCutoff = new Date(Date.now() - COOLDOWN_MS).toISOString();
     const likedFilter    = options.force ? '' : `AND (COALESCE(post_likes_sent,0) + COALESCE(comment_likes_sent,0)) < ${MAX_LIKES}`;
 
-    // Note: uses likes_sent_at (personal account cooldown)
-    // company_follow_invited_at is used as a proxy for "company page active today"
-    // to preserve same-day isolation between personal likes and company follows
+    // Isolation: skip contacts company-liked today (company_likes_sent_at)
     const { rows: contacts } = await db.query(
       `SELECT id, first_name, last_name, provider_id, engagement_level,
-              engagement_data, post_likes_sent, comment_likes_sent, liked_ids,
-              company_follow_invited_at
+              engagement_data, post_likes_sent, comment_likes_sent, liked_ids
        FROM contacts
        WHERE campaign_id = $1
          AND engagement_level IN ('engaged', 'average_engaged')
@@ -63,8 +60,8 @@ async function run(campaignId, options = {}) {
          AND provider_id IS NOT NULL
          AND (likes_sent_at IS NULL OR likes_sent_at < $2)
          AND (
-           company_follow_invited_at IS NULL
-           OR DATE(company_follow_invited_at AT TIME ZONE 'UTC') < CURRENT_DATE
+           company_likes_sent_at IS NULL
+           OR DATE(company_likes_sent_at AT TIME ZONE 'UTC') < CURRENT_DATE
          )
          ${likedFilter}
        ORDER BY CASE engagement_level WHEN 'engaged' THEN 0 ELSE 1 END, id ASC
