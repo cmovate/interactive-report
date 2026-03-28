@@ -174,6 +174,18 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
+  // Manually-added companies for Opportunities (no campaign needed)
+  await s('opportunity_companies', () => db.query(`
+    CREATE TABLE IF NOT EXISTS opportunity_companies (
+      id                  SERIAL PRIMARY KEY,
+      workspace_id        INTEGER NOT NULL,
+      company_name        VARCHAR(255) NOT NULL,
+      li_company_url      TEXT,
+      company_linkedin_id VARCHAR(50),
+      added_at            TIMESTAMP DEFAULT NOW()
+    )
+  `));
+
   await s('company_followers', () => db.query(`
     CREATE TABLE IF NOT EXISTS company_followers (
       id SERIAL PRIMARY KEY, account_id VARCHAR(255) NOT NULL,
@@ -232,6 +244,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_camp_companies_workspace',   'campaign_companies(workspace_id)'],
     ['idx_camp_companies_linkedin_id', 'campaign_companies(company_linkedin_id)'],
     ['idx_camp_companies_engagement',  'campaign_companies(engagement_level)'],
+    ['idx_opp_companies_workspace',    'opportunity_companies(workspace_id)'],
     ['idx_followers_account',          'company_followers(account_id)'],
     ['idx_followers_profile',          'company_followers(profile_url)'],
     ['idx_followers_first_seen',       'company_followers(first_seen_at)'],
