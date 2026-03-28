@@ -20,6 +20,7 @@ const statsSnapshotter         = require('./src/statsSnapshotter');
 const profileViewer            = require('./src/profileViewer');
 const engagementScraper        = require('./src/engagementScraper');
 const companyEngagementScraper = require('./src/companyEngagementScraper');
+const messageSender            = require('./src/messageSender');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -101,9 +102,12 @@ async function nukeIfBroken() {
       profile_data JSONB DEFAULT '{}',
       provider_id  VARCHAR(255),
       member_urn   VARCHAR(255),
-      already_connected BOOLEAN DEFAULT FALSE,
-      has_chat_history  BOOLEAN DEFAULT FALSE,
-      chat_id           VARCHAR(255),
+      already_connected        BOOLEAN DEFAULT FALSE,
+      has_chat_history         BOOLEAN DEFAULT FALSE,
+      chat_id                  VARCHAR(255),
+      msg_sequence             VARCHAR(50),
+      msg_step                 INTEGER DEFAULT 0,
+      msg_sequence_started_at  TIMESTAMP,
       invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLEAN DEFAULT FALSE,
       invite_withdrawn BOOLEAN DEFAULT FALSE, invite_withdrawn_at TIMESTAMP,
       msg_sent BOOLEAN DEFAULT FALSE, msg_replied BOOLEAN DEFAULT FALSE,
@@ -191,6 +195,8 @@ async function nukeIfBroken() {
     ['idx_contacts_withdrawn',         'contacts(invite_withdrawn)'],
     ['idx_contacts_connected',         'contacts(already_connected)'],
     ['idx_contacts_chat_history',      'contacts(has_chat_history)'],
+    ['idx_contacts_msg_sequence',      'contacts(msg_sequence)'],
+    ['idx_contacts_msg_step',          'contacts(msg_step)'],
     ['idx_contacts_profile_view',      'contacts(last_profile_view_at)'],
     ['idx_contacts_engagement',        'contacts(engagement_level)'],
     ['idx_contacts_likes_sent_at',     'contacts(likes_sent_at)'],
@@ -211,56 +217,59 @@ async function nukeIfBroken() {
   }
 
   const cols = [
-    ['ua.webhook_id',          'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
-    ['ua.settings',            'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
-    ['c.workspace_id',         'campaigns',           'workspace_id',                'INTEGER'],
-    ['c.account_id',           'campaigns',           'account_id',                  'VARCHAR(255)'],
-    ['c.settings',             'campaigns',           'settings',                    "JSONB DEFAULT '{}'"],
-    ['c.status',               'campaigns',           'status',                      "VARCHAR(50) DEFAULT 'active'"],
-    ['c.audience_type',        'campaigns',           'audience_type',               'VARCHAR(50)'],
-    ['ct.campaign_id',         'contacts',            'campaign_id',                 'INTEGER'],
-    ['ct.workspace_id',        'contacts',            'workspace_id',                'INTEGER'],
-    ['ct.provider_id',         'contacts',            'provider_id',                 'VARCHAR(255)'],
-    ['ct.member_urn',          'contacts',            'member_urn',                  'VARCHAR(255)'],
-    ['ct.already_connected',   'contacts',            'already_connected',           'BOOLEAN DEFAULT FALSE'],
-    ['ct.has_chat_history',    'contacts',            'has_chat_history',            'BOOLEAN DEFAULT FALSE'],
-    ['ct.chat_id',             'contacts',            'chat_id',                     'VARCHAR(255)'],
-    ['ct.follow_inv',          'contacts',            'company_follow_invited',      'BOOLEAN DEFAULT FALSE'],
-    ['ct.follow_conf',         'contacts',            'company_follow_confirmed',    'BOOLEAN DEFAULT FALSE'],
-    ['ct.pv_at',               'contacts',            'last_profile_view_at',        'TIMESTAMP'],
-    ['ct.pv_count',            'contacts',            'profile_view_count',          'INTEGER DEFAULT 0'],
-    ['ct.inv_sent_at',         'contacts',            'invite_sent_at',              'TIMESTAMP'],
-    ['ct.inv_appr_at',         'contacts',            'invite_approved_at',          'TIMESTAMP'],
-    ['ct.inv_withdrawn',       'contacts',            'invite_withdrawn',            'BOOLEAN DEFAULT FALSE'],
-    ['ct.inv_wdn_at',          'contacts',            'invite_withdrawn_at',         'TIMESTAMP'],
-    ['ct.msg_sent_at',         'contacts',            'msg_sent_at',                 'TIMESTAMP'],
-    ['ct.msg_rep_at',          'contacts',            'msg_replied_at',              'TIMESTAMP'],
-    ['ct.pos_rep_at',          'contacts',            'positive_reply_at',           'TIMESTAMP'],
-    ['ct.cf_inv_at',           'contacts',            'company_follow_invited_at',   'TIMESTAMP'],
-    ['ct.cf_conf_at',          'contacts',            'company_follow_confirmed_at', 'TIMESTAMP'],
-    ['cf.fsa',                 'company_followers',   'first_seen_at',               'TIMESTAMP DEFAULT NOW()'],
-    ['cf.fsp',                 'company_followers',   'first_seen_position',         'INTEGER'],
-    ['ds.profile_views',       'campaign_daily_stats','profile_views',               'INTEGER DEFAULT 0'],
-    ['ct.eng_level',           'contacts',            'engagement_level',            'VARCHAR(30)'],
-    ['ct.eng_scraped_at',      'contacts',            'engagement_scraped_at',       'TIMESTAMP'],
-    ['ct.eng_data',            'contacts',            'engagement_data',             'JSONB'],
-    ['ct.post_likes',          'contacts',            'post_likes_sent',             'INTEGER DEFAULT 0'],
-    ['ct.comment_likes',       'contacts',            'comment_likes_sent',          'INTEGER DEFAULT 0'],
-    ['ct.likes_sent_at',       'contacts',            'likes_sent_at',               'TIMESTAMP'],
-    ['ct.liked_ids',           'contacts',            'liked_ids',                   "JSONB DEFAULT '[]'"],
-    ['cc.eng_level',           'campaign_companies',  'engagement_level',            'VARCHAR(30)'],
-    ['cc.eng_scraped_at',      'campaign_companies',  'engagement_scraped_at',       'TIMESTAMP'],
-    ['cc.eng_data',            'campaign_companies',  'engagement_data',             'JSONB'],
-    ['cc.post_likes',          'campaign_companies',  'post_likes_sent',             'INTEGER DEFAULT 0'],
-    ['cc.likes_sent_at',       'campaign_companies',  'likes_sent_at',               'TIMESTAMP'],
-    ['cc.liked_ids',           'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
-    ['cc.contact_count',       'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
+    ['ua.webhook_id',              'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
+    ['ua.settings',                'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
+    ['c.workspace_id',             'campaigns',           'workspace_id',                'INTEGER'],
+    ['c.account_id',               'campaigns',           'account_id',                  'VARCHAR(255)'],
+    ['c.settings',                 'campaigns',           'settings',                    "JSONB DEFAULT '{}'"],
+    ['c.status',                   'campaigns',           'status',                      "VARCHAR(50) DEFAULT 'active'"],
+    ['c.audience_type',            'campaigns',           'audience_type',               'VARCHAR(50)'],
+    ['ct.campaign_id',             'contacts',            'campaign_id',                 'INTEGER'],
+    ['ct.workspace_id',            'contacts',            'workspace_id',                'INTEGER'],
+    ['ct.provider_id',             'contacts',            'provider_id',                 'VARCHAR(255)'],
+    ['ct.member_urn',              'contacts',            'member_urn',                  'VARCHAR(255)'],
+    ['ct.already_connected',       'contacts',            'already_connected',           'BOOLEAN DEFAULT FALSE'],
+    ['ct.has_chat_history',        'contacts',            'has_chat_history',            'BOOLEAN DEFAULT FALSE'],
+    ['ct.chat_id',                 'contacts',            'chat_id',                     'VARCHAR(255)'],
+    ['ct.msg_sequence',            'contacts',            'msg_sequence',                'VARCHAR(50)'],
+    ['ct.msg_step',                'contacts',            'msg_step',                    'INTEGER DEFAULT 0'],
+    ['ct.msg_sequence_started_at', 'contacts',            'msg_sequence_started_at',     'TIMESTAMP'],
+    ['ct.follow_inv',              'contacts',            'company_follow_invited',      'BOOLEAN DEFAULT FALSE'],
+    ['ct.follow_conf',             'contacts',            'company_follow_confirmed',    'BOOLEAN DEFAULT FALSE'],
+    ['ct.pv_at',                   'contacts',            'last_profile_view_at',        'TIMESTAMP'],
+    ['ct.pv_count',                'contacts',            'profile_view_count',          'INTEGER DEFAULT 0'],
+    ['ct.inv_sent_at',             'contacts',            'invite_sent_at',              'TIMESTAMP'],
+    ['ct.inv_appr_at',             'contacts',            'invite_approved_at',          'TIMESTAMP'],
+    ['ct.inv_withdrawn',           'contacts',            'invite_withdrawn',            'BOOLEAN DEFAULT FALSE'],
+    ['ct.inv_wdn_at',              'contacts',            'invite_withdrawn_at',         'TIMESTAMP'],
+    ['ct.msg_sent_at',             'contacts',            'msg_sent_at',                 'TIMESTAMP'],
+    ['ct.msg_rep_at',              'contacts',            'msg_replied_at',              'TIMESTAMP'],
+    ['ct.pos_rep_at',              'contacts',            'positive_reply_at',           'TIMESTAMP'],
+    ['ct.cf_inv_at',               'contacts',            'company_follow_invited_at',   'TIMESTAMP'],
+    ['ct.cf_conf_at',              'contacts',            'company_follow_confirmed_at', 'TIMESTAMP'],
+    ['cf.fsa',                     'company_followers',   'first_seen_at',               'TIMESTAMP DEFAULT NOW()'],
+    ['cf.fsp',                     'company_followers',   'first_seen_position',         'INTEGER'],
+    ['ds.profile_views',           'campaign_daily_stats','profile_views',               'INTEGER DEFAULT 0'],
+    ['ct.eng_level',               'contacts',            'engagement_level',            'VARCHAR(30)'],
+    ['ct.eng_scraped_at',          'contacts',            'engagement_scraped_at',       'TIMESTAMP'],
+    ['ct.eng_data',                'contacts',            'engagement_data',             'JSONB'],
+    ['ct.post_likes',              'contacts',            'post_likes_sent',             'INTEGER DEFAULT 0'],
+    ['ct.comment_likes',           'contacts',            'comment_likes_sent',          'INTEGER DEFAULT 0'],
+    ['ct.likes_sent_at',           'contacts',            'likes_sent_at',               'TIMESTAMP'],
+    ['ct.liked_ids',               'contacts',            'liked_ids',                   "JSONB DEFAULT '[]'"],
+    ['cc.eng_level',               'campaign_companies',  'engagement_level',            'VARCHAR(30)'],
+    ['cc.eng_scraped_at',          'campaign_companies',  'engagement_scraped_at',       'TIMESTAMP'],
+    ['cc.eng_data',                'campaign_companies',  'engagement_data',             'JSONB'],
+    ['cc.post_likes',              'campaign_companies',  'post_likes_sent',             'INTEGER DEFAULT 0'],
+    ['cc.likes_sent_at',           'campaign_companies',  'likes_sent_at',               'TIMESTAMP'],
+    ['cc.liked_ids',               'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
+    ['cc.contact_count',           'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
   ];
   for (const [label, table, col, type] of cols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
   }
 
-  // Repair likes_sent_at + liked_ids for contacts liked before columns existed
+  // Repair likes_sent_at + liked_ids
   await s('repair.likes_sent_at', async () => {
     const { rowCount } = await db.query(`
       UPDATE contacts SET likes_sent_at = NOW()
@@ -351,6 +360,7 @@ async function nukeIfBroken() {
   profileViewer.start();
   engagementScraper.start();
   companyEngagementScraper.start();
+  messageSender.start();
 })();
 
 app.get('*', (req, res) => {
