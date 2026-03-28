@@ -117,9 +117,6 @@ async function sendInvitation(accountId, linkedinUrl, message = '') {
   return request('/api/v1/users/invite', { method: 'POST', body: JSON.stringify(body) });
 }
 
-/**
- * Withdraw (cancel) a pending LinkedIn connection request.
- */
 async function withdrawInvitation(accountId, linkedinUrl) {
   const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
   const identifier = match ? match[1] : linkedinUrl;
@@ -130,32 +127,48 @@ async function withdrawInvitation(accountId, linkedinUrl) {
 }
 
 /**
- * Get all 1-to-1 chats between our account and a specific attendee.
- * Uses the attendee's LinkedIn provider_id (ACoXXX format).
+ * Find 1-to-1 chat(s) with a specific LinkedIn contact by scanning the chats list.
  *
- * Returns:
- *   - Array of chat objects if chats exist
- *   - Empty array if 404 (attendee not in Unipile system = no chat history)
- *   - Throws on other errors
+ * How it works:
+ *   - GET /api/v1/chats?account_id=... returns all chats
+ *   - Each chat has attendee_provider_id = the contact's LinkedIn ACoXXX
+ *   - We filter by attendee_provider_id matching the contact's provider_id
+ *
+ * Note: /api/v1/attendees/{id}/chats uses Unipile's internal attendee ID,
+ * NOT the LinkedIn provider_id — so we use list + filter instead.
  *
  * @param {string} accountId  - Unipile account ID
- * @param {string} providerId - LinkedIn provider_id (ACoXXX)
+ * @param {string} providerId - LinkedIn provider_id of the contact (ACoXXX)
+ * @returns {Array} - matching chat objects (usually 0 or 1)
  */
 async function getChatsByAttendee(accountId, providerId) {
-  try {
-    const params = new URLSearchParams({ account_id: accountId });
-    const data = await request(
-      `/api/v1/attendees/${encodeURIComponent(providerId)}/chats?${params}`
-    );
-    return Array.isArray(data?.items) ? data.items : [];
-  } catch (err) {
-    // 404 = attendee not in Unipile DB = no chat history ever with this person
-    if (err.message.includes('Unipile 404')) {
-      console.log(`[Unipile] getChatsByAttendee: no chat record for ${providerId} (404 = no history)`);
-      return [];
+  const PAGE_SIZE = 200;
+  let cursor = null;
+  let page = 0;
+  const MAX_PAGES = 5; // scan up to 1000 chats max
+
+  while (page < MAX_PAGES) {
+    const params = new URLSearchParams({ account_id: accountId, limit: String(PAGE_SIZE) });
+    if (cursor) params.set('cursor', cursor);
+
+    const data = await request(`/api/v1/chats?${params}`);
+    const items = Array.isArray(data?.items) ? data.items : [];
+
+    // Check if this page contains the contact
+    const match = items.find(c => c.attendee_provider_id === providerId);
+    if (match) {
+      console.log(`[Unipile] getChatsByAttendee: found chat for ${providerId} (page ${page + 1})`);
+      return [match];
     }
-    throw err;
+
+    // No more pages?
+    if (!data.cursor || items.length < PAGE_SIZE) break;
+    cursor = data.cursor;
+    page++;
   }
+
+  console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId} (scanned ${page + 1} page(s))`);
+  return [];
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
