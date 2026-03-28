@@ -79,6 +79,10 @@ tr:last-child td { border-bottom: none; }
 .msg-count { display:inline-block; background:#FDF4FF; color:#7E22CE; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; min-width:24px; text-align:center; }
 .msg-count-none { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
 .msg-text-cell { font-size:11px; color:#374151; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; background:#F9FAFB; border:1px solid #E5E7EB; border-radius:4px; padding:2px 8px; cursor:help; }
+/* per-variant column tint */
+.msg-text-cell.va { background:#F5F3FF; border-color:#DDD6FE; color:#5B21B6; }
+.msg-text-cell.vb { background:#EFF6FF; border-color:#BFDBFE; color:#1E40AF; }
+.msg-text-cell.vc { background:#FFFBEB; border-color:#FDE68A; color:#92400E; }
 .provider-id { display:inline-block; font-family:'SFMono-Regular',Consolas,monospace; font-size:10px; background:#F3F4F6; color:#374151; border-radius:4px; padding:2px 6px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
 .provider-id-missing { display:inline-block; background:#FEF3C7; color:#92400E; border-radius:4px; padding:2px 6px; font-size:10px; }
 .company-id-badge { display:inline-block; font-family:'SFMono-Regular',Consolas,monospace; font-size:10px; background:#F3F4F6; color:#374151; border-radius:4px; padding:2px 6px; }
@@ -187,6 +191,7 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
 
 <script>
 const MAX_MSG_SLOTS = 20; // must match server-side constant
+const VARIANTS = ['A', 'B', 'C'];
 
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
@@ -198,7 +203,7 @@ let activeTab = 'contacts';
 const AUTO_REFRESH_MS = 30000;
 
 // ── Header builder ────────────────────────────────────────────────────────────
-// Generates all column headers including the dynamic msg_1..MAX_MSG_SLOTS pairs
+// 20 message steps × 3 variants = 60 message columns total
 function buildContactsHeader() {
   const row = document.getElementById('contacts-header-row');
   const fixed = [
@@ -227,7 +232,6 @@ function buildContactsHeader() {
   ];
   let html = '';
   fixed.forEach(([cls, label, w, center, title]) => {
-    const c = cls ? ` class="${cls}"` : '';
     const t = title ? ` title="${title}"` : '';
     const a = center ? ';text-align:center' : '';
     if (cls === 'check-col') {
@@ -236,10 +240,11 @@ function buildContactsHeader() {
       html += `<th style="min-width:${w}${a};"${t}>${label}</th>`;
     }
   });
-  // Dynamic message columns: text + variant interleaved
+  // 60 message columns: for each step, one column per variant (A / B / C)
   for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
-    html += `<th style="min-width:220px;" title="Content of message ${i}">Message ${i}</th>`;
-    html += `<th style="min-width:56px;text-align:center;" title="A/B/C variant of message ${i}">V${i}</th>`;
+    html += `<th style="min-width:220px;background:#FAF5FF;color:#6D28D9;" title="Msg ${i} — text sent when variant A was chosen">Msg ${i} (A)</th>`;
+    html += `<th style="min-width:220px;background:#EFF6FF;color:#1D4ED8;" title="Msg ${i} — text sent when variant B was chosen">Msg ${i} (B)</th>`;
+    html += `<th style="min-width:220px;background:#FFFBEB;color:#92400E;" title="Msg ${i} — text sent when variant C was chosen">Msg ${i} (C)</th>`;
   }
   // Trailing fixed columns
   html += `<th style="min-width:90px;text-align:center;">Replied</th>`;
@@ -278,16 +283,14 @@ function cooldownBadge(ts) {
 }
 function pvBadge(n) { n=parseInt(n)||0; return n>0?'<span class="pv-count">'+n+'</span>':'<span class="pv-none">\u2014</span>'; }
 function msgCountBadge(n) { n=parseInt(n)||0; return n>0?'<span class="msg-count">'+n+'</span>':'<span class="msg-count-none">\u2014</span>'; }
-function msgTextCell(text) {
+
+// Render a variant-specific message text cell with colour tint
+function variantMsgCell(text, variant) {
   if (!text) return '<span class="cell-muted">\u2014</span>';
-  return '<span class="msg-text-cell" title="'+esc(text)+'">'+esc(text)+'</span>';
+  const cls = variant === 'A' ? 'va' : variant === 'B' ? 'vb' : 'vc';
+  return '<span class="msg-text-cell '+cls+'" title="'+esc(text)+'">'+esc(text)+'</span>';
 }
-const VCLS = { A: 'background:#EDE9FE;color:#6D28D9', B: 'background:#DBEAFE;color:#1D4ED8', C: 'background:#FEF3C7;color:#B45309' };
-function variantCell(v) {
-  if (!v) return '<span class="cell-muted">\u2014</span>';
-  const style = VCLS[v] || 'background:#f0f0f0;color:#888';
-  return `<span style="${style};display:inline-block;border-radius:3px;padding:1px 6px;font-size:11px;font-weight:700;">${v}</span>`;
-}
+
 function followBadge(inv,conf) {
   if(conf) return '<span class="follow-confirmed">Following</span>';
   if(inv)  return '<span class="follow-invited">Invited</span>';
@@ -432,8 +435,8 @@ function renderContactStats() {
   sr.innerHTML=chips; if(badge) sr.appendChild(badge);
 }
 
-// Total columns = 1(check) + 21(fixed before msgs) + MAX_MSG_SLOTS*2(text+variant) + 5(trailing) + 1(del)
-const TOTAL_COLS = 1 + 21 + MAX_MSG_SLOTS * 2 + 5 + 1;
+// Total columns = 1(check) + 21(fixed before msgs) + MAX_MSG_SLOTS*3(A+B+C per step) + 5(trailing) + 1(del)
+const TOTAL_COLS = 1 + 21 + MAX_MSG_SLOTS * 3 + 5 + 1;
 
 function renderContactsTable(flashIds) {
   const tbody=document.getElementById('contacts-body');
@@ -447,11 +450,15 @@ function renderContactsTable(flashIds) {
     const lic=r.li_company_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_company_url))+'" target="_blank" rel="noopener">View company</a>':'<span class="cell-muted">\u2014</span>';
     const web=r.website?'<a class="cell-link" href="'+esc(safeUrl(r.website))+'" target="_blank" rel="noopener">'+esc(r.website)+'</a>':'<span class="cell-muted">\u2014</span>';
 
-    // Build dynamic message columns
+    // 60 message columns: 3 per step (A / B / C)
+    // Each contact received exactly one variant per step — the other two cells are empty
     let msgCols = '';
     for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
-      msgCols += '<td>'+msgTextCell(r['msg_'+i+'_text'])+'</td>';
-      msgCols += '<td style="text-align:center;">'+variantCell(r['msg_'+i+'_variant'])+'</td>';
+      const txt = r['msg_'+i+'_text'] || null;
+      const v   = r['msg_'+i+'_variant'] || null;
+      msgCols += '<td>'+variantMsgCell(v === 'A' ? txt : null, 'A')+'</td>';
+      msgCols += '<td>'+variantMsgCell(v === 'B' ? txt : null, 'B')+'</td>';
+      msgCols += '<td>'+variantMsgCell(v === 'C' ? txt : null, 'C')+'</td>';
     }
 
     return '<tr class="'+(sel?'selected':'')+(flash?' row-flash':'')+'" id="row-'+r.id+'">'
@@ -524,8 +531,9 @@ function exportContactsCSV(){
   const fixedLabels=['First name','Last name','Job title','Company','Location','LinkedIn profile','LinkedIn company',
     'Email','Website','Campaign','Provider ID','Already connected','Chat history','Engagement','Last scraped',
     'Post likes sent','Comment likes sent','Last liked','Invite sent','Invite approved','# Msgs sent'];
+  // 60 message column labels
   const msgLabels=[];
-  for(let i=1;i<=MAX_MSG_SLOTS;i++){ msgLabels.push('Message '+i,'V'+i+' variant'); }
+  for(let i=1;i<=MAX_MSG_SLOTS;i++){ msgLabels.push('Msg '+i+' (A)','Msg '+i+' (B)','Msg '+i+' (C)'); }
   const trailingLabels=['Replied','Positive reply','Profile views','Company follow invited','Company follow confirmed'];
   const labels=[...fixedLabels,...msgLabels,...trailingLabels];
 
@@ -541,12 +549,17 @@ function exportContactsCSV(){
       parseInt(r.post_likes_sent)||0,parseInt(r.comment_likes_sent)||0,r.likes_sent_at||'',
       r.invite_sent?'Yes':'No',r.invite_approved?'Yes':'No',
       parseInt(r.msgs_sent_count)||0];
+    // 60 message values: one variant per step gets the text, the other two are empty
     const msgVals=[];
-    for(let i=1;i<=MAX_MSG_SLOTS;i++){ msgVals.push(r['msg_'+i+'_text']||'', r['msg_'+i+'_variant']||''); }
+    for(let i=1;i<=MAX_MSG_SLOTS;i++){
+      const t = r['msg_'+i+'_text']||'';
+      const v = r['msg_'+i+'_variant']||'';
+      msgVals.push(v==='A'?t:'', v==='B'?t:'', v==='C'?t:'');
+    }
     const trailingVals=[r.msg_replied?'Yes':'No',r.positive_reply?'Yes':'No',
       parseInt(r.profile_view_count)||0,
       r.company_follow_invited?'Yes':'No',r.company_follow_confirmed?'Yes':'No'];
-    return [...fixedVals,...msgVals,...trailingVals].map(v=>'\"'+String(v).replace(/\"/g,'\"\"')+'\"').join(',');
+    return [...fixedVals,...msgVals,...trailingVals].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
   downloadCSV('contacts-data.csv', labels, rows);
 }
