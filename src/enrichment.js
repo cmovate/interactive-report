@@ -16,7 +16,12 @@
  *   profile.work_experience[0].company_id => numeric LinkedIn company ID
  *   profile.websites[0]                   => website
  *   profile.contact_info.emails[0]        => email
- *   profile.relation_type / network_distance => connection degree
+ *
+ * network_distance values confirmed from live API:
+ *   'FIRST_DEGREE'  => 1st degree (already connected)
+ *   'SECOND_DEGREE' => 2nd degree (not connected)
+ *   'THIRD_DEGREE'  => 3rd degree
+ *   'OUT_OF_NETWORK' => not in network
  */
 
 const db = require('./db');
@@ -43,20 +48,23 @@ function getStatus() {
 
 /**
  * Detect if a contact is a 1st-degree LinkedIn connection.
- * Unipile may return this in different fields depending on the API version.
+ * Confirmed from live API: network_distance = 'FIRST_DEGREE' for connections.
+ * Also handles legacy field names for safety.
  */
 function detectAlreadyConnected(profile) {
-  // relation_type: 1 = 1st degree (most common in Unipile)
-  if (profile.relation_type === 1 || profile.relation_type === '1') return true;
-
-  // network_distance: 'DISTANCE_1' is used in some LinkedIn/Unipile versions
   const dist = String(profile.network_distance || '').toUpperCase();
+
+  // Primary field — confirmed from live Unipile API
+  if (dist === 'FIRST_DEGREE') return true;
+
+  // Legacy / alternative field names
   if (dist === 'DISTANCE_1' || dist === '1') return true;
 
-  // degree field (some Unipile versions use this)
-  if (profile.degree === 1 || profile.degree === '1') return true;
+  // relation_type: 1 = 1st degree (some Unipile versions)
+  if (profile.relation_type === 1 || profile.relation_type === '1') return true;
 
-  // connection_degree field
+  // degree / connection_degree fields
+  if (profile.degree === 1 || profile.degree === '1') return true;
   if (profile.connection_degree === 1 || profile.connection_degree === '1') return true;
 
   return false;
@@ -104,9 +112,9 @@ function extractFields(profile, contactId) {
   console.log(
     `[Enrichment] contact=${contactId}` +
     ` provider_id="${providerId}"` +
-    ` company_id="${companyLinkedInId}"` +
-    ` company="${company}"` +
-    ` connected=${alreadyConnected}`
+    ` network_distance="${profile.network_distance}"` +
+    ` connected=${alreadyConnected}` +
+    ` company="${company}"`
   );
 
   return { firstName, lastName, title, company, location, email, website,

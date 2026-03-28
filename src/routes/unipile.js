@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getAccounts, enrichProfile } = require('../unipile');
+const { getAccounts, enrichProfile, getChatsByAttendee } = require('../unipile');
 
 // GET /api/unipile/accounts
 router.get('/accounts', async (req, res) => {
@@ -15,7 +15,7 @@ router.get('/accounts', async (req, res) => {
 
 // POST /api/unipile/enrich-test
 // Body: { account_id, li_profile_url }
-// Returns raw profile data + extracted fields for debugging
+// Returns extracted fields + connection status + chat history check
 router.post('/enrich-test', async (req, res) => {
   try {
     const { account_id, li_profile_url } = req.body;
@@ -23,17 +23,31 @@ router.post('/enrich-test', async (req, res) => {
 
     const profile = await enrichProfile(account_id, li_profile_url);
 
-    // Detect connection status (same logic as enrichment.js)
-    const rel = profile.relation_type;
     const dist = String(profile.network_distance || '').toUpperCase();
     const already_connected =
-      rel === 1 || rel === '1' ||
+      dist === 'FIRST_DEGREE' ||
       dist === 'DISTANCE_1' || dist === '1' ||
+      profile.relation_type === 1 || profile.relation_type === '1' ||
       profile.degree === 1 || profile.degree === '1' ||
       profile.connection_degree === 1 || profile.connection_degree === '1';
 
-    // Extract key fields
-    const exp = Array.isArray(profile.work_experience) && profile.work_experience.length > 0 ? profile.work_experience[0] : null;
+    const exp = Array.isArray(profile.work_experience) && profile.work_experience.length > 0
+      ? profile.work_experience[0] : null;
+
+    let has_chat_history = null;
+    let chat_id = null;
+    let chats_error = null;
+
+    if (already_connected && profile.provider_id) {
+      try {
+        const chats = await getChatsByAttendee(account_id, profile.provider_id);
+        has_chat_history = chats.length > 0;
+        chat_id = has_chat_history ? (chats[0].id || chats[0].provider_id || null) : null;
+      } catch (err) {
+        chats_error = err.message;
+      }
+    }
+
     const extracted = {
       provider_id:       profile.provider_id || null,
       first_name:        profile.first_name || null,
@@ -44,12 +58,11 @@ router.post('/enrich-test', async (req, res) => {
       company:           (typeof exp?.company === 'string' ? exp.company : exp?.company?.name) || exp?.company_name || null,
       company_id:        exp?.company_id ? String(exp.company_id) : null,
       email:             profile.contact_info?.emails?.[0] || profile.emails?.[0] || null,
-      // Connection detection
       already_connected,
-      relation_type:     profile.relation_type,
       network_distance:  profile.network_distance,
-      degree:            profile.degree,
-      connection_degree: profile.connection_degree,
+      has_chat_history,
+      chat_id,
+      chats_error,
     };
 
     res.json({ extracted, raw_keys: Object.keys(profile) });
