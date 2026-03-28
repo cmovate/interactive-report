@@ -176,7 +176,7 @@ tbody tr:last-child > td { border-bottom: none; }
     </div>
   </div>
 
-  <!-- Filter bar -->
+  <!-- Filter bar (rendered dynamically) -->
   <div class="filter-bar" id="filter-bar">
     <button class="filter-pill active" onclick="setFilter('all')">All companies</button>
   </div>
@@ -189,7 +189,7 @@ tbody tr:last-child > td { border-bottom: none; }
           <div class="add-panel-title">Add companies</div>
           <div class="add-panel-sub">Paste company names or LinkedIn URLs.</div>
         </div>
-        <button class="add-close-btn" onclick="toggleAddPanel()">&times;</button>
+        <button class="add-close-btn" onclick="closeAddPanel()">&times;</button>
       </div>
 
       <!-- Section 1: View -->
@@ -197,12 +197,15 @@ tbody tr:last-child > td { border-bottom: none; }
         <div class="add-section-title">1. Save to view (list)</div>
         <label class="view-radio-row">
           <input type="radio" name="view-mode" value="new" checked onchange="setViewMode('new')">
-          New view: &nbsp;<input type="text" id="view-name-input" class="text-input" style="flex:1;" placeholder="e.g. Israeli HealthTech Q3">
+          New view: &nbsp;<input type="text" id="view-name-input" class="text-input" style="flex:1;"
+            placeholder="e.g. Israeli HealthTech Q3">
         </label>
         <label class="view-radio-row" id="existing-view-row">
           <input type="radio" name="view-mode" value="existing" onchange="setViewMode('existing')">
           Existing view: &nbsp;
-          <select id="view-select" class="select-input" style="flex:1;"><option value="">Select view...</option></select>
+          <select id="view-select" class="select-input" style="flex:1;">
+            <option value="">Select view...</option>
+          </select>
         </label>
       </div>
 
@@ -210,24 +213,25 @@ tbody tr:last-child > td { border-bottom: none; }
       <div class="add-section">
         <div class="add-section-title">2. Companies</div>
         <textarea id="add-textarea" class="add-textarea"
-                  placeholder="Microsoft&#10;Apple&#10;https://www.linkedin.com/company/google&#10;Meta"
-                  oninput="onAddInput()"></textarea>
+          placeholder="Microsoft&#10;Apple&#10;https://www.linkedin.com/company/google&#10;Meta"
+          oninput="onAddInput()"></textarea>
         <div id="add-preview"></div>
       </div>
 
-      <!-- Section 3: Also attach to campaign -->
+      <!-- Section 3: Also attach to campaign (optional) -->
       <div class="add-section">
         <div class="attach-head">
           <div class="attach-head-text">
-            <div style="font-size:13px;font-weight:500;">3. Also search LinkedIn &amp; add to campaign <span style="font-size:11px;font-weight:400;color:#aaa;">(optional)</span></div>
-            <div class="sub">Searches for people with the selected titles at each company, and adds them as campaign contacts</div>
+            <div style="font-size:13px;font-weight:500;">3. Also search LinkedIn &amp; add to campaign
+              <span style="font-size:11px;font-weight:400;color:#aaa;">(optional)</span>
+            </div>
+            <div class="sub">Searches for people with the selected titles at each company, adds them as campaign contacts</div>
           </div>
           <button class="toggle-btn" id="attach-toggle" onclick="toggleCampaignAttach()"></button>
         </div>
 
         <div id="attach-fields" class="attach-fields" style="display:none;">
 
-          <!-- Campaign selector -->
           <div class="field-group">
             <label>Campaign</label>
             <select id="attach-campaign-select" class="select-input" onchange="onCampaignSelect()">
@@ -235,24 +239,26 @@ tbody tr:last-child > td { border-bottom: none; }
             </select>
           </div>
 
-          <!-- AUTO MODE: company campaign — uses saved searchConfig -->
+          <!-- AUTO MODE: company campaign — titles come from campaign settings -->
           <div id="attach-auto-config" style="display:none;">
             <div class="attach-auto-box">
               <div class="attach-auto-icon">&#10003;</div>
               <div>
-                <div class="attach-auto-label">Using campaign's saved search settings</div>
+                <div class="attach-auto-label">Using campaign’s saved search settings</div>
                 <div class="attach-auto-values" id="attach-auto-values"></div>
               </div>
             </div>
           </div>
 
-          <!-- MANUAL MODE: people campaign — ask for titles -->
+          <!-- MANUAL MODE: people campaign — ask user for titles -->
           <div id="attach-manual-config" style="display:none;">
-            <div class="attach-manual-note">&#128100; This campaign targets individual profile URLs, not companies. Enter the job titles you want to find at the added companies.</div>
+            <div class="attach-manual-note">&#128100; This campaign targets individual profile URLs, not
+              companies. Enter the job titles you want to find at the added companies.</div>
             <div class="field-row">
               <div class="field-group" style="flex:1;">
                 <label>Job titles to search for</label>
-                <input type="text" id="attach-titles" class="text-input" placeholder="VP R&amp;D, CTO, Head of Engineering">
+                <input type="text" id="attach-titles" class="text-input"
+                  placeholder="VP R&amp;D, CTO, Head of Engineering">
               </div>
               <div class="field-group">
                 <label>Max / company</label>
@@ -261,15 +267,18 @@ tbody tr:last-child > td { border-bottom: none; }
             </div>
           </div>
 
-          <div class="attach-note">&#128161; Only companies with a LinkedIn URL will be searched. Companies added by name only are saved to the view but not searched.</div>
+          <div class="attach-note">&#128161; Only companies with a LinkedIn URL will be searched.
+            Companies added by name only are saved to the view but not searched.</div>
         </div>
       </div>
 
       <div class="add-panel-footer">
         <div id="add-feedback" class="add-feedback"></div>
         <div style="display:flex;gap:8px;">
-          <button class="cancel-btn" onclick="toggleAddPanel()">Cancel</button>
-          <button class="primary-btn" id="add-save-btn" onclick="saveCompanies()">&#128161; Add to Opportunities</button>
+          <button class="cancel-btn" onclick="closeAddPanel()">Cancel</button>
+          <button class="primary-btn" id="add-save-btn" onclick="saveCompanies()">
+            &#128161; Add to Opportunities
+          </button>
         </div>
       </div>
     </div>
@@ -277,7 +286,8 @@ tbody tr:last-child > td { border-bottom: none; }
 
   <!-- Toolbar -->
   <div class="toolbar">
-    <input class="search-input" type="search" id="search-input" placeholder="Search companies or contacts..." oninput="applyFilter()">
+    <input class="search-input" type="search" id="search-input"
+      placeholder="Search companies or contacts..." oninput="applyFilter()">
   </div>
 
   <div class="stats-row" id="stats-row"></div>
@@ -285,7 +295,8 @@ tbody tr:last-child > td { border-bottom: none; }
 </div>
 
 <!-- Message dialog -->
-<div id="msg-backdrop" class="msg-backdrop" style="display:none;" onclick="if(event.target===this)closeMsgDialog()">
+<div id="msg-backdrop" class="msg-backdrop" style="display:none;"
+     onclick="if(event.target===this)closeMsgDialog()">
   <div class="msg-modal">
     <div class="msg-modal-head">
       <div>
@@ -300,7 +311,8 @@ tbody tr:last-child > td { border-bottom: none; }
       <button class="token-btn" onclick="insertToken('{{last_name}}')">{&#123;last_name}}</button>
       <button class="token-btn" onclick="insertToken('{{company}}')">{&#123;company}}</button>
     </div>
-    <textarea class="msg-textarea" id="msg-textarea" placeholder="Hi {{first_name}}, I noticed we're connected..." oninput="updateCharCount()"></textarea>
+    <textarea class="msg-textarea" id="msg-textarea"
+      placeholder="Hi {{first_name}}, I noticed we're connected..." oninput="updateCharCount()"></textarea>
     <div class="char-count" id="char-count">0 characters</div>
     <div class="msg-footer">
       <button class="cancel-btn" onclick="closeMsgDialog()">Cancel</button>
@@ -322,13 +334,14 @@ let activeContact = null;
 // Add panel state
 let addPanelOpen    = false;
 let parsedList      = [];
-let panelViewMode   = 'new';
+let panelViewMode   = 'new';   // 'new' | 'existing'
 let panelViewId     = null;
 let panelAttachCamp = false;
 
 // ── Load ──────────────────────────────────────────────────────────────────────
+
 async function load() {
-  const btn = document.getElementById('refresh-btn');
+  const btn  = document.getElementById('refresh-btn');
   const icon = document.getElementById('refresh-icon');
   if (btn) { btn.disabled = true; icon.innerHTML = '<span class="spin">&#x21BB;</span>'; }
   try {
@@ -363,7 +376,8 @@ function renderFilterBar() {
       html += `<button class="filter-pill${a?' active':''}" onclick="setFilter('view:${v.id}')">
         &#128193; ${esc(v.name)}
         <span class="pill-count">${v.company_count || 0}</span>
-        <span class="pill-del" onclick="event.stopPropagation();deleteView(${v.id})" title="Delete view">&times;</span>
+        <span class="pill-del" onclick="event.stopPropagation();deleteView(${v.id})"
+              title="Delete view">&times;</span>
       </button>`;
     });
   }
@@ -382,9 +396,11 @@ function renderFilterBar() {
 function setFilter(f) {
   currentFilter = f;
   renderFilterBar();
+  // If user switches to a view filter while panel is open, pre-select that view
   if (f.startsWith('view:') && addPanelOpen) {
     panelViewMode = 'existing';
     panelViewId   = parseInt(f.split(':')[1]);
+    document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
     renderPanelViewSection();
   }
   applyFilter();
@@ -406,8 +422,9 @@ function applyFilter() {
   }
   filtered = q ? base.filter(co => {
     if (co.company_name.toLowerCase().includes(q)) return true;
-    return co.contacts.some(c => `${c.first_name||''} ${c.last_name||''} ${c.company||''} ${c.title||''}`
-      .toLowerCase().includes(q));
+    return co.contacts.some(c =>
+      `${c.first_name||''} ${c.last_name||''} ${c.company||''} ${c.title||}`.toLowerCase().includes(q)
+    );
   }) : base;
   renderStats(); renderTable();
 }
@@ -419,13 +436,13 @@ function renderStats() {
   const total    = filtered.reduce((s, c) => s + c.total, 0);
   const custom   = filtered.filter(c => c.source === 'custom' || c.source === 'both').length;
   let html = `
-    <div class="stat-chip"><strong>${filtered.length}</strong>Companies</div>
-    <div class="stat-chip"><strong>${withConn}</strong>With connections</div>
-    <div class="stat-chip"><strong>${total}</strong>Warm leads</div>
-    ${custom ? `<div class="stat-chip"><strong>${custom}</strong>Custom</div>` : ''}`;
+    <div class="stat-chip"><strong>${filtered.length}</strong> Companies</div>
+    <div class="stat-chip"><strong>${withConn}</strong> With connections</div>
+    <div class="stat-chip"><strong>${total}</strong> Warm leads</div>
+    ${custom ? `<div class="stat-chip"><strong>${custom}</strong> Custom</div>` : ''}`;
   allData.accounts.forEach(a => {
     const cnt = filtered.reduce((s, co) => s + (co.connections_by_account?.[a.account_id] || 0), 0);
-    html += `<div class="stat-chip"><strong>${cnt}</strong>${esc(a.display_name || a.account_id)}</div>`;
+    html += `<div class="stat-chip"><strong>${cnt}</strong> ${esc(a.display_name || a.account_id)}</div>`;
   });
   document.getElementById('stats-row').innerHTML = html;
 }
@@ -434,6 +451,19 @@ function renderStats() {
 
 const CONTACT_GRID = '140px 140px 1fr 140px 110px 110px';
 function cc(n) { return n >= 5 ? 'count-high' : n >= 2 ? 'count-medium' : n > 0 ? 'count-low' : 'count-zero'; }
+
+/**
+ * Serialise a contact object safely for use in an onclick="..." HTML attribute.
+ * JSON.stringify uses " for string delimiters — we must convert them to &quot;
+ * so they don’t break the surrounding double-quoted HTML attribute.
+ * The HTML parser decodes &quot; → " before passing to JS, so the function
+ * receives a valid JSON string.
+ */
+function contactJson(c) {
+  return JSON.stringify(c)
+    .replace(/&/g, '&amp;')   // must come first
+    .replace(/"/g, '&quot;');
+}
 
 function renderTable() {
   const area = document.getElementById('main-area');
@@ -446,7 +476,10 @@ function renderTable() {
     return;
   }
   const accounts   = allData.accounts;
-  const accHeaders = accounts.map(a => `<th style="text-align:center;">${esc(a.display_name || a.account_id)}</th>`).join('');
+  const accHeaders = accounts.map(a =>
+    `<th style="text-align:center;">${esc(a.display_name || a.account_id)}</th>`
+  ).join('');
+
   let rows = '';
   for (const co of filtered) {
     const rowId  = encodeId(co.company_name, co.company_linkedin_id);
@@ -455,55 +488,95 @@ function renderTable() {
       const n = co.connections_by_account?.[a.account_id] || 0;
       return `<td style="text-align:center;"><span class="count-badge ${cc(n)}">${n || '—'}</span></td>`;
     }).join('');
-    const badge    = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
-                   : co.source === 'both'   ? '<span class="source-badge badge-both">+Custom</span>' : '';
-    const viewTag  = co.view_name ? `<span class="view-badge">&#128193; ${esc(co.view_name)}</span>` : '';
+    const badge     = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
+                    : co.source === 'both'   ? '<span class="source-badge badge-both">+Custom</span>'
+                    : '';
+    const viewTag   = co.view_name
+      ? `<span class="view-badge">&#128193; ${esc(co.view_name)}</span>` : '';
     const removeBtn = (co.source === 'custom' || co.source === 'both') && co.custom_id
-      ? `<button class="remove-co-btn" onclick="event.stopPropagation();removeCompany(${co.custom_id})" title="Remove">&times;</button>`
+      ? `<button class="remove-co-btn"
+               onclick="event.stopPropagation();removeCompany(${co.custom_id})"
+               title="Remove">&times;</button>`
       : '';
     const liLink = co.li_company_url
-      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View &#8599;</a>`
+      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}"
+             target="_blank" rel="noopener">View &#8599;</a>`
       : '<span class="cell-muted">—</span>';
+
     rows += `<tr class="company-row${isOpen?' expanded':''}" onclick="toggleCompany('${rowId}')">
-      <td><div class="company-name-cell"><span class="expand-icon">&#9654;</span><span>${esc(co.company_name)}</span>${badge}${viewTag}${removeBtn}</div></td>
-      <td>${liLink}</td>${accCells}
-      <td style="text-align:center;"><span class="count-badge ${cc(co.total)}">${co.total || '—'}</span></td>
-      <td style="text-align:right;padding-right:12px;"><span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span></td>
+      <td>
+        <div class="company-name-cell">
+          <span class="expand-icon">&#9654;</span>
+          <span>${esc(co.company_name)}</span>
+          ${badge}${viewTag}${removeBtn}
+        </div>
+      </td>
+      <td>${liLink}</td>
+      ${accCells}
+      <td style="text-align:center;">
+        <span class="count-badge ${cc(co.total)}">${co.total || '—'}</span>
+      </td>
+      <td style="text-align:right;padding-right:12px;">
+        <span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span>
+      </td>
     </tr>`;
+
     if (isOpen) {
-      rows += `<tr class="contacts-row"><td colspan="${2 + accounts.length + 2}">${renderContactsBlock(co)}</td></tr>`;
+      rows += `<tr class="contacts-row">
+        <td colspan="${2 + accounts.length + 2}">${renderContactsBlock(co)}</td>
+      </tr>`;
     }
   }
+
   area.innerHTML = `<div class="table-outer"><table>
-    <thead><tr><th style="min-width:200px;">Company</th><th>LinkedIn</th>${accHeaders}
-      <th style="text-align:center;">Total</th><th></th></tr></thead>
+    <thead><tr>
+      <th style="min-width:200px;">Company</th>
+      <th>LinkedIn</th>
+      ${accHeaders}
+      <th style="text-align:center;">Total</th>
+      <th></th>
+    </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
 function renderContactsBlock(co) {
   if (!co.contacts.length) {
-    return `<div class="contacts-inner"><div class="no-contacts">No connected contacts found at this company.</div></div>`;
+    return `<div class="contacts-inner">
+      <div class="no-contacts">No connected contacts found at this company.</div>
+    </div>`;
   }
   const items = co.contacts.map(c => {
     const canMsg    = !!(c.provider_id || c.chat_id);
     const campClass = c.campaign_status === 'active' ? 'active' : '';
+    // FIX: use contactJson() to safely embed contact data in HTML attribute
     return `<div class="contacts-grid-row" style="grid-template-columns:${CONTACT_GRID};">
       <div style="font-weight:500;">${esc(c.first_name||'')} ${esc(c.last_name||'')}</div>
       <div style="font-size:12px;color:#444;">${esc(c.company||'—')}</div>
       <div style="font-size:12px;color:#666;">${esc(c.title||'—')}</div>
-      <div>${c.campaign_name?`<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>`:'<span class="cell-muted">—</span>'}</div>
-      <div>${c.li_profile_url?`<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener">Profile &#8599;</a>`:'<span class="cell-muted">—</span>'}</div>
-      <div><button class="msg-btn" ${canMsg?'':'disabled title="Not enriched"'}
-           onclick="openMsgDialog(${JSON.stringify(c).replace(/'/g,'&#39;')})">
-        &#128172; Message
-      </button></div>
+      <div>${c.campaign_name
+        ? `<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>`
+        : '<span class="cell-muted">—</span>'}</div>
+      <div>${c.li_profile_url
+        ? `<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}"
+               target="_blank" rel="noopener">Profile &#8599;</a>`
+        : '<span class="cell-muted">—</span>'}</div>
+      <div>
+        <button class="msg-btn" ${canMsg ? '' : 'disabled title="Not enriched"'}
+                onclick="openMsgDialog(${contactJson(c)})">
+          &#128172; Message
+        </button>
+      </div>
     </div>`;
   }).join('');
+
   return `<div class="contacts-inner">
     <div class="contacts-grid-head" style="grid-template-columns:${CONTACT_GRID};">
-      <span>Name</span><span>Company</span><span>Title</span><span>Campaign</span><span>Profile</span><span></span>
-    </div>${items}</div>`;
+      <span>Name</span><span>Company</span><span>Title</span>
+      <span>Campaign</span><span>Profile</span><span></span>
+    </div>
+    ${items}
+  </div>`;
 }
 
 function toggleCompany(id) {
@@ -513,32 +586,49 @@ function toggleCompany(id) {
 
 // ── Add panel ──────────────────────────────────────────────────────────────────
 
+/**
+ * Open the panel.  closeAddPanel() is the counterpart — always use it instead
+ * of calling toggleAddPanel(), so the toggle state stays consistent.
+ */
 function toggleAddPanel() {
-  addPanelOpen = !addPanelOpen;
-  document.getElementById('add-panel').style.display = addPanelOpen ? 'block' : 'none';
-  if (addPanelOpen) {
-    parsedList      = [];
-    panelViewMode   = 'new';
-    panelViewId     = null;
-    panelAttachCamp = false;
-    document.getElementById('view-name-input').value      = '';
-    document.getElementById('add-textarea').value         = '';
-    document.getElementById('add-preview').innerHTML      = '';
-    document.getElementById('add-feedback').innerHTML     = '';
-    document.getElementById('attach-toggle').className    = 'toggle-btn';
-    document.getElementById('attach-fields').style.display = 'none';
-    document.getElementById('attach-auto-config').style.display   = 'none';
-    document.getElementById('attach-manual-config').style.display = 'none';
-    document.querySelector('input[name="view-mode"][value="new"]').checked = true;
+  if (addPanelOpen) { closeAddPanel(); return; }
+  addPanelOpen = true;
+  document.getElementById('add-panel').style.display = 'block';
+
+  // Reset state
+  parsedList      = [];
+  panelViewMode   = 'new';
+  panelViewId     = null;
+  panelAttachCamp = false;
+  document.getElementById('view-name-input').value       = '';
+  document.getElementById('add-textarea').value          = '';
+  document.getElementById('add-preview').innerHTML       = '';
+  document.getElementById('add-feedback').innerHTML      = '';
+  document.getElementById('attach-toggle').className     = 'toggle-btn';
+  document.getElementById('attach-fields').style.display = 'none';
+  document.getElementById('attach-auto-config').style.display   = 'none';
+  document.getElementById('attach-manual-config').style.display = 'none';
+  document.querySelector('input[name="view-mode"][value="new"]').checked = true;
+
+  renderPanelViewSection();
+
+  // If currently filtering by a view, pre-select it
+  if (currentFilter.startsWith('view:')) {
+    panelViewMode = 'existing';
+    panelViewId   = parseInt(currentFilter.split(':')[1]);
+    document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
     renderPanelViewSection();
-    if (currentFilter.startsWith('view:')) {
-      panelViewMode = 'existing';
-      panelViewId   = parseInt(currentFilter.split(':')[1]);
-      document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
-      renderPanelViewSection();
-    }
-    setTimeout(() => document.getElementById(panelViewMode==='new'?'view-name-input':'add-textarea')?.focus(), 50);
   }
+
+  setTimeout(() =>
+    document.getElementById(panelViewMode === 'new' ? 'view-name-input' : 'add-textarea')?.focus(),
+  50);
+}
+
+/** Close the panel without toggling — safe to call any time. */
+function closeAddPanel() {
+  addPanelOpen = false;
+  document.getElementById('add-panel').style.display = 'none';
 }
 
 function populatePanelDropdowns() {
@@ -551,13 +641,16 @@ function populatePanelDropdowns() {
   const cSel = document.getElementById('attach-campaign-select');
   if (cSel) {
     cSel.innerHTML = `<option value="">Select campaign...</option>` +
-      allData.campaigns.filter(c => c.status === 'active').map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+      allData.campaigns
+        .filter(c => c.status === 'active')
+        .map(c => `<option value="${c.id}">${esc(c.name)}</option>`)
+        .join('');
   }
 }
 
 function renderPanelViewSection() {
-  const isNew = panelViewMode === 'new';
-  const nameRow = document.getElementById('view-name-input')?.closest('label');
+  const isNew    = panelViewMode === 'new';
+  const nameRow  = document.getElementById('view-name-input')?.closest('label');
   const existRow = document.getElementById('existing-view-row');
   if (nameRow)  nameRow.style.opacity  = isNew ? '1' : '0.5';
   if (existRow) existRow.style.opacity = isNew ? '0.5' : '1';
@@ -571,7 +664,8 @@ function setViewMode(mode) {
 
 function toggleCampaignAttach() {
   panelAttachCamp = !panelAttachCamp;
-  document.getElementById('attach-toggle').className = `toggle-btn${panelAttachCamp?' on':''}`;
+  document.getElementById('attach-toggle').className =
+    `toggle-btn${panelAttachCamp ? ' on' : ''}`;
   document.getElementById('attach-fields').style.display = panelAttachCamp ? 'flex' : 'none';
   if (!panelAttachCamp) {
     document.getElementById('attach-auto-config').style.display   = 'none';
@@ -580,31 +674,29 @@ function toggleCampaignAttach() {
 }
 
 /**
- * Called when the campaign dropdown changes.
+ * Campaign selection handler.
  *
- * Decision logic:
- *   - audience_type === 'company' AND settings.searchConfig exists
- *     → AUTO MODE: titles come from saved settings, no user input needed.
- *   - audience_type === 'people' (or no searchConfig)
- *     → MANUAL MODE: ask the user for titles and limit.
+ * Decision:
+ *   audience_type === 'company' AND searchConfig saved  →  AUTO (no input needed)
+ *   audience_type === 'people'  OR no searchConfig     →  MANUAL (ask user)
  */
 function onCampaignSelect() {
   const cid  = parseInt(document.getElementById('attach-campaign-select')?.value);
   const auto = document.getElementById('attach-auto-config');
   const man  = document.getElementById('attach-manual-config');
-  auto.style.display = 'none'; man.style.display = 'none';
-  if (!cid) return;
+  auto.style.display = 'none';
+  man.style.display  = 'none';
+  if (!cid || isNaN(cid)) return;
 
   const camp = allData.campaigns.find(c => c.id === cid);
   const sc   = camp?.settings?.searchConfig;
 
   if (camp?.audience_type === 'company' && sc?.titles?.length) {
-    // AUTO: use the saved search config from the campaign
     document.getElementById('attach-auto-values').innerHTML =
-      `Titles: <strong>${esc(sc.titles.join(', '))}</strong> &middot; Max: <strong>${sc.maxPerCompany || 10}</strong> per company`;
+      `Titles: <strong>${esc(sc.titles.join(', '))}</strong> ·
+       Max: <strong>${sc.maxPerCompany || 10}</strong> per company`;
     auto.style.display = 'block';
   } else {
-    // MANUAL: this campaign was built with profile URLs (people) — ask for titles
     document.getElementById('attach-titles').value = '';
     document.getElementById('attach-limit').value  = '10';
     man.style.display = 'block';
@@ -617,7 +709,7 @@ function onAddInput() {
 }
 
 function parseCompanies(text) {
-  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const lines  = text.split(/\n/).map(l => l.trim()).filter(Boolean);
   const result = [], seen = new Set();
   for (const line of lines) {
     const urlMatch = line.match(/linkedin\.com\/company\/([^/?&#\s]+)/i);
@@ -630,7 +722,10 @@ function parseCompanies(text) {
       name = line; url = null;
     }
     const key = name.toLowerCase().trim();
-    if (name && !seen.has(key)) { seen.add(key); result.push({ name, url, linkedin_id: null }); }
+    if (name && !seen.has(key)) {
+      seen.add(key);
+      result.push({ name, url, linkedin_id: null });
+    }
   }
   return result;
 }
@@ -638,18 +733,21 @@ function parseCompanies(text) {
 function renderPreview() {
   const el = document.getElementById('add-preview');
   if (!parsedList.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<div class="preview-label">${parsedList.length} compan${parsedList.length===1?'y':'ies'} detected</div>
+  el.innerHTML =
+    `<div class="preview-label">${parsedList.length} compan${parsedList.length===1?'y':'ies'} detected</div>
     <div class="preview-list">${parsedList.map((co, i) => `
       <div class="preview-item">
         <span class="preview-name">${esc(co.name)}</span>
-        ${co.url?`<a class="cell-link" href="${esc(co.url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>`:''}
+        ${co.url ? `<a class="cell-link" href="${esc(co.url)}" target="_blank"
+                      rel="noopener">LinkedIn &#8599;</a>` : ''}
         <button class="preview-remove" onclick="removeFromPreview(${i})">&times;</button>
       </div>`).join('')}</div>`;
 }
 
 function removeFromPreview(i) {
   parsedList.splice(i, 1);
-  document.getElementById('add-textarea').value = parsedList.map(co => co.url || co.name).join('\n');
+  document.getElementById('add-textarea').value =
+    parsedList.map(co => co.url || co.name).join('\n');
   renderPreview();
 }
 
@@ -659,42 +757,48 @@ async function saveCompanies() {
   const viewName = document.getElementById('view-name-input')?.value.trim();
   const viewSel  = parseInt(document.getElementById('view-select')?.value);
 
-  if (panelViewMode === 'new'      && !viewName) { alert('Please enter a view name.'); return; }
-  if (panelViewMode === 'existing' && !viewSel)  { alert('Please select an existing view.'); return; }
+  if (panelViewMode === 'new'      && !viewName)         { alert('Please enter a view name.'); return; }
+  if (panelViewMode === 'existing' && (!viewSel || isNaN(viewSel))) {
+    alert('Please select an existing view.'); return;
+  }
 
-  // Determine titles + limit for campaign attachment
+  // Resolve titles + limit for campaign attachment
   let titles = [], limit = 10;
-  const campaignId = panelAttachCamp ? parseInt(document.getElementById('attach-campaign-select')?.value) : null;
+  const campaignId = panelAttachCamp
+    ? parseInt(document.getElementById('attach-campaign-select')?.value)
+    : null;
 
   if (panelAttachCamp) {
-    if (!campaignId) { alert('Please select a campaign.'); return; }
+    if (!campaignId || isNaN(campaignId)) { alert('Please select a campaign.'); return; }
 
     const camp = allData.campaigns.find(c => c.id === campaignId);
     const sc   = camp?.settings?.searchConfig;
 
     if (camp?.audience_type === 'company' && sc?.titles?.length) {
-      // AUTO: use campaign's saved settings
+      // AUTO: titles from campaign settings
       titles = sc.titles;
       limit  = sc.maxPerCompany || 10;
     } else {
-      // MANUAL: use what the user entered
-      titles = (document.getElementById('attach-titles')?.value.trim().split(',').map(s=>s.trim()).filter(Boolean) || []);
+      // MANUAL: user-entered titles
+      titles = (document.getElementById('attach-titles')?.value
+        .trim().split(',').map(s => s.trim()).filter(Boolean) || []);
       limit  = parseInt(document.getElementById('attach-limit')?.value) || 10;
       if (!titles.length) { alert('Please enter job titles to search for.'); return; }
     }
   }
 
   const btn = document.getElementById('add-save-btn');
-  btn.disabled = true; btn.innerHTML = '<span class="spin">&#x21BB;</span> Saving...';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">&#x21BB;</span> Saving...';
   document.getElementById('add-feedback').innerHTML = '';
 
   const msgs = [];
   try {
-    // Step 1: Save companies to view
+    // Step 1: Save companies to the view
     const res = await fetch('/api/opportunities/companies', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+      body:    JSON.stringify({
         workspace_id: workspaceId,
         companies:    parsedList,
         view_id:      panelViewMode === 'existing' ? viewSel  : null,
@@ -703,10 +807,15 @@ async function saveCompanies() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    if (data.added > 0)   msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to "${esc(data.view_name||viewName)}"`);
-    if (data.skipped > 0) msgs.push(`${data.skipped} already existed`);
 
-    // Step 2: Attach to campaign (if enabled)
+    if (data.added > 0)
+      msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to “${esc(data.view_name || viewName)}”`);
+    if (data.skipped > 0)
+      msgs.push(`${data.skipped} already existed`);
+    if (data.added === 0 && data.skipped === 0)
+      msgs.push('No companies were saved (empty list?)');
+
+    // Step 2: Attach to campaign if enabled
     if (panelAttachCamp) {
       const withUrls = parsedList.filter(co => co.url);
       if (!withUrls.length) {
@@ -714,34 +823,50 @@ async function saveCompanies() {
       } else {
         btn.innerHTML = '<span class="spin">&#x21BB;</span> Searching LinkedIn...';
         const ar = await fetch('/api/opportunities/attach-to-campaign', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspace_id: workspaceId, campaign_id: campaignId, companies: withUrls, titles, limit }),
+          body:    JSON.stringify({
+            workspace_id: workspaceId,
+            campaign_id:  campaignId,
+            companies:    withUrls,
+            titles,
+            limit,
+          }),
         });
         const ad = await ar.json();
         if (ar.ok) {
           const cname = allData.campaigns.find(c => c.id === campaignId)?.name || 'campaign';
-          msgs.push(`${ad.contacts_added} new contacts added to "${esc(cname)}" (${ad.companies_searched} companies, ${ad.contacts_found} people found)`);
+          msgs.push(
+            `${ad.contacts_added} new contacts added to “${esc(cname)}”` +
+            ` (${ad.companies_searched} companies searched, ${ad.contacts_found} people found)`
+          );
         } else {
-          msgs.push(`Campaign search failed: ${ad.error}`);
+          msgs.push(`Campaign search failed: ${esc(ad.error)}`);
         }
       }
     }
 
-    document.getElementById('add-feedback').className = 'add-feedback ok';
+    document.getElementById('add-feedback').className  = 'add-feedback ok';
     document.getElementById('add-feedback').innerHTML = '&#10003; ' + msgs.join(' · ');
-    setTimeout(() => { toggleAddPanel(); load(); }, 1400);
+
+    // FIX: close panel directly instead of calling toggleAddPanel() inside a
+    // timeout, which could re-open the panel if the user already closed it.
+    setTimeout(() => { closeAddPanel(); load(); }, 1400);
+
   } catch (err) {
-    document.getElementById('add-feedback').className = 'add-feedback err';
+    document.getElementById('add-feedback').className  = 'add-feedback err';
     document.getElementById('add-feedback').innerHTML = '&#10007; ' + esc(err.message);
-    btn.disabled = false; btn.innerHTML = '&#128161; Add to Opportunities';
+    btn.disabled  = false;
+    btn.innerHTML = '&#128161; Add to Opportunities';
   }
 }
 
 async function removeCompany(customId) {
   if (!confirm('Remove this company from Opportunities?')) return;
-  try { await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' }); await load(); }
-  catch (err) { alert('Failed: ' + err.message); }
+  try {
+    await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' });
+    await load();
+  } catch (err) { alert('Failed: ' + err.message); }
 }
 
 async function deleteView(viewId) {
@@ -757,12 +882,14 @@ async function deleteView(viewId) {
 
 function openMsgDialog(contact) {
   activeContact = contact;
-  document.getElementById('msg-title').textContent = `Message ${contact.first_name||''} ${contact.last_name||''}`.trim();
-  document.getElementById('msg-sub').textContent   = [contact.title, contact.company].filter(Boolean).join(' · ');
-  document.getElementById('msg-textarea').value    = '';
+  document.getElementById('msg-title').textContent =
+    `Message ${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+  document.getElementById('msg-sub').textContent =
+    [contact.title, contact.company].filter(Boolean).join(' · ');
+  document.getElementById('msg-textarea').value        = '';
   document.getElementById('msg-status-area').innerHTML = '';
-  document.getElementById('send-btn').disabled     = false;
-  document.getElementById('send-btn').innerHTML    = '&#128172; Send message';
+  document.getElementById('send-btn').disabled          = false;
+  document.getElementById('send-btn').innerHTML         = '&#128172; Send message';
   updateCharCount();
   document.getElementById('msg-backdrop').style.display = 'flex';
   setTimeout(() => document.getElementById('msg-textarea').focus(), 50);
@@ -774,8 +901,9 @@ function closeMsgDialog() {
 }
 
 function insertToken(token) {
-  const ta = document.getElementById('msg-textarea'), p = ta.selectionStart;
-  ta.value = ta.value.slice(0,p) + token + ta.value.slice(p);
+  const ta = document.getElementById('msg-textarea');
+  const p  = ta.selectionStart;
+  ta.value = ta.value.slice(0, p) + token + ta.value.slice(p);
   ta.selectionStart = ta.selectionEnd = p + token.length;
   ta.focus(); updateCharCount();
 }
@@ -786,9 +914,9 @@ function updateCharCount() {
 }
 
 function subTokens(t, c) {
-  return t.replace(/\{\{first_name\}\}/g, c.first_name||'')
-          .replace(/\{\{last_name\}\}/g,  c.last_name ||'')
-          .replace(/\{\{company\}\}/g,    c.company   ||'');
+  return t.replace(/\{\{first_name\}\}/g, c.first_name || '')
+          .replace(/\{\{last_name\}\}/g,  c.last_name  || '')
+          .replace(/\{\{company\}\}/g,    c.company    || '');
 }
 
 async function sendMessage() {
@@ -797,12 +925,14 @@ async function sendMessage() {
   if (!rawText) { document.getElementById('msg-textarea').focus(); return; }
   const text = subTokens(rawText, activeContact);
   const btn  = document.getElementById('send-btn');
-  btn.disabled = true; btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending…';
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending…';
   document.getElementById('msg-status-area').innerHTML = '';
   try {
     const res  = await fetch('/api/opportunities/send-message', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: activeContact.id, text }),
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ contact_id: activeContact.id, text }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Send failed');
@@ -810,11 +940,14 @@ async function sendMessage() {
       `<div class="msg-status-ok">&#10003; Message sent to ${esc(activeContact.first_name || 'contact')}!</div>`;
     document.getElementById('msg-textarea').value = '';
     updateCharCount();
-    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
+    btn.disabled  = false;
+    btn.innerHTML = '&#128172; Send message';
     setTimeout(closeMsgDialog, 1500);
   } catch (err) {
-    document.getElementById('msg-status-area').innerHTML = `<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
-    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
+    document.getElementById('msg-status-area').innerHTML =
+      `<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
+    btn.disabled  = false;
+    btn.innerHTML = '&#128172; Send message';
   }
 }
 
