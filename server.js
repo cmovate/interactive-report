@@ -174,7 +174,17 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // Manually-added companies for Opportunities (no campaign needed)
+  // Named views (labels/folders) for grouping manually-added companies in Opportunities
+  await s('opportunity_views', () => db.query(`
+    CREATE TABLE IF NOT EXISTS opportunity_views (
+      id           SERIAL PRIMARY KEY,
+      workspace_id INTEGER NOT NULL,
+      name         VARCHAR(255) NOT NULL,
+      added_at     TIMESTAMP DEFAULT NOW()
+    )
+  `));
+
+  // Manually-added companies for Opportunities (no campaign required)
   await s('opportunity_companies', () => db.query(`
     CREATE TABLE IF NOT EXISTS opportunity_companies (
       id                  SERIAL PRIMARY KEY,
@@ -182,6 +192,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       company_name        VARCHAR(255) NOT NULL,
       li_company_url      TEXT,
       company_linkedin_id VARCHAR(50),
+      view_id             INTEGER,  -- FK to opportunity_views
       added_at            TIMESTAMP DEFAULT NOW()
     )
   `));
@@ -244,7 +255,9 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_camp_companies_workspace',   'campaign_companies(workspace_id)'],
     ['idx_camp_companies_linkedin_id', 'campaign_companies(company_linkedin_id)'],
     ['idx_camp_companies_engagement',  'campaign_companies(engagement_level)'],
+    ['idx_opp_views_workspace',        'opportunity_views(workspace_id)'],
     ['idx_opp_companies_workspace',    'opportunity_companies(workspace_id)'],
+    ['idx_opp_companies_view_id',      'opportunity_companies(view_id)'],
     ['idx_followers_account',          'company_followers(account_id)'],
     ['idx_followers_profile',          'company_followers(profile_url)'],
     ['idx_followers_first_seen',       'company_followers(first_seen_at)'],
@@ -316,6 +329,8 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['ct.conv_signals',            'contacts',            'conversation_signals',        'JSONB'],
     ['ct.conv_analyzed_at',        'contacts',            'conversation_analyzed_at',    'TIMESTAMP'],
     ['ct.reply_count',             'contacts',            'reply_count',                 'INTEGER DEFAULT 0'],
+    // opportunity_companies: view_id column (existing DBs need this added)
+    ['oc.view_id',                 'opportunity_companies', 'view_id',                   'INTEGER'],
   ];
   for (const [label, table, col, type] of fixedCols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
