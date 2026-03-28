@@ -10,15 +10,15 @@
  *   - prospect_msgs    : how many messages the prospect sent
  *   - summary     : one-sentence summary
  *
- * Everything is written in English regardless of conversation language.
+ * Uses the OpenAI API (OPENAI_API_KEY env var).
+ * All output is in English regardless of conversation language.
  */
 
-const db          = require('./db');
+const db                  = require('./db');
 const { getChatMessages } = require('./unipile');
 
-const UNIPILE_ACCOUNT_ID = process.env.DEFAULT_ACCOUNT_ID; // fallback
-const ANTHROPIC_API_KEY  = process.env.ANTHROPIC_API_KEY;
-const MODEL              = 'claude-sonnet-4-20250514';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const MODEL          = 'gpt-4o';
 
 /**
  * Build a compact, timestamped transcript from Unipile chat messages.
@@ -44,69 +44,73 @@ function buildTranscript(messages, contactName) {
 }
 
 /**
- * Call the Anthropic API and parse the JSON response.
+ * Call the OpenAI API (gpt-4o) and parse the JSON response.
  */
-async function callClaude(transcript, contactName) {
-  const systemPrompt = `You are an expert B2B sales analyst evaluating LinkedIn outreach conversations.
-Always respond ONLY with valid JSON — no preamble, no markdown fences.
-All text fields must be in English regardless of the conversation language.`;
+async function callOpenAI(transcript, contactName) {
+  if (!OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not set in environment variables');
+  }
 
-  const userPrompt = `Analyze this LinkedIn outreach conversation with ${contactName || 'the prospect'}.
+  const systemPrompt =
+    'You are an expert B2B sales analyst evaluating LinkedIn outreach conversations.\n' +
+    'Always respond ONLY with valid JSON — no preamble, no markdown fences.\n' +
+    'All text fields must be in English regardless of the conversation language.';
 
-Full conversation transcript:
-${transcript}
+  const userPrompt =
+    `Analyze this LinkedIn outreach conversation with ${contactName || 'the prospect'}.\n\n` +
+    `Full conversation transcript:\n${transcript}\n\n` +
+    `Respond with this exact JSON structure:\n` +
+    `{\n` +
+    `  "stage": "<one of: no_reply | cold_reply | engaged | meeting_intent | meeting_booked | not_interested | ghost>",\n` +
+    `  "score": <integer 1-10>,\n` +
+    `  "signals": [\n` +
+    `    { "type": "positive" | "negative", "text": "<specific signal observed>" }\n` +
+    `  ],\n` +
+    `  "suggested_action": "<concrete next step the sender should take>",\n` +
+    `  "exchange_depth": <total number of messages in the thread>,\n` +
+    `  "prospect_msgs": <number of messages sent by the prospect>,\n` +
+    `  "summary": "<one sentence describing the conversation quality and status>"\n` +
+    `}\n\n` +
+    `Stage definitions:\n` +
+    `- no_reply: prospect has not responded at all\n` +
+    `- cold_reply: replied politely but showed no real interest (e.g. "thanks, not now")\n` +
+    `- engaged: showing genuine interest, asking questions, sharing context\n` +
+    `- meeting_intent: clear or implied desire to meet/talk\n` +
+    `- meeting_booked: explicitly confirmed a meeting or call\n` +
+    `- not_interested: clear rejection\n` +
+    `- ghost: was previously engaged but has gone silent (2+ days no reply after engagement)\n\n` +
+    `Score guide:\n` +
+    `1-3: Very unlikely to convert (rejection, ghost, cold reply)\n` +
+    `4-5: Uncertain / neutral\n` +
+    `6-7: Moderate interest\n` +
+    `8-9: High interest / meeting intent\n` +
+    `10: Meeting already confirmed`;
 
-Respond with this exact JSON structure:
-{
-  "stage": "<one of: no_reply | cold_reply | engaged | meeting_intent | meeting_booked | not_interested | ghost>",
-  "score": <integer 1-10>,
-  "signals": [
-    { "type": "positive" | "negative", "text": "<specific signal observed>" }
-  ],
-  "suggested_action": "<concrete next step the sender should take>",
-  "exchange_depth": <total number of messages in the thread>,
-  "prospect_msgs": <number of messages sent by the prospect>,
-  "summary": "<one sentence describing the conversation quality and status>"
-}
-
-Stage definitions:
-- no_reply: prospect has not responded at all
-- cold_reply: replied politely but showed no real interest (e.g. "thanks, not now")
-- engaged: showing genuine interest, asking questions, sharing context
-- meeting_intent: clear or implied desire to meet/talk
-- meeting_booked: explicitly confirmed a meeting or call
-- not_interested: clear rejection
-- ghost: was previously engaged but has gone silent (2+ days no reply after engagement)
-
-Score guide:
-1-3: Very unlikely to convert (rejection, ghost, cold reply)
-4-5: Uncertain / neutral
-6-7: Moderate interest
-8-9: High interest / meeting intent
-10: Meeting already confirmed`;
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      model:       MODEL,
+      temperature: 0,
+      response_format: { type: 'json_object' }, // ensures pure JSON output
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt   },
+      ],
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Claude API ${res.status}: ${text}`);
+    throw new Error(`OpenAI API ${res.status}: ${text}`);
   }
 
   const data = await res.json();
-  const raw  = data.content?.[0]?.text || '';
+  const raw  = data.choices?.[0]?.message?.content || '';
+  // response_format: json_object guarantees valid JSON — still clean just in case
   const clean = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(clean);
 }
@@ -127,7 +131,7 @@ async function analyzeConversation(contactId, accountId, chatId) {
   );
   if (!contactRows.length) throw new Error(`Contact ${contactId} not found`);
   const contact = contactRows[0];
-  const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
+  const name    = [contact.first_name, contact.last_name].filter(Boolean).join(' ');
 
   // 2. Fetch full chat history from Unipile
   let messages = [];
@@ -140,20 +144,23 @@ async function analyzeConversation(contactId, accountId, chatId) {
   // 3. Build transcript
   const transcript = buildTranscript(messages, name);
 
-  // 4. Call Claude
-  const result = await callClaude(transcript, name);
+  // 4. Call OpenAI
+  const result = await callOpenAI(transcript, name);
 
   // 5. Validate stage
-  const VALID_STAGES = ['no_reply','cold_reply','engaged','meeting_intent','meeting_booked','not_interested','ghost'];
+  const VALID_STAGES = [
+    'no_reply', 'cold_reply', 'engaged',
+    'meeting_intent', 'meeting_booked', 'not_interested', 'ghost',
+  ];
   const stage = VALID_STAGES.includes(result.stage) ? result.stage : 'cold_reply';
   const score = Math.min(10, Math.max(1, parseInt(result.score) || 5));
 
   // 6. Save to DB
   await db.query(`
     UPDATE contacts SET
-      conversation_stage      = $1,
-      conversation_score      = $2,
-      conversation_signals    = $3,
+      conversation_stage       = $1,
+      conversation_score       = $2,
+      conversation_signals     = $3,
       conversation_analyzed_at = NOW()
     WHERE id = $4
   `, [
@@ -169,7 +176,10 @@ async function analyzeConversation(contactId, accountId, chatId) {
     contactId,
   ]);
 
-  console.log(`[ConvAnalyzer] contact=${contactId} stage=${stage} score=${score} exchange_depth=${result.exchange_depth}`);
+  console.log(
+    `[ConvAnalyzer] contact=${contactId} stage=${stage} score=${score}` +
+    ` exchange_depth=${result.exchange_depth} model=${MODEL}`
+  );
   return { contactId, stage, score };
 }
 
