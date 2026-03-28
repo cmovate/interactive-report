@@ -46,6 +46,81 @@ router.get('/company-follow-status', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/campaigns/:id/ab-analytics
+// Returns overall campaign stats + per-step A/B/C variant performance
+router.get('/:id/ab-analytics', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+
+    // Overall stats
+    const { rows: overallRows } = await db.query(`
+      SELECT
+        COUNT(*)                                           AS total_contacts,
+        COUNT(*) FILTER (WHERE already_connected = true)  AS already_connected,
+        COUNT(*) FILTER (WHERE invite_sent = true)        AS invites_sent,
+        COUNT(*) FILTER (WHERE invite_approved = true)    AS invites_approved,
+        COUNT(*) FILTER (WHERE msg_sent = true)           AS messages_sent,
+        COUNT(*) FILTER (WHERE msg_replied = true)        AS messages_replied,
+        COUNT(*) FILTER (WHERE positive_reply = true)     AS positive_replies,
+        COALESCE(SUM(msgs_sent_count), 0)                 AS total_msgs_sent
+      FROM contacts WHERE campaign_id = $1
+    `, [campaignId]);
+
+    const { rows: campRows } = await db.query(
+      'SELECT name, settings FROM campaigns WHERE id = $1', [campaignId]
+    );
+    const rawSettings = campRows[0]?.settings || {};
+    const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
+    const messages = settings.messages || {};
+
+    // Per-step A/B/C breakdown — columns 1-5 are hardcoded (safe, not user input)
+    const steps = [];
+    for (let i = 1; i <= 5; i++) {
+      const { rows } = await db.query(`
+        SELECT
+          COALESCE(msg_${i}_variant, 'A') AS variant,
+          COUNT(*)                         AS sent,
+          COUNT(*) FILTER (WHERE msg_replied = true) AS replied
+        FROM contacts
+        WHERE campaign_id = $1 AND msg_${i}_text IS NOT NULL
+        GROUP BY COALESCE(msg_${i}_variant, 'A')
+        ORDER BY COALESCE(msg_${i}_variant, 'A')
+      `, [campaignId]);
+
+      if (rows.length > 0) {
+        // Try to find step config for delay info
+        const allSeqs = [
+          ...(messages.new || []),
+          ...(messages.existing_no_history || []),
+          ...(messages.existing_with_history || []),
+        ];
+        const stepCfg = allSeqs[i - 1];
+
+        steps.push({
+          step: i,
+          delay: stepCfg?.delay,
+          unit: stepCfg?.unit,
+          variants: rows.map(r => ({
+            label: r.variant,
+            sent: parseInt(r.sent),
+            replied: parseInt(r.replied),
+            rate: parseInt(r.sent) > 0
+              ? Math.round(parseInt(r.replied) / parseInt(r.sent) * 100)
+              : 0,
+          })),
+        });
+      }
+    }
+
+    res.json({
+      overall: overallRows[0],
+      campaign_name: campRows[0]?.name || '',
+      steps,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/campaigns
 router.post('/', async (req, res) => {
   try {
@@ -124,7 +199,6 @@ router.post('/:id/send-likes', async (req, res) => {
 });
 
 // POST /api/campaigns/:id/run-withdraw
-// Manually trigger the withdraw sender for a specific campaign (for testing / manual use).
 router.post('/:id/run-withdraw', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);

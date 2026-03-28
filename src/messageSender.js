@@ -4,21 +4,27 @@
  * Sends LinkedIn messages based on campaign sequences.
  * Runs every 5 minutes. Respects campaign working hours.
  *
- * After each successful send:
- *   - msgs_sent_count is incremented
- *   - msg_1_text through msg_5_text are populated with the actual sent text
+ * A/B/C VARIANTS
+ * ──────────────
+ * Each step in a sequence can define multiple variants:
+ *   { delay: 3, unit: 'days', variants: [
+ *     { label: 'A', text: 'Hi {{first_name}}...' },
+ *     { label: 'B', text: 'Hello {{first_name}}...' },
+ *     { label: 'C', text: 'Hey {{first_name}}...' },
+ *   ]}
+ * The system randomly picks one variant per contact at send time.
+ * The chosen variant label is saved to msg_N_variant for analytics.
+ * Backward compatible: if no variants array, falls back to msg.text.
  *
  * TIMING STRATEGY
  * ───────────────
  * Each contact gets a scheduled_send_at timestamp computed ONCE when it first
- * becomes eligible for a step. That timestamp is stored in the DB.
- * Every 5-minute run simply queries: WHERE msg_scheduled_send_at <= NOW()
+ * becomes eligible for a step. Every 5-minute run queries: WHERE msg_scheduled_send_at <= NOW()
  *
- * JITTER FORMULA
- * ──────────────
- * Actual delay = base_delay + random offset in range [-maxJitterMs, +maxJitterMs]
- * where maxJitterMs defaults to 3 hours.
- * Random extra seconds (0-3599) are added so sends never land on the hour.
+ * JITTER
+ * ──────
+ * Actual delay = base_delay ± random offset up to MAX_JITTER_MS.
+ * Random extra seconds (0–3599) ensure sends never land exactly on the hour.
  */
 
 const db = require('./db');
@@ -28,14 +34,14 @@ const INTERVAL_MS    = 5 * 60 * 1000;   // poll every 5 minutes
 const MAX_JITTER_MS  = 3 * 3600 * 1000; // ±3 hours max jitter
 let timer = null;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function toMs(delay, unit) {
   const n = parseFloat(delay) || 1;
   switch (String(unit).toLowerCase()) {
     case 'hours': return n * 3600 * 1000;
     case 'weeks': return n * 7 * 24 * 3600 * 1000;
-    default:      return n * 24 * 3600 * 1000; // days
+    default:      return n * 24 * 3600 * 1000;
   }
 }
 
@@ -95,7 +101,7 @@ async function processCampaign(camp, messages) {
     const seqMsgs = messages[seq.type];
     if (!Array.isArray(seqMsgs) || seqMsgs.length === 0) continue;
 
-    // PHASE 1: schedule contacts that don't yet have a send time
+    // PHASE 1: schedule contacts that don’t yet have a send time
     const { rows: unscheduled } = await db.query(
       `SELECT * FROM contacts
        WHERE campaign_id = $1
@@ -141,7 +147,16 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
   const msg       = seqMsgs[stepIndex];
   if (!msg) return;
 
-  const text = substituteTokens(msg.text, contact);
+  // Support A/B/C variants — backward compatible with plain text
+  const variants = Array.isArray(msg.variants) && msg.variants.length > 0
+    ? msg.variants
+    : (msg.text ? [{ label: 'A', text: msg.text }] : []);
+  if (!variants.length) return;
+
+  // Pick a random variant
+  const picked = variants[Math.floor(Math.random() * variants.length)];
+  const variantLabel = (picked.label || 'A').toUpperCase();
+  const text = substituteTokens(picked.text || '', contact);
   if (!text.trim()) return;
 
   try {
@@ -160,11 +175,11 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
       return;
     }
 
-    // Save message text to the appropriate slot (msg_1_text ... msg_5_text)
-    // stepIndex is 0-based: step 0 → msg_1_text, step 4 → msg_5_text
-    const slotNum = stepIndex + 1; // 1-5
-    const msgTextCol = slotNum <= 5 ? `, msg_${slotNum}_text = $2` : '';
-    const updateParams = slotNum <= 5 ? [contact.id, text] : [contact.id];
+    // Save text + variant label to slot N (steps 1–5 only)
+    const slotNum    = stepIndex + 1;
+    const textCol    = slotNum <= 5 ? `, msg_${slotNum}_text = $2`    : '';
+    const variantCol = slotNum <= 5 ? `, msg_${slotNum}_variant = $3` : '';
+    const updateParams = slotNum <= 5 ? [contact.id, text, variantLabel] : [contact.id];
 
     await db.query(
       `UPDATE contacts SET
@@ -173,7 +188,7 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
          msg_step              = msg_step + 1,
          msg_scheduled_send_at = NULL,
          msgs_sent_count       = COALESCE(msgs_sent_count, 0) + 1
-         ${msgTextCol}
+         ${textCol}${variantCol}
        WHERE id = $1`,
       updateParams
     );
@@ -181,7 +196,7 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
     console.log(
       `[MsgSender] Sent step ${stepIndex + 1}/${seqMsgs.length}` +
       ` → contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
-      ` · sequence: ${seqType}`
+      ` · variant: ${variantLabel} · sequence: ${seqType}`
     );
   } catch (err) {
     console.error(`[MsgSender] Failed contact ${contact.id}: ${err.message}`);
@@ -191,7 +206,7 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
 // ── Scheduler ─────────────────────────────────────────────────────────────────
 
 function start() {
-  console.log(`[MsgSender] Starting — poll every ${INTERVAL_MS / 60000} min | jitter ±${MAX_JITTER_MS / 3600000}h`);
+  console.log(`[MsgSender] Starting — poll every ${INTERVAL_MS / 60000} min | jitter ±${MAX_JITTER_MS / 3600000}h | A/B/C enabled`);
   runOnce();
   timer = setInterval(runOnce, INTERVAL_MS);
 }
