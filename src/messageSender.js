@@ -5,36 +5,24 @@
  * Runs every 5 minutes. Respects campaign working hours.
  *
  * A/B/C VARIANTS
- * ──────────────
- * Each step in a sequence can define multiple variants:
+ * ——————————————
+ * Each step can define multiple variants:
  *   { delay: 3, unit: 'days', variants: [
  *     { label: 'A', text: 'Hi {{first_name}}...' },
  *     { label: 'B', text: 'Hello {{first_name}}...' },
- *     { label: 'C', text: 'Hey {{first_name}}...' },
  *   ]}
- * The system randomly picks one variant per contact at send time.
- * The chosen variant label is saved to msg_N_variant for analytics.
+ * A random variant is chosen per contact at send time.
+ * Variant label saved to msg_N_variant. Supports up to 20 steps.
  * Backward compatible: if no variants array, falls back to msg.text.
- *
- * TIMING STRATEGY
- * ───────────────
- * Each contact gets a scheduled_send_at timestamp computed ONCE when it first
- * becomes eligible for a step. Every 5-minute run queries: WHERE msg_scheduled_send_at <= NOW()
- *
- * JITTER
- * ──────
- * Actual delay = base_delay ± random offset up to MAX_JITTER_MS.
- * Random extra seconds (0–3599) ensure sends never land exactly on the hour.
  */
 
 const db = require('./db');
 const { sendMessage, startDirectMessage } = require('./unipile');
 
-const INTERVAL_MS    = 5 * 60 * 1000;   // poll every 5 minutes
-const MAX_JITTER_MS  = 3 * 3600 * 1000; // ±3 hours max jitter
+const INTERVAL_MS    = 5 * 60 * 1000;
+const MAX_JITTER_MS  = 3 * 3600 * 1000;
+const MAX_SLOTS      = 20; // supports up to 20 messages per sequence
 let timer = null;
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 
 function toMs(delay, unit) {
   const n = parseFloat(delay) || 1;
@@ -72,8 +60,6 @@ function isWithinWorkingHours(hours) {
   return nowMins >= fH * 60 + fM && nowMins < tH * 60 + tM;
 }
 
-// ── Core logic ────────────────────────────────────────────────────────────────
-
 async function runOnce() {
   try {
     const { rows: campaigns } = await db.query(
@@ -101,14 +87,10 @@ async function processCampaign(camp, messages) {
     const seqMsgs = messages[seq.type];
     if (!Array.isArray(seqMsgs) || seqMsgs.length === 0) continue;
 
-    // PHASE 1: schedule contacts that don’t yet have a send time
     const { rows: unscheduled } = await db.query(
       `SELECT * FROM contacts
-       WHERE campaign_id = $1
-         AND msg_sequence = $2
-         AND msg_step < $3
-         AND msg_scheduled_send_at IS NULL
-         AND ${seq.condition}`,
+       WHERE campaign_id = $1 AND msg_sequence = $2 AND msg_step < $3
+         AND msg_scheduled_send_at IS NULL AND ${seq.condition}`,
       [camp.id, seq.type, seqMsgs.length]
     );
     for (const contact of unscheduled) {
@@ -118,21 +100,14 @@ async function processCampaign(camp, messages) {
       const triggerTime = contact[seq.triggerCol];
       if (!triggerTime) continue;
       const scheduledAt = computeScheduledAt(triggerTime, msg.delay, msg.unit);
-      await db.query(
-        `UPDATE contacts SET msg_scheduled_send_at = $1 WHERE id = $2`,
-        [scheduledAt, contact.id]
-      );
+      await db.query(`UPDATE contacts SET msg_scheduled_send_at = $1 WHERE id = $2`, [scheduledAt, contact.id]);
       console.log(`[MsgSender] Scheduled contact ${contact.id} step ${stepIndex + 1} → ${scheduledAt.toISOString()}`);
     }
 
-    // PHASE 2: send contacts whose scheduled time has arrived
     const { rows: ready } = await db.query(
       `SELECT * FROM contacts
-       WHERE campaign_id = $1
-         AND msg_sequence = $2
-         AND msg_step < $3
-         AND msg_scheduled_send_at IS NOT NULL
-         AND msg_scheduled_send_at <= NOW()
+       WHERE campaign_id = $1 AND msg_sequence = $2 AND msg_step < $3
+         AND msg_scheduled_send_at IS NOT NULL AND msg_scheduled_send_at <= NOW()
          AND ${seq.condition}`,
       [camp.id, seq.type, seqMsgs.length]
     );
@@ -147,47 +122,41 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
   const msg       = seqMsgs[stepIndex];
   if (!msg) return;
 
-  // Support A/B/C variants — backward compatible with plain text
   const variants = Array.isArray(msg.variants) && msg.variants.length > 0
     ? msg.variants
     : (msg.text ? [{ label: 'A', text: msg.text }] : []);
   if (!variants.length) return;
 
-  // Pick a random variant
-  const picked = variants[Math.floor(Math.random() * variants.length)];
+  const picked       = variants[Math.floor(Math.random() * variants.length)];
   const variantLabel = (picked.label || 'A').toUpperCase();
-  const text = substituteTokens(picked.text || '', contact);
+  const text         = substituteTokens(picked.text || '', contact);
   if (!text.trim()) return;
 
   try {
     let chatId = contact.chat_id;
-
     if (chatId) {
       await sendMessage(camp.account_id, chatId, text);
     } else if (contact.provider_id) {
       const result = await startDirectMessage(camp.account_id, contact.provider_id, text);
       chatId = result?.id || result?.chat_id || null;
-      if (chatId) {
-        await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2', [chatId, contact.id]);
-      }
+      if (chatId) await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2', [chatId, contact.id]);
     } else {
       console.warn(`[MsgSender] contact ${contact.id} — no chat_id or provider_id, skipping`);
       return;
     }
 
-    // Save text + variant label to slot N (steps 1–5 only)
+    // Save text + variant to slot N (steps 1–MAX_SLOTS)
     const slotNum    = stepIndex + 1;
-    const textCol    = slotNum <= 5 ? `, msg_${slotNum}_text = $2`    : '';
-    const variantCol = slotNum <= 5 ? `, msg_${slotNum}_variant = $3` : '';
-    const updateParams = slotNum <= 5 ? [contact.id, text, variantLabel] : [contact.id];
+    const textCol    = slotNum <= MAX_SLOTS ? `, msg_${slotNum}_text = $2`    : '';
+    const variantCol = slotNum <= MAX_SLOTS ? `, msg_${slotNum}_variant = $3` : '';
+    const updateParams = slotNum <= MAX_SLOTS ? [contact.id, text, variantLabel] : [contact.id];
 
     await db.query(
       `UPDATE contacts SET
-         msg_sent              = true,
-         msg_sent_at           = NOW(),
-         msg_step              = msg_step + 1,
+         msg_sent = true, msg_sent_at = NOW(),
+         msg_step = msg_step + 1,
          msg_scheduled_send_at = NULL,
-         msgs_sent_count       = COALESCE(msgs_sent_count, 0) + 1
+         msgs_sent_count = COALESCE(msgs_sent_count, 0) + 1
          ${textCol}${variantCol}
        WHERE id = $1`,
       updateParams
@@ -203,10 +172,8 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
   }
 }
 
-// ── Scheduler ─────────────────────────────────────────────────────────────────
-
 function start() {
-  console.log(`[MsgSender] Starting — poll every ${INTERVAL_MS / 60000} min | jitter ±${MAX_JITTER_MS / 3600000}h | A/B/C enabled`);
+  console.log(`[MsgSender] Starting — poll every ${INTERVAL_MS / 60000} min | jitter ±${MAX_JITTER_MS / 3600000}h | max slots: ${MAX_SLOTS} | A/B/C enabled`);
   runOnce();
   timer = setInterval(runOnce, INTERVAL_MS);
 }

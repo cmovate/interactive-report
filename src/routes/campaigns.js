@@ -8,6 +8,8 @@ const engagementScraper      = require('../engagementScraper');
 const likeSender             = require('../likeSender');
 const withdrawSender         = require('../withdrawSender');
 
+const MAX_MSG_SLOTS = 20; // must match messageSender.js
+
 // GET /api/campaigns?workspace_id=
 router.get('/', async (req, res) => {
   try {
@@ -47,13 +49,11 @@ router.get('/company-follow-status', async (req, res) => {
 });
 
 // GET /api/campaigns/:id/ab-analytics
-// Returns overall campaign stats + per-step A/B/C variant performance
 router.get('/:id/ab-analytics', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
     if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
 
-    // Overall stats
     const { rows: overallRows } = await db.query(`
       SELECT
         COUNT(*)                                           AS total_contacts,
@@ -74,9 +74,9 @@ router.get('/:id/ab-analytics', async (req, res) => {
     const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
     const messages = settings.messages || {};
 
-    // Per-step A/B/C breakdown — columns 1-5 are hardcoded (safe, not user input)
+    // Per-step A/B/C breakdown — columns 1-MAX_MSG_SLOTS are safe literals, not user input
     const steps = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
       const { rows } = await db.query(`
         SELECT
           COALESCE(msg_${i}_variant, 'A') AS variant,
@@ -89,14 +89,12 @@ router.get('/:id/ab-analytics', async (req, res) => {
       `, [campaignId]);
 
       if (rows.length > 0) {
-        // Try to find step config for delay info
         const allSeqs = [
           ...(messages.new || []),
           ...(messages.existing_no_history || []),
           ...(messages.existing_with_history || []),
         ];
         const stepCfg = allSeqs[i - 1];
-
         steps.push({
           step: i,
           delay: stepCfg?.delay,
