@@ -1,28 +1,42 @@
 /**
  * messageSender.js
  *
- * Sends LinkedIn messages to contacts based on their campaign sequence.
+ * Sends LinkedIn messages based on campaign sequences.
  * Runs every 5 minutes. Respects campaign working hours.
+ *
+ * TIMING STRATEGY
+ * ───────────────
+ * Each contact gets a scheduled_send_at timestamp computed ONCE when it first
+ * becomes eligible for a step. That timestamp is stored in the DB.
+ * Every 5-minute run simply queries: WHERE msg_scheduled_send_at <= NOW()
+ *
+ * This is the only correct way to use Math.random() in a polling system —
+ * computing it on every poll would reset the window on each run.
+ *
+ * JITTER FORMULA
+ * ──────────────
+ * Actual delay = base_delay + random offset in range [-maxJitterMs, +maxJitterMs]
+ * where maxJitterMs defaults to 3 hours (10800000 ms).
+ *
+ * The result is floored to a non-round minute (randomised seconds added)
+ * so send times are never on the hour or half-hour.
+ *
+ * Example — base delay 2 days, jitter ±3h:
+ *   contact A → 2d 1h 43m 17s
+ *   contact B → 1d 22h 7m 52s
+ *   contact C → 2d 2h 51m 4s
  *
  * Three sequences (from campaign.settings.messages):
  *   new                   → trigger: invite_approved_at
  *   existing_no_history   → trigger: msg_sequence_started_at
  *   existing_with_history → trigger: msg_sequence_started_at
- *
- * For each sequence, messages are sent in order:
- *   - Step 0: trigger_time + delay ± jitter
- *   - Step N: msg_sent_at  + delay ± jitter
- *
- * JITTER: Each contact gets a random offset of ±20% of the configured delay,
- * seeded from the contact's ID so it stays stable across runs.
- * This ensures messages never go out at predictable identical intervals.
  */
 
 const db = require('./db');
 const { sendMessage, startDirectMessage } = require('./unipile');
 
-const INTERVAL_MS  = 5 * 60 * 1000; // every 5 minutes
-const JITTER_RATIO = 0.20;           // ±20% of configured delay
+const INTERVAL_MS    = 5 * 60 * 1000;   // poll every 5 minutes
+const MAX_JITTER_MS  = 3 * 3600 * 1000; // ±3 hours max jitter
 let timer = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -37,28 +51,25 @@ function toMs(delay, unit) {
 }
 
 /**
- * Returns a deterministic but unique jitter multiplier for a given contact + step.
- * Range: (1 - JITTER_RATIO) to (1 + JITTER_RATIO)
- * Using contact ID + step as seed so the jitter stays consistent across restarts.
- * This means each contact always has its own fixed offset — not a new roll every run.
+ * Compute a truly random send timestamp.
+ *
+ * - Adds a random offset in [-MAX_JITTER_MS, +MAX_JITTER_MS] to the base delay.
+ * - Then adds a random 0–59 seconds so the time is never on a clean minute.
+ * - Called ONCE per contact per step; result is stored in msg_scheduled_send_at.
+ *
+ * @param {Date|string} triggerTime  - when the wait period starts
+ * @param {number}      delay        - configured delay value
+ * @param {string}      unit         - 'hours' | 'days' | 'weeks'
+ * @returns {Date}  the scheduled send time
  */
-function jitterMultiplier(contactId, stepIndex) {
-  // Simple deterministic hash from contactId + stepIndex
-  const seed = (parseInt(contactId, 10) * 31 + stepIndex * 17) % 1000;
-  const rand  = seed / 1000; // 0.0 → 0.999
-  return 1 - JITTER_RATIO + rand * (JITTER_RATIO * 2);
-  // Range: 0.80 → 1.20
-}
-
-/**
- * Returns the jittered delay in ms for a given contact/step.
- * Example: 1 day delay for contact #42, step 0
- *   → base = 86400000ms, jitter multiplier ~= 0.93 → actual = ~80352000ms (~22.3h)
- */
-function jitteredDelayMs(delay, unit, contactId, stepIndex) {
-  const base = toMs(delay, unit);
-  const mult = jitterMultiplier(contactId, stepIndex);
-  return Math.round(base * mult);
+function computeScheduledAt(triggerTime, delay, unit) {
+  const baseMs    = toMs(delay, unit);
+  // Random offset: uniform in [-MAX_JITTER_MS, +MAX_JITTER_MS]
+  const jitterMs  = (Math.random() * 2 - 1) * MAX_JITTER_MS;
+  // Random extra seconds (0–3599s) so time is never on the minute
+  const extraMs   = Math.floor(Math.random() * 3600) * 1000;
+  const totalMs   = baseMs + jitterMs + extraMs;
+  return new Date(new Date(triggerTime).getTime() + totalMs);
 }
 
 function substituteTokens(text, contact) {
@@ -71,7 +82,7 @@ function substituteTokens(text, contact) {
 /**
  * Returns true if NOW is within the campaign's working hours.
  * hours = { '1': { on: true, from: '09:00', to: '18:00' }, ... }
- * Keys: 1=Mon ... 7=Sun
+ * Keys: 1=Mon … 7=Sun
  */
 function isWithinWorkingHours(hours) {
   if (!hours || typeof hours !== 'object') return true;
@@ -82,7 +93,7 @@ function isWithinWorkingHours(hours) {
   if (!d?.on) return false;
   const [fH, fM] = d.from.split(':').map(Number);
   const [tH, tM] = d.to.split(':').map(Number);
-  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const nowMins  = now.getHours() * 60 + now.getMinutes();
   return nowMins >= fH * 60 + fM && nowMins < tH * 60 + tM;
 }
 
@@ -93,16 +104,11 @@ async function runOnce() {
     const { rows: campaigns } = await db.query(
       `SELECT id, account_id, settings FROM campaigns WHERE status = 'active'`
     );
-
     for (const camp of campaigns) {
       const settings = typeof camp.settings === 'string'
         ? JSON.parse(camp.settings) : (camp.settings || {});
-      const hours    = settings.hours;
-      const messages = settings.messages || {};
-
-      if (!isWithinWorkingHours(hours)) continue;
-
-      await processCampaign(camp, messages);
+      if (!isWithinWorkingHours(settings.hours)) continue;
+      await processCampaign(camp, settings.messages || {});
     }
   } catch (err) {
     console.error('[MsgSender] runOnce error:', err.message);
@@ -111,67 +117,69 @@ async function runOnce() {
 
 async function processCampaign(camp, messages) {
   const SEQ = [
-    { type: 'new',                   key: 'new' },
-    { type: 'existing_no_history',   key: 'existing_no_history' },
-    { type: 'existing_with_history', key: 'existing_with_history' },
+    { type: 'new',                   triggerCol: 'invite_approved_at',      condition: `invite_approved = true AND invite_approved_at IS NOT NULL` },
+    { type: 'existing_no_history',   triggerCol: 'msg_sequence_started_at', condition: `msg_sequence_started_at IS NOT NULL` },
+    { type: 'existing_with_history', triggerCol: 'msg_sequence_started_at', condition: `msg_sequence_started_at IS NOT NULL` },
   ];
 
-  for (const { type, key } of SEQ) {
-    const seqMsgs = messages[key];
+  for (const seq of SEQ) {
+    const seqMsgs = messages[seq.type];
     if (!Array.isArray(seqMsgs) || seqMsgs.length === 0) continue;
 
-    let contacts;
-    if (type === 'new') {
-      const { rows } = await db.query(
-        `SELECT * FROM contacts
-         WHERE campaign_id = $1
-           AND msg_sequence = 'new'
-           AND invite_approved = true
-           AND invite_approved_at IS NOT NULL
-           AND msg_step < $2`,
-        [camp.id, seqMsgs.length]
+    // ── PHASE 1: Schedule any contacts that don't yet have a send time ──
+    // These are contacts that just became eligible but haven't been scheduled.
+    const { rows: unscheduled } = await db.query(
+      `SELECT * FROM contacts
+       WHERE campaign_id = $1
+         AND msg_sequence = $2
+         AND msg_step < $3
+         AND msg_scheduled_send_at IS NULL
+         AND ${seq.condition}`,
+      [camp.id, seq.type, seqMsgs.length]
+    );
+
+    for (const contact of unscheduled) {
+      const stepIndex  = parseInt(contact.msg_step) || 0;
+      const msg        = seqMsgs[stepIndex];
+      if (!msg) continue;
+
+      const triggerTime = contact[seq.triggerCol];
+      if (!triggerTime) continue;
+
+      const scheduledAt = computeScheduledAt(triggerTime, msg.delay, msg.unit);
+      await db.query(
+        `UPDATE contacts SET msg_scheduled_send_at = $1 WHERE id = $2`,
+        [scheduledAt, contact.id]
       );
-      contacts = rows;
-    } else {
-      const { rows } = await db.query(
-        `SELECT * FROM contacts
-         WHERE campaign_id = $1
-           AND msg_sequence = $2
-           AND msg_sequence_started_at IS NOT NULL
-           AND msg_step < $3`,
-        [camp.id, type, seqMsgs.length]
+      console.log(
+        `[MsgSender] Scheduled contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
+        ` step ${stepIndex + 1} → ${scheduledAt.toISOString()}` +
+        ` (base ${msg.delay} ${msg.unit} + jitter ±${MAX_JITTER_MS / 3600000}h)`
       );
-      contacts = rows;
     }
 
-    for (const contact of contacts) {
-      await tryProcessContact(contact, camp, seqMsgs, type);
+    // ── PHASE 2: Send any contacts whose scheduled time has arrived ──
+    const { rows: ready } = await db.query(
+      `SELECT * FROM contacts
+       WHERE campaign_id = $1
+         AND msg_sequence = $2
+         AND msg_step < $3
+         AND msg_scheduled_send_at IS NOT NULL
+         AND msg_scheduled_send_at <= NOW()
+         AND ${seq.condition}`,
+      [camp.id, seq.type, seqMsgs.length]
+    );
+
+    for (const contact of ready) {
+      await trySendMessage(contact, camp, seqMsgs, seq.type);
     }
   }
 }
 
-async function tryProcessContact(contact, camp, seqMsgs, seqType) {
+async function trySendMessage(contact, camp, seqMsgs, seqType) {
   const stepIndex = parseInt(contact.msg_step) || 0;
-  const msg = seqMsgs[stepIndex];
+  const msg       = seqMsgs[stepIndex];
   if (!msg) return;
-
-  // Apply jitter: each contact+step gets a stable ±20% offset on the delay
-  const delayMs = jitteredDelayMs(msg.delay, msg.unit, contact.id, stepIndex);
-
-  // Determine reference time
-  let triggerTime;
-  if (stepIndex === 0) {
-    triggerTime = seqType === 'new'
-      ? contact.invite_approved_at
-      : contact.msg_sequence_started_at;
-  } else {
-    triggerTime = contact.msg_sent_at;
-  }
-
-  if (!triggerTime) return;
-
-  const sendAtMs = new Date(triggerTime).getTime() + delayMs;
-  if (Date.now() < sendAtMs) return; // not time yet
 
   const text = substituteTokens(msg.text, contact);
   if (!text.trim()) return;
@@ -188,26 +196,26 @@ async function tryProcessContact(contact, camp, seqMsgs, seqType) {
         await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2', [chatId, contact.id]);
       }
     } else {
-      console.warn(`[MsgSender] contact ${contact.id} has no chat_id or provider_id — skipping`);
+      console.warn(`[MsgSender] contact ${contact.id} — no chat_id or provider_id, skipping`);
       return;
     }
 
+    // Advance step + clear scheduled_send_at so next step will be freshly scheduled
     await db.query(
       `UPDATE contacts SET
-         msg_sent    = true,
-         msg_sent_at = NOW(),
-         msg_step    = msg_step + 1
+         msg_sent              = true,
+         msg_sent_at           = NOW(),
+         msg_step              = msg_step + 1,
+         msg_scheduled_send_at = NULL
        WHERE id = $1`,
       [contact.id]
     );
 
-    const baseDelay  = toMs(msg.delay, msg.unit);
-    const mult       = jitterMultiplier(contact.id, stepIndex);
     console.log(
       `[MsgSender] Sent step ${stepIndex + 1}/${seqMsgs.length}` +
       ` → contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
       ` · sequence: ${seqType}` +
-      ` · delay: ${Math.round(delayMs / 3600000 * 10) / 10}h (base ${Math.round(baseDelay / 3600000 * 10) / 10}h × ${Math.round(mult * 100)}%)`
+      ` · was scheduled: ${contact.msg_scheduled_send_at}`
     );
   } catch (err) {
     console.error(`[MsgSender] Failed contact ${contact.id}: ${err.message}`);
@@ -217,7 +225,7 @@ async function tryProcessContact(contact, camp, seqMsgs, seqType) {
 // ── Scheduler ─────────────────────────────────────────────────────────────────
 
 function start() {
-  console.log('[MsgSender] Starting — interval:', INTERVAL_MS / 60000, 'min | jitter: ±' + (JITTER_RATIO * 100) + '%');
+  console.log(`[MsgSender] Starting — poll every ${INTERVAL_MS / 60000} min | jitter ±${MAX_JITTER_MS / 3600000}h`);
   runOnce();
   timer = setInterval(runOnce, INTERVAL_MS);
 }
