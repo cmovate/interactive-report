@@ -7,164 +7,253 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; font-size: 14px; }
-.page { padding: 28px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 16px; }
+.page { padding: 24px 28px; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
 .page-title { font-size: 22px; font-weight: 600; }
-.page-sub { font-size: 14px; color: #666; margin-top: 4px; line-height: 1.4; }
+.page-sub { font-size: 13px; color: #666; margin-top: 4px; line-height: 1.4; }
+.header-btns { display: flex; gap: 8px; }
+
+/* Filter bar */
+.filter-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #efefef; }
+.filter-sep { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #bbb; padding: 0 4px; }
+.filter-pill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #e0e0e0; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 500; color: #555; background: white; cursor: pointer; transition: all 0.1s; font-family: inherit; white-space: nowrap; }
+.filter-pill:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
+.filter-pill.active { border-color: #1D9E75; background: #1D9E75; color: white; }
+.filter-pill.active:hover { background: #178f68; }
+.pill-count { opacity: 0.7; font-size: 10px; }
+.pill-del { margin-left: 2px; font-size: 14px; line-height: 1; opacity: 0.6; cursor: pointer; }
+.filter-pill.active .pill-del:hover { opacity: 1; }
+.pill-del:hover { opacity: 1 !important; }
+
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .search-input { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; width: 260px; font-family: inherit; background: white; }
 .search-input:focus { outline: none; border-color: #1D9E75; }
-.ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 14px; font-size: 13px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit; }
-.ghost-btn:hover { background: #f5f5f5; }
-.ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.primary-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 500; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; font-family: inherit; }
+.primary-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 500; color: white; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; white-space: nowrap; }
 .primary-btn:hover { background: #178f68; }
 .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 14px; font-size: 13px; color: #555; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: inherit; white-space: nowrap; }
+.ghost-btn:hover { background: #f5f5f5; }
+.ghost-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .spin { display: inline-block; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.stats-row { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.stat-chip { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #555; white-space: nowrap; }
-.stat-chip strong { color: #1a1a1a; font-size: 14px; margin-right: 4px; }
 
-/* Add companies panel */
-.add-panel { background: white; border: 1.5px solid #1D9E75; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-.add-panel-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+/* Stats */
+.stats-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.stat-chip { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 7px 12px; font-size: 12px; color: #555; white-space: nowrap; }
+.stat-chip strong { color: #1a1a1a; font-size: 14px; margin-right: 3px; }
+
+/* Add panel */
+.add-panel { background: white; border: 1.5px solid #1D9E75; border-radius: 12px; padding: 20px; margin-bottom: 14px; }
+.add-panel-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
 .add-panel-title { font-size: 15px; font-weight: 600; }
 .add-panel-sub { font-size: 12px; color: #888; margin-top: 3px; }
-.add-close-btn { background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; line-height: 1; padding: 0 2px; }
+.add-close-btn { background: none; border: none; font-size: 20px; color: #aaa; cursor: pointer; }
 .add-close-btn:hover { color: #555; }
-.add-textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 100px; background: #fafafa; line-height: 1.6; }
+
+.add-section { border: 1px solid #eee; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+.add-section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; margin-bottom: 10px; }
+
+/* View selector */
+.view-radio-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
+.text-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; }
+.text-input:focus { outline: none; border-color: #1D9E75; }
+.select-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; background: white; }
+.select-input:focus { outline: none; border-color: #1D9E75; }
+
+/* Companies textarea */
+.add-textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 90px; background: #fafafa; line-height: 1.6; }
 .add-textarea:focus { outline: none; border-color: #1D9E75; background: white; }
-.preview-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; margin-top: 12px; margin-bottom: 8px; }
-.preview-list { display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto; }
-.preview-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: #f9fafb; border: 1px solid #f0f0f0; border-radius: 6px; font-size: 13px; }
+.preview-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; margin: 10px 0 6px; }
+.preview-list { display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; }
+.preview-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f9fafb; border: 1px solid #f0f0f0; border-radius: 6px; font-size: 12px; }
 .preview-name { flex: 1; font-weight: 500; }
-.preview-remove { background: none; border: none; font-size: 16px; color: #ccc; cursor: pointer; padding: 0; line-height: 1; }
+.preview-remove { background: none; border: none; font-size: 15px; color: #ccc; cursor: pointer; }
 .preview-remove:hover { color: #DC2626; }
+
+/* Campaign attach section */
+.attach-head { display: flex; align-items: center; justify-content: space-between; }
+.attach-head-text .sub { font-size: 11px; color: #888; margin-top: 2px; }
+.toggle-btn { width: 38px; height: 22px; border-radius: 11px; background: #ddd; border: none; cursor: pointer; position: relative; transition: background 0.15s; flex-shrink: 0; }
+.toggle-btn.on { background: #1D9E75; }
+.toggle-btn::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: left 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.toggle-btn.on::after { left: 19px; }
+.attach-fields { margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: 10px; }
+.field-group label { display: block; font-size: 11px; font-weight: 600; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+.field-row { display: flex; gap: 10px; align-items: flex-start; }
+.num-input { width: 70px; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; text-align: center; }
+.attach-note { font-size: 11px; color: #888; background: #fffbea; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; line-height: 1.4; }
+
 .add-panel-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; gap: 10px; }
 .add-feedback { font-size: 13px; }
-.add-feedback.ok { color: #0F6E56; }
+.add-feedback.ok  { color: #0F6E56; }
 .add-feedback.err { color: #DC2626; }
+.cancel-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 16px; font-size: 13px; color: #555; cursor: pointer; font-family: inherit; }
+.cancel-btn:hover { background: #f5f5f5; }
 
 /* Main table */
 .table-outer { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
-thead th { background: #fafafa; border-bottom: 1px solid #e5e5e5; padding: 11px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; text-align: left; white-space: nowrap; }
-tbody td { padding: 13px 14px; border-bottom: 1px solid #f5f5f5; font-size: 13px; vertical-align: middle; }
+thead th { background: #fafafa; border-bottom: 1px solid #e5e5e5; padding: 10px 14px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; text-align: left; white-space: nowrap; }
+tbody td { padding: 12px 14px; border-bottom: 1px solid #f5f5f5; font-size: 13px; vertical-align: middle; }
 tbody tr:last-child > td { border-bottom: none; }
 .company-row { cursor: pointer; transition: background 0.1s; }
 .company-row:hover td { background: #fafafa; }
 .company-row.expanded td { background: #F0FBF7; border-bottom: none; }
-.expand-icon { display: inline-block; width: 18px; line-height: 18px; text-align: center; font-size: 10px; transition: transform 0.15s; color: #aaa; }
+.expand-icon { display: inline-block; width: 16px; font-size: 10px; transition: transform 0.15s; color: #bbb; }
 .company-row.expanded .expand-icon { transform: rotate(90deg); color: #1D9E75; }
 .company-name-cell { display: flex; align-items: center; gap: 6px; font-weight: 500; }
-.source-badge { font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.04em; }
+.source-badge { font-size: 9px; font-weight: 700; padding: 2px 5px; border-radius: 3px; text-transform: uppercase; }
 .badge-custom { background: #F3E8FF; color: #7C3AED; }
 .badge-both   { background: #FEF3C7; color: #92400E; }
-.remove-co-btn { background: none; border: none; font-size: 15px; color: #ddd; cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0; }
+.remove-co-btn { background: none; border: none; font-size: 14px; color: #ddd; cursor: pointer; }
 .remove-co-btn:hover { color: #DC2626; }
-.count-badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 600; min-width: 28px; text-align: center; }
+.count-badge { display: inline-block; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600; text-align: center; }
 .count-high   { background: #DCFCE7; color: #166534; }
 .count-medium { background: #DBEAFE; color: #1D4ED8; }
 .count-low    { background: #f5f5f5; color: #888; }
 .count-zero   { background: #f5f5f5; color: #ccc; }
 .cell-link { color: #1D9E75; text-decoration: none; font-size: 12px; }
 .cell-link:hover { text-decoration: underline; }
-.cell-muted { color: #bbb; font-size: 12px; }
+.cell-muted { color: #ccc; font-size: 12px; }
+.view-badge { font-size: 10px; background: #EDE9FE; color: #5B21B6; border-radius: 4px; padding: 2px 6px; }
 
 /* Contacts sub-rows */
 .contacts-row td { padding: 0; background: #f8fffb; border-bottom: 1px solid #e5e5e5; }
 .contacts-inner { padding: 0 14px 14px 36px; }
-.contacts-grid-head { display: grid; gap: 12px; padding: 11px 0 8px; border-bottom: 1px solid #efefef; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; }
-.contacts-grid-row  { display: grid; gap: 12px; padding: 9px 0; border-bottom: 1px solid #f3f3f3; align-items: center; }
+.contacts-grid-head { display: grid; gap: 12px; padding: 10px 0 7px; border-bottom: 1px solid #efefef; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; }
+.contacts-grid-row  { display: grid; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f3f3f3; align-items: center; }
 .contacts-grid-row:last-child { border-bottom: none; }
-.contact-name-cell  { font-weight: 500; }
-.contact-title-cell { font-size: 12px; color: #666; }
-.campaign-pill { display: inline-block; background: #f0f0f0; color: #666; border-radius: 4px; padding: 2px 6px; font-size: 10px; white-space: nowrap; }
-.campaign-pill.active { background: #E1F5EE; color: #0F6E56; }
-.msg-btn { background: none; border: 1px solid #1D9E75; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #1D9E75; cursor: pointer; white-space: nowrap; font-family: inherit; transition: background 0.1s; }
+.no-contacts { padding: 16px 0; text-align: center; color: #aaa; font-size: 13px; }
+.msg-btn { background: none; border: 1px solid #1D9E75; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #1D9E75; cursor: pointer; font-family: inherit; transition: background 0.1s; }
 .msg-btn:hover { background: #F0FBF7; }
 .msg-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #ddd; color: #aaa; }
-.no-contacts { padding: 18px 0; text-align: center; color: #aaa; font-size: 13px; }
-.empty-state { background: white; border: 1px dashed #e0e0e0; border-radius: 12px; padding: 64px 24px; text-align: center; }
+.campaign-pill { display: inline-block; background: #f0f0f0; color: #666; border-radius: 4px; padding: 2px 6px; font-size: 10px; white-space: nowrap; }
+.campaign-pill.active { background: #E1F5EE; color: #0F6E56; }
+.empty-state { background: white; border: 1px dashed #e0e0e0; border-radius: 12px; padding: 60px 24px; text-align: center; }
 
 /* Message dialog */
 .msg-backdrop { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .msg-modal { background: white; border-radius: 14px; width: min(560px, 100%); padding: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.22); }
-.msg-modal-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+.msg-modal-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
 .msg-modal-title { font-size: 16px; font-weight: 600; }
 .msg-modal-sub { font-size: 12px; color: #888; margin-top: 2px; }
 .msg-close-btn { background: none; border: none; font-size: 22px; color: #aaa; cursor: pointer; }
 .tokens-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .token-btn { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 999px; padding: 4px 10px; font-size: 12px; color: #555; cursor: pointer; font-family: inherit; }
 .token-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
-.msg-textarea { width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 140px; background: #fafafa; line-height: 1.5; }
+.msg-textarea { width: 100%; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 130px; background: #fafafa; line-height: 1.5; }
 .msg-textarea:focus { outline: none; border-color: #1D9E75; background: white; }
-.char-count { font-size: 11px; color: #aaa; text-align: right; margin-top: 4px; margin-bottom: 16px; }
+.char-count { font-size: 11px; color: #aaa; text-align: right; margin-top: 4px; margin-bottom: 14px; }
 .msg-footer { display: flex; justify-content: flex-end; gap: 10px; }
-.cancel-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 16px; font-size: 13px; color: #555; cursor: pointer; font-family: inherit; }
-.cancel-btn:hover { background: #f5f5f5; }
 .send-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 9px 20px; font-size: 13px; font-weight: 500; color: white; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: inherit; }
 .send-btn:hover { background: #178f68; }
 .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.msg-status-ok  { background: #E1F5EE; border: 1px solid #A7F3D0; border-radius: 8px; padding: 10px 14px; color: #0F6E56; font-size: 13px; margin-bottom: 14px; }
-.msg-status-err { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; color: #DC2626; font-size: 13px; margin-bottom: 14px; }
+.msg-status-ok  { background: #E1F5EE; border: 1px solid #A7F3D0; border-radius: 8px; padding: 10px 14px; color: #0F6E56; font-size: 13px; margin-bottom: 12px; }
+.msg-status-err { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; color: #DC2626; font-size: 13px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
 <div class="page">
-  <!-- Header -->
+
   <div class="page-header">
     <div>
       <div class="page-title">&#128161; Opportunities</div>
-      <div class="page-sub">Warm leads — LinkedIn connections who work at your target companies.<br>
-        Add companies manually or they're pulled automatically from your campaigns.</div>
+      <div class="page-sub">Warm leads — LinkedIn connections at your target companies.<br>
+        Companies come from campaigns automatically, or add your own lists.</div>
     </div>
-    <div style="display:flex;gap:8px;">
-      <button class="primary-btn" onclick="toggleAddPanel()">
-        &#43; Add companies
-      </button>
+    <div class="header-btns">
+      <button class="primary-btn" onclick="toggleAddPanel()">&#43; Add companies</button>
       <button class="ghost-btn" id="refresh-btn" onclick="load()">
         <span id="refresh-icon">&#x21BB;</span> Refresh
       </button>
     </div>
   </div>
 
+  <!-- Filter bar (rendered dynamically) -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-pill active" onclick="setFilter('all')">All companies</button>
+  </div>
+
   <!-- Add companies panel -->
-  <div id="add-panel" class="add-panel" style="display:none;">
-    <div class="add-panel-head">
-      <div>
-        <div class="add-panel-title">Add companies to search</div>
-        <div class="add-panel-sub">Paste company names or LinkedIn company URLs — one per line. Searches your connected contacts.</div>
+  <div id="add-panel" style="display:none;">
+    <div class="add-panel">
+      <div class="add-panel-head">
+        <div>
+          <div class="add-panel-title">Add companies</div>
+          <div class="add-panel-sub">Paste company names or LinkedIn URLs. Searches connected contacts in your workspace.</div>
+        </div>
+        <button class="add-close-btn" onclick="toggleAddPanel()">&times;</button>
       </div>
-      <button class="add-close-btn" onclick="toggleAddPanel()">&times;</button>
-    </div>
-    <textarea id="add-textarea" class="add-textarea"
-              placeholder="Microsoft&#10;Apple&#10;https://www.linkedin.com/company/google&#10;Meta&#10;Amazon"
-              oninput="onAddInput()"></textarea>
-    <div id="add-preview"></div>
-    <div class="add-panel-footer">
-      <div id="add-feedback" class="add-feedback"></div>
-      <div style="display:flex;gap:8px;">
-        <button class="cancel-btn" onclick="toggleAddPanel()">Cancel</button>
-        <button class="primary-btn" id="add-save-btn" onclick="saveCompanies()">
-          &#128161; Add to Opportunities
-        </button>
+
+      <!-- Section 1: View -->
+      <div class="add-section">
+        <div class="add-section-title">1. Save to view (list)</div>
+        <label class="view-radio-row">
+          <input type="radio" name="view-mode" value="new" checked onchange="setViewMode('new')">
+          New view: &nbsp;<input type="text" id="view-name-input" class="text-input" style="flex:1;" placeholder="e.g. Israeli HealthTech Q3">
+        </label>
+        <label class="view-radio-row" id="existing-view-row">
+          <input type="radio" name="view-mode" value="existing" onchange="setViewMode('existing')">
+          Existing view: &nbsp;
+          <select id="view-select" class="select-input" style="flex:1;"><option value="">Select view...</option></select>
+        </label>
+      </div>
+
+      <!-- Section 2: Companies -->
+      <div class="add-section">
+        <div class="add-section-title">2. Companies</div>
+        <textarea id="add-textarea" class="add-textarea"
+                  placeholder="Microsoft&#10;Apple&#10;https://www.linkedin.com/company/google&#10;Meta"
+                  oninput="onAddInput()"></textarea>
+        <div id="add-preview"></div>
+      </div>
+
+      <!-- Section 3: Campaign attachment (optional) -->
+      <div class="add-section">
+        <div class="attach-head">
+          <div class="attach-head-text">
+            <div style="font-size:13px;font-weight:500;">3. Also search LinkedIn &amp; add to campaign <span style="font-size:11px;font-weight:400;color:#aaa;">(optional)</span></div>
+            <div class="sub">Searches for people with the specified titles at each company and adds them as contacts</div>
+          </div>
+          <button class="toggle-btn" id="attach-toggle" onclick="toggleCampaignAttach()"></button>
+        </div>
+        <div id="attach-fields" class="attach-fields" style="display:none;">
+          <div class="field-group">
+            <label>Campaign</label>
+            <select id="attach-campaign-select" class="select-input" onchange="onCampaignSelect()">
+              <option value="">Select campaign...</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field-group" style="flex:1;">
+              <label>Job titles to search for</label>
+              <input type="text" id="attach-titles" class="text-input" placeholder="VP R&D, CTO, Head of Engineering">
+            </div>
+            <div class="field-group">
+              <label>Max per company</label>
+              <input type="number" id="attach-limit" class="num-input" value="10" min="1" max="50">
+            </div>
+          </div>
+          <div class="attach-note">&#128161; Only companies with a LinkedIn URL will be searched. Companies added by name only are saved to the view but not searched.</div>
+        </div>
+      </div>
+
+      <div class="add-panel-footer">
+        <div id="add-feedback" class="add-feedback"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="cancel-btn" onclick="toggleAddPanel()">Cancel</button>
+          <button class="primary-btn" id="add-save-btn" onclick="saveCompanies()">&#128161; Add to Opportunities</button>
+        </div>
       </div>
     </div>
   </div>
 
   <!-- Toolbar -->
   <div class="toolbar">
-    <input class="search-input" type="search" id="search-input"
-           placeholder="Search companies or contacts..."
-           oninput="applyFilter()">
+    <input class="search-input" type="search" id="search-input" placeholder="Search companies or contacts..." oninput="applyFilter()">
   </div>
 
-  <!-- Stats -->
   <div class="stats-row" id="stats-row"></div>
-
-  <!-- Main area -->
   <div id="main-area"><div style="text-align:center;padding:60px;color:#aaa;">Loading...</div></div>
 </div>
 
@@ -180,19 +269,15 @@ tbody tr:last-child > td { border-bottom: none; }
     </div>
     <div id="msg-status-area"></div>
     <div class="tokens-row">
-      <button class="token-btn" onclick="insertToken('{{first_name}}')">{{first_name}}</button>
-      <button class="token-btn" onclick="insertToken('{{last_name}}')">{{last_name}}</button>
-      <button class="token-btn" onclick="insertToken('{{company}}')">{{company}}</button>
+      <button class="token-btn" onclick="insertToken('{{first_name}}')">{&#123;first_name}}</button>
+      <button class="token-btn" onclick="insertToken('{{last_name}}')">{&#123;last_name}}</button>
+      <button class="token-btn" onclick="insertToken('{{company}}')">{&#123;company}}</button>
     </div>
-    <textarea class="msg-textarea" id="msg-textarea"
-              placeholder="Hi {{first_name}}, I noticed we're connected and wanted to reach out..."
-              oninput="updateCharCount()"></textarea>
+    <textarea class="msg-textarea" id="msg-textarea" placeholder="Hi {{first_name}}, I noticed we're connected..." oninput="updateCharCount()"></textarea>
     <div class="char-count" id="char-count">0 characters</div>
     <div class="msg-footer">
       <button class="cancel-btn" onclick="closeMsgDialog()">Cancel</button>
-      <button class="send-btn" id="send-btn" onclick="sendMessage()">
-        &#128172; Send message
-      </button>
+      <button class="send-btn" id="send-btn" onclick="sendMessage()">&#128172; Send message</button>
     </div>
   </div>
 </div>
@@ -201,87 +286,149 @@ tbody tr:last-child > td { border-bottom: none; }
 const urlParams   = new URLSearchParams(window.location.search);
 const workspaceId = urlParams.get('workspace_id');
 
-let allData       = { accounts: [], companies: [] };
+let allData       = { accounts: [], views: [], campaigns: [], companies: [] };
 let filtered      = [];
 let expandedIds   = new Set();
-let parsedList    = [];   // current parsed companies in add panel
+let currentFilter = 'all';  // 'all' | 'view:ID' | 'campaign:ID'
 let activeContact = null;
 
-// ── Data loading ──────────────────────────────────────────────────────────────
+// Add panel state
+let addPanelOpen      = false;
+let parsedList        = [];
+let panelViewMode     = 'new';   // 'new' | 'existing'
+let panelViewId       = null;
+let panelAttachCamp   = false;
+
+// ── Load ──────────────────────────────────────────────────────────────────────
 
 async function load() {
   const btn  = document.getElementById('refresh-btn');
   const icon = document.getElementById('refresh-icon');
-  btn.disabled = true;
-  icon.innerHTML = '<span class="spin">&#x21BB;</span>';
+  if (btn) { btn.disabled = true; icon.innerHTML = '<span class="spin">&#x21BB;</span>'; }
   try {
     const data = await fetch(`/api/opportunities?workspace_id=${workspaceId}`).then(r => r.json());
     if (data.error) throw new Error(data.error);
-    allData = { accounts: data.accounts || [], companies: data.companies || [] };
+    allData = {
+      accounts:  data.accounts  || [],
+      views:     data.views     || [],
+      campaigns: data.campaigns || [],
+      companies: data.companies || [],
+    };
+    renderFilterBar();
+    populatePanelDropdowns();
     applyFilter();
   } catch (err) {
     document.getElementById('main-area').innerHTML =
       `<div style="color:#DC2626;padding:40px;text-align:center;">Failed to load: ${esc(err.message)}</div>`;
   } finally {
-    btn.disabled = false;
-    icon.innerHTML = '&#x21BB;';
+    if (btn) { btn.disabled = false; icon.innerHTML = '&#x21BB;'; }
   }
 }
 
+// ── Filter bar ─────────────────────────────────────────────────────────────────
+
+function renderFilterBar() {
+  const { views, campaigns } = allData;
+  let html = `<button class="filter-pill${currentFilter==='all'?' active':''}" onclick="setFilter('all')">All companies</button>`;
+
+  if (views.length) {
+    html += `<span class="filter-sep">Views:</span>`;
+    views.forEach(v => {
+      const a = currentFilter === `view:${v.id}`;
+      html += `<button class="filter-pill${a?' active':''}" onclick="setFilter('view:${v.id}')">
+        &#128193; ${esc(v.name)}
+        <span class="pill-count">${v.company_count || 0}</span>
+        <span class="pill-del" onclick="event.stopPropagation();deleteView(${v.id})" title="Delete view">&times;</span>
+      </button>`;
+    });
+  }
+
+  if (campaigns.length) {
+    html += `<span class="filter-sep">Campaigns:</span>`;
+    campaigns.forEach(c => {
+      const a = currentFilter === `campaign:${c.id}`;
+      html += `<button class="filter-pill${a?' active':''}" onclick="setFilter('campaign:${c.id}')">
+        &#128203; ${esc(c.name)}
+      </button>`;
+    });
+  }
+
+  document.getElementById('filter-bar').innerHTML = html;
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  renderFilterBar();
+  // Pre-select view in panel if we filter by view
+  if (f.startsWith('view:') && addPanelOpen) {
+    panelViewMode = 'existing';
+    panelViewId   = parseInt(f.split(':')[1]);
+    renderPanelViewSection();
+  }
+  applyFilter();
+}
+
 function applyFilter() {
-  const q = (document.getElementById('search-input').value || '').trim().toLowerCase();
-  filtered = q
-    ? allData.companies.filter(co => {
-        if (co.company_name.toLowerCase().includes(q)) return true;
-        return co.contacts.some(c =>
-          `${c.first_name} ${c.last_name} ${c.company || ''} ${c.title || ''}`.toLowerCase().includes(q)
-        );
-      })
-    : allData.companies;
+  const q = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+
+  let base;
+  if (currentFilter === 'all') {
+    base = allData.companies;
+  } else if (currentFilter.startsWith('view:')) {
+    const vid = parseInt(currentFilter.split(':')[1]);
+    base = allData.companies.filter(co => co.view_id === vid);
+  } else if (currentFilter.startsWith('campaign:')) {
+    const cid = parseInt(currentFilter.split(':')[1]);
+    base = allData.companies.filter(co => co.campaign_ids?.includes(cid));
+  } else {
+    base = allData.companies;
+  }
+
+  filtered = q ? base.filter(co => {
+    if (co.company_name.toLowerCase().includes(q)) return true;
+    return co.contacts.some(c => `${c.first_name||''} ${c.last_name||''} ${c.company||''} ${c.title||''}`
+      .toLowerCase().includes(q));
+  }) : base;
+
   renderStats();
   renderTable();
 }
 
-// ── Stats ──────────────────────────────────────────────────────────────────────
+// ── Stats ───────────────────────────────────────────────────────────────────────
 
 function renderStats() {
   const withConn = filtered.filter(c => c.total > 0).length;
   const total    = filtered.reduce((s, c) => s + c.total, 0);
   const custom   = filtered.filter(c => c.source === 'custom' || c.source === 'both').length;
-
   let html = `
     <div class="stat-chip"><strong>${filtered.length}</strong>Companies</div>
     <div class="stat-chip"><strong>${withConn}</strong>With connections</div>
     <div class="stat-chip"><strong>${total}</strong>Warm leads</div>
-    ${custom ? `<div class="stat-chip"><strong>${custom}</strong>Manually added</div>` : ''}
-  `;
+    ${custom ? `<div class="stat-chip"><strong>${custom}</strong>Custom</div>` : ''}`;
   allData.accounts.forEach(a => {
-    const cnt = filtered.reduce((s, co) => s + (co.connections_by_account[a.account_id] || 0), 0);
+    const cnt = filtered.reduce((s, co) => s + (co.connections_by_account?.[a.account_id] || 0), 0);
     html += `<div class="stat-chip"><strong>${cnt}</strong>${esc(a.display_name || a.account_id)}</div>`;
   });
   document.getElementById('stats-row').innerHTML = html;
 }
 
-// ── Table ──────────────────────────────────────────────────────────────────────
+// ── Table ───────────────────────────────────────────────────────────────────────
 
 const CONTACT_GRID = '140px 140px 1fr 140px 110px 110px';
-
-function countClass(n) {
-  return n >= 5 ? 'count-high' : n >= 2 ? 'count-medium' : n > 0 ? 'count-low' : 'count-zero';
-}
+function cc(n) { return n >= 5 ? 'count-high' : n >= 2 ? 'count-medium' : n > 0 ? 'count-low' : 'count-zero'; }
 
 function renderTable() {
   const area = document.getElementById('main-area');
   if (!filtered.length) {
     area.innerHTML = `<div class="empty-state">
       <div style="font-size:32px;margin-bottom:12px;opacity:0.3;">&#128161;</div>
-      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">No opportunities yet</div>
-      <div style="font-size:13px;color:#888;">Run campaigns with company targeting, or click <strong>+ Add companies</strong> to search manually.</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">No opportunities found</div>
+      <div style="font-size:13px;color:#888;">Run campaigns with company targeting, or click <strong>+ Add companies</strong></div>
     </div>`;
     return;
   }
 
-  const accounts = allData.accounts;
+  const accounts  = allData.accounts;
   const accHeaders = accounts.map(a =>
     `<th style="text-align:center;">${esc(a.display_name || a.account_id)}</th>`
   ).join('');
@@ -292,35 +439,34 @@ function renderTable() {
     const isOpen = expandedIds.has(rowId);
 
     const accCells = accounts.map(a => {
-      const n = co.connections_by_account[a.account_id] || 0;
-      return `<td style="text-align:center;"><span class="count-badge ${countClass(n)}">${n || '—'}</span></td>`;
+      const n = co.connections_by_account?.[a.account_id] || 0;
+      return `<td style="text-align:center;"><span class="count-badge ${cc(n)}">${n || '—'}</span></td>`;
     }).join('');
 
-    // Source badge + remove button
-    const sourceBadge = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
-                      : co.source === 'both'   ? '<span class="source-badge badge-both">+ Custom</span>'
-                      : '';
+    // Source indicators
+    const badge = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
+                : co.source === 'both'   ? '<span class="source-badge badge-both">+Custom</span>' : '';
+    const viewTag = co.view_name ? `<span class="view-badge">&#128193; ${esc(co.view_name)}</span>` : '';
     const removeBtn = (co.source === 'custom' || co.source === 'both') && co.custom_id
-      ? `<button class="remove-co-btn" onclick="event.stopPropagation();removeCompany(${co.custom_id})" title="Remove from Opportunities">&times;</button>`
+      ? `<button class="remove-co-btn" onclick="event.stopPropagation();removeCompany(${co.custom_id})" title="Remove">&times;</button>`
       : '';
 
     const liLink = co.li_company_url
-      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View page ↗</a>`
+      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View &#8599;</a>`
       : '<span class="cell-muted">—</span>';
 
-    rows += `<tr class="company-row${isOpen ? ' expanded' : ''}" onclick="toggleCompany('${rowId}')">
+    rows += `<tr class="company-row${isOpen?' expanded':''}" onclick="toggleCompany('${rowId}')">
       <td>
         <div class="company-name-cell">
           <span class="expand-icon">&#9654;</span>
           <span>${esc(co.company_name)}</span>
-          ${sourceBadge}
-          ${removeBtn}
+          ${badge}${viewTag}${removeBtn}
         </div>
       </td>
       <td>${liLink}</td>
       ${accCells}
-      <td style="text-align:center;"><span class="count-badge ${countClass(co.total)}">${co.total || '—'}</span></td>
-      <td style="text-align:right;padding-right:12px;"><span class="cell-muted">${co.contacts.length} contact${co.contacts.length !== 1 ? 's' : ''}</span></td>
+      <td style="text-align:center;"><span class="count-badge ${cc(co.total)}">${co.total || '—'}</span></td>
+      <td style="text-align:right;padding-right:12px;"><span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span></td>
     </tr>`;
 
     if (isOpen) {
@@ -331,46 +477,36 @@ function renderTable() {
   }
 
   area.innerHTML = `<div class="table-outer"><table>
-    <thead><tr>
-      <th style="min-width:200px;">Company</th>
-      <th>LinkedIn</th>
+    <thead><tr><th style="min-width:200px;">Company</th><th>LinkedIn</th>
       ${accHeaders}
-      <th style="text-align:center;">Total</th>
-      <th></th>
-    </tr></thead>
+      <th style="text-align:center;">Total</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
 function renderContactsBlock(co) {
   if (!co.contacts.length) {
-    return `<div class="contacts-inner"><div class="no-contacts">No connected contacts found for this company in your workspace.</div></div>`;
+    return `<div class="contacts-inner"><div class="no-contacts">No connected contacts found at this company in your workspace.</div></div>`;
   }
   const items = co.contacts.map(c => {
-    const canMsg = !!(c.provider_id || c.chat_id);
+    const canMsg    = !!(c.provider_id || c.chat_id);
     const campClass = c.campaign_status === 'active' ? 'active' : '';
     return `<div class="contacts-grid-row" style="grid-template-columns:${CONTACT_GRID};">
-      <div class="contact-name-cell">${esc(c.first_name || '')} ${esc(c.last_name || '')}</div>
-      <div class="contact-title-cell" style="color:#444;">${esc(c.company || '—')}</div>
-      <div class="contact-title-cell">${esc(c.title || '—')}</div>
-      <div>${c.campaign_name
-        ? `<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>`
-        : '<span class="cell-muted">—</span>'}</div>
-      <div>${c.li_profile_url
-        ? `<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener">Profile ↗</a>`
-        : '<span class="cell-muted">—</span>'}</div>
-      <div><button class="msg-btn" ${canMsg ? '' : 'disabled title="Contact not enriched"'}
-           onclick="openMsgDialog(${JSON.stringify(c).replace(/'/g, '&#39;')})">
+      <div style="font-weight:500;">${esc(c.first_name||'')} ${esc(c.last_name||'')}</div>
+      <div style="font-size:12px;color:#444;">${esc(c.company||'—')}</div>
+      <div style="font-size:12px;color:#666;">${esc(c.title||'—')}</div>
+      <div>${c.campaign_name?`<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>`:'<span class="cell-muted">—</span>'}</div>
+      <div>${c.li_profile_url?`<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener">Profile &#8599;</a>`:'<span class="cell-muted">—</span>'}</div>
+      <div><button class="msg-btn" ${canMsg?'':'disabled title="Not enriched"'}
+           onclick="openMsgDialog(${JSON.stringify(c).replace(/'/g,'&#39;')})">
         &#128172; Message
       </button></div>
     </div>`;
   }).join('');
-
   return `<div class="contacts-inner">
     <div class="contacts-grid-head" style="grid-template-columns:${CONTACT_GRID};">
       <span>Name</span><span>Company</span><span>Title</span><span>Campaign</span><span>Profile</span><span></span>
-    </div>
-    ${items}
+    </div>${items}
   </div>`;
 }
 
@@ -379,33 +515,92 @@ function toggleCompany(id) {
   renderTable();
 }
 
-// ── Add companies panel ────────────────────────────────────────────────────────
-
-let addPanelOpen = false;
+// ── Add panel ──────────────────────────────────────────────────────────────────
 
 function toggleAddPanel() {
   addPanelOpen = !addPanelOpen;
-  const panel = document.getElementById('add-panel');
-  panel.style.display = addPanelOpen ? 'block' : 'none';
+  document.getElementById('add-panel').style.display = addPanelOpen ? 'block' : 'none';
   if (addPanelOpen) {
-    document.getElementById('add-textarea').value = '';
+    // Reset state
+    parsedList      = [];
+    panelViewMode   = 'new';
+    panelViewId     = null;
+    panelAttachCamp = false;
+    document.getElementById('view-name-input').value = '';
+    document.getElementById('add-textarea').value    = '';
     document.getElementById('add-preview').innerHTML = '';
     document.getElementById('add-feedback').innerHTML = '';
-    parsedList = [];
-    setTimeout(() => document.getElementById('add-textarea').focus(), 50);
+    document.getElementById('attach-toggle').className = 'toggle-btn';
+    document.getElementById('attach-fields').style.display = 'none';
+    document.querySelector('input[name="view-mode"][value="new"]').checked = true;
+    renderPanelViewSection();
+    // Pre-select if filtered by view
+    if (currentFilter.startsWith('view:')) {
+      panelViewMode = 'existing';
+      panelViewId   = parseInt(currentFilter.split(':')[1]);
+      document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
+      renderPanelViewSection();
+    }
+    setTimeout(() => document.getElementById(panelViewMode==='new'?'view-name-input':'add-textarea')?.focus(), 50);
+  }
+}
+
+function populatePanelDropdowns() {
+  // View dropdown
+  const vSel = document.getElementById('view-select');
+  if (vSel) {
+    vSel.innerHTML = `<option value="">Select view...</option>` +
+      allData.views.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join('');
+    if (panelViewId) vSel.value = panelViewId;
+  }
+  // Campaign dropdown
+  const cSel = document.getElementById('attach-campaign-select');
+  if (cSel) {
+    cSel.innerHTML = `<option value="">Select campaign...</option>` +
+      allData.campaigns.filter(c => c.status === 'active').map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  }
+}
+
+function renderPanelViewSection() {
+  const isNew = panelViewMode === 'new';
+  document.getElementById('view-name-input').closest('label').style.opacity = isNew ? '1' : '0.5';
+  document.getElementById('existing-view-row').style.opacity = isNew ? '0.5' : '1';
+  populatePanelDropdowns();
+}
+
+function setViewMode(mode) {
+  panelViewMode = mode;
+  renderPanelViewSection();
+}
+
+function toggleCampaignAttach() {
+  panelAttachCamp = !panelAttachCamp;
+  document.getElementById('attach-toggle').className = `toggle-btn${panelAttachCamp?' on':''}`;
+  document.getElementById('attach-fields').style.display = panelAttachCamp ? 'flex' : 'none';
+}
+
+function onCampaignSelect() {
+  const cid  = parseInt(document.getElementById('attach-campaign-select')?.value);
+  if (!cid) return;
+  const camp = allData.campaigns.find(c => c.id === cid);
+  if (camp?.settings?.searchConfig?.titles?.length) {
+    const titlesInput = document.getElementById('attach-titles');
+    if (titlesInput && !titlesInput.value.trim()) {
+      titlesInput.value = camp.settings.searchConfig.titles.join(', ');
+    }
+    const limitInput = document.getElementById('attach-limit');
+    if (limitInput) limitInput.value = camp.settings.searchConfig.maxPerCompany || 10;
   }
 }
 
 function onAddInput() {
-  const text = document.getElementById('add-textarea').value;
-  parsedList = parseCompanies(text);
+  parsedList = parseCompanies(document.getElementById('add-textarea').value);
   renderPreview();
 }
 
 function parseCompanies(text) {
   const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
-  const result = [];
-  const seen = new Set();
+  const result = [], seen = new Set();
   for (const line of lines) {
     const urlMatch = line.match(/linkedin\.com\/company\/([^/?&#\s]+)/i);
     let name, url;
@@ -414,14 +609,10 @@ function parseCompanies(text) {
       name = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       url  = `https://www.linkedin.com/company/${slug}`;
     } else {
-      name = line;
-      url  = null;
+      name = line; url = null;
     }
     const key = name.toLowerCase().trim();
-    if (name && !seen.has(key)) {
-      seen.add(key);
-      result.push({ name, url, linkedin_id: null });
-    }
+    if (name && !seen.has(key)) { seen.add(key); result.push({ name, url, linkedin_id: null }); }
   }
   return result;
 }
@@ -429,15 +620,14 @@ function parseCompanies(text) {
 function renderPreview() {
   const el = document.getElementById('add-preview');
   if (!parsedList.length) { el.innerHTML = ''; return; }
-  const items = parsedList.map((co, i) => `
-    <div class="preview-item">
-      <span class="preview-name">${esc(co.name)}</span>
-      ${co.url ? `<a class="cell-link" href="${esc(co.url)}" target="_blank" rel="noopener">LinkedIn ↗</a>` : ''}
-      <button class="preview-remove" onclick="removeFromPreview(${i})" title="Remove">&times;</button>
-    </div>
-  `).join('');
-  el.innerHTML = `<div class="preview-label">${parsedList.length} compan${parsedList.length === 1 ? 'y' : 'ies'} detected</div>
-    <div class="preview-list">${items}</div>`;
+  el.innerHTML = `<div class="preview-label">${parsedList.length} compan${parsedList.length===1?'y':'ies'} detected</div>
+    <div class="preview-list">${parsedList.map((co, i) => `
+      <div class="preview-item">
+        <span class="preview-name">${esc(co.name)}</span>
+        ${co.url?`<a class="cell-link" href="${esc(co.url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>`:''}
+        <button class="preview-remove" onclick="removeFromPreview(${i})">&times;</button>
+      </div>`).join('')}
+    </div>`;
 }
 
 function removeFromPreview(i) {
@@ -447,67 +637,102 @@ function removeFromPreview(i) {
 }
 
 async function saveCompanies() {
-  if (!parsedList.length) {
-    document.getElementById('add-textarea').focus();
-    return;
-  }
+  if (!parsedList.length) { document.getElementById('add-textarea')?.focus(); return; }
+
+  const viewName = document.getElementById('view-name-input')?.value.trim();
+  const viewSel  = parseInt(document.getElementById('view-select')?.value);
+
+  if (panelViewMode === 'new' && !viewName) { alert('Please enter a view name.'); return; }
+  if (panelViewMode === 'existing' && !viewSel) { alert('Please select an existing view.'); return; }
+
+  const campaignId = panelAttachCamp ? parseInt(document.getElementById('attach-campaign-select')?.value) : null;
+  const titles = panelAttachCamp ? (document.getElementById('attach-titles')?.value.trim().split(',').map(s=>s.trim()).filter(Boolean) || []) : [];
+  const limit  = panelAttachCamp ? parseInt(document.getElementById('attach-limit')?.value) || 10 : 10;
+
+  if (panelAttachCamp && !campaignId) { alert('Please select a campaign.'); return; }
+  if (panelAttachCamp && !titles.length) { alert('Please enter job titles to search for.'); return; }
+
   const btn = document.getElementById('add-save-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin">&#x21BB;</span> Saving...';
+  btn.disabled = true; btn.innerHTML = '<span class="spin">&#x21BB;</span> Saving...';
   document.getElementById('add-feedback').innerHTML = '';
 
+  const msgs = [];
   try {
+    // Step 1: Save companies to view
     const res = await fetch('/api/opportunities/companies', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId, companies: parsedList }),
+      body: JSON.stringify({
+        workspace_id: workspaceId,
+        companies:    parsedList,
+        view_id:      panelViewMode === 'existing' ? viewSel : null,
+        view_name:    panelViewMode === 'new'      ? viewName : null,
+      }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
+    if (data.added > 0)   msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to "${esc(data.view_name||viewName)}"`);
+    if (data.skipped > 0) msgs.push(`${data.skipped} already existed`);
 
-    const msg = data.added > 0
-      ? `&#10003; ${data.added} compan${data.added !== 1 ? 'ies' : 'y'} added${data.skipped ? ` (${data.skipped} already existed)` : ''}`
-      : `${data.skipped || 0} compan${data.skipped !== 1 ? 'ies' : 'y'} — all already in your list`;
-    document.getElementById('add-feedback').className = 'add-feedback ok';
-    document.getElementById('add-feedback').innerHTML = msg;
-
-    if (data.added > 0) {
-      setTimeout(() => { toggleAddPanel(); load(); }, 900);
-    } else {
-      btn.disabled = false;
-      btn.innerHTML = '&#128161; Add to Opportunities';
+    // Step 2: Attach to campaign (if enabled)
+    if (panelAttachCamp) {
+      const withUrls = parsedList.filter(co => co.url);
+      if (!withUrls.length) {
+        msgs.push('No LinkedIn URLs — companies saved to view but not searched on LinkedIn');
+      } else {
+        btn.innerHTML = '<span class="spin">&#x21BB;</span> Searching LinkedIn...';
+        const ar = await fetch('/api/opportunities/attach-to-campaign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace_id: workspaceId, campaign_id: campaignId, companies: withUrls, titles, limit }),
+        });
+        const ad = await ar.json();
+        if (ar.ok) {
+          const cname = allData.campaigns.find(c => c.id === campaignId)?.name || 'campaign';
+          msgs.push(`${ad.contacts_added} new contacts added to "${esc(cname)}" (${ad.companies_searched} companies searched, ${ad.contacts_found} people found)`);
+        } else {
+          msgs.push(`Campaign search failed: ${ad.error}`);
+        }
+      }
     }
+
+    document.getElementById('add-feedback').className = 'add-feedback ok';
+    document.getElementById('add-feedback').innerHTML = '&#10003; ' + msgs.join(' · ');
+    setTimeout(() => { toggleAddPanel(); load(); }, 1400);
   } catch (err) {
     document.getElementById('add-feedback').className = 'add-feedback err';
     document.getElementById('add-feedback').innerHTML = '&#10007; ' + esc(err.message);
-    btn.disabled = false;
-    btn.innerHTML = '&#128161; Add to Opportunities';
+    btn.disabled = false; btn.innerHTML = '&#128161; Add to Opportunities';
   }
 }
 
 async function removeCompany(customId) {
   if (!confirm('Remove this company from Opportunities?')) return;
   try {
-    const res = await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error((await res.json()).error);
+    await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' });
     await load();
-  } catch (err) {
-    alert('Failed to remove: ' + err.message);
-  }
+  } catch (err) { alert('Failed: ' + err.message); }
+}
+
+async function deleteView(viewId) {
+  if (!confirm('Delete this view? Companies in it will be unlinked but not removed.')) return;
+  try {
+    await fetch(`/api/opportunities/views/${viewId}`, { method: 'DELETE' });
+    if (currentFilter === `view:${viewId}`) setFilter('all');
+    await load();
+  } catch (err) { alert('Failed: ' + err.message); }
 }
 
 // ── Message dialog ─────────────────────────────────────────────────────────────
 
 function openMsgDialog(contact) {
   activeContact = contact;
-  const name = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
-  document.getElementById('msg-title').textContent = `Message ${name}`;
-  document.getElementById('msg-sub').textContent =
-    [contact.title, contact.company].filter(Boolean).join(' · ');
-  document.getElementById('msg-textarea').value = '';
+  document.getElementById('msg-title').textContent = `Message ${contact.first_name||''} ${contact.last_name||''}`.trim();
+  document.getElementById('msg-sub').textContent   = [contact.title, contact.company].filter(Boolean).join(' · ');
+  document.getElementById('msg-textarea').value    = '';
   document.getElementById('msg-status-area').innerHTML = '';
-  document.getElementById('send-btn').disabled = false;
-  document.getElementById('send-btn').innerHTML = '&#128172; Send message';
+  document.getElementById('send-btn').disabled     = false;
+  document.getElementById('send-btn').innerHTML    = '&#128172; Send message';
   updateCharCount();
   document.getElementById('msg-backdrop').style.display = 'flex';
   setTimeout(() => document.getElementById('msg-textarea').focus(), 50);
@@ -521,10 +746,9 @@ function closeMsgDialog() {
 function insertToken(token) {
   const ta = document.getElementById('msg-textarea');
   const p  = ta.selectionStart;
-  ta.value = ta.value.slice(0, p) + token + ta.value.slice(p);
+  ta.value = ta.value.slice(0,p) + token + ta.value.slice(p);
   ta.selectionStart = ta.selectionEnd = p + token.length;
-  ta.focus();
-  updateCharCount();
+  ta.focus(); updateCharCount();
 }
 
 function updateCharCount() {
@@ -532,64 +756,49 @@ function updateCharCount() {
     `${document.getElementById('msg-textarea').value.length} characters`;
 }
 
-function substituteTokens(text, c) {
+function subTokens(text, c) {
   return text
-    .replace(/\{\{first_name\}\}/g, c.first_name || '')
-    .replace(/\{\{last_name\}\}/g,  c.last_name  || '')
-    .replace(/\{\{company\}\}/g,    c.company    || '');
+    .replace(/\{\{first_name\}\}/g, c.first_name||'')
+    .replace(/\{\{last_name\}\}/g,  c.last_name ||'')
+    .replace(/\{\{company\}\}/g,    c.company   ||'');
 }
 
 async function sendMessage() {
   if (!activeContact) return;
   const rawText = document.getElementById('msg-textarea').value.trim();
   if (!rawText) { document.getElementById('msg-textarea').focus(); return; }
-
-  const text = substituteTokens(rawText, activeContact);
+  const text = subTokens(rawText, activeContact);
   const btn  = document.getElementById('send-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending…';
+  btn.disabled = true; btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending…';
   document.getElementById('msg-status-area').innerHTML = '';
-
   try {
-    const res = await fetch('/api/opportunities/send-message', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res  = await fetch('/api/opportunities/send-message', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contact_id: activeContact.id, text }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Send failed');
-
     document.getElementById('msg-status-area').innerHTML =
       `<div class="msg-status-ok">&#10003; Message sent to ${esc(activeContact.first_name || 'contact')}!</div>`;
     document.getElementById('msg-textarea').value = '';
     updateCharCount();
-    btn.disabled = false;
-    btn.innerHTML = '&#128172; Send message';
+    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
     setTimeout(closeMsgDialog, 1500);
   } catch (err) {
-    document.getElementById('msg-status-area').innerHTML =
-      `<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
-    btn.disabled = false;
-    btn.innerHTML = '&#128172; Send message';
+    document.getElementById('msg-status-area').innerHTML = `<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
+    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
   }
 }
 
-// ── Utils ──────────────────────────────────────────────────────────────────────
+// ── Utils ───────────────────────────────────────────────────────────────────────
 
 function esc(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function safeUrl(u) {
-  u = (u || '').trim();
-  return /^https?:\/\//i.test(u) ? u : 'https://' + u;
-}
-function encodeId(name, linkedinId) {
-  return (linkedinId || name || '').replace(/[^a-z0-9]/gi, '_');
-}
+function safeUrl(u) { u=(u||'').trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
+function encodeId(name,lid) { return (lid||name||'').replace(/[^a-z0-9]/gi,'_'); }
 
-// ── Boot ───────────────────────────────────────────────────────────────────────
+// ── Boot ────────────────────────────────────────────────────────────────────────
 load();
 </script>
 </body>
