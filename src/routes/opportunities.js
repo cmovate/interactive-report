@@ -77,6 +77,10 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/opportunities?workspace_id=X
+//
+// Returns: { accounts, views, campaigns, companies }
+// campaigns includes audience_type + settings.searchConfig so the UI knows
+// whether to auto-use saved titles (company campaigns) or ask the user (people campaigns).
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
@@ -89,11 +93,19 @@ router.get('/', async (req, res) => {
       [workspace_id]
     );
 
-    // 2. Campaigns list (for filter bar + campaign attachment panel)
-    const { rows: campaigns } = await db.query(
-      `SELECT id, name, status, settings FROM campaigns WHERE workspace_id = $1 ORDER BY name`,
+    // 2. Campaigns list — include audience_type + settings so the UI can decide
+    //    whether titles are auto-sourced (company campaigns) or must be entered (people campaigns).
+    const { rows: rawCampaigns } = await db.query(
+      `SELECT id, name, status, audience_type, settings FROM campaigns WHERE workspace_id = $1 ORDER BY name`,
       [workspace_id]
     );
+    const campaigns = rawCampaigns.map(c => ({
+      id:            c.id,
+      name:          c.name,
+      status:        c.status,
+      audience_type: c.audience_type,
+      settings:      typeof c.settings === 'string' ? JSON.parse(c.settings) : (c.settings || {}),
+    }));
 
     // 3. Views list with company counts
     const { rows: views } = await db.query(`
@@ -229,7 +241,6 @@ router.post('/views', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 router.delete('/views/:id', async (req, res) => {
   try {
-    // Unlink companies from view (don't delete them)
     await db.query('UPDATE opportunity_companies SET view_id = NULL WHERE view_id = $1', [req.params.id]);
     const { rowCount } = await db.query('DELETE FROM opportunity_views WHERE id = $1', [req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'View not found' });
@@ -240,7 +251,6 @@ router.delete('/views/:id', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/opportunities/companies
 // body: { workspace_id, companies: [{name,url,linkedin_id}], view_id?, view_name? }
-// If view_name provided: creates the view first, then saves companies under it.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/companies', async (req, res) => {
   try {
@@ -249,7 +259,6 @@ router.post('/companies', async (req, res) => {
       return res.status(400).json({ error: 'workspace_id and companies[] required' });
     }
 
-    // Resolve view ID
     let resolvedViewId = view_id || null;
     let resolvedViewName = null;
 
@@ -269,7 +278,6 @@ router.post('/companies', async (req, res) => {
     for (const co of companies) {
       const name = (co.name || '').trim();
       if (!name) continue;
-      // Skip duplicates in this workspace (case-insensitive by name)
       const { rows: existing } = await db.query(
         `SELECT id FROM opportunity_companies WHERE workspace_id = $1 AND LOWER(company_name) = LOWER($2) LIMIT 1`,
         [workspace_id, name]
@@ -305,12 +313,9 @@ router.delete('/companies/:id', async (req, res) => {
 // POST /api/opportunities/attach-to-campaign
 // body: { workspace_id, campaign_id, companies: [{name,url}], titles: [], limit: N }
 //
-// For each company with a LinkedIn URL:
-//   1. Look up company numeric ID via Unipile
-//   2. Search people by company + titles
-//   3. Validate results
-//   4. Upsert company into campaign_companies
-//   5. Add new contacts to campaign + queue enrichment
+// titles[] and limit come from:
+//   - campaign.settings.searchConfig (auto) if audience_type === 'company'
+//   - user input                             if audience_type === 'people'
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/attach-to-campaign', async (req, res) => {
   try {
@@ -347,7 +352,6 @@ router.post('/attach-to-campaign', async (req, res) => {
         contactsFound += people.length;
         console.log(`[Opportunities] attach: "${companyName}" found=${rawPeople.length} kept=${people.length}`);
 
-        // Upsert company into campaign_companies
         if (companyId) {
           await db.query(`
             INSERT INTO campaign_companies
@@ -358,12 +362,10 @@ router.post('/attach-to-campaign', async (req, res) => {
           `, [campaign_id, workspace_id, companyName, co.url, String(companyId)]);
         }
 
-        // Add new contacts to campaign
         for (const p of people) {
           const liUrl = p.public_profile_url || p.li_profile_url || '';
           if (!liUrl.includes('linkedin.com/in/')) continue;
 
-          // Skip if already in this campaign
           const { rows: dup } = await db.query(
             'SELECT id FROM contacts WHERE campaign_id = $1 AND li_profile_url = $2 LIMIT 1',
             [campaign_id, liUrl]
@@ -373,11 +375,7 @@ router.post('/attach-to-campaign', async (req, res) => {
           const { rows: ins } = await db.query(`
             INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
             VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, li_profile_url
-          `, [
-            campaign_id, workspace_id,
-            p.first_name || '', p.last_name || '',
-            companyName, p.headline || '', liUrl,
-          ]);
+          `, [campaign_id, workspace_id, p.first_name||'', p.last_name||'', companyName, p.headline||'', liUrl]);
           contactsAdded++;
           if (ins[0]?.id) toEnrich.push({ id: ins[0].id, li_profile_url: liUrl });
         }
@@ -385,16 +383,12 @@ router.post('/attach-to-campaign', async (req, res) => {
         console.error(`[Opportunities] attach error for ${co.url}: ${err.message}`);
       }
 
-      // Rate-limit delay between companies
       if (companies.indexOf(co) < companies.length - 1) {
         await new Promise(r => setTimeout(r, 4000 + Math.random() * 4000));
       }
     }
 
-    // Queue enrichment for new contacts
-    const { rows: accRows } = await db.query(
-      'SELECT account_id FROM campaigns WHERE id = $1', [campaign_id]
-    );
+    const { rows: accRows } = await db.query('SELECT account_id FROM campaigns WHERE id = $1', [campaign_id]);
     const accountId = accRows[0]?.account_id;
     if (accountId) {
       for (const c of toEnrich) enqueue(c.id, accountId, c.li_profile_url);

@@ -88,7 +88,6 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .progress-pct { font-size: 28px; font-weight: 600; color: #1D9E75; }
 .progress-bar-wrap { width: 100%; height: 6px; background: #f0f0f0; border-radius: 999px; overflow: hidden; }
 .progress-bar-fill { height: 100%; background: #1D9E75; border-radius: 999px; transition: width 0.3s; }
-/* Company metadata table */
 .company-meta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
 .company-meta-table th { background: #f9fafb; padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #888; border-bottom: 1px solid #e5e5e5; }
 .company-meta-table td { padding: 8px 12px; border-bottom: 1px solid #f5f5f5; color: #444; }
@@ -332,7 +331,6 @@ async function deleteCampaign(id) {
   await load();
 }
 
-// ── Analytics popup ───────────────────────────────────────────────────────────
 async function openAnalytics(id, name) {
   document.getElementById('analytics-title').textContent = name;
   document.getElementById('analytics-body').innerHTML = '<div style="text-align:center;color:#aaa;padding:40px;">Loading...</div>';
@@ -395,7 +393,6 @@ function renderAnalytics(data) {
   document.getElementById('analytics-body').innerHTML = `${overviewHtml}<div class="analytics-section-label">A/B/C message performance</div>${abHtml}`;
 }
 
-// ── Wizard ────────────────────────────────────────────────────────────────────
 function openModal()  { wizard = resetWizard(); currentStep = 0; document.getElementById('modal').style.display='flex'; renderStep(); }
 function closeModal() { document.getElementById('modal').style.display='none'; }
 function renderStep() {
@@ -446,7 +443,6 @@ function renderAudienceDetail() {
     } else if (wizard.searchStatus==='loading') {
       el.innerHTML=`<div class="search-progress"><div class="progress-pct" id="search-pct">${wizard.searchPct}%</div><div class="progress-bar-wrap" style="width:100%;"><div class="progress-bar-fill" id="search-bar" style="width:${wizard.searchPct}%;"></div></div><div style="font-size:13px;color:#888;">Searching LinkedIn...</div></div>`;
     } else {
-      // Companies metadata table
       const metaHtml = buildCompaniesMetaHtml(wizard.companiesMeta);
       el.innerHTML=`
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -467,16 +463,9 @@ function buildCompaniesMetaHtml(meta) {
     const foundKept = m.status === 'ok'
       ? `${m.found} found &rarr; <strong>${m.kept} kept</strong>${m.found > m.kept ? ` <span class="meta-warn">(${m.found - m.kept} filtered)</span>` : ''}`
       : m.error ? `<span class="meta-err">${esc(m.error)}</span>` : '—';
-    return `<tr>
-      <td class="${statusClass}">${statusLabel}</td>
-      <td style="color:#666;font-size:11px;">${esc(m.company_id || '—')}</td>
-      <td>${foundKept}</td>
-    </tr>`;
+    return `<tr><td class="${statusClass}">${statusLabel}</td><td style="color:#666;font-size:11px;">${esc(m.company_id || '—')}</td><td>${foundKept}</td></tr>`;
   }).join('');
-  return `<table class="company-meta-table">
-    <thead><tr><th>Company</th><th>LinkedIn ID</th><th>Results</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
+  return `<table class="company-meta-table"><thead><tr><th>Company</th><th>LinkedIn ID</th><th>Results</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 async function startSearch() {
@@ -595,7 +584,6 @@ async function createCampaign() {
       settings: {
         connection: {
           enabled: wizard.connectionEnabled,
-          // Use withdraw_after_days (consistent with withdrawSender.js)
           withdraw_after_days: wizard.withdrawEnabled ? parseInt(wizard.withdrawDays) || 14 : 0,
           resend: wizard.resendEnabled,
         },
@@ -606,6 +594,11 @@ async function createCampaign() {
           existing_with_history: wizard.existingWithHistoryMessages,
         },
         hours: wizard.hours,
+        // Saved so Opportunities can auto-fill titles when attaching more companies later
+        searchConfig: wizard.audienceType === 'company' ? {
+          titles: wizard.searchTitles.split(',').map(s => s.trim()).filter(Boolean),
+          maxPerCompany: parseInt(wizard.maxPerCompany) || 10,
+        } : null,
       }
     })});
     if (!res.ok) throw new Error((await res.json()).error);
@@ -613,7 +606,6 @@ async function createCampaign() {
   } catch(err) { alert('Failed to create campaign: ' + err.message); btn.disabled=false; btn.textContent='Create campaign'; }
 }
 
-// ── Message dialog A/B/C ──────────────────────────────────────────────────────
 const VARIANT_LABELS = ['A', 'B', 'C'];
 
 function openMsgDialog(canvas) {
@@ -636,9 +628,9 @@ function renderDlgVariants() {
         ${i > 0 ? `<button class="variant-remove-btn" onclick="removeVariant(${i})">&times;</button>` : ''}
       </div>
       <div class="tokens-row">
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{first_name}}')">{{first_name}}</button>
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{last_name}}')">{{last_name}}</button>
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{company}}')">{{company}}</button>
+        <button class="token-btn" onclick="insertVariantToken(${i},'{{first_name}}')">{&#123;first_name}}</button>
+        <button class="token-btn" onclick="insertVariantToken(${i},'{{last_name}}')">{&#123;last_name}}</button>
+        <button class="token-btn" onclick="insertVariantToken(${i},'{{company}}')">{&#123;company}}</button>
       </div>
       <textarea id="variant-ta-${i}" rows="4" placeholder="Hi {{first_name}}, I came across your profile..." oninput="dlgVariants[${i}].text=this.value">${esc(v.text)}</textarea>
     </div>`).join('');
