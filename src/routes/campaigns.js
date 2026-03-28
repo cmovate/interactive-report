@@ -6,6 +6,7 @@ const { enqueue, getStatus } = require('../enrichment');
 const { countSentThisMonth } = require('../companyFollowSender');
 const engagementScraper      = require('../engagementScraper');
 const likeSender             = require('../likeSender');
+const withdrawSender         = require('../withdrawSender');
 
 // GET /api/campaigns?workspace_id=
 router.get('/', async (req, res) => {
@@ -80,7 +81,6 @@ router.post('/', async (req, res) => {
 });
 
 // POST /api/campaigns/:id/scrape-engagement
-// force=true resets all classifications and re-scrapes from scratch
 router.post('/:id/scrape-engagement', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
@@ -99,14 +99,11 @@ router.post('/:id/scrape-engagement', async (req, res) => {
 });
 
 // POST /api/campaigns/:id/reclassify
-// Re-applies classification logic to existing engagement_data without new API calls.
-// Use after fixing the classification algorithm.
 router.post('/:id/reclassify', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
     if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
     const result = await engagementScraper.reclassifyFromExistingData(campaignId);
-    // After reclassifying, trigger scraper to continue finding more contacts with content
     engagementScraper.run(campaignId)
       .then(r => console.log(`[API] Post-reclassify scrape done:`, JSON.stringify(r)))
       .catch(e => console.error(`[API] Post-reclassify scrape error:`, e.message));
@@ -123,6 +120,17 @@ router.post('/:id/send-likes', async (req, res) => {
       .then(r => console.log(`[API] Likes done campaign ${campaignId}:`, JSON.stringify(r)))
       .catch(e => console.error(`[API] Likes error:`, e.message));
     res.json({ status: 'started', campaign_id: campaignId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/run-withdraw
+// Manually trigger the withdraw sender for a specific campaign (for testing / manual use).
+router.post('/:id/run-withdraw', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const result = await withdrawSender.run(campaignId);
+    res.json({ campaign_id: campaignId, ...result });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
