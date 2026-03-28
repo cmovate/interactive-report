@@ -3,6 +3,8 @@ const router  = express.Router();
 const db      = require('../db');
 const { reExtractAll, enqueue, getStatus } = require('../enrichment');
 const { sendInvitation, withdrawInvitation } = require('../unipile');
+const { analyzeConversation } = require('../conversationAnalyzer');
+const { status: queueStatus }  = require('../conversationQueue');
 
 // GET /api/contacts?workspace_id=&campaign_id=&q=
 router.get('/', async (req, res) => {
@@ -25,6 +27,62 @@ router.get('/', async (req, res) => {
     res.json({ items: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// GET /api/contacts/:id/conversation
+// Returns the full conversation analysis for a single contact.
+router.get('/:id/conversation', async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, first_name, last_name,
+              conversation_stage, conversation_score,
+              conversation_signals, conversation_analyzed_at
+       FROM contacts WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
+    const r = rows[0];
+    const signals = typeof r.conversation_signals === 'string'
+      ? JSON.parse(r.conversation_signals || '{}')
+      : (r.conversation_signals || {});
+    res.json({
+      contact_id:   r.id,
+      name:         `${r.first_name} ${r.last_name}`,
+      stage:        r.conversation_stage,
+      score:        r.conversation_score,
+      analyzed_at:  r.conversation_analyzed_at,
+      ...signals,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/contacts/:id/re-analyze
+// Manually trigger conversation analysis for a single contact.
+router.post('/:id/re-analyze', async (req, res) => {
+  try {
+    const contactId = parseInt(req.params.id, 10);
+    const { rows } = await db.query(
+      `SELECT c.id, c.first_name, c.last_name, c.chat_id, camp.account_id
+       FROM contacts c
+       JOIN campaigns camp ON camp.id = c.campaign_id
+       WHERE c.id = $1`,
+      [contactId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
+    const contact = rows[0];
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id — contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id — campaign missing account' });
+
+    // Run async, return immediately
+    analyzeConversation(contactId, contact.account_id, contact.chat_id)
+      .then(r => console.log(`[API] Re-analyze done for contact ${contactId}: stage=${r.stage} score=${r.score}`))
+      .catch(e => console.error(`[API] Re-analyze error for contact ${contactId}: ${e.message}`));
+
+    res.json({ status: 'started', contact_id: contactId, name: `${contact.first_name} ${contact.last_name}` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/contacts/conversation-queue-status
+router.get('/conversation-queue-status', (_req, res) => res.json(queueStatus()));
 
 // GET /api/contacts/debug-profile/:id
 router.get('/debug-profile/:id', async (req, res) => {
@@ -88,14 +146,9 @@ router.post('/re-enrich', async (req, res) => {
       FROM contacts c
       JOIN campaigns camp ON camp.id = c.campaign_id
       WHERE c.workspace_id = $1
-        AND c.li_profile_url IS NOT NULL
-        AND c.li_profile_url != ''
+        AND c.li_profile_url IS NOT NULL AND c.li_profile_url != ''
         AND c.li_profile_url LIKE '%linkedin.com/in/%'
-        AND (
-          c.profile_data IS NULL
-          OR c.profile_data::text = 'null'
-          OR c.profile_data::text = '{}'
-        )
+        AND (c.profile_data IS NULL OR c.profile_data::text = 'null' OR c.profile_data::text = '{}')
     `;
     if (campaign_id) { params.push(campaign_id); sql += ` AND c.campaign_id = $${params.length}`; }
     params.push(limit);
@@ -110,17 +163,13 @@ router.post('/re-enrich', async (req, res) => {
 });
 
 // POST /api/contacts/:id/send-invite
-// Manually send a connection request to a single contact.
 router.post('/:id/send-invite', async (req, res) => {
   try {
     const contactId = parseInt(req.params.id, 10);
     const { rows } = await db.query(
       `SELECT c.id, c.first_name, c.last_name, c.li_profile_url, c.provider_id,
-              c.invite_sent, c.invite_approved, c.invite_withdrawn,
-              camp.account_id
-       FROM contacts c
-       JOIN campaigns camp ON camp.id = c.campaign_id
-       WHERE c.id = $1`,
+              c.invite_sent, c.invite_approved, c.invite_withdrawn, camp.account_id
+       FROM contacts c JOIN campaigns camp ON camp.id = c.campaign_id WHERE c.id = $1`,
       [contactId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
@@ -128,48 +177,30 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
     if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet — provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
-
-    // Pass provider_id directly — Unipile requires the ACoXXX format, not the vanity slug
     await sendInvitation(contact.account_id, contact.provider_id);
-    await db.query(
-      'UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1',
-      [contactId]
-    );
-
-    console.log(`[API] Sent invite to ${contact.first_name} ${contact.last_name} (contact ${contactId}, provider_id ${contact.provider_id})`);
-    res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}`, provider_id: contact.provider_id });
+    await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
+    res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/contacts/:id/withdraw-invite
-// Manually withdraw a pending connection request for a single contact.
 router.post('/:id/withdraw-invite', async (req, res) => {
   try {
     const contactId = parseInt(req.params.id, 10);
     const { rows } = await db.query(
       `SELECT c.id, c.first_name, c.last_name, c.li_profile_url, c.provider_id,
-              c.invite_sent, c.invite_approved, c.invite_withdrawn,
-              camp.account_id
-       FROM contacts c
-       JOIN campaigns camp ON camp.id = c.campaign_id
-       WHERE c.id = $1`,
+              c.invite_sent, c.invite_approved, c.invite_withdrawn, camp.account_id
+       FROM contacts c JOIN campaigns camp ON camp.id = c.campaign_id WHERE c.id = $1`,
       [contactId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.invite_sent)     return res.status(400).json({ error: 'No invite sent yet' });
-    if (contact.invite_approved)  return res.status(400).json({ error: 'Invite already approved — cannot withdraw' });
+    if (contact.invite_approved)  return res.status(400).json({ error: 'Invite already approved' });
     if (contact.invite_withdrawn) return res.status(400).json({ error: 'Invite already withdrawn' });
-    if (!contact.provider_id)     return res.status(400).json({ error: 'Contact not enriched yet — provider_id missing' });
-
-    // Pass provider_id directly — Unipile requires the ACoXXX format, not the vanity slug
+    if (!contact.provider_id)     return res.status(400).json({ error: 'Contact not enriched yet' });
     await withdrawInvitation(contact.account_id, contact.provider_id);
-    await db.query(
-      'UPDATE contacts SET invite_withdrawn = true, invite_withdrawn_at = NOW() WHERE id = $1',
-      [contactId]
-    );
-
-    console.log(`[API] Withdrew invite for ${contact.first_name} ${contact.last_name} (contact ${contactId})`);
+    await db.query('UPDATE contacts SET invite_withdrawn = true, invite_withdrawn_at = NOW() WHERE id = $1', [contactId]);
     res.json({ success: true, contact_id: contactId, name: `${contact.first_name} ${contact.last_name}` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
