@@ -166,7 +166,8 @@ async function getPendingContactsForCampaign(campaignId, limit) {
     WHERE camp.id = $1
       AND camp.status = 'active'
       AND (camp.settings->'connection'->>'enabled')::boolean = true
-      AND c.invite_sent = false
+      AND c.invite_sent       = false
+      AND c.already_connected = false
       AND c.provider_id IS NOT NULL
       AND c.li_profile_url IS NOT NULL
       AND c.li_profile_url != ''

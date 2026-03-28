@@ -21,7 +21,8 @@ const { sendMessage, startDirectMessage } = require('./unipile');
 
 const INTERVAL_MS    = 5 * 60 * 1000;
 const MAX_JITTER_MS  = 3 * 3600 * 1000;
-const MAX_SLOTS      = 20; // supports up to 20 messages per sequence
+const MAX_SLOTS      = 20;
+const MIN_FUTURE_MS  = 60 * 1000; // scheduled time must be at least 1 min in the future
 let timer = null;
 
 function toMs(delay, unit) {
@@ -37,7 +38,9 @@ function computeScheduledAt(triggerTime, delay, unit) {
   const baseMs   = toMs(delay, unit);
   const jitterMs = (Math.random() * 2 - 1) * MAX_JITTER_MS;
   const extraMs  = Math.floor(Math.random() * 3600) * 1000;
-  return new Date(new Date(triggerTime).getTime() + baseMs + jitterMs + extraMs);
+  const raw      = new Date(triggerTime).getTime() + baseMs + jitterMs + extraMs;
+  // Clamp: scheduled time must be at least MIN_FUTURE_MS from now
+  return new Date(Math.max(raw, Date.now() + MIN_FUTURE_MS));
 }
 
 function substituteTokens(text, contact) {
@@ -145,7 +148,6 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
       return;
     }
 
-    // Save text + variant to slot N (steps 1–MAX_SLOTS)
     const slotNum    = stepIndex + 1;
     const textCol    = slotNum <= MAX_SLOTS ? `, msg_${slotNum}_text = $2`    : '';
     const variantCol = slotNum <= MAX_SLOTS ? `, msg_${slotNum}_variant = $3` : '';

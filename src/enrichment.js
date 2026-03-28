@@ -41,7 +41,6 @@ function getStatus() {
 
 /**
  * Detect if a contact is a 1st-degree LinkedIn connection.
- * Confirmed from live API: network_distance = 'FIRST_DEGREE' for connections.
  */
 function detectAlreadyConnected(profile) {
   const dist = String(profile.network_distance || '').toUpperCase();
@@ -115,13 +114,11 @@ async function processNext() {
     await applyToDb(item.contactId, fields, profile);
     await upsertCampaignCompany(item.contactId, fields);
 
-    // Check chat history (only if connected)
     let hasChatHistory = false;
     if (fields.alreadyConnected && fields.providerId) {
       hasChatHistory = await checkChatHistory(item.contactId, item.accountId, fields.providerId);
     }
 
-    // Classify into message sequence
     await classifySequence(item.contactId, fields.alreadyConnected, hasChatHistory);
 
     processed++;
@@ -157,10 +154,6 @@ async function applyToDb(contactId, fields, profile) {
   );
 }
 
-/**
- * Check if there is an existing LinkedIn chat history with this contact.
- * Returns true if chat exists, false otherwise.
- */
 async function checkChatHistory(contactId, accountId, providerId) {
   try {
     const chats = await getChatsByAttendee(accountId, providerId);
@@ -184,11 +177,6 @@ async function checkChatHistory(contactId, accountId, providerId) {
   }
 }
 
-/**
- * Classify contact into a message sequence based on connection status.
- * Sets msg_sequence and (for existing contacts) msg_sequence_started_at.
- * Does not overwrite an existing sequence classification.
- */
 async function classifySequence(contactId, alreadyConnected, hasChatHistory) {
   let seq;
   if (!alreadyConnected) {
@@ -200,7 +188,6 @@ async function classifySequence(contactId, alreadyConnected, hasChatHistory) {
   }
 
   if (alreadyConnected) {
-    // For existing contacts, set started_at now so delay is measured from enrichment
     await db.query(
       `UPDATE contacts
          SET msg_sequence = $1, msg_sequence_started_at = NOW()
@@ -208,7 +195,6 @@ async function classifySequence(contactId, alreadyConnected, hasChatHistory) {
       [seq, contactId]
     );
   } else {
-    // For new contacts, set sequence only — started_at is set when invite is approved
     await db.query(
       `UPDATE contacts SET msg_sequence = $1 WHERE id = $2 AND msg_sequence IS NULL`,
       [seq, contactId]
@@ -220,6 +206,8 @@ async function classifySequence(contactId, alreadyConnected, hasChatHistory) {
 
 /**
  * Upsert this contact's employer into campaign_companies.
+ * Uses SET (not +1) to avoid double-counting on re-enrichment:
+ * count is derived by counting the actual contacts for this company in this campaign.
  */
 async function upsertCampaignCompany(contactId, fields) {
   if (!fields.companyLinkedInId || !fields.company) return;
@@ -232,18 +220,28 @@ async function upsertCampaignCompany(contactId, fields) {
     if (!rows.length || !rows[0].campaign_id) return;
 
     const { campaign_id, workspace_id } = rows[0];
+
+    // Count how many contacts in this campaign share this company LinkedIn ID
+    const { rows: countRows } = await db.query(
+      `SELECT COUNT(*) AS cnt FROM contacts
+       WHERE campaign_id = $1
+         AND profile_data->'work_experience'->0->>'company_id' = $2`,
+      [campaign_id, fields.companyLinkedInId]
+    );
+    const contactCount = parseInt(countRows[0]?.cnt || 1, 10);
+
     await db.query(
       `INSERT INTO campaign_companies
          (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
-       VALUES ($1, $2, $3, $4, $5, 1)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (campaign_id, company_linkedin_id)
        DO UPDATE SET
          company_name   = EXCLUDED.company_name,
          li_company_url = EXCLUDED.li_company_url,
-         contact_count  = campaign_companies.contact_count + 1`,
-      [campaign_id, workspace_id, fields.company, fields.liCompanyUrl, fields.companyLinkedInId]
+         contact_count  = EXCLUDED.contact_count`,
+      [campaign_id, workspace_id, fields.company, fields.liCompanyUrl, fields.companyLinkedInId, contactCount]
     );
-    console.log(`[Enrichment] Upserted company "${fields.company}" (id=${fields.companyLinkedInId}) for campaign ${campaign_id}`);
+    console.log(`[Enrichment] Upserted company "${fields.company}" (id=${fields.companyLinkedInId}) count=${contactCount} for campaign ${campaign_id}`);
   } catch (err) {
     console.warn(`[Enrichment] upsertCampaignCompany failed for contact ${contactId}: ${err.message}`);
   }
