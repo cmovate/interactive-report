@@ -24,6 +24,7 @@ const messageSender            = require('./src/messageSender');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+const MAX_MSG_SLOTS = 20; // must match messageSender.js
 
 app.use(cors());
 app.use(express.json());
@@ -62,6 +63,16 @@ async function nukeIfBroken() {
   } catch (err) {
     console.log('[DB] nukeIfBroken skipped:', err.message);
   }
+}
+
+// Build msg_N_text + msg_N_variant column definitions for N = 1..MAX_MSG_SLOTS
+function msgColsCreate() {
+  let sql = '';
+  for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
+    sql += `      msg_${i}_text    TEXT,\n`;
+    sql += `      msg_${i}_variant VARCHAR(1),\n`;
+  }
+  return sql;
 }
 
 (async () => {
@@ -110,17 +121,7 @@ async function nukeIfBroken() {
       msg_sequence_started_at  TIMESTAMP,
       msg_scheduled_send_at    TIMESTAMP,
       msgs_sent_count          INTEGER DEFAULT 0,
-      msg_1_text               TEXT,
-      msg_1_variant            VARCHAR(1),
-      msg_2_text               TEXT,
-      msg_2_variant            VARCHAR(1),
-      msg_3_text               TEXT,
-      msg_3_variant            VARCHAR(1),
-      msg_4_text               TEXT,
-      msg_4_variant            VARCHAR(1),
-      msg_5_text               TEXT,
-      msg_5_variant            VARCHAR(1),
-      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLEAN DEFAULT FALSE,
+${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLEAN DEFAULT FALSE,
       invite_withdrawn BOOLEAN DEFAULT FALSE, invite_withdrawn_at TIMESTAMP,
       msg_sent BOOLEAN DEFAULT FALSE, msg_replied BOOLEAN DEFAULT FALSE,
       positive_reply BOOLEAN DEFAULT FALSE,
@@ -229,7 +230,8 @@ async function nukeIfBroken() {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  const cols = [
+  // Fixed columns (non-message)
+  const fixedCols = [
     ['ua.webhook_id',              'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
     ['ua.settings',                'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
     ['c.workspace_id',             'campaigns',           'workspace_id',                'INTEGER'],
@@ -249,16 +251,6 @@ async function nukeIfBroken() {
     ['ct.msg_sequence_started_at', 'contacts',            'msg_sequence_started_at',     'TIMESTAMP'],
     ['ct.msg_scheduled_send_at',   'contacts',            'msg_scheduled_send_at',       'TIMESTAMP'],
     ['ct.msgs_sent_count',         'contacts',            'msgs_sent_count',             'INTEGER DEFAULT 0'],
-    ['ct.msg_1_text',              'contacts',            'msg_1_text',                  'TEXT'],
-    ['ct.msg_1_variant',           'contacts',            'msg_1_variant',               'VARCHAR(1)'],
-    ['ct.msg_2_text',              'contacts',            'msg_2_text',                  'TEXT'],
-    ['ct.msg_2_variant',           'contacts',            'msg_2_variant',               'VARCHAR(1)'],
-    ['ct.msg_3_text',              'contacts',            'msg_3_text',                  'TEXT'],
-    ['ct.msg_3_variant',           'contacts',            'msg_3_variant',               'VARCHAR(1)'],
-    ['ct.msg_4_text',              'contacts',            'msg_4_text',                  'TEXT'],
-    ['ct.msg_4_variant',           'contacts',            'msg_4_variant',               'VARCHAR(1)'],
-    ['ct.msg_5_text',              'contacts',            'msg_5_text',                  'TEXT'],
-    ['ct.msg_5_variant',           'contacts',            'msg_5_variant',               'VARCHAR(1)'],
     ['ct.follow_inv',              'contacts',            'company_follow_invited',      'BOOLEAN DEFAULT FALSE'],
     ['ct.follow_conf',             'contacts',            'company_follow_confirmed',    'BOOLEAN DEFAULT FALSE'],
     ['ct.pv_at',                   'contacts',            'last_profile_view_at',        'TIMESTAMP'],
@@ -290,8 +282,14 @@ async function nukeIfBroken() {
     ['cc.liked_ids',               'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
     ['cc.contact_count',           'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
   ];
-  for (const [label, table, col, type] of cols) {
+  for (const [label, table, col, type] of fixedCols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
+  }
+
+  // Message text + variant columns: msg_1_text, msg_1_variant ... msg_20_text, msg_20_variant
+  for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
+    await s(`ct.msg_${i}_text`,    () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_${i}_text    TEXT`));
+    await s(`ct.msg_${i}_variant`, () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_${i}_variant VARCHAR(1)`));
   }
 
   // Repair likes_sent_at + liked_ids
@@ -375,7 +373,7 @@ async function nukeIfBroken() {
     console.log(`[DB] campaign_companies backfill: ${upserted} companies from ${contacts.length} contacts`);
   });
 
-  console.log('[DB] Schema ready');
+  console.log(`[DB] Schema ready — msg slots: ${MAX_MSG_SLOTS}`);
 
   invitationSender.start();
   withdrawSender.start();
