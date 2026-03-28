@@ -12,6 +12,7 @@ const companiesRouter          = require('./src/routes/companies');
 const webhooksRouter           = require('./src/routes/webhooks');
 const followersRouter          = require('./src/routes/followers');
 const statsRouter              = require('./src/routes/stats');
+const opportunitiesRouter      = require('./src/routes/opportunities');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -25,20 +26,21 @@ const conversationQueue        = require('./src/conversationQueue');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
-const MAX_MSG_SLOTS = 20; // must match messageSender.js
+const MAX_MSG_SLOTS = 20;
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api/workspaces', workspacesRouter);
-app.use('/api/unipile',    unipileRouter);
-app.use('/api/campaigns',  campaignsRouter);
-app.use('/api/contacts',   contactsRouter);
-app.use('/api/companies',  companiesRouter);
-app.use('/api/webhooks',   webhooksRouter);
-app.use('/api/followers',  followersRouter);
-app.use('/api/stats',      statsRouter);
+app.use('/api/workspaces',    workspacesRouter);
+app.use('/api/unipile',       unipileRouter);
+app.use('/api/campaigns',     campaignsRouter);
+app.use('/api/contacts',      contactsRouter);
+app.use('/api/companies',     companiesRouter);
+app.use('/api/webhooks',      webhooksRouter);
+app.use('/api/followers',     followersRouter);
+app.use('/api/stats',         statsRouter);
+app.use('/api/opportunities', opportunitiesRouter);
 
 async function s(label, fn) {
   try { await fn(); }
@@ -66,7 +68,6 @@ async function nukeIfBroken() {
   }
 }
 
-// Build msg_N_text + msg_N_variant column definitions for N = 1..MAX_MSG_SLOTS
 function msgColsCreate() {
   let sql = '';
   for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
@@ -133,7 +134,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       msg_sent_at TIMESTAMP, msg_replied_at TIMESTAMP,
       positive_reply_at TIMESTAMP,
       company_follow_invited_at TIMESTAMP, company_follow_confirmed_at TIMESTAMP,
-      -- Personal account likes
       engagement_level      VARCHAR(30),
       engagement_scraped_at TIMESTAMP,
       engagement_data       JSONB,
@@ -141,17 +141,14 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       comment_likes_sent    INTEGER DEFAULT 0,
       likes_sent_at         TIMESTAMP,
       liked_ids             JSONB DEFAULT '[]',
-      -- Company page likes (separate identity, same-day isolation with personal)
       company_post_likes_sent    INTEGER DEFAULT 0,
       company_comment_likes_sent INTEGER DEFAULT 0,
       company_likes_sent_at      TIMESTAMP,
       company_liked_ids          JSONB DEFAULT '[]',
-      -- Conversation analysis
       conversation_stage       VARCHAR(30),
       conversation_score       INTEGER,
       conversation_signals     JSONB,
       conversation_analyzed_at TIMESTAMP,
-      -- Reply tracking
       reply_count              INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT NOW()
     )
@@ -247,7 +244,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  // Fixed columns — idempotent ALTER TABLE ADD COLUMN IF NOT EXISTS
   const fixedCols = [
     ['ua.webhook_id',              'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
     ['ua.settings',                'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
@@ -284,7 +280,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['cf.fsa',                     'company_followers',   'first_seen_at',               'TIMESTAMP DEFAULT NOW()'],
     ['cf.fsp',                     'company_followers',   'first_seen_position',         'INTEGER'],
     ['ds.profile_views',           'campaign_daily_stats','profile_views',               'INTEGER DEFAULT 0'],
-    // Personal likes
     ['ct.eng_level',               'contacts',            'engagement_level',            'VARCHAR(30)'],
     ['ct.eng_scraped_at',          'contacts',            'engagement_scraped_at',       'TIMESTAMP'],
     ['ct.eng_data',                'contacts',            'engagement_data',             'JSONB'],
@@ -292,12 +287,10 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['ct.comment_likes',           'contacts',            'comment_likes_sent',          'INTEGER DEFAULT 0'],
     ['ct.likes_sent_at',           'contacts',            'likes_sent_at',               'TIMESTAMP'],
     ['ct.liked_ids',               'contacts',            'liked_ids',                   "JSONB DEFAULT '[]'"],
-    // Company page likes (separate identity, same-day isolation with personal likes)
     ['ct.co_post_likes',           'contacts',            'company_post_likes_sent',     'INTEGER DEFAULT 0'],
     ['ct.co_comment_likes',        'contacts',            'company_comment_likes_sent',  'INTEGER DEFAULT 0'],
     ['ct.co_likes_sent_at',        'contacts',            'company_likes_sent_at',       'TIMESTAMP'],
     ['ct.co_liked_ids',            'contacts',            'company_liked_ids',           "JSONB DEFAULT '[]'"],
-    // Campaign companies
     ['cc.eng_level',               'campaign_companies',  'engagement_level',            'VARCHAR(30)'],
     ['cc.eng_scraped_at',          'campaign_companies',  'engagement_scraped_at',       'TIMESTAMP'],
     ['cc.eng_data',                'campaign_companies',  'engagement_data',             'JSONB'],
@@ -305,7 +298,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['cc.likes_sent_at',           'campaign_companies',  'likes_sent_at',               'TIMESTAMP'],
     ['cc.liked_ids',               'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
     ['cc.contact_count',           'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
-    // Conversation analysis
     ['ct.conv_stage',              'contacts',            'conversation_stage',          'VARCHAR(30)'],
     ['ct.conv_score',              'contacts',            'conversation_score',          'INTEGER'],
     ['ct.conv_signals',            'contacts',            'conversation_signals',        'JSONB'],
@@ -316,13 +308,11 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
   }
 
-  // Message text + variant columns: msg_1_text, msg_1_variant ... msg_20_text, msg_20_variant
   for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
     await s(`ct.msg_${i}_text`,    () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_${i}_text    TEXT`));
     await s(`ct.msg_${i}_variant`, () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS msg_${i}_variant VARCHAR(1)`));
   }
 
-  // Repair likes_sent_at + liked_ids
   await s('repair.likes_sent_at', async () => {
     const { rowCount } = await db.query(`
       UPDATE contacts SET likes_sent_at = NOW()
@@ -357,7 +347,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     }
   });
 
-  // Auto-backfill campaign_companies on every startup
   await s('backfill.campaign_companies', async () => {
     const { rows: contacts } = await db.query(`
       SELECT
@@ -414,7 +403,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   engagementScraper.start();
   companyEngagementScraper.start();
   messageSender.start();
-  await conversationQueue.start(); // await: runs recoverFromRestart() before poll begins
+  await conversationQueue.start();
 })();
 
 app.get('*', (req, res) => {
