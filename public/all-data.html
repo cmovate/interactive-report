@@ -110,7 +110,6 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
     <button class="tab-btn" id="tab-companies" onclick="switchTab('companies')">&#x1F3E2; Companies</button>
   </div>
 
-  <!-- CONTACTS TAB -->
   <div class="tab-section active" id="section-contacts">
     <div class="toolbar">
       <input class="search-input" type="search" placeholder="Search by name, company, email..." oninput="applyContactFilters()" id="contact-search">
@@ -149,7 +148,7 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
           <th style="min-width:150px;text-align:center;" title="When engagement was last scraped">Last scraped</th>
           <th style="min-width:120px;text-align:center;" title="Post likes we sent">Post likes &#128077;</th>
           <th style="min-width:130px;text-align:center;" title="Comment likes we sent">Comment likes &#128077;</th>
-          <th style="min-width:150px;text-align:center;" title="Last time we liked this contact (lock = still in 3-day cooldown)">Last liked</th>
+          <th style="min-width:150px;text-align:center;" title="Last time we liked (lock = 3-day cooldown active)">Last liked</th>
           <th style="min-width:100px;text-align:center;">Invite sent</th>
           <th style="min-width:110px;text-align:center;">Invite approved</th>
           <th style="min-width:110px;text-align:center;">Message sent</th>
@@ -164,7 +163,6 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
     </div></div>
   </div>
 
-  <!-- COMPANIES TAB -->
   <div class="tab-section" id="section-companies">
     <div class="toolbar">
       <input class="search-input" type="search" placeholder="Search by company name..." oninput="applyCompanyFilters()" id="company-search">
@@ -180,13 +178,13 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
         <thead><tr>
           <th style="min-width:220px;">Company</th>
           <th style="min-width:160px;">Campaign</th>
-          <th style="min-width:90px;text-align:center;" title="Number of contacts from this company in this campaign">Contacts</th>
-          <th style="min-width:80px;text-align:center;" title="Numeric LinkedIn company ID used for posts API">LinkedIn ID</th>
-          <th style="min-width:140px;text-align:center;" title="Engagement level based on company posts in last 14 days">Engagement</th>
-          <th style="min-width:90px;text-align:center;" title="Number of company posts published in the last 14 days">Posts 14d</th>
-          <th style="min-width:150px;text-align:center;" title="When we last scraped this company posts">Last scraped</th>
-          <th style="min-width:120px;text-align:center;" title="Company post likes we sent">Post likes &#128077;</th>
-          <th style="min-width:150px;text-align:center;" title="Last time we liked a company post (lock = still in 3-day cooldown)">Last liked</th>
+          <th style="min-width:90px;text-align:center;" title="Contacts from this company in campaign">Contacts</th>
+          <th style="min-width:80px;text-align:center;" title="Numeric LinkedIn company ID">LinkedIn ID</th>
+          <th style="min-width:140px;text-align:center;" title="Engagement level based on company posts">Engagement</th>
+          <th style="min-width:90px;text-align:center;" title="Company posts published in last 14 days">Posts 14d</th>
+          <th style="min-width:150px;text-align:center;" title="When we last scraped company posts">Last scraped</th>
+          <th style="min-width:120px;text-align:center;" title="Company post likes sent">Post likes &#128077;</th>
+          <th style="min-width:150px;text-align:center;" title="Last liked (lock = 3-day cooldown active)">Last liked</th>
           <th style="min-width:160px;">LinkedIn company</th>
         </tr></thead>
         <tbody id="companies-body"></tbody>
@@ -209,7 +207,6 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
 <script>
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
-
 let allContacts = [], campaigns = [], filteredContacts = [];
 let allCompanies = [], filteredCompanies = [];
 let selectedIds = new Set(), pendingDeleteIds = null;
@@ -231,59 +228,50 @@ function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '0%'; }
 function safeUrl(u) { if(!u)return''; u=u.trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
 function fmtTime(d) { return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
 function fmtDate(ts) {
-  if (!ts) return '<span class="cell-muted">\u2014</span>';
+  if (!ts) return '<span class="cell-muted">—</span>';
   const d = new Date(ts);
-  return '<span style="font-size:11px;color:#666;">'+d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span>';
+  return '<span style="font-size:11px;color:#666;">' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + '</span>';
 }
 function cooldownBadge(ts) {
-  if (!ts) return '<span class="cell-muted">\u2014</span>';
+  if (!ts) return '<span class="cell-muted">—</span>';
   const d = new Date(ts);
   const diff = d.getTime() + 3*24*60*60*1000 - Date.now();
   const dateStr = d.toLocaleDateString();
-  if (diff > 0) {
-    const h = Math.ceil(diff/3600000);
-    return '<span class="cooldown-badge" title="Cooldown: '+h+'h remaining">'+dateStr+' \uD83D\uDD12</span>';
-  }
+  if (diff > 0) { const h = Math.ceil(diff/3600000); return '<span class="cooldown-badge" title="Cooldown: '+h+'h remaining">'+dateStr+' 🔒</span>'; }
   return '<span style="font-size:11px;color:#666;">'+dateStr+'</span>';
 }
-function pvBadge(n) { n=parseInt(n)||0; return n>0?'<span class="pv-count">'+n+'</span>':'<span class="pv-none">\u2014</span>'; }
+function pvBadge(n) { n=parseInt(n)||0; return n>0 ? '<span class="pv-count">'+n+'</span>' : '<span class="pv-none">—</span>'; }
 function followBadge(inv,conf) {
   if(conf) return '<span class="follow-confirmed">Following</span>';
   if(inv)  return '<span class="follow-invited">Invited</span>';
-  return '<span class="follow-none">\u2014</span>';
+  return '<span class="follow-none">—</span>';
 }
 function providerIdBadge(pid,pd) {
   if(pid) return '<span class="provider-id" title="'+esc(pid)+'">'+esc(pid)+'</span>';
-  const has = pd && typeof pd==='object' ? Object.keys(pd).length>0
-             : (typeof pd==='string' && pd!=='' && pd!=='{}' && pd!=='null');
-  return has ? '<span class="provider-id-missing" title="Enriched but ID not found">\u26A0 not found</span>'
-             : '<span class="cell-muted">\u2014</span>';
+  const has = pd && typeof pd==='object' ? Object.keys(pd).length>0 : (typeof pd==='string' && pd!=='' && pd!=='{}' && pd!=='null');
+  return has ? '<span class="provider-id-missing" title="Enriched but ID not found">⚠ not found</span>' : '<span class="cell-muted">—</span>';
 }
 function engBadge(level) {
-  if(!level) return '<span class="eng-pending">\u2014</span>';
+  if(!level) return '<span class="eng-pending">—</span>';
   if(level==='engaged')         return '<span class="eng-engaged">Engaged</span>';
   if(level==='average_engaged') return '<span class="eng-average">Avg engaged</span>';
   if(level==='un_engaged')      return '<span class="eng-unengaged">Un-engaged</span>';
-  return '<span class="eng-pending">\u2014</span>';
+  return '<span class="eng-pending">—</span>';
 }
-function likeBadge(n) { n=parseInt(n)||0; return n>0?'<span class="like-count">'+n+'</span>':'<span class="like-none">\u2014</span>'; }
+function likeBadge(n) { n=parseInt(n)||0; return n>0 ? '<span class="like-count">'+n+'</span>' : '<span class="like-none">—</span>'; }
 function posts14dBadge(engData) {
-  if (!engData) return '<span class="cell-muted">\u2014</span>';
+  if (!engData) return '<span class="cell-muted">—</span>';
   const d = typeof engData==='string' ? JSON.parse(engData) : engData;
   const n = d.posts_14d;
-  if (n == null) return '<span class="cell-muted">\u2014</span>';
-  return n>0 ? '<span class="posts14d-badge">'+n+'</span>' : '<span class="like-none">0</span>';
+  if (n == null) return '<span class="cell-muted">—</span>';
+  return n > 0 ? '<span class="posts14d-badge">'+n+'</span>' : '<span class="like-none">0</span>';
 }
 
-// ── Contacts ──
 function hashC(cs) {
   return cs.map(c=>[
-    c.id,c.invite_sent?1:0,c.invite_approved?1:0,
-    c.msg_sent?1:0,c.msg_replied?1:0,c.positive_reply?1:0,
-    c.profile_view_count||0,
-    c.company_follow_invited?1:0,c.company_follow_confirmed?1:0,
-    c.provider_id||'',c.engagement_level||'',
-    c.post_likes_sent||0,c.comment_likes_sent||0,
+    c.id,c.invite_sent?1:0,c.invite_approved?1:0,c.msg_sent?1:0,c.msg_replied?1:0,c.positive_reply?1:0,
+    c.profile_view_count||0,c.company_follow_invited?1:0,c.company_follow_confirmed?1:0,
+    c.provider_id||'',c.engagement_level||'',c.post_likes_sent||0,c.comment_likes_sent||0,
     c.first_name,c.last_name,c.title,c.company,c.location||'',
   ].join(':')).join('|');
 }
@@ -302,8 +290,7 @@ async function load(silent) {
       const pm=Object.fromEntries(allContacts.map(c=>[c.id,c]));
       for(const c of nc) {
         const p=pm[c.id];
-        if(p&&(
-          p.invite_sent!==c.invite_sent||p.invite_approved!==c.invite_approved||
+        if(p&&(p.invite_sent!==c.invite_sent||p.invite_approved!==c.invite_approved||
           p.msg_sent!==c.msg_sent||p.msg_replied!==c.msg_replied||p.positive_reply!==c.positive_reply||
           (p.profile_view_count||0)!==(c.profile_view_count||0)||
           p.company_follow_invited!==c.company_follow_invited||p.company_follow_confirmed!==c.company_follow_confirmed||
@@ -316,23 +303,18 @@ async function load(silent) {
     const nh=hashC(nc), ch=nh!==prevContactHash;
     allContacts=nc; campaigns=ng; prevContactHash=nh;
     const opts='<option value="">All campaigns</option>'+ng.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
-    ['campaign-filter','company-campaign-filter'].forEach(id=>{
-      const el=document.getElementById(id);
-      const prev=el.value; el.innerHTML=opts; if(prev) el.value=prev;
-    });
+    ['campaign-filter','company-campaign-filter'].forEach(id=>{ const el=document.getElementById(id); const prev=el.value; el.innerHTML=opts; if(prev) el.value=prev; });
     if(ch||!silent) applyContactFilters(changed);
     document.getElementById('last-updated').textContent='Updated '+fmtTime(new Date());
     if (activeTab === 'companies') loadCompanies();
   } catch(e){console.error(e);}
   updateEnrichStatus(); scheduleAutoRefresh();
 }
-
 function scheduleAutoRefresh() { clearTimeout(autoRefreshTimer); autoRefreshTimer=setTimeout(()=>load(true),AUTO_REFRESH_MS); }
 async function manualRefresh() {
   const btn=document.getElementById('refresh-btn'),icon=document.getElementById('refresh-icon');
   btn.disabled=true; icon.innerHTML='<span class="spin">&#x21BB;</span>';
-  await load(false);
-  if (activeTab === 'companies') await loadCompanies();
+  await load(false); if (activeTab === 'companies') await loadCompanies();
   btn.disabled=false; icon.innerHTML='&#x21BB;';
 }
 async function updateEnrichStatus() {
@@ -341,35 +323,25 @@ async function updateEnrichStatus() {
     const pill=document.getElementById('enrich-status');
     if(d.queued>0||d.running) {
       pill.className='enrich-pill active';
-      pill.innerHTML='<span class="enrich-dot pulse"></span> Enriching '+d.queued+'\u2026';
-      clearTimeout(enrichPollTimer);
-      enrichPollTimer=setTimeout(()=>load(true),8000);
-    } else {
-      pill.className='enrich-pill idle';
-      pill.innerHTML='<span class="enrich-dot"></span> Enriched: '+d.processed;
-    }
+      pill.innerHTML='<span class="enrich-dot pulse"></span> Enriching '+d.queued+'…';
+      clearTimeout(enrichPollTimer); enrichPollTimer=setTimeout(()=>load(true),8000);
+    } else { pill.className='enrich-pill idle'; pill.innerHTML='<span class="enrich-dot"></span> Enriched: '+d.processed; }
   } catch(e){document.getElementById('enrich-status').innerHTML='';}
 }
-
 function applyContactFilters(flashIds) {
   const q=document.getElementById('contact-search').value.trim().toLowerCase();
   const cid=document.getElementById('campaign-filter').value;
   filteredContacts=allContacts.filter(r=>{
     if(cid&&String(r.campaign_id)!==String(cid)) return false;
-    if(q) {
-      const hay=[r.first_name,r.last_name,r.company,r.title,r.email,r.website,r.provider_id,r.location].join(' ').toLowerCase();
-      if(!hay.includes(q)) return false;
-    }
+    if(q) { const hay=[r.first_name,r.last_name,r.company,r.title,r.email,r.website,r.provider_id,r.location].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
   });
   selectedIds=new Set([...selectedIds].filter(id=>filteredContacts.find(r=>String(r.id)===String(id))));
   renderContactStats(); renderContactsTable(flashIds); renderBulkBar();
 }
-
 function renderContactStats() {
   const f=filteredContacts;
-  const inv=f.filter(r=>r.company_follow_invited).length;
-  const conf=f.filter(r=>r.company_follow_confirmed).length;
+  const inv=f.filter(r=>r.company_follow_invited).length, conf=f.filter(r=>r.company_follow_confirmed).length;
   const fv=conf>0?(conf+' confirmed / '+inv+' invited'):(inv+' invited');
   const tv=f.reduce((s,r)=>s+(parseInt(r.profile_view_count)||0),0);
   const vc=f.filter(r=>(parseInt(r.profile_view_count)||0)>0).length;
@@ -380,73 +352,59 @@ function renderContactStats() {
   const likedC=f.filter(r=>r.likes_sent_at).length;
   const coolC=f.filter(r=>r.likes_sent_at&&(Date.now()-new Date(r.likes_sent_at).getTime())<3*24*60*60*1000).length;
   const chips=[
-    {label:'Total contacts',val:f.length},
-    {label:'Invites sent',val:f.filter(r=>r.invite_sent).length},
+    {label:'Total contacts',val:f.length},{label:'Invites sent',val:f.filter(r=>r.invite_sent).length},
     {label:'Approved',val:f.filter(r=>r.invite_approved).length+' ('+pct(f.filter(r=>r.invite_approved).length,f.filter(r=>r.invite_sent).length)+')'},
     {label:'Messages sent',val:f.filter(r=>r.msg_sent).length},
     {label:'Replied',val:f.filter(r=>r.msg_replied).length+' ('+pct(f.filter(r=>r.msg_replied).length,f.filter(r=>r.msg_sent).length)+')'},
-    {label:'Positive',val:f.filter(r=>r.positive_reply).length},
-    {label:'Profile views',val:tv+' / '+vc+' contacts'},
-    {label:'Company follow',val:fv},
-    {label:'Enriched',val:ec+' / '+f.length},
-    {label:'Engaged contacts',val:engC},
-    {label:'Post likes sent',val:plC},
-    {label:'Comment likes sent',val:clC},
+    {label:'Positive',val:f.filter(r=>r.positive_reply).length},{label:'Profile views',val:tv+' / '+vc+' contacts'},
+    {label:'Company follow',val:fv},{label:'Enriched',val:ec+' / '+f.length},
+    {label:'Engaged contacts',val:engC},{label:'Post likes sent',val:plC},{label:'Comment likes sent',val:clC},
     {label:'Contacts liked',val:likedC+' ('+coolC+' on cooldown)'},
   ].map(s=>'<div class="stat-chip"><strong>'+s.val+'</strong>'+s.label+'</div>').join('');
   const sr=document.getElementById('contact-stats-row'),badge=document.getElementById('last-updated')?.parentElement;
-  sr.innerHTML=chips;
-  if(badge) sr.appendChild(badge);
+  sr.innerHTML=chips; if(badge) sr.appendChild(badge);
 }
-
 function renderContactsTable(flashIds) {
   const tbody=document.getElementById('contacts-body');
   document.getElementById('check-all').checked=filteredContacts.length>0&&selectedIds.size===filteredContacts.length;
   if(!filteredContacts.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="25">No contacts match your filters</td></tr>'; return; }
   tbody.innerHTML=filteredContacts.map(r=>{
-    const sel=selectedIds.has(String(r.id));
-    const camp=campaigns.find(c=>String(c.id)===String(r.campaign_id));
+    const sel=selectedIds.has(String(r.id)), camp=campaigns.find(c=>String(c.id)===String(r.campaign_id));
     const bool=v=>v?'<span class="bool-yes">Yes</span>':'<span class="bool-no">No</span>';
     const flash=flashIds&&flashIds.has(String(r.id));
-    const lip=r.li_profile_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_profile_url))+'" target="_blank" rel="noopener">View profile</a>':'<span class="cell-muted">\u2014</span>';
-    const lic=r.li_company_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_company_url))+'" target="_blank" rel="noopener">View company</a>':'<span class="cell-muted">\u2014</span>';
-    const web=r.website?'<a class="cell-link" href="'+esc(safeUrl(r.website))+'" target="_blank" rel="noopener">'+esc(r.website)+'</a>':'<span class="cell-muted">\u2014</span>';
+    const lip=r.li_profile_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_profile_url))+'" target="_blank" rel="noopener">View profile</a>':'<span class="cell-muted">—</span>';
+    const lic=r.li_company_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_company_url))+'" target="_blank" rel="noopener">View company</a>':'<span class="cell-muted">—</span>';
+    const web=r.website?'<a class="cell-link" href="'+esc(safeUrl(r.website))+'" target="_blank" rel="noopener">'+esc(r.website)+'</a>':'<span class="cell-muted">—</span>';
     return '<tr class="'+(sel?'selected':'')+(flash?' row-flash':'')+'" id="row-'+r.id+'">'
       +'<td class="check-col"><input type="checkbox" '+(sel?'checked':'')+' onchange="toggleRow(\''+r.id+'\',this.checked)"></td>'
-      +'<td style="font-weight:500;">'+esc(r.first_name)+'</td>'
-      +'<td style="font-weight:500;">'+esc(r.last_name)+'</td>'
-      +'<td class="cell-title">'+(r.title?esc(r.title):'<span class="cell-muted">\u2014</span>')+'</td>'
-      +'<td>'+(r.company?esc(r.company):'<span class="cell-muted">\u2014</span>')+'</td>'
-      +'<td class="cell-loc">'+(r.location?esc(r.location):'<span class="cell-muted">\u2014</span>')+'</td>'
+      +'<td style="font-weight:500;">'+esc(r.first_name)+'</td><td style="font-weight:500;">'+esc(r.last_name)+'</td>'
+      +'<td class="cell-title">'+(r.title?esc(r.title):'<span class="cell-muted">—</span>')+'</td>'
+      +'<td>'+(r.company?esc(r.company):'<span class="cell-muted">—</span>')+'</td>'
+      +'<td class="cell-loc">'+(r.location?esc(r.location):'<span class="cell-muted">—</span>')+'</td>'
       +'<td>'+lip+'</td><td>'+lic+'</td>'
-      +'<td>'+(r.email?esc(r.email):'<span class="cell-muted">\u2014</span>')+'</td>'
-      +'<td>'+web+'</td>'
-      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||'\u2014')+'</td>'
+      +'<td>'+(r.email?esc(r.email):'<span class="cell-muted">—</span>')+'</td><td>'+web+'</td>'
+      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||'—')+'</td>'
       +'<td>'+providerIdBadge(r.provider_id,r.profile_data)+'</td>'
       +'<td style="text-align:center;">'+engBadge(r.engagement_level)+'</td>'
       +'<td style="text-align:center;">'+fmtDate(r.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(r.post_likes_sent)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(r.comment_likes_sent)+'</td>'
       +'<td style="text-align:center;">'+cooldownBadge(r.likes_sent_at)+'</td>'
-      +'<td style="text-align:center;">'+bool(r.invite_sent)+'</td>'
-      +'<td style="text-align:center;">'+bool(r.invite_approved)+'</td>'
-      +'<td style="text-align:center;">'+bool(r.msg_sent)+'</td>'
-      +'<td style="text-align:center;">'+bool(r.msg_replied)+'</td>'
+      +'<td style="text-align:center;">'+bool(r.invite_sent)+'</td><td style="text-align:center;">'+bool(r.invite_approved)+'</td>'
+      +'<td style="text-align:center;">'+bool(r.msg_sent)+'</td><td style="text-align:center;">'+bool(r.msg_replied)+'</td>'
       +'<td style="text-align:center;">'+bool(r.positive_reply)+'</td>'
       +'<td style="text-align:center;">'+pvBadge(r.profile_view_count)+'</td>'
       +'<td style="text-align:center;">'+followBadge(r.company_follow_invited,r.company_follow_confirmed)+'</td>'
-      +'<td><button class="row-del-btn" onclick="askDeleteOne(\''+r.id+'\')" title="Delete">&times;</button></td>'
-      +'</tr>';
+      +'<td><button class="row-del-btn" onclick="askDeleteOne(\''+r.id+'\')" title="Delete">&times;</button></td></tr>';
   }).join('');
 }
-
 function toggleRow(id,checked) {
   if(checked) selectedIds.add(String(id)); else selectedIds.delete(String(id));
   document.getElementById('row-'+id)?.classList.toggle('selected',checked);
   document.getElementById('check-all').checked=selectedIds.size===filteredContacts.length;
   renderBulkBar();
 }
-function toggleAll(checked){filteredContacts.forEach(r=>{if(checked)selectedIds.add(String(r.id));else selectedIds.delete(String(r.id));});renderContactsTable();renderBulkBar();}
+function toggleAll(c){filteredContacts.forEach(r=>{if(c)selectedIds.add(String(r.id));else selectedIds.delete(String(r.id));});renderContactsTable();renderBulkBar();}
 function selectAll(){filteredContacts.forEach(r=>selectedIds.add(String(r.id)));renderContactsTable();renderBulkBar();}
 function clearSelection(){selectedIds.clear();renderContactsTable();renderBulkBar();}
 function renderBulkBar(){
@@ -457,15 +415,13 @@ function renderBulkBar(){
   document.getElementById('bulk-total').textContent=filteredContacts.length;
 }
 function askDeleteOne(id){
-  const r=allContacts.find(c=>String(c.id)===String(id));
-  pendingDeleteIds=[id];
+  const r=allContacts.find(c=>String(c.id)===String(id)); pendingDeleteIds=[id];
   document.getElementById('confirm-title').textContent='Delete contact';
   document.getElementById('confirm-msg').textContent='Delete '+(r?.first_name||'')+' '+(r?.last_name||'')+' from All Data?';
   document.getElementById('confirm-modal').style.display='flex';
 }
 function deleteSelected(){
-  if(!selectedIds.size) return;
-  pendingDeleteIds=[...selectedIds];
+  if(!selectedIds.size) return; pendingDeleteIds=[...selectedIds];
   const n=selectedIds.size;
   document.getElementById('confirm-title').textContent='Delete '+n+' contact'+(n>1?'s':'');
   document.getElementById('confirm-msg').textContent='Permanently delete '+n+' contact'+(n>1?'s':'')+' from All Data and their campaigns.';
@@ -488,8 +444,7 @@ function exportContactsCSV(){
   const toExport=selectedIds.size>0?filteredContacts.filter(r=>selectedIds.has(String(r.id))):filteredContacts;
   const rows=toExport.map(r=>{
     const c=campaigns.find(c=>String(c.id)===String(r.campaign_id));
-    return [
-      r.first_name||'',r.last_name||'',r.title||'',r.company||'',r.location||'',
+    return [r.first_name||'',r.last_name||'',r.title||'',r.company||'',r.location||'',
       r.li_profile_url||'',r.li_company_url||'',r.email||'',r.website||'',
       c?c.name:'',r.provider_id||'',r.engagement_level||'',r.engagement_scraped_at||'',
       parseInt(r.post_likes_sent)||0,parseInt(r.comment_likes_sent)||0,r.likes_sent_at||'',
@@ -501,13 +456,10 @@ function exportContactsCSV(){
   });
   downloadCSV('contacts-data.csv', labels, rows);
 }
-
-// ── Companies ──
 async function loadCompanies() {
   try {
     const cid = document.getElementById('company-campaign-filter').value;
-    const url = '/api/companies?workspace_id='+workspaceId+(cid?'&campaign_id='+cid:'');
-    const data = await fetch(url).then(r=>r.json());
+    const data = await fetch('/api/companies?workspace_id='+workspaceId+(cid?'&campaign_id='+cid:'')).then(r=>r.json());
     allCompanies = Array.isArray(data.items) ? data.items : [];
     applyCompanyFilters();
   } catch(e) { console.error(e); }
@@ -524,75 +476,59 @@ function applyCompanyFilters() {
 }
 function renderCompanyStats() {
   const f = filteredCompanies;
-  const engaged = f.filter(c => c.engagement_level === 'engaged').length;
-  const avgEngaged = f.filter(c => c.engagement_level === 'average_engaged').length;
-  const unEngaged = f.filter(c => c.engagement_level === 'un_engaged').length;
-  const notScraped = f.filter(c => !c.engagement_level).length;
-  const totalPostLikes = f.reduce((s,c) => s+(parseInt(c.post_likes_sent)||0), 0);
-  const totalContacts = f.reduce((s,c) => s+(parseInt(c.contact_count)||0), 0);
-  const coolC = f.filter(c => c.likes_sent_at&&(Date.now()-new Date(c.likes_sent_at).getTime())<3*24*60*60*1000).length;
-  const chips = [
-    {label:'Total companies', val:f.length},
-    {label:'Total contacts covered', val:totalContacts},
-    {label:'Engaged', val:engaged},
-    {label:'Avg engaged', val:avgEngaged},
-    {label:'Un-engaged', val:unEngaged},
-    {label:'Not yet scraped', val:notScraped},
-    {label:'Company post likes sent', val:totalPostLikes},
-    {label:'On cooldown', val:coolC},
+  const engaged=f.filter(c=>c.engagement_level==='engaged').length;
+  const avgEngaged=f.filter(c=>c.engagement_level==='average_engaged').length;
+  const unEngaged=f.filter(c=>c.engagement_level==='un_engaged').length;
+  const notScraped=f.filter(c=>!c.engagement_level).length;
+  const totalPostLikes=f.reduce((s,c)=>s+(parseInt(c.post_likes_sent)||0),0);
+  const totalContacts=f.reduce((s,c)=>s+(parseInt(c.contact_count)||0),0);
+  const coolC=f.filter(c=>c.likes_sent_at&&(Date.now()-new Date(c.likes_sent_at).getTime())<3*24*60*60*1000).length;
+  const chips=[
+    {label:'Total companies',val:f.length},{label:'Total contacts covered',val:totalContacts},
+    {label:'Engaged',val:engaged},{label:'Avg engaged',val:avgEngaged},{label:'Un-engaged',val:unEngaged},
+    {label:'Not yet scraped',val:notScraped},{label:'Company post likes sent',val:totalPostLikes},{label:'On cooldown',val:coolC},
   ].map(s=>'<div class="stat-chip"><strong>'+s.val+'</strong>'+s.label+'</div>').join('');
   document.getElementById('company-stats-row').innerHTML = chips;
 }
 function renderCompaniesTable() {
   const tbody = document.getElementById('companies-body');
-  if (!filteredCompanies.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No companies found \u2014 contacts need to be enriched first</td></tr>';
-    return;
-  }
+  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="10">No companies found — contacts need to be enriched first</td></tr>'; return; }
   tbody.innerHTML = filteredCompanies.map(c => {
     const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
     const liUrl = c.li_company_url || (c.company_linkedin_id ? 'https://www.linkedin.com/company/'+c.company_linkedin_id : '');
-    const liLink = liUrl ? '<a class="cell-link" href="'+esc(safeUrl(liUrl))+'" target="_blank" rel="noopener">View company</a>' : '<span class="cell-muted">\u2014</span>';
+    const liLink = liUrl ? '<a class="cell-link" href="'+esc(safeUrl(liUrl))+'" target="_blank" rel="noopener">View company</a>' : '<span class="cell-muted">—</span>';
     return '<tr>'
-      +'<td style="font-weight:500;">'+(c.company_name?esc(c.company_name):'<span class="cell-muted">\u2014</span>')+'</td>'
-      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||c.campaign_name||'\u2014')+'</td>'
+      +'<td style="font-weight:500;">'+(c.company_name?esc(c.company_name):'<span class="cell-muted">—</span>')+'</td>'
+      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||c.campaign_name||'—')+'</td>'
       +'<td style="text-align:center;"><span class="contact-count-badge">'+(parseInt(c.contact_count)||1)+'</span></td>'
-      +'<td style="text-align:center;">'+(c.company_linkedin_id?'<span class="company-id-badge">'+esc(c.company_linkedin_id)+'</span>':'<span class="cell-muted">\u2014</span>')+'</td>'
+      +'<td style="text-align:center;">'+(c.company_linkedin_id?'<span class="company-id-badge">'+esc(c.company_linkedin_id)+'</span>':'<span class="cell-muted">—</span>')+'</td>'
       +'<td style="text-align:center;">'+engBadge(c.engagement_level)+'</td>'
       +'<td style="text-align:center;">'+posts14dBadge(c.engagement_data)+'</td>'
       +'<td style="text-align:center;">'+fmtDate(c.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(c.post_likes_sent)+'</td>'
       +'<td style="text-align:center;">'+cooldownBadge(c.likes_sent_at)+'</td>'
-      +'<td>'+liLink+'</td>'
-      +'</tr>';
+      +'<td>'+liLink+'</td></tr>';
   }).join('');
 }
 function exportCompaniesCSV() {
-  const labels = ['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked','LinkedIn URL'];
+  const labels=['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked','LinkedIn URL'];
   const rows = filteredCompanies.map(c => {
-    const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
-    const d = c.engagement_data ? (typeof c.engagement_data==='string'?JSON.parse(c.engagement_data):c.engagement_data) : {};
-    return [
-      c.company_name||'', camp?.name||c.campaign_name||'',
-      parseInt(c.contact_count)||1, c.company_linkedin_id||'',
-      c.engagement_level||'', d.posts_14d??'',
-      c.engagement_scraped_at||'',
-      parseInt(c.post_likes_sent)||0, c.likes_sent_at||'',
-      c.li_company_url||'',
+    const camp=campaigns.find(camp=>String(camp.id)===String(c.campaign_id));
+    const d=c.engagement_data?(typeof c.engagement_data==='string'?JSON.parse(c.engagement_data):c.engagement_data):{};
+    return [c.company_name||'',camp?.name||c.campaign_name||'',parseInt(c.contact_count)||1,c.company_linkedin_id||'',
+      c.engagement_level||'',d.posts_14d??'',c.engagement_scraped_at||'',
+      parseInt(c.post_likes_sent)||0,c.likes_sent_at||'',c.li_company_url||'',
     ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
   downloadCSV('companies-data.csv', labels, rows);
 }
 function downloadCSV(filename, labels, rows) {
-  const csv='\uFEFF'+labels.map(l=>'"'+l+'"').join(',')+'
-'+rows.join('
-');
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+  const nl = String.fromCharCode(10);
+  const csv = '\uFEFF' + [labels.map(l=>'"'+l+'"').join(',')].concat(rows).join(nl);
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
 }
-
-// ── Init ──
 load(false);
 fetch('/api/contacts/re-extract?workspace_id='+workspaceId,{method:'POST'})
   .then(r=>r.json()).then(d=>{if(d.updated>0)setTimeout(()=>load(true),3000);})
