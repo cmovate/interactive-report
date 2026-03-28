@@ -88,6 +88,14 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .progress-pct { font-size: 28px; font-weight: 600; color: #1D9E75; }
 .progress-bar-wrap { width: 100%; height: 6px; background: #f0f0f0; border-radius: 999px; overflow: hidden; }
 .progress-bar-fill { height: 100%; background: #1D9E75; border-radius: 999px; transition: width 0.3s; }
+/* Company metadata table */
+.company-meta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
+.company-meta-table th { background: #f9fafb; padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #888; border-bottom: 1px solid #e5e5e5; }
+.company-meta-table td { padding: 8px 12px; border-bottom: 1px solid #f5f5f5; color: #444; }
+.company-meta-table tr:last-child td { border-bottom: none; }
+.meta-ok { color: #0F6E56; font-weight: 600; }
+.meta-warn { color: #B45309; }
+.meta-err { color: #DC2626; }
 .contacts-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
 .contact-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; }
 .contact-name { font-size: 13px; font-weight: 500; }
@@ -265,7 +273,7 @@ function resetWizard() {
     selectedAccount: null, audienceType: null,
     urlsPasted: '', companyUrls: '', searchTitles: '',
     maxPerCompany: 10,
-    searchStatus: null, searchPct: 0, contacts: [],
+    searchStatus: null, searchPct: 0, contacts: [], companiesMeta: [],
     connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
     newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
     engagement: {}, campaignName: '', hours: defaultHours()
@@ -426,6 +434,7 @@ function renderStepAudience(body) {
   renderAudienceDetail();
 }
 function selectAudience(type) { wizard.audienceType=type; renderStepAudience(document.getElementById('modal-body')); }
+
 function renderAudienceDetail() {
   const el = document.getElementById('audience-detail'); if (!el) return;
   if (wizard.audienceType==='people') {
@@ -435,12 +444,41 @@ function renderAudienceDetail() {
     if (!wizard.searchStatus) {
       el.innerHTML=`<div class="field-label">Paste LinkedIn company URLs (one per line)</div><textarea rows="3" placeholder="https://www.linkedin.com/company/microsoft" style="margin-bottom:12px;" oninput="wizard.companyUrls=this.value">${esc(wizard.companyUrls)}</textarea><div class="field-label">Job titles to search for</div><textarea rows="2" placeholder="VP R&D, Head of Engineering, CTO" oninput="wizard.searchTitles=this.value">${esc(wizard.searchTitles)}</textarea><div class="conn-opt-row" style="margin-top:14px;"><div class="conn-opt-label">Max people per company</div><input class="num-input" type="number" min="1" max="500" value="${wizard.maxPerCompany}" oninput="wizard.maxPerCompany=Math.max(1,parseInt(this.value)||1)"></div><div style="margin-top:12px;"><button class="primary-btn" onclick="startSearch()">Search</button></div>`;
     } else if (wizard.searchStatus==='loading') {
-      el.innerHTML=`<div class="search-progress"><div class="progress-pct" id="search-pct">${wizard.searchPct}%</div><div class="progress-bar-wrap" style="width:100%;"><div class="progress-bar-fill" id="search-bar" style="width:${wizard.searchPct}%;"></div></div><div style="font-size:13px;color:#888;">Searching...</div></div>`;
+      el.innerHTML=`<div class="search-progress"><div class="progress-pct" id="search-pct">${wizard.searchPct}%</div><div class="progress-bar-wrap" style="width:100%;"><div class="progress-bar-fill" id="search-bar" style="width:${wizard.searchPct}%;"></div></div><div style="font-size:13px;color:#888;">Searching LinkedIn...</div></div>`;
     } else {
-      el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:14px;font-weight:500;">${wizard.contacts.length} contacts found</div><button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Search again</button></div><div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeContact(${i})">&times;</button></div>`).join('')}</div>`;
+      // Companies metadata table
+      const metaHtml = buildCompaniesMetaHtml(wizard.companiesMeta);
+      el.innerHTML=`
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:14px;font-weight:500;">${wizard.contacts.length} contacts found</div>
+          <button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Search again</button>
+        </div>
+        ${metaHtml}
+        <div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeContact(${i})">&times;</button></div>`).join('')}</div>`;
     }
   }
 }
+
+function buildCompaniesMetaHtml(meta) {
+  if (!meta || !meta.length) return '';
+  const rows = meta.map(m => {
+    const statusClass = m.status === 'ok' ? 'meta-ok' : m.status === 'error' ? 'meta-err' : 'meta-warn';
+    const statusLabel = m.status === 'ok' ? `&#10003; ${esc(m.company_name || '')}` : m.status === 'error' ? `&#10007; Error` : 'Invalid URL';
+    const foundKept = m.status === 'ok'
+      ? `${m.found} found &rarr; <strong>${m.kept} kept</strong>${m.found > m.kept ? ` <span class="meta-warn">(${m.found - m.kept} filtered)</span>` : ''}`
+      : m.error ? `<span class="meta-err">${esc(m.error)}</span>` : '—';
+    return `<tr>
+      <td class="${statusClass}">${statusLabel}</td>
+      <td style="color:#666;font-size:11px;">${esc(m.company_id || '—')}</td>
+      <td>${foundKept}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="company-meta-table">
+    <thead><tr><th>Company</th><th>LinkedIn ID</th><th>Results</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
 async function startSearch() {
   if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
   if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
@@ -457,10 +495,11 @@ async function startSearch() {
     const data = await res.json();
     clearInterval(progressInterval); wizard.searchPct=100; wizard.searchStatus='done';
     wizard.contacts = Array.isArray(data.items) ? data.items : [];
+    wizard.companiesMeta = Array.isArray(data.companies) ? data.companies : [];
   } catch(err) { clearInterval(progressInterval); wizard.searchStatus=null; alert('Search failed: ' + err.message); }
   renderAudienceDetail();
 }
-function resetSearch()    { wizard.searchStatus=null; wizard.contacts=[]; renderAudienceDetail(); }
+function resetSearch()    { wizard.searchStatus=null; wizard.contacts=[]; wizard.companiesMeta=[]; renderAudienceDetail(); }
 function removeContact(i) { wizard.contacts.splice(i,1); renderAudienceDetail(); }
 
 function renderStepSequence(body) {
@@ -547,7 +586,28 @@ async function createCampaign() {
     contacts = wizard.contacts.map(c => ({ first_name: c.first_name||c.name?.split(' ')[0]||'', last_name: c.last_name||c.name?.split(' ').slice(1).join(' ')||'', company: c.company||'', title: c.headline||c.title||'', li_profile_url: c.public_profile_url||c.li_profile_url||'' }));
   }
   try {
-    const res = await fetch('/api/campaigns', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ workspace_id: workspaceId, account_id: wizard.selectedAccount, name: wizard.campaignName, audience_type: wizard.audienceType, contacts, settings: { connection: { enabled: wizard.connectionEnabled, withdraw_days: wizard.withdrawDays, resend: wizard.resendEnabled }, engagement: wizard.engagement, messages: { new: wizard.newMessages, existing_no_history: wizard.existingNoHistoryMessages, existing_with_history: wizard.existingWithHistoryMessages }, hours: wizard.hours } }) });
+    const res = await fetch('/api/campaigns', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
+      workspace_id: workspaceId,
+      account_id: wizard.selectedAccount,
+      name: wizard.campaignName,
+      audience_type: wizard.audienceType,
+      contacts,
+      settings: {
+        connection: {
+          enabled: wizard.connectionEnabled,
+          // Use withdraw_after_days (consistent with withdrawSender.js)
+          withdraw_after_days: wizard.withdrawEnabled ? parseInt(wizard.withdrawDays) || 14 : 0,
+          resend: wizard.resendEnabled,
+        },
+        engagement: wizard.engagement,
+        messages: {
+          new: wizard.newMessages,
+          existing_no_history: wizard.existingNoHistoryMessages,
+          existing_with_history: wizard.existingWithHistoryMessages,
+        },
+        hours: wizard.hours,
+      }
+    })});
     if (!res.ok) throw new Error((await res.json()).error);
     closeModal(); await load();
   } catch(err) { alert('Failed to create campaign: ' + err.message); btn.disabled=false; btn.textContent='Create campaign'; }
