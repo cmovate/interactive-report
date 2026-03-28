@@ -62,40 +62,19 @@ async function viewProfile(accountId, identifier) {
   return request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
 }
 
-/**
- * Fetch posts written by a LinkedIn user.
- * @param {string} accountId  - Unipile account to perform the request from
- * @param {string} providerId - LinkedIn internal ID (ACoXXX) of the target user
- * @param {number} limit      - Max posts to fetch (1-100)
- * @param {boolean} isCompany - Set true if providerId is a company (numeric ID)
- */
-async function getUserPosts(accountId, providerId, limit = 100, isCompany = false) {
+async function getUserPosts(accountId, providerId, limit = 50, isCompany = false) {
   const params = new URLSearchParams({ account_id: accountId, limit: String(limit) });
   if (isCompany) params.set('is_company', 'true');
   const data = await request(`/api/v1/users/${encodeURIComponent(providerId)}/posts?${params}`);
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-/**
- * Fetch comments written by a LinkedIn user.
- * @param {string} accountId  - Unipile account to perform the request from
- * @param {string} providerId - LinkedIn internal ID (ACoXXX) of the target user
- * @param {number} limit      - Max comments to fetch (1-100)
- */
-async function getUserComments(accountId, providerId, limit = 100) {
+async function getUserComments(accountId, providerId, limit = 50) {
   const params = new URLSearchParams({ account_id: accountId, limit: String(limit) });
   const data = await request(`/api/v1/users/${encodeURIComponent(providerId)}/comments?${params}`);
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-/**
- * Like a post or comment.
- * @param {string} accountId      - Unipile account
- * @param {string} postSocialId   - The post's social_id (from posts list)
- * @param {string} [commentId]    - Optional comment ID (if liking a comment)
- * @param {string} [asOrganization] - Company ID if liking as company page
- * @param {string} [reactionType] - Default 'like'
- */
 async function likePost(accountId, postSocialId, commentId, asOrganization, reactionType = 'like') {
   const body = { account_id: accountId, post_id: postSocialId, reaction_type: reactionType };
   if (commentId)      body.comment_id      = commentId;
@@ -138,6 +117,20 @@ async function sendInvitation(accountId, linkedinUrl, message = '') {
   return request('/api/v1/users/invite', { method: 'POST', body: JSON.stringify(body) });
 }
 
+/**
+ * Withdraw (cancel) a pending LinkedIn connection request.
+ * @param {string} accountId   - Unipile account
+ * @param {string} linkedinUrl - LinkedIn profile URL of the contact
+ */
+async function withdrawInvitation(accountId, linkedinUrl) {
+  const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
+  const identifier = match ? match[1] : linkedinUrl;
+  return request(
+    `/api/v1/users/invite?account_id=${encodeURIComponent(accountId)}&provider_id=${encodeURIComponent(identifier)}`,
+    { method: 'DELETE' }
+  );
+}
+
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
   if (!memberUrns.length) return;
   const companyIdMatch = companyPageUrn.match(/(\d+)$/);
@@ -174,5 +167,6 @@ module.exports = {
   createRelationWebhook,
   deleteWebhook,
   sendInvitation,
+  withdrawInvitation,
   sendCompanyFollowInvites,
 };
