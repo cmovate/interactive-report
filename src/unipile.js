@@ -151,46 +151,29 @@ async function startDirectMessage(accountId, providerId, text) {
 }
 
 /**
- * Find 1-to-1 chat with a specific LinkedIn contact by scanning ALL chat pages.
+ * Check if a 1:1 chat exists with a specific LinkedIn contact.
  *
- * Strategy: GET /api/v1/chats pages (200 per page) and match attendee_provider_id.
- * Scans every page until the contact is found or all chats are exhausted.
- * No artificial page limit — handles accounts with thousands of conversations.
+ * Fetches one page of recent chats (200) and looks for a match by attendee_provider_id.
+ * One page is sufficient — if a conversation exists it will appear in the chats list.
  *
  * @param {string} accountId  - Unipile account ID
  * @param {string} providerId - LinkedIn provider_id of the contact (ACoXXX)
- * @returns {Array} - [chat] if found, [] if no chat history exists
+ * @returns {Array} - [chat] if found, [] if no chat exists
  */
 async function getChatsByAttendee(accountId, providerId) {
-  const PAGE_SIZE = 200;
-  let cursor      = null;
-  let page        = 0;
-  let totalScanned = 0;
+  const params = new URLSearchParams({ account_id: accountId, limit: '200' });
+  const data   = await request(`/api/v1/chats?${params}`);
+  const items  = Array.isArray(data?.items) ? data.items : [];
 
-  while (true) {
-    page++;
-    const params = new URLSearchParams({ account_id: accountId, limit: String(PAGE_SIZE) });
-    if (cursor) params.set('cursor', cursor);
+  const match = items.find(c => c.attendee_provider_id === providerId);
 
-    const data  = await request(`/api/v1/chats?${params}`);
-    const items = Array.isArray(data?.items) ? data.items : [];
-    totalScanned += items.length;
-
-    // Search this page for the contact
-    const match = items.find(c => c.attendee_provider_id === providerId);
-    if (match) {
-      console.log(`[Unipile] getChatsByAttendee: found ${providerId} on page ${page} (scanned ${totalScanned} chats total)`);
-      return [match];
-    }
-
-    // No more pages — contact has no chat history
-    if (!data.cursor || items.length < PAGE_SIZE) {
-      console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId} (scanned all ${totalScanned} chats, ${page} pages)`);
-      return [];
-    }
-
-    cursor = data.cursor;
+  if (match) {
+    console.log(`[Unipile] getChatsByAttendee: found chat for ${providerId}`);
+    return [match];
   }
+
+  console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId}`);
+  return [];
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
