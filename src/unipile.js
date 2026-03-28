@@ -132,17 +132,30 @@ async function withdrawInvitation(accountId, linkedinUrl) {
 /**
  * Get all 1-to-1 chats between our account and a specific attendee.
  * Uses the attendee's LinkedIn provider_id (ACoXXX format).
- * Returns an array of chat objects, or empty array if no chats exist.
  *
- * @param {string} accountId   - Unipile account ID
- * @param {string} providerId  - LinkedIn provider_id of the contact (ACoXXX)
+ * Returns:
+ *   - Array of chat objects if chats exist
+ *   - Empty array if 404 (attendee not in Unipile system = no chat history)
+ *   - Throws on other errors
+ *
+ * @param {string} accountId  - Unipile account ID
+ * @param {string} providerId - LinkedIn provider_id (ACoXXX)
  */
 async function getChatsByAttendee(accountId, providerId) {
-  const params = new URLSearchParams({ account_id: accountId });
-  const data = await request(
-    `/api/v1/attendees/${encodeURIComponent(providerId)}/chats?${params}`
-  );
-  return Array.isArray(data?.items) ? data.items : [];
+  try {
+    const params = new URLSearchParams({ account_id: accountId });
+    const data = await request(
+      `/api/v1/attendees/${encodeURIComponent(providerId)}/chats?${params}`
+    );
+    return Array.isArray(data?.items) ? data.items : [];
+  } catch (err) {
+    // 404 = attendee not in Unipile DB = no chat history ever with this person
+    if (err.message.includes('Unipile 404')) {
+      console.log(`[Unipile] getChatsByAttendee: no chat record for ${providerId} (404 = no history)`);
+      return [];
+    }
+    throw err;
+  }
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
