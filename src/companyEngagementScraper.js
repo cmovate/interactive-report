@@ -8,19 +8,19 @@
  * Whether to LIKE is a separate decision controlled by campaign
  * settings (like_company_posts or like_posts). Scraping always happens.
  *
- * Key differences from contact scraper:
- *   - Only POSTS (companies don't write comments)
+ * Key rules:
+ *   - Fetches up to 50 posts per company (isCompany=true)
+ *   - Only scrapes companies with NO existing engagement_data (never overwrites)
+ *   - Only POSTS (companies don't write comments on LinkedIn)
  *   - No employer-related filtering needed
- *   - isCompany=true in getUserPosts
- *   - Only post_likes_sent (no comment_likes_sent)
+ *   - Liking is optional, controlled by campaign settings
+ *   - Cooldown 3 days between likes (not between scrapes)
+ *   - Dedup via liked_ids JSONB
  *
- * Engagement levels (company posts only):
+ * Engagement levels (posts only):
  *   engaged         = ≥2 posts in last 14 days
  *   average_engaged = ≥1 post  in last 14 days
  *   un_engaged      = 0 posts  in last 14 days
- *
- * Cooldown: 3 days between re-liking (scraping always happens regardless)
- * Dedup: liked_ids tracks post social_ids already liked
  *
  * Scheduled: once daily at 06:30.
  */
@@ -32,6 +32,7 @@ const DAYS_14       = 14 * 24 * 60 * 60 * 1000;
 const MAX_LIKES     = 3;
 const COOLDOWN_DAYS = 3;
 const BATCH_SIZE    = 20;
+const SCRAPE_LIMIT  = 50;   // max posts to fetch per company
 
 const rand  = (min, max) => min + Math.random() * (max - min);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -93,12 +94,10 @@ async function processCampaign(campaign) {
   console.log(`[CompanyScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
   // Liking is optional — controlled by campaign settings
-  const eng = campaign.settings?.engagement || {};
+  const eng     = campaign.settings?.engagement || {};
   const canLike = !!(eng.like_company_posts || eng.like_posts);
 
-  // Get unscraped companies (no engagement_level yet)
-  // Cooldown only applies to liking, not to scraping.
-  // But we skip re-scraping companies already classified to avoid wasting API calls.
+  // Only fetch companies with NO engagement_data yet (never overwrite existing scraped data)
   const { rows: companies } = await db.query(
     `SELECT id, company_name, company_linkedin_id,
             post_likes_sent, liked_ids, likes_sent_at
@@ -107,6 +106,7 @@ async function processCampaign(campaign) {
        AND company_linkedin_id IS NOT NULL
        AND company_linkedin_id != ''
        AND engagement_level IS NULL
+       AND engagement_data IS NULL
      ORDER BY RANDOM()
      LIMIT $2`,
     [campaign.id, BATCH_SIZE]
@@ -123,19 +123,17 @@ async function processCampaign(campaign) {
 
   for (const company of companies) {
     try {
-      // Step 1-3: Always scrape and save
+      // Always scrape and save
       const result = await scrapeCompany(company, campaign.account_id);
       scraped++;
 
-      // Step 4: Like only if campaign settings allow it AND company has posts
+      // Like only if campaign settings allow AND company has posts AND not on cooldown
       if (result && result.engagement_level !== 'un_engaged') {
         withContent++;
         if (canLike) {
-          // Check cooldown before liking
           const COOLDOWN_MS = COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
           const lastLiked   = company.likes_sent_at ? new Date(company.likes_sent_at).getTime() : 0;
-          const onCooldown  = (Date.now() - lastLiked) < COOLDOWN_MS;
-          if (!onCooldown) {
+          if ((Date.now() - lastLiked) >= COOLDOWN_MS) {
             await sleep(rand(2000, 5000));
             const liked = await likeCompanyPosts(company, result.posts14d, campaign.account_id);
             totalLiked += liked;
@@ -146,7 +144,6 @@ async function processCampaign(campaign) {
       console.error(`[CompanyScraper] ✗ company ${company.id} (${company.company_name}): ${err.message}`);
     }
 
-    // Random delay between companies: 10-25s
     if (scraped < companies.length) await sleep(rand(10000, 25000));
   }
 
@@ -164,13 +161,13 @@ async function processCampaign(campaign) {
   return { companies_scraped: scraped, with_content: withContent, total_liked: totalLiked };
 }
 
-// ── Scrape a single company ───────────────────────────────────────────────────
+// ── Scrape a single company ────────────────────────────────────────────────────
 async function scrapeCompany(company, accountId) {
   const cutoff = new Date(Date.now() - DAYS_14);
 
   let rawPosts = [];
   try {
-    rawPosts = await unipile.getUserPosts(accountId, company.company_linkedin_id, 100, true);
+    rawPosts = await unipile.getUserPosts(accountId, company.company_linkedin_id, SCRAPE_LIMIT, true);
   } catch (err) {
     console.warn(`[CompanyScraper] Posts failed for ${company.company_name}: ${err.message}`);
   }
@@ -183,7 +180,6 @@ async function scrapeCompany(company, accountId) {
     posts_total:    rawPosts.length,
     posts_14d:      posts14d.length,
     engagement_level: level,
-    // Full raw data stored as JSONB
     posts:          rawPosts,
     posts_14d_data: posts14d,
   };
@@ -274,7 +270,6 @@ async function reclassifyFromExistingData(campaignId) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Company classification — posts only: engaged=≥2, average_engaged=≥1, un_engaged=0 */
 function classifyEngagement(posts14dCount) {
   if (posts14dCount >= 2) return 'engaged';
   if (posts14dCount >= 1) return 'average_engaged';

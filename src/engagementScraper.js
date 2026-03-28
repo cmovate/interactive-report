@@ -8,21 +8,17 @@
  * Whether to LIKE is a separate decision controlled by campaign
  * settings (like_posts, like_comments). Scraping always happens.
  *
- * Flow (per contact):
- *   1. Fetch posts + comments (last 14 days)
- *   2. Classify engagement level
- *   3. Save full raw data to DB as JSONB
- *   4. If campaign has like_posts/like_comments enabled
- *      AND contact has content → like up to 3 items immediately
- *   5. Random delay → next contact
+ * Key rules:
+ *   - Scrapes up to 50 posts and 50 comments per contact
+ *   - Only scrapes contacts with NO existing engagement_data (never overwrites)
+ *   - Liking is optional, controlled by campaign settings
+ *   - Cooldown of 3 days between likes (not between scrapes)
+ *   - Dedup via liked_ids JSONB
  *
  * Engagement levels (OR logic):
  *   un_engaged       — 0 non-employer posts AND 0 non-employer comments in 14d
  *   average_engaged  — ≥1 non-employer post OR ≥1 non-employer comment in 14d
  *   engaged          — ≥2 non-employer posts OR ≥2 non-employer comments in 14d
- *
- * Cooldown: 3 days between re-scraping a contact (after a like was sent)
- * Dedup: liked_ids tracks post/comment IDs already liked
  *
  * Scheduled: once daily at 06:00.
  */
@@ -34,6 +30,7 @@ const DAYS_14        = 14 * 24 * 60 * 60 * 1000;
 const MAX_LIKES      = 3;
 const COOLDOWN_DAYS  = 3;
 const BATCH_SIZE     = 30;
+const SCRAPE_LIMIT   = 50;   // max posts/comments to fetch per contact
 
 const rand  = (min, max) => min + Math.random() * (max - min);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -88,7 +85,7 @@ async function run(campaignId = null) {
 async function processCampaign(campaign) {
   console.log(`[EngagementScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
-  // Load account settings for company page URN (needed only if liking)
+  // Load account settings for company page URN (needed only if liking as company)
   const { rows: accRows } = await db.query(
     'SELECT settings FROM unipile_accounts WHERE account_id = $1',
     [campaign.account_id]
@@ -107,14 +104,15 @@ async function processCampaign(campaign) {
 
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Get unscraped enriched contacts (no engagement_level yet)
-  // Skip contacts still in cooldown (liked recently)
+  // Only fetch contacts with NO engagement_data yet (never overwrite existing scraped data)
+  // Also skip contacts still in like-cooldown (they'll be liked again after 3 days anyway)
   const { rows: contacts } = await db.query(
     `SELECT id, first_name, last_name, company, provider_id, liked_ids, post_likes_sent, comment_likes_sent
      FROM contacts
      WHERE campaign_id = $1
        AND provider_id IS NOT NULL AND provider_id != ''
        AND engagement_level IS NULL
+       AND engagement_data IS NULL
        AND (likes_sent_at IS NULL OR likes_sent_at < $2)
      ORDER BY RANDOM()
      LIMIT $3`,
@@ -132,27 +130,26 @@ async function processCampaign(campaign) {
 
   for (const contact of contacts) {
     try {
-      // Step 1-3: Always scrape and save
+      // Always scrape and save
       const scrapeResult = await scrapeContact(contact, campaign.account_id);
       scraped++;
 
-      // Step 4: Like only if campaign settings allow it AND contact has content
-      if (scrapeResult && scrapeResult.engagement_level !== 'un_engaged' && canLike) {
+      // Like only if campaign settings allow it AND contact has content
+      if (scrapeResult && scrapeResult.engagement_level !== 'un_engaged') {
         foundContent++;
-        await sleep(rand(2000, 5000));
-        const liked = await likeContactFromData(
-          contact, scrapeResult.engagementData,
-          campaign.account_id, companyPageUrn, likeFlags
-        );
-        totalLiked += liked.postLikes + liked.commentLikes;
-      } else if (scrapeResult && scrapeResult.engagement_level !== 'un_engaged') {
-        foundContent++; // Has content but liking disabled for this campaign
+        if (canLike) {
+          await sleep(rand(2000, 5000));
+          const liked = await likeContactFromData(
+            contact, scrapeResult.engagementData,
+            campaign.account_id, companyPageUrn, likeFlags
+          );
+          totalLiked += liked.postLikes + liked.commentLikes;
+        }
       }
     } catch (err) {
       console.error(`[EngagementScraper] ✗ contact ${contact.id}: ${err.message}`);
     }
 
-    // Random delay between contacts: 8-20s
     if (scraped < contacts.length) await sleep(rand(8000, 20000));
   }
 
@@ -177,13 +174,12 @@ async function scrapeContact(contact, accountId) {
 
   let rawPosts = [], rawComments = [];
 
-  try { rawPosts = await unipile.getUserPosts(accountId, contact.provider_id, 100); }
+  try { rawPosts = await unipile.getUserPosts(accountId, contact.provider_id, SCRAPE_LIMIT); }
   catch (err) { console.warn(`[Scraper] Posts failed ${contact.provider_id}: ${err.message}`); }
 
-  // Random delay between posts and comments API calls: 3-8s
   await sleep(rand(3000, 8000));
 
-  try { rawComments = await unipile.getUserComments(accountId, contact.provider_id, 100); }
+  try { rawComments = await unipile.getUserComments(accountId, contact.provider_id, SCRAPE_LIMIT); }
   catch (err) { console.warn(`[Scraper] Comments failed ${contact.provider_id}: ${err.message}`); }
 
   const posts14d    = rawPosts.filter(p => isWithin14Days(p, cutoff));
@@ -204,7 +200,6 @@ async function scrapeContact(contact, accountId) {
     non_employer_comments_14d:      nonEmployerComments.length,
     engagement_level:               level,
     contact_company:                contact.company || '',
-    // Full raw data stored as JSONB
     posts:                          rawPosts,
     comments:                       rawComments,
     posts_14d_data:                 posts14d,
@@ -325,7 +320,6 @@ async function reclassifyFromExistingData(campaignId) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** OR-based: engaged=≥2 posts/comments, average_engaged=≥1, un_engaged=0 */
 function classifyEngagement(nonEmployerPosts, nonEmployerComments) {
   if (nonEmployerPosts >= 2 || nonEmployerComments >= 2) return 'engaged';
   if (nonEmployerPosts >= 1 || nonEmployerComments >= 1) return 'average_engaged';
