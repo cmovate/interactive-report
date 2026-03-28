@@ -11,6 +11,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; flex-wrap: wrap; }
 .page-title { font-size: 22px; font-weight: 600; }
 .page-sub { font-size: 14px; color: #666; margin-top: 4px; }
+
+/* ── Tab navigation ─────────────────────────────────────── */
+.tab-bar { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e5e5e5; }
+.tab-btn { background: none; border: none; padding: 10px 20px; font-size: 13px; font-weight: 500; color: #888; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+.tab-btn:hover { color: #333; }
+.tab-btn.active { color: #1D9E75; border-bottom-color: #1D9E75; }
+.tab-section { display: none; }
+.tab-section.active { display: block; }
+
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .search-input { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; width: 240px; font-family: inherit; background: white; }
 .search-input:focus { outline: none; border-color: #1D9E75; }
@@ -42,20 +51,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .spin { display: inline-block; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .table-outer { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
-.table-scroll-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 300px); position: relative; }
+.table-scroll-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 320px); position: relative; }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; }
 thead th { position: sticky; top: 0; z-index: 3; background: #fafafa; border-bottom: 1px solid #e5e5e5; padding: 11px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; white-space: nowrap; text-align: left; }
-thead th:nth-child(1) { position: sticky; left: 0; z-index: 5; }
-thead th:nth-child(2) { position: sticky; left: 44px; z-index: 5; }
-thead th:nth-child(3) { position: sticky; left: 188px; z-index: 5; border-right: 1px solid #e0e0e0; }
+/* Contacts table sticky cols */
+#contacts-table thead th:nth-child(1), #contacts-table tbody td:nth-child(1) { position: sticky; left: 0; z-index: 5; background: #fafafa; }
+#contacts-table tbody td:nth-child(1) { background: white; z-index: 2; }
+#contacts-table thead th:nth-child(2), #contacts-table tbody td:nth-child(2) { position: sticky; left: 44px; z-index: 5; background: #fafafa; }
+#contacts-table tbody td:nth-child(2) { background: white; z-index: 2; }
+#contacts-table thead th:nth-child(3), #contacts-table tbody td:nth-child(3) { position: sticky; left: 188px; z-index: 5; border-right: 1px solid #e0e0e0; background: #fafafa; }
+#contacts-table tbody td:nth-child(3) { background: white; z-index: 2; border-right: 1px solid #e0e0e0; }
+/* Companies table sticky col */
+#companies-table thead th:nth-child(1), #companies-table tbody td:nth-child(1) { position: sticky; left: 0; z-index: 5; background: #fafafa; }
+#companies-table tbody td:nth-child(1) { background: white; z-index: 2; border-right: 1px solid #e0e0e0; }
+#companies-table thead th:nth-child(1) { border-right: 1px solid #e0e0e0; }
 tbody td { padding: 12px 14px; border-bottom: 1px solid #f5f5f5; white-space: nowrap; font-size: 13px; color: #333; vertical-align: middle; }
-tbody td:nth-child(1) { position: sticky; left: 0; background: white; z-index: 2; }
-tbody td:nth-child(2) { position: sticky; left: 44px; background: white; z-index: 2; }
-tbody td:nth-child(3) { position: sticky; left: 188px; background: white; z-index: 2; border-right: 1px solid #e0e0e0; }
 tbody tr:hover td { background: #fafafa; }
-tbody tr:hover td:nth-child(1),tbody tr:hover td:nth-child(2),tbody tr:hover td:nth-child(3) { background: #fafafa; }
 tbody tr.selected td { background: #F0FBF7; }
-tbody tr.selected td:nth-child(1),tbody tr.selected td:nth-child(2),tbody tr.selected td:nth-child(3) { background: #F0FBF7; }
 tr:last-child td { border-bottom: none; }
 .check-col { width: 44px; text-align: center; padding: 12px 8px; }
 .bool-yes  { display:inline-block; background:#E1F5EE; color:#0F6E56; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:500; }
@@ -67,12 +79,15 @@ tr:last-child td { border-bottom: none; }
 .pv-none  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
 .provider-id { display:inline-block; font-family:'SFMono-Regular',Consolas,monospace; font-size:10px; background:#F3F4F6; color:#374151; border-radius:4px; padding:2px 6px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
 .provider-id-missing { display:inline-block; background:#FEF3C7; color:#92400E; border-radius:4px; padding:2px 6px; font-size:10px; }
+.company-id-badge { display:inline-block; font-family:'SFMono-Regular',Consolas,monospace; font-size:10px; background:#F3F4F6; color:#374151; border-radius:4px; padding:2px 6px; }
 .eng-engaged   { display:inline-block; background:#DCFCE7; color:#166534; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:600; }
 .eng-average   { display:inline-block; background:#FEF9C3; color:#854D0E; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:500; }
 .eng-unengaged { display:inline-block; background:#FEE2E2; color:#991B1B; border-radius:999px; padding:3px 10px; font-size:11px; font-weight:500; }
 .eng-pending   { display:inline-block; background:#f0f0f0; color:#aaa;    border-radius:999px; padding:3px 10px; font-size:11px; }
 .like-count { display:inline-block; background:#FFF7ED; color:#C2410C; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; min-width:24px; text-align:center; }
 .like-none  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
+.contact-count-badge { display:inline-block; background:#EEF2FF; color:#4338CA; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; min-width:24px; text-align:center; }
+.cooldown-badge { display:inline-block; background:#FEF9C3; color:#854D0E; border-radius:4px; padding:2px 6px; font-size:10px; }
 .cell-link  { color:#1D9E75; text-decoration:none; font-size:12px; }
 .cell-link:hover { text-decoration:underline; }
 .cell-muted { color:#aaa; font-size:12px; }
@@ -91,55 +106,94 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
 <body>
 <div class="page">
   <div class="page-header">
-    <div><div class="page-title">All Data</div><div class="page-sub">All contacts across all campaigns in this workspace</div></div>
+    <div><div class="page-title">All Data</div><div class="page-sub">All contacts and companies across campaigns in this workspace</div></div>
   </div>
-  <div class="toolbar">
-    <input class="search-input" type="search" placeholder="Search by name, company, email..." oninput="applyFilters()" id="search-input">
-    <select class="filter-select" id="campaign-filter" onchange="applyFilters()"><option value="">All campaigns</option></select>
-    <div class="toolbar-right">
-      <div id="enrich-status" class="enrich-pill idle"></div>
-      <button class="ghost-btn" id="refresh-btn" onclick="manualRefresh()"><span id="refresh-icon">&#x21BB;</span> Refresh</button>
-      <button class="ghost-btn" onclick="exportCSV()">Export CSV</button>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-contacts" onclick="switchTab('contacts')">👤 Contacts</button>
+    <button class="tab-btn" id="tab-companies" onclick="switchTab('companies')">🏢 Companies</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════ CONTACTS TAB -->
+  <div class="tab-section active" id="section-contacts">
+    <div class="toolbar">
+      <input class="search-input" type="search" placeholder="Search by name, company, email..." oninput="applyContactFilters()" id="contact-search">
+      <select class="filter-select" id="campaign-filter" onchange="applyContactFilters()"><option value="">All campaigns</option></select>
+      <div class="toolbar-right">
+        <div id="enrich-status" class="enrich-pill idle"></div>
+        <button class="ghost-btn" id="refresh-btn" onclick="manualRefresh()"><span id="refresh-icon">&#x21BB;</span> Refresh</button>
+        <button class="ghost-btn" onclick="exportContactsCSV()">Export CSV</button>
+      </div>
     </div>
+    <div id="bulk-bar" style="display:none;" class="bulk-bar">
+      <span id="bulk-count"></span>
+      <button onclick="deleteSelected()">Delete selected</button>
+      <button onclick="selectAll()">Select all (<span id="bulk-total"></span>)</button>
+      <button class="bulk-cancel" onclick="clearSelection()">Cancel</button>
+    </div>
+    <div class="stats-row" id="contact-stats-row">
+      <div class="live-badge"><span class="live-dot"></span><span id="last-updated">Loading...</span></div>
+    </div>
+    <div class="table-outer"><div class="table-scroll-wrap">
+      <table id="contacts-table">
+        <thead><tr>
+          <th class="check-col"><input type="checkbox" id="check-all" onchange="toggleAll(this.checked)"></th>
+          <th style="min-width:144px;">First name</th>
+          <th style="min-width:144px;">Last name</th>
+          <th style="min-width:200px;">Job title</th>
+          <th style="min-width:160px;">Company</th>
+          <th style="min-width:160px;">LinkedIn profile</th>
+          <th style="min-width:160px;">LinkedIn company</th>
+          <th style="min-width:200px;">Email</th>
+          <th style="min-width:180px;">Website</th>
+          <th style="min-width:160px;">Campaign</th>
+          <th style="min-width:200px;" title="LinkedIn internal ID">Provider ID</th>
+          <th style="min-width:130px;text-align:center;">Engagement</th>
+          <th style="min-width:120px;text-align:center;" title="Post likes we sent">Post likes &#128077;</th>
+          <th style="min-width:130px;text-align:center;" title="Comment likes we sent">Comment likes &#128077;</th>
+          <th style="min-width:100px;text-align:center;">Invite sent</th>
+          <th style="min-width:110px;text-align:center;">Invite approved</th>
+          <th style="min-width:110px;text-align:center;">Message sent</th>
+          <th style="min-width:90px;text-align:center;">Replied</th>
+          <th style="min-width:100px;text-align:center;">Positive reply</th>
+          <th style="min-width:110px;text-align:center;">Profile views</th>
+          <th style="min-width:130px;text-align:center;">Company follow</th>
+          <th style="min-width:60px;"></th>
+        </tr></thead>
+        <tbody id="contacts-body"></tbody>
+      </table>
+    </div></div>
   </div>
-  <div id="bulk-bar" style="display:none;" class="bulk-bar">
-    <span id="bulk-count"></span>
-    <button onclick="deleteSelected()">Delete selected</button>
-    <button onclick="selectAll()">Select all (<span id="bulk-total"></span>)</button>
-    <button class="bulk-cancel" onclick="clearSelection()">Cancel</button>
+
+  <!-- ══════════════════════════════════════════════════ COMPANIES TAB -->
+  <div class="tab-section" id="section-companies">
+    <div class="toolbar">
+      <input class="search-input" type="search" placeholder="Search by company name..." oninput="applyCompanyFilters()" id="company-search">
+      <select class="filter-select" id="company-campaign-filter" onchange="applyCompanyFilters()"><option value="">All campaigns</option></select>
+      <div class="toolbar-right">
+        <button class="ghost-btn" onclick="loadCompanies()"><span>&#x21BB;</span> Refresh</button>
+        <button class="ghost-btn" onclick="exportCompaniesCSV()">Export CSV</button>
+      </div>
+    </div>
+    <div class="stats-row" id="company-stats-row"></div>
+    <div class="table-outer"><div class="table-scroll-wrap">
+      <table id="companies-table">
+        <thead><tr>
+          <th style="min-width:220px;">Company</th>
+          <th style="min-width:160px;">Campaign</th>
+          <th style="min-width:90px;text-align:center;" title="Number of contacts from this company in this campaign">Contacts</th>
+          <th style="min-width:80px;text-align:center;" title="Numeric LinkedIn company ID used for posts API">LinkedIn ID</th>
+          <th style="min-width:140px;text-align:center;" title="Engagement level based on company posts in last 14 days">Engagement</th>
+          <th style="min-width:150px;text-align:center;" title="When we last scraped this company's posts">Last scraped</th>
+          <th style="min-width:120px;text-align:center;" title="Company post likes we sent">Post likes &#128077;</th>
+          <th style="min-width:150px;text-align:center;" title="Cooldown — we won't like again until 3 days after this date">Last liked</th>
+          <th style="min-width:160px;">LinkedIn company</th>
+        </tr></thead>
+        <tbody id="companies-body"></tbody>
+      </table>
+    </div></div>
   </div>
-  <div class="stats-row" id="stats-row">
-    <div class="live-badge"><span class="live-dot"></span><span id="last-updated">Loading...</span></div>
-  </div>
-  <div class="table-outer"><div class="table-scroll-wrap">
-    <table id="data-table">
-      <thead><tr>
-        <th class="check-col"><input type="checkbox" id="check-all" onchange="toggleAll(this.checked)"></th>
-        <th style="min-width:144px;">First name</th>
-        <th style="min-width:144px;">Last name</th>
-        <th style="min-width:200px;">Job title</th>
-        <th style="min-width:160px;">Company</th>
-        <th style="min-width:160px;">LinkedIn profile</th>
-        <th style="min-width:160px;">LinkedIn company</th>
-        <th style="min-width:200px;">Email</th>
-        <th style="min-width:180px;">Website</th>
-        <th style="min-width:160px;">Campaign</th>
-        <th style="min-width:200px;" title="LinkedIn internal ID">Provider ID</th>
-        <th style="min-width:130px;text-align:center;">Engagement</th>
-        <th style="min-width:120px;text-align:center;" title="Post likes we sent to this contact">Post likes &#128077;</th>
-        <th style="min-width:130px;text-align:center;" title="Comment likes we sent to this contact">Comment likes &#128077;</th>
-        <th style="min-width:100px;text-align:center;">Invite sent</th>
-        <th style="min-width:110px;text-align:center;">Invite approved</th>
-        <th style="min-width:110px;text-align:center;">Message sent</th>
-        <th style="min-width:90px;text-align:center;">Replied</th>
-        <th style="min-width:100px;text-align:center;">Positive reply</th>
-        <th style="min-width:110px;text-align:center;">Profile views</th>
-        <th style="min-width:130px;text-align:center;">Company follow</th>
-        <th style="min-width:60px;"></th>
-      </tr></thead>
-      <tbody id="table-body"></tbody>
-    </table>
-  </div></div>
 </div>
 
 <div id="confirm-modal" class="confirm-backdrop" style="display:none;">
@@ -157,15 +211,46 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
 
+// ── Shared state ──────────────────────────────────────────────────────────────
 let allContacts = [], campaigns = [], filteredContacts = [];
+let allCompanies = [], filteredCompanies = [];
 let selectedIds = new Set(), pendingDeleteIds = null;
 let enrichPollTimer = null, autoRefreshTimer = null, prevContactHash = '';
+let activeTab = 'contacts';
 const AUTO_REFRESH_MS = 30000;
 
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('section-' + tab).classList.add('active');
+  if (tab === 'companies') loadCompanies();
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '0%'; }
 function safeUrl(u) { if(!u)return''; u=u.trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
 function fmtTime(d) { return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function fmtDate(ts) {
+  if (!ts) return '<span class="cell-muted">—</span>';
+  const d = new Date(ts);
+  return `<span style="font-size:11px;color:#666;">${d.toLocaleDateString()} ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>`;
+}
+function cooldownBadge(ts) {
+  if (!ts) return '<span class="cell-muted">—</span>';
+  const d = new Date(ts);
+  const now = Date.now();
+  const diff = d.getTime() + 3*24*60*60*1000 - now;
+  const dateStr = d.toLocaleDateString();
+  if (diff > 0) {
+    const hoursLeft = Math.ceil(diff / 3600000);
+    return `<span class="cooldown-badge" title="Cooldown: ${hoursLeft}h remaining">${dateStr} 🔒</span>`;
+  }
+  return `<span style="font-size:11px;color:#666;">${dateStr}</span>`;
+}
 
 function pvBadge(n) {
   n=parseInt(n)||0;
@@ -195,6 +280,7 @@ function likeBadge(n) {
   return n>0 ? `<span class="like-count">${n}</span>` : '<span class="like-none">—</span>';
 }
 
+// ── Contacts ──────────────────────────────────────────────────────────────────
 function hashC(cs) {
   return cs.map(c=>[
     c.id,c.invite_sent?1:0,c.invite_approved?1:0,
@@ -236,11 +322,17 @@ async function load(silent) {
     const nh=hashC(nc), ch=nh!==prevContactHash;
     allContacts=nc; campaigns=ng; prevContactHash=nh;
 
-    const sel=document.getElementById('campaign-filter'), prev=sel.value;
-    sel.innerHTML='<option value="">All campaigns</option>'+ng.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
-    if(prev) sel.value=prev;
-    if(ch||!silent) applyFilters(changed);
+    // Sync campaign dropdowns
+    const opts='<option value="">All campaigns</option>'+ng.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    ['campaign-filter','company-campaign-filter'].forEach(id=>{
+      const el=document.getElementById(id);
+      const prev=el.value; el.innerHTML=opts; if(prev) el.value=prev;
+    });
+
+    if(ch||!silent) applyContactFilters(changed);
     document.getElementById('last-updated').textContent='Updated '+fmtTime(new Date());
+    // Also refresh companies if that tab is active
+    if (activeTab === 'companies') loadCompanies();
   } catch(e){console.error(e);}
   updateEnrichStatus(); scheduleAutoRefresh();
 }
@@ -253,6 +345,7 @@ async function manualRefresh() {
   const btn=document.getElementById('refresh-btn'),icon=document.getElementById('refresh-icon');
   btn.disabled=true; icon.innerHTML='<span class="spin">&#x21BB;</span>';
   await load(false);
+  if (activeTab === 'companies') await loadCompanies();
   btn.disabled=false; icon.innerHTML='&#x21BB;';
 }
 async function updateEnrichStatus() {
@@ -271,8 +364,8 @@ async function updateEnrichStatus() {
   } catch(e){document.getElementById('enrich-status').innerHTML='';}
 }
 
-function applyFilters(flashIds) {
-  const q=document.getElementById('search-input').value.trim().toLowerCase();
+function applyContactFilters(flashIds) {
+  const q=document.getElementById('contact-search').value.trim().toLowerCase();
   const cid=document.getElementById('campaign-filter').value;
   filteredContacts=allContacts.filter(r=>{
     if(cid&&String(r.campaign_id)!==String(cid)) return false;
@@ -283,10 +376,10 @@ function applyFilters(flashIds) {
     return true;
   });
   selectedIds=new Set([...selectedIds].filter(id=>filteredContacts.find(r=>String(r.id)===String(id))));
-  renderStats(); renderTable(flashIds); renderBulkBar();
+  renderContactStats(); renderContactsTable(flashIds); renderBulkBar();
 }
 
-function renderStats() {
+function renderContactStats() {
   const f=filteredContacts;
   const inv=f.filter(r=>r.company_follow_invited).length;
   const conf=f.filter(r=>r.company_follow_confirmed).length;
@@ -313,13 +406,13 @@ function renderStats() {
     {label:'Comment likes sent',val:clC},
   ].map(s=>`<div class="stat-chip"><strong>${s.val}</strong>${s.label}</div>`).join('');
 
-  const sr=document.getElementById('stats-row'),badge=document.getElementById('last-updated')?.parentElement;
+  const sr=document.getElementById('contact-stats-row'),badge=document.getElementById('last-updated')?.parentElement;
   sr.innerHTML=chips;
   if(badge) sr.appendChild(badge);
 }
 
-function renderTable(flashIds) {
-  const tbody=document.getElementById('table-body');
+function renderContactsTable(flashIds) {
+  const tbody=document.getElementById('contacts-body');
   document.getElementById('check-all').checked=filteredContacts.length>0&&selectedIds.size===filteredContacts.length;
   if(!filteredContacts.length) {
     tbody.innerHTML='<tr class="empty-row"><td colspan="22">No contacts match your filters</td></tr>';
@@ -365,9 +458,9 @@ function toggleRow(id,checked) {
   document.getElementById('check-all').checked=selectedIds.size===filteredContacts.length;
   renderBulkBar();
 }
-function toggleAll(checked){filteredContacts.forEach(r=>{if(checked)selectedIds.add(String(r.id));else selectedIds.delete(String(r.id));});renderTable();renderBulkBar();}
-function selectAll(){filteredContacts.forEach(r=>selectedIds.add(String(r.id)));renderTable();renderBulkBar();}
-function clearSelection(){selectedIds.clear();renderTable();renderBulkBar();}
+function toggleAll(checked){filteredContacts.forEach(r=>{if(checked)selectedIds.add(String(r.id));else selectedIds.delete(String(r.id));});renderContactsTable();renderBulkBar();}
+function selectAll(){filteredContacts.forEach(r=>selectedIds.add(String(r.id)));renderContactsTable();renderBulkBar();}
+function clearSelection(){selectedIds.clear();renderContactsTable();renderBulkBar();}
 function renderBulkBar(){
   const bar=document.getElementById('bulk-bar');
   if(!selectedIds.size){bar.style.display='none';return;}
@@ -380,7 +473,7 @@ function askDeleteOne(id){
   const r=allContacts.find(c=>String(c.id)===String(id));
   pendingDeleteIds=[id];
   document.getElementById('confirm-title').textContent='Delete contact';
-  document.getElementById('confirm-msg').textContent='Delete '+( r?.first_name||'')+' '+(r?.last_name||'')+' from All Data? This will also remove them from their campaign.';
+  document.getElementById('confirm-msg').textContent='Delete '+(r?.first_name||'')+' '+(r?.last_name||'')+' from All Data?';
   document.getElementById('confirm-modal').style.display='flex';
 }
 function deleteSelected(){
@@ -400,7 +493,7 @@ async function confirmDelete(){
   pendingDeleteIds=null; closeConfirm(); await load(false);
 }
 
-function exportCSV(){
+function exportContactsCSV(){
   const labels=['First name','Last name','Job title','Company','LinkedIn profile','LinkedIn company',
     'Email','Website','Campaign','Provider ID','Engagement','Post likes sent','Comment likes sent',
     'Invite sent','Invite approved','Message sent','Replied','Positive reply',
@@ -419,13 +512,109 @@ function exportCSV(){
       r.company_follow_invited?'Yes':'No',r.company_follow_confirmed?'Yes':'No',
     ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
-  const csv='\uFEFF'+labels.map(l=>'"'+l+'"').join(',')+"\n"+rows.join("\n");
-  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url; a.download='all-data.csv'; a.click(); URL.revokeObjectURL(url);
+  downloadCSV('contacts-data.csv', labels, rows);
 }
 
+// ── Companies ─────────────────────────────────────────────────────────────────
+async function loadCompanies() {
+  try {
+    const cid = document.getElementById('company-campaign-filter').value;
+    const url = `/api/companies?workspace_id=${workspaceId}${cid?'&campaign_id='+cid:''}`;
+    const data = await fetch(url).then(r=>r.json());
+    allCompanies = Array.isArray(data.items) ? data.items : [];
+    applyCompanyFilters();
+  } catch(e) { console.error(e); }
+}
+
+function applyCompanyFilters() {
+  const q = document.getElementById('company-search').value.trim().toLowerCase();
+  const cid = document.getElementById('company-campaign-filter').value;
+  filteredCompanies = allCompanies.filter(c => {
+    if (cid && String(c.campaign_id) !== String(cid)) return false;
+    if (q && !((c.company_name||'').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  renderCompanyStats();
+  renderCompaniesTable();
+}
+
+function renderCompanyStats() {
+  const f = filteredCompanies;
+  const total = f.length;
+  const engaged = f.filter(c => c.engagement_level === 'engaged').length;
+  const avgEngaged = f.filter(c => c.engagement_level === 'average_engaged').length;
+  const unEngaged = f.filter(c => c.engagement_level === 'un_engaged').length;
+  const notScraped = f.filter(c => !c.engagement_level).length;
+  const totalPostLikes = f.reduce((s,c) => s+(parseInt(c.post_likes_sent)||0), 0);
+  const totalContacts = f.reduce((s,c) => s+(parseInt(c.contact_count)||0), 0);
+
+  const chips = [
+    {label:'Total companies', val:total},
+    {label:'Total contacts covered', val:totalContacts},
+    {label:'Engaged', val:engaged},
+    {label:'Avg engaged', val:avgEngaged},
+    {label:'Un-engaged', val:unEngaged},
+    {label:'Not yet scraped', val:notScraped},
+    {label:'Company post likes sent', val:totalPostLikes},
+  ].map(s=>`<div class="stat-chip"><strong>${s.val}</strong>${s.label}</div>`).join('');
+
+  document.getElementById('company-stats-row').innerHTML = chips;
+}
+
+function renderCompaniesTable() {
+  const tbody = document.getElementById('companies-body');
+  if (!filteredCompanies.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No companies found — contacts need to be enriched first</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filteredCompanies.map(c => {
+    const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
+    const liUrl = c.li_company_url || (c.company_linkedin_id ? `https://www.linkedin.com/company/${c.company_linkedin_id}` : '');
+    const liLink = liUrl
+      ? `<a class="cell-link" href="${esc(safeUrl(liUrl))}" target="_blank" rel="noopener">View company</a>`
+      : '<span class="cell-muted">—</span>';
+
+    return `<tr>
+      <td style="font-weight:500;">${c.company_name ? esc(c.company_name) : '<span class="cell-muted">—</span>'}</td>
+      <td style="font-size:12px;color:#888;">${esc(camp?.name || c.campaign_name || '—')}</td>
+      <td style="text-align:center;"><span class="contact-count-badge">${parseInt(c.contact_count)||1}</span></td>
+      <td style="text-align:center;">${c.company_linkedin_id ? `<span class="company-id-badge">${esc(c.company_linkedin_id)}</span>` : '<span class="cell-muted">—</span>'}</td>
+      <td style="text-align:center;">${engBadge(c.engagement_level)}</td>
+      <td style="text-align:center;">${fmtDate(c.engagement_scraped_at)}</td>
+      <td style="text-align:center;">${likeBadge(c.post_likes_sent)}</td>
+      <td style="text-align:center;">${cooldownBadge(c.likes_sent_at)}</td>
+      <td>${liLink}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCompaniesCSV() {
+  const labels = ['Company','Campaign','Contacts','LinkedIn ID','Engagement','Last scraped','Post likes sent','Last liked','LinkedIn URL'];
+  const rows = filteredCompanies.map(c => {
+    const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
+    return [
+      c.company_name||'', camp?.name||c.campaign_name||'',
+      parseInt(c.contact_count)||1, c.company_linkedin_id||'',
+      c.engagement_level||'', c.engagement_scraped_at||'',
+      parseInt(c.post_likes_sent)||0, c.likes_sent_at||'',
+      c.li_company_url||'',
+    ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
+  });
+  downloadCSV('companies-data.csv', labels, rows);
+}
+
+function downloadCSV(filename, labels, rows) {
+  const csv='\uFEFF'+labels.map(l=>'"'+l+'"').join(',')+'\n'+rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 load(false);
+
+// Re-extract on page load (populates provider_id + campaign_companies)
 fetch('/api/contacts/re-extract?workspace_id='+workspaceId,{method:'POST'})
   .then(r=>r.json()).then(d=>{if(d.updated>0)setTimeout(()=>load(true),3000);})
   .catch(()=>{});
