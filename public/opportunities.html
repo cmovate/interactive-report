@@ -79,13 +79,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .field-row { display: flex; gap: 10px; align-items: flex-start; }
 .num-input { width: 70px; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; text-align: center; }
 
-/* Auto config (company campaigns) */
+/* Auto config (company campaigns with saved searchConfig) */
 .attach-auto-box { background: #F0FBF7; border: 1px solid #A7F3D0; border-radius: 8px; padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; }
 .attach-auto-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
 .attach-auto-label { font-size: 12px; font-weight: 600; color: #0F6E56; margin-bottom: 4px; }
 .attach-auto-values { font-size: 12px; color: #065f46; line-height: 1.5; }
 
-/* Manual config (people campaigns) */
+/* Manual config (people campaigns — user must enter titles) */
 .attach-manual-note { font-size: 12px; color: #666; background: #FFF8E1; border: 1px solid #FFE082; border-radius: 6px; padding: 9px 12px; margin-bottom: 8px; line-height: 1.4; }
 
 .attach-note { font-size: 11px; color: #888; background: #fffbea; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; line-height: 1.4; }
@@ -131,6 +131,11 @@ tbody tr:last-child > td { border-bottom: none; }
 .contacts-grid-row  { display: grid; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f3f3f3; align-items: center; }
 .contacts-grid-row:last-child { border-bottom: none; }
 .no-contacts { padding: 16px 0; text-align: center; color: #aaa; font-size: 13px; }
+.contact-name-cell { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+/* Reply status badge — shown when the contact has replied to a message */
+.replied-badge { font-size: 9px; font-weight: 700; border-radius: 3px; padding: 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.replied-badge.positive { background: #DCFCE7; color: #166534; }
+.replied-badge.replied  { background: #E1F5EE; color: #0F6E56; }
 .msg-btn { background: none; border: 1px solid #1D9E75; border-radius: 6px; padding: 4px 10px; font-size: 12px; color: #1D9E75; cursor: pointer; font-family: inherit; transition: background 0.1s; }
 .msg-btn:hover { background: #F0FBF7; }
 .msg-btn:disabled { opacity: 0.4; cursor: not-allowed; border-color: #ddd; color: #aaa; }
@@ -176,7 +181,7 @@ tbody tr:last-child > td { border-bottom: none; }
     </div>
   </div>
 
-  <!-- Filter bar (rendered dynamically) -->
+  <!-- Filter bar -->
   <div class="filter-bar" id="filter-bar">
     <button class="filter-pill active" onclick="setFilter('all')">All companies</button>
   </div>
@@ -239,7 +244,7 @@ tbody tr:last-child > td { border-bottom: none; }
             </select>
           </div>
 
-          <!-- AUTO MODE: company campaign &mdash; titles from campaign settings -->
+          <!-- AUTO: company campaign with saved searchConfig -->
           <div id="attach-auto-config" style="display:none;">
             <div class="attach-auto-box">
               <div class="attach-auto-icon">&#10003;</div>
@@ -250,7 +255,7 @@ tbody tr:last-child > td { border-bottom: none; }
             </div>
           </div>
 
-          <!-- MANUAL MODE: people campaign &mdash; ask user for titles -->
+          <!-- MANUAL: people campaign — user enters titles -->
           <div id="attach-manual-config" style="display:none;">
             <div class="attach-manual-note">&#128100; This campaign targets individual profile URLs, not
               companies. Enter the job titles you want to find at the added companies.</div>
@@ -331,10 +336,9 @@ let expandedIds   = new Set();
 let currentFilter = 'all';
 let activeContact = null;
 
-// Add panel state
 let addPanelOpen    = false;
 let parsedList      = [];
-let panelViewMode   = 'new';   // 'new' | 'existing'
+let panelViewMode   = 'new';
 let panelViewId     = null;
 let panelAttachCamp = false;
 
@@ -364,11 +368,14 @@ async function load() {
   }
 }
 
-// ── Filter bar ─────────────────────────────────────────────────────────────────
+// ── Filter bar ────────────────────────────────────────────────────────────────
 
 function renderFilterBar() {
-  const { views, campaigns } = allData;
-  let html = `<button class="filter-pill${currentFilter==='all'?' active':''}" onclick="setFilter('all')">All companies</button>`;
+  const { views, campaigns, companies } = allData;
+  // Show total count on the "All" pill so users can see at a glance how many companies exist
+  let html = `<button class="filter-pill${currentFilter==='all'?' active':''}" onclick="setFilter('all')">
+    All companies <span class="pill-count">${companies.length}</span>
+  </button>`;
   if (views.length) {
     html += `<span class="filter-sep">Views:</span>`;
     views.forEach(v => {
@@ -395,8 +402,8 @@ function renderFilterBar() {
 
 function setFilter(f) {
   currentFilter = f;
+  expandedIds.clear();  // reset expand state when switching filters
   renderFilterBar();
-  // Pre-select the view in the add panel when switching to a view filter
   if (f.startsWith('view:') && addPanelOpen) {
     panelViewMode = 'existing';
     panelViewId   = parseInt(f.split(':')[1]);
@@ -420,17 +427,17 @@ function applyFilter() {
   } else {
     base = allData.companies;
   }
-  // FIX: was c.title|| (missing '' — caused SyntaxError crashing the whole page)
   filtered = q ? base.filter(co => {
     if (co.company_name.toLowerCase().includes(q)) return true;
     return co.contacts.some(c =>
-      `${c.first_name||''} ${c.last_name||''} ${c.company||''} ${c.title||''}`.toLowerCase().includes(q)
+      `${c.first_name||''} ${c.last_name||''} ${c.title||''}`.toLowerCase().includes(q)
     );
   }) : base;
-  renderStats(); renderTable();
+  renderStats();
+  renderTable(q);
 }
 
-// ── Stats ───────────────────────────────────────────────────────────────────────
+// ── Stats ─────────────────────────────────────────────────────────────────────
 
 function renderStats() {
   const withConn = filtered.filter(c => c.total > 0).length;
@@ -448,33 +455,54 @@ function renderStats() {
   document.getElementById('stats-row').innerHTML = html;
 }
 
-// ── Table ───────────────────────────────────────────────────────────────────────
+// ── Table ─────────────────────────────────────────────────────────────────────
 
-const CONTACT_GRID = '140px 140px 1fr 140px 110px 110px';
+// Contacts grid: Name+reply badge | Title | Campaign | Profile | Message
+// The "Company" column was removed — it was redundant inside an already expanded company row.
+const CONTACT_GRID = '200px 1fr 150px 110px 110px';
+
 function cc(n) { return n >= 5 ? 'count-high' : n >= 2 ? 'count-medium' : n > 0 ? 'count-low' : 'count-zero'; }
 
-/**
- * Serialise a contact object safely for use in an onclick="..." HTML attribute.
- * JSON.stringify uses " for string delimiters — must convert to &quot; so they
- * don't break the surrounding double-quoted HTML attribute.
- * The HTML parser decodes &quot; -> " before JS sees the string.
- */
+// Safely serialise a contact object for use inside an onclick="..." attribute.
+// JSON.stringify produces "-delimited strings; &quot; prevents them from
+// terminating the surrounding HTML attribute. The HTML parser decodes &quot; -> "
+// before the JS engine sees it.
 function contactJson(c) {
-  return JSON.stringify(c)
-    .replace(/&/g, '&amp;')   // must come first
-    .replace(/"/g, '&quot;');
+  return JSON.stringify(c).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
-function renderTable() {
+function renderTable(searchQuery) {
   const area = document.getElementById('main-area');
   if (!filtered.length) {
+    // Context-aware empty states
+    let icon  = '&#128161;';
+    let title = 'No opportunities found';
+    let msg   = 'Run campaigns with company targeting, or click <strong>+ Add companies</strong>';
+    if (searchQuery) {
+      icon  = '&#128269;';
+      title = 'No results';
+      msg   = `No companies or contacts match &ldquo;<strong>${esc(searchQuery)}</strong>&rdquo;`;
+    } else if (currentFilter.startsWith('view:')) {
+      const vid  = parseInt(currentFilter.split(':')[1]);
+      const view = allData.views.find(v => v.id === vid);
+      icon  = '&#128193;';
+      title = `&ldquo;${esc(view?.name || 'View')}&rdquo; is empty`;
+      msg   = 'No companies in this view yet. Click <strong>+ Add companies</strong> above.';
+    } else if (currentFilter.startsWith('campaign:')) {
+      const cid  = parseInt(currentFilter.split(':')[1]);
+      const camp = allData.campaigns.find(c => c.id === cid);
+      icon  = '&#128203;';
+      title = 'No companies for this campaign';
+      msg   = `No campaign companies found yet for <strong>${esc(camp?.name || 'this campaign')}</strong>.`;
+    }
     area.innerHTML = `<div class="empty-state">
-      <div style="font-size:32px;margin-bottom:12px;opacity:0.3;">&#128161;</div>
-      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">No opportunities found</div>
-      <div style="font-size:13px;color:#888;">Run campaigns with company targeting, or click <strong>+ Add companies</strong></div>
+      <div style="font-size:32px;margin-bottom:12px;opacity:0.3;">${icon}</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">${title}</div>
+      <div style="font-size:13px;color:#888;">${msg}</div>
     </div>`;
     return;
   }
+
   const accounts   = allData.accounts;
   const accHeaders = accounts.map(a =>
     `<th style="text-align:center;">${esc(a.display_name || a.account_id)}</th>`
@@ -488,53 +516,32 @@ function renderTable() {
       const n = co.connections_by_account?.[a.account_id] || 0;
       return `<td style="text-align:center;"><span class="count-badge ${cc(n)}">${n || '\u2014'}</span></td>`;
     }).join('');
-    const badge     = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
-                    : co.source === 'both'   ? '<span class="source-badge badge-both">+Custom</span>'
-                    : '';
-    const viewTag   = co.view_name
-      ? `<span class="view-badge">&#128193; ${esc(co.view_name)}</span>` : '';
-    const removeBtn = (co.source === 'custom' || co.source === 'both') && co.custom_id
-      ? `<button class="remove-co-btn"
-               onclick="event.stopPropagation();removeCompany(${co.custom_id})"
-               title="Remove">&times;</button>`
-      : '';
-    const liLink = co.li_company_url
-      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}"
-             target="_blank" rel="noopener">View &#8599;</a>`
+    const badge    = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
+                   : co.source === 'both'   ? '<span class="source-badge badge-both">+Custom</span>' : '';
+    const viewTag  = co.view_name ? `<span class="view-badge">&#128193; ${esc(co.view_name)}</span>` : '';
+    const rmBtn    = (co.source === 'custom' || co.source === 'both') && co.custom_id
+      ? `<button class="remove-co-btn" onclick="event.stopPropagation();removeCompany(${co.custom_id})" title="Remove">&times;</button>` : '';
+    const liLink   = co.li_company_url
+      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View &#8599;</a>`
       : '<span class="cell-muted">\u2014</span>';
 
     rows += `<tr class="company-row${isOpen?' expanded':''}" onclick="toggleCompany('${rowId}')">
-      <td>
-        <div class="company-name-cell">
-          <span class="expand-icon">&#9654;</span>
-          <span>${esc(co.company_name)}</span>
-          ${badge}${viewTag}${removeBtn}
-        </div>
-      </td>
+      <td><div class="company-name-cell"><span class="expand-icon">&#9654;</span><span>${esc(co.company_name)}</span>${badge}${viewTag}${rmBtn}</div></td>
       <td>${liLink}</td>
       ${accCells}
-      <td style="text-align:center;">
-        <span class="count-badge ${cc(co.total)}">${co.total || '\u2014'}</span>
-      </td>
-      <td style="text-align:right;padding-right:12px;">
-        <span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span>
-      </td>
+      <td style="text-align:center;"><span class="count-badge ${cc(co.total)}">${co.total || '\u2014'}</span></td>
+      <td style="text-align:right;padding-right:12px;"><span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span></td>
     </tr>`;
-
     if (isOpen) {
-      rows += `<tr class="contacts-row">
-        <td colspan="${2 + accounts.length + 2}">${renderContactsBlock(co)}</td>
-      </tr>`;
+      rows += `<tr class="contacts-row"><td colspan="${2 + accounts.length + 2}">${renderContactsBlock(co)}</td></tr>`;
     }
   }
 
   area.innerHTML = `<div class="table-outer"><table>
     <thead><tr>
-      <th style="min-width:200px;">Company</th>
-      <th>LinkedIn</th>
+      <th style="min-width:200px;">Company</th><th>LinkedIn</th>
       ${accHeaders}
-      <th style="text-align:center;">Total</th>
-      <th></th>
+      <th style="text-align:center;">Total</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -542,54 +549,41 @@ function renderTable() {
 
 function renderContactsBlock(co) {
   if (!co.contacts.length) {
-    return `<div class="contacts-inner">
-      <div class="no-contacts">No connected contacts found at this company.</div>
-    </div>`;
+    return `<div class="contacts-inner"><div class="no-contacts">No connected contacts found at this company.</div></div>`;
   }
   const items = co.contacts.map(c => {
     const canMsg    = !!(c.provider_id || c.chat_id);
     const campClass = c.campaign_status === 'active' ? 'active' : '';
+    const replyBadge = c.positive_reply
+      ? '<span class="replied-badge positive">&#10003; Replied</span>'
+      : c.msg_replied
+      ? '<span class="replied-badge replied">Replied</span>'
+      : '';
     return `<div class="contacts-grid-row" style="grid-template-columns:${CONTACT_GRID};">
-      <div style="font-weight:500;">${esc(c.first_name||'')} ${esc(c.last_name||'')}</div>
-      <div style="font-size:12px;color:#444;">${esc(c.company||'\u2014')}</div>
+      <div><div class="contact-name-cell">${esc(c.first_name||'')} ${esc(c.last_name||'')}${replyBadge}</div></div>
       <div style="font-size:12px;color:#666;">${esc(c.title||'\u2014')}</div>
-      <div>${c.campaign_name
-        ? `<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>`
-        : '<span class="cell-muted">\u2014</span>'}</div>
-      <div>${c.li_profile_url
-        ? `<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}"
-               target="_blank" rel="noopener">Profile &#8599;</a>`
-        : '<span class="cell-muted">\u2014</span>'}</div>
-      <div>
-        <button class="msg-btn" ${canMsg ? '' : 'disabled title="Not enriched"'}
-                onclick="openMsgDialog(${contactJson(c)})">
-          &#128172; Message
-        </button>
-      </div>
+      <div>${c.campaign_name ? `<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>` : '<span class="cell-muted">\u2014</span>'}</div>
+      <div>${c.li_profile_url ? `<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener">Profile &#8599;</a>` : '<span class="cell-muted">\u2014</span>'}</div>
+      <div><button class="msg-btn" ${canMsg ? '' : 'disabled title="Not enriched"'} onclick="openMsgDialog(${contactJson(c)})">&#128172; Message</button></div>
     </div>`;
   }).join('');
-
   return `<div class="contacts-inner">
     <div class="contacts-grid-head" style="grid-template-columns:${CONTACT_GRID};">
-      <span>Name</span><span>Company</span><span>Title</span>
-      <span>Campaign</span><span>Profile</span><span></span>
-    </div>
-    ${items}
-  </div>`;
+      <span>Name</span><span>Title</span><span>Campaign</span><span>Profile</span><span></span>
+    </div>${items}</div>`;
 }
 
 function toggleCompany(id) {
   expandedIds.has(id) ? expandedIds.delete(id) : expandedIds.add(id);
-  renderTable();
+  renderTable((document.getElementById('search-input')?.value || '').toLowerCase().trim());
 }
 
-// ── Add panel ──────────────────────────────────────────────────────────────────
+// ── Add panel ─────────────────────────────────────────────────────────────────
 
 function toggleAddPanel() {
   if (addPanelOpen) { closeAddPanel(); return; }
   addPanelOpen = true;
   document.getElementById('add-panel').style.display = 'block';
-
   parsedList      = [];
   panelViewMode   = 'new';
   panelViewId     = null;
@@ -603,22 +597,17 @@ function toggleAddPanel() {
   document.getElementById('attach-auto-config').style.display   = 'none';
   document.getElementById('attach-manual-config').style.display = 'none';
   document.querySelector('input[name="view-mode"][value="new"]').checked = true;
-
   renderPanelViewSection();
-
   if (currentFilter.startsWith('view:')) {
     panelViewMode = 'existing';
     panelViewId   = parseInt(currentFilter.split(':')[1]);
     document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
     renderPanelViewSection();
   }
-
   setTimeout(() =>
-    document.getElementById(panelViewMode === 'new' ? 'view-name-input' : 'add-textarea')?.focus(),
-  50);
+    document.getElementById(panelViewMode === 'new' ? 'view-name-input' : 'add-textarea')?.focus(), 50);
 }
 
-/** Direct close — safe to call any time, never toggles open. */
 function closeAddPanel() {
   addPanelOpen = false;
   document.getElementById('add-panel').style.display = 'none';
@@ -634,10 +623,14 @@ function populatePanelDropdowns() {
   const cSel = document.getElementById('attach-campaign-select');
   if (cSel) {
     cSel.innerHTML = `<option value="">Select campaign...</option>` +
-      allData.campaigns
-        .filter(c => c.status === 'active')
-        .map(c => `<option value="${c.id}">${esc(c.name)}</option>`)
-        .join('');
+      allData.campaigns.filter(c => c.status === 'active')
+        .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    // If rebuilding the list clears the selection, also hide the auto/manual config blocks
+    // so they don't show stale data from a previously selected campaign.
+    if (!cSel.value) {
+      document.getElementById('attach-auto-config').style.display   = 'none';
+      document.getElementById('attach-manual-config').style.display = 'none';
+    }
   }
 }
 
@@ -657,8 +650,7 @@ function setViewMode(mode) {
 
 function toggleCampaignAttach() {
   panelAttachCamp = !panelAttachCamp;
-  document.getElementById('attach-toggle').className =
-    `toggle-btn${panelAttachCamp ? ' on' : ''}`;
+  document.getElementById('attach-toggle').className = `toggle-btn${panelAttachCamp ? ' on' : ''}`;
   document.getElementById('attach-fields').style.display = panelAttachCamp ? 'flex' : 'none';
   if (!panelAttachCamp) {
     document.getElementById('attach-auto-config').style.display   = 'none';
@@ -666,12 +658,6 @@ function toggleCampaignAttach() {
   }
 }
 
-/**
- * Campaign selection handler.
- *
- * audience_type === 'company' AND searchConfig saved  ->  AUTO (titles from settings)
- * audience_type === 'people'  OR no searchConfig     ->  MANUAL (ask user)
- */
 function onCampaignSelect() {
   const cid  = parseInt(document.getElementById('attach-campaign-select')?.value);
   const auto = document.getElementById('attach-auto-config');
@@ -679,14 +665,11 @@ function onCampaignSelect() {
   auto.style.display = 'none';
   man.style.display  = 'none';
   if (!cid || isNaN(cid)) return;
-
   const camp = allData.campaigns.find(c => c.id === cid);
   const sc   = camp?.settings?.searchConfig;
-
   if (camp?.audience_type === 'company' && sc?.titles?.length) {
     document.getElementById('attach-auto-values').innerHTML =
-      `Titles: <strong>${esc(sc.titles.join(', '))}</strong> &middot;
-       Max: <strong>${sc.maxPerCompany || 10}</strong> per company`;
+      `Titles: <strong>${esc(sc.titles.join(', '))}</strong> &middot; Max: <strong>${sc.maxPerCompany || 10}</strong> per company`;
     auto.style.display = 'block';
   } else {
     document.getElementById('attach-titles').value = '';
@@ -710,14 +693,9 @@ function parseCompanies(text) {
       const slug = urlMatch[1];
       name = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
       url  = `https://www.linkedin.com/company/${slug}`;
-    } else {
-      name = line; url = null;
-    }
+    } else { name = line; url = null; }
     const key = name.toLowerCase().trim();
-    if (name && !seen.has(key)) {
-      seen.add(key);
-      result.push({ name, url, linkedin_id: null });
-    }
+    if (name && !seen.has(key)) { seen.add(key); result.push({ name, url, linkedin_id: null }); }
   }
   return result;
 }
@@ -730,48 +708,34 @@ function renderPreview() {
     <div class="preview-list">${parsedList.map((co, i) => `
       <div class="preview-item">
         <span class="preview-name">${esc(co.name)}</span>
-        ${co.url ? `<a class="cell-link" href="${esc(co.url)}" target="_blank"
-                      rel="noopener">LinkedIn &#8599;</a>` : ''}
+        ${co.url ? `<a class="cell-link" href="${esc(co.url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>` : ''}
         <button class="preview-remove" onclick="removeFromPreview(${i})">&times;</button>
       </div>`).join('')}</div>`;
 }
 
 function removeFromPreview(i) {
   parsedList.splice(i, 1);
-  document.getElementById('add-textarea').value =
-    parsedList.map(co => co.url || co.name).join('\n');
+  document.getElementById('add-textarea').value = parsedList.map(co => co.url || co.name).join('\n');
   renderPreview();
 }
 
 async function saveCompanies() {
   if (!parsedList.length) { document.getElementById('add-textarea')?.focus(); return; }
-
   const viewName = document.getElementById('view-name-input')?.value.trim();
   const viewSel  = parseInt(document.getElementById('view-select')?.value);
+  if (panelViewMode === 'new'      && !viewName)         { alert('Please enter a view name.'); return; }
+  if (panelViewMode === 'existing' && (!viewSel || isNaN(viewSel))) { alert('Please select an existing view.'); return; }
 
-  if (panelViewMode === 'new'      && !viewName)          { alert('Please enter a view name.'); return; }
-  if (panelViewMode === 'existing' && (!viewSel || isNaN(viewSel))) {
-    alert('Please select an existing view.'); return;
-  }
-
-  // Resolve titles + limit for campaign attachment
   let titles = [], limit = 10;
-  const campaignId = panelAttachCamp
-    ? parseInt(document.getElementById('attach-campaign-select')?.value)
-    : null;
-
+  const campaignId = panelAttachCamp ? parseInt(document.getElementById('attach-campaign-select')?.value) : null;
   if (panelAttachCamp) {
     if (!campaignId || isNaN(campaignId)) { alert('Please select a campaign.'); return; }
-
     const camp = allData.campaigns.find(c => c.id === campaignId);
     const sc   = camp?.settings?.searchConfig;
-
     if (camp?.audience_type === 'company' && sc?.titles?.length) {
-      titles = sc.titles;             // AUTO
-      limit  = sc.maxPerCompany || 10;
+      titles = sc.titles; limit = sc.maxPerCompany || 10;
     } else {
-      titles = (document.getElementById('attach-titles')?.value  // MANUAL
-        .trim().split(',').map(s => s.trim()).filter(Boolean) || []);
+      titles = (document.getElementById('attach-titles')?.value.trim().split(',').map(s=>s.trim()).filter(Boolean) || []);
       limit  = parseInt(document.getElementById('attach-limit')?.value) || 10;
       if (!titles.length) { alert('Please enter job titles to search for.'); return; }
     }
@@ -781,31 +745,22 @@ async function saveCompanies() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spin">&#x21BB;</span> Saving...';
   document.getElementById('add-feedback').innerHTML = '';
-
   const msgs = [];
   try {
-    // Step 1: Save companies to the view
     const res = await fetch('/api/opportunities/companies', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        workspace_id: workspaceId,
-        companies:    parsedList,
-        view_id:      panelViewMode === 'existing' ? viewSel  : null,
-        view_name:    panelViewMode === 'new'      ? viewName : null,
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workspace_id: workspaceId, companies: parsedList,
+        view_id:   panelViewMode === 'existing' ? viewSel  : null,
+        view_name: panelViewMode === 'new'      ? viewName : null,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
+    if (data.added > 0)   msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to \u201c${esc(data.view_name || viewName)}\u201d`);
+    if (data.skipped > 0) msgs.push(`${data.skipped} already existed`);
+    if (!data.added && !data.skipped) msgs.push('No companies were saved');
 
-    if (data.added > 0)
-      msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to \u201c${esc(data.view_name || viewName)}\u201d`);
-    if (data.skipped > 0)
-      msgs.push(`${data.skipped} already existed`);
-    if (data.added === 0 && data.skipped === 0)
-      msgs.push('No companies were saved (empty list?)');
-
-    // Step 2: Attach to campaign (if enabled)
     if (panelAttachCamp) {
       const withUrls = parsedList.filter(co => co.url);
       if (!withUrls.length) {
@@ -813,23 +768,13 @@ async function saveCompanies() {
       } else {
         btn.innerHTML = '<span class="spin">&#x21BB;</span> Searching LinkedIn...';
         const ar = await fetch('/api/opportunities/attach-to-campaign', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            workspace_id: workspaceId,
-            campaign_id:  campaignId,
-            companies:    withUrls,
-            titles,
-            limit,
-          }),
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspace_id: workspaceId, campaign_id: campaignId, companies: withUrls, titles, limit }),
         });
         const ad = await ar.json();
         if (ar.ok) {
           const cname = allData.campaigns.find(c => c.id === campaignId)?.name || 'campaign';
-          msgs.push(
-            `${ad.contacts_added} new contacts added to \u201c${esc(cname)}\u201d` +
-            ` (${ad.companies_searched} companies searched, ${ad.contacts_found} people found)`
-          );
+          msgs.push(`${ad.contacts_added} new contacts added to \u201c${esc(cname)}\u201d (${ad.companies_searched} companies, ${ad.contacts_found} found)`);
         } else {
           msgs.push(`Campaign search failed: ${esc(ad.error)}`);
         }
@@ -838,25 +783,18 @@ async function saveCompanies() {
 
     document.getElementById('add-feedback').className  = 'add-feedback ok';
     document.getElementById('add-feedback').innerHTML = '&#10003; ' + msgs.join(' \u00b7 ');
-
-    // Use closeAddPanel() directly — avoids race condition where toggleAddPanel()
-    // inside a setTimeout could re-open the panel if user already closed it.
     setTimeout(() => { closeAddPanel(); load(); }, 1400);
-
   } catch (err) {
     document.getElementById('add-feedback').className  = 'add-feedback err';
     document.getElementById('add-feedback').innerHTML = '&#10007; ' + esc(err.message);
-    btn.disabled  = false;
-    btn.innerHTML = '&#128161; Add to Opportunities';
+    btn.disabled = false; btn.innerHTML = '&#128161; Add to Opportunities';
   }
 }
 
 async function removeCompany(customId) {
   if (!confirm('Remove this company from Opportunities?')) return;
-  try {
-    await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' });
-    await load();
-  } catch (err) { alert('Failed: ' + err.message); }
+  try { await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' }); await load(); }
+  catch (err) { alert('Failed: ' + err.message); }
 }
 
 async function deleteView(viewId) {
@@ -868,12 +806,12 @@ async function deleteView(viewId) {
   } catch (err) { alert('Failed: ' + err.message); }
 }
 
-// ── Message dialog ─────────────────────────────────────────────────────────────
+// ── Message dialog ────────────────────────────────────────────────────────────
 
 function openMsgDialog(contact) {
   activeContact = contact;
   document.getElementById('msg-title').textContent =
-    `Message ${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    `Message ${contact.first_name||''} ${contact.last_name||''}`.trim();
   document.getElementById('msg-sub').textContent =
     [contact.title, contact.company].filter(Boolean).join(' \u00b7 ');
   document.getElementById('msg-textarea').value        = '';
@@ -891,9 +829,8 @@ function closeMsgDialog() {
 }
 
 function insertToken(token) {
-  const ta = document.getElementById('msg-textarea');
-  const p  = ta.selectionStart;
-  ta.value = ta.value.slice(0, p) + token + ta.value.slice(p);
+  const ta = document.getElementById('msg-textarea'), p = ta.selectionStart;
+  ta.value = ta.value.slice(0,p) + token + ta.value.slice(p);
   ta.selectionStart = ta.selectionEnd = p + token.length;
   ta.focus(); updateCharCount();
 }
@@ -904,9 +841,9 @@ function updateCharCount() {
 }
 
 function subTokens(t, c) {
-  return t.replace(/\{\{first_name\}\}/g, c.first_name || '')
-          .replace(/\{\{last_name\}\}/g,  c.last_name  || '')
-          .replace(/\{\{company\}\}/g,    c.company    || '');
+  return t.replace(/\{\{first_name\}\}/g, c.first_name||'')
+          .replace(/\{\{last_name\}\}/g,  c.last_name ||'')
+          .replace(/\{\{company\}\}/g,    c.company   ||'');
 }
 
 async function sendMessage() {
@@ -915,35 +852,41 @@ async function sendMessage() {
   if (!rawText) { document.getElementById('msg-textarea').focus(); return; }
   const text = subTokens(rawText, activeContact);
   const btn  = document.getElementById('send-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending\u2026';
+  btn.disabled = true; btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending\u2026';
   document.getElementById('msg-status-area').innerHTML = '';
   try {
     const res  = await fetch('/api/opportunities/send-message', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ contact_id: activeContact.id, text }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contact_id: activeContact.id, text }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Send failed');
     document.getElementById('msg-status-area').innerHTML =
-      `<div class="msg-status-ok">&#10003; Message sent to ${esc(activeContact.first_name || 'contact')}!</div>`;
-    document.getElementById('msg-textarea').value = '';
-    updateCharCount();
-    btn.disabled  = false;
-    btn.innerHTML = '&#128172; Send message';
+      `<div class="msg-status-ok">&#10003; Message sent to ${esc(activeContact.first_name||'contact')}!</div>`;
+    document.getElementById('msg-textarea').value = ''; updateCharCount();
+    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
     setTimeout(closeMsgDialog, 1500);
   } catch (err) {
     document.getElementById('msg-status-area').innerHTML =
       `<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
-    btn.disabled  = false;
-    btn.innerHTML = '&#128172; Send message';
+    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
   }
 }
 
-// ── Utils ────────────────────────────────────────────────────────────────────────
-function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function safeUrl(u) { u=(u||'').trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('msg-backdrop').style.display !== 'none') {
+    closeMsgDialog();
+  } else if (addPanelOpen) {
+    closeAddPanel();
+  }
+});
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+function esc(s)        { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function safeUrl(u)   { u=(u||'').trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
 function encodeId(n,l) { return (l||n||'').replace(/[^a-z0-9]/gi,'_'); }
 
 load();
