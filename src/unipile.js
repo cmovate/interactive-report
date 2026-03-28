@@ -128,9 +128,6 @@ async function withdrawInvitation(accountId, linkedinUrl) {
 
 /**
  * Send a message in an existing chat.
- * @param {string} accountId
- * @param {string} chatId    - Unipile chat ID
- * @param {string} text      - Message body
  */
 async function sendMessage(accountId, chatId, text) {
   return request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, {
@@ -141,10 +138,6 @@ async function sendMessage(accountId, chatId, text) {
 
 /**
  * Start a new 1:1 LinkedIn DM with a contact who has no existing chat.
- * @param {string} accountId
- * @param {string} providerId - LinkedIn ACoXXX of the recipient
- * @param {string} text       - First message body
- * @returns chat object with id field
  */
 async function startDirectMessage(accountId, providerId, text) {
   return request('/api/v1/chats', {
@@ -158,33 +151,46 @@ async function startDirectMessage(accountId, providerId, text) {
 }
 
 /**
- * Find 1-to-1 chat(s) with a specific LinkedIn contact by scanning the chats list.
- * Scans /api/v1/chats and filters by attendee_provider_id === providerId.
+ * Find 1-to-1 chat with a specific LinkedIn contact by scanning ALL chat pages.
+ *
+ * Strategy: GET /api/v1/chats pages (200 per page) and match attendee_provider_id.
+ * Scans every page until the contact is found or all chats are exhausted.
+ * No artificial page limit — handles accounts with thousands of conversations.
+ *
+ * @param {string} accountId  - Unipile account ID
+ * @param {string} providerId - LinkedIn provider_id of the contact (ACoXXX)
+ * @returns {Array} - [chat] if found, [] if no chat history exists
  */
 async function getChatsByAttendee(accountId, providerId) {
   const PAGE_SIZE = 200;
-  let cursor = null;
-  const MAX_PAGES = 5;
+  let cursor      = null;
+  let page        = 0;
+  let totalScanned = 0;
 
-  for (let page = 0; page < MAX_PAGES; page++) {
+  while (true) {
+    page++;
     const params = new URLSearchParams({ account_id: accountId, limit: String(PAGE_SIZE) });
     if (cursor) params.set('cursor', cursor);
 
-    const data = await request(`/api/v1/chats?${params}`);
+    const data  = await request(`/api/v1/chats?${params}`);
     const items = Array.isArray(data?.items) ? data.items : [];
+    totalScanned += items.length;
 
+    // Search this page for the contact
     const match = items.find(c => c.attendee_provider_id === providerId);
     if (match) {
-      console.log(`[Unipile] getChatsByAttendee: found chat for ${providerId} (page ${page + 1})`);
+      console.log(`[Unipile] getChatsByAttendee: found ${providerId} on page ${page} (scanned ${totalScanned} chats total)`);
       return [match];
     }
 
-    if (!data.cursor || items.length < PAGE_SIZE) break;
+    // No more pages — contact has no chat history
+    if (!data.cursor || items.length < PAGE_SIZE) {
+      console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId} (scanned all ${totalScanned} chats, ${page} pages)`);
+      return [];
+    }
+
     cursor = data.cursor;
   }
-
-  console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId}`);
-  return [];
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
