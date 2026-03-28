@@ -153,25 +153,22 @@ async function startDirectMessage(accountId, providerId, text) {
 /**
  * Check if a 1:1 chat exists with a specific LinkedIn contact.
  *
- * Fetches one page of recent chats (200) and looks for a match by attendee_provider_id.
- * One page is sufficient — if a conversation exists it will appear in the chats list.
+ * Fetches the 10 most recent chats and checks if the contact appears.
+ * Sufficient to determine whether any message exchange has occurred.
  *
  * @param {string} accountId  - Unipile account ID
  * @param {string} providerId - LinkedIn provider_id of the contact (ACoXXX)
  * @returns {Array} - [chat] if found, [] if no chat exists
  */
 async function getChatsByAttendee(accountId, providerId) {
-  const params = new URLSearchParams({ account_id: accountId, limit: '200' });
+  const params = new URLSearchParams({ account_id: accountId, limit: '10' });
   const data   = await request(`/api/v1/chats?${params}`);
   const items  = Array.isArray(data?.items) ? data.items : [];
-
-  const match = items.find(c => c.attendee_provider_id === providerId);
-
+  const match  = items.find(c => c.attendee_provider_id === providerId);
   if (match) {
     console.log(`[Unipile] getChatsByAttendee: found chat for ${providerId}`);
     return [match];
   }
-
   console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId}`);
   return [];
 }
