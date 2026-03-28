@@ -67,6 +67,8 @@ tr:last-child td { border-bottom: none; }
 .check-col { width: 44px; text-align: center; padding: 12px 8px; }
 .bool-yes  { display:inline-block; background:#E1F5EE; color:#0F6E56; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:500; }
 .bool-no   { display:inline-block; background:#f5f5f5; color:#aaa;    border-radius:999px; padding:2px 8px; font-size:11px; }
+.connected-yes { display:inline-block; background:#DBEAFE; color:#1D4ED8; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; }
+.connected-no  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
 .follow-confirmed { display:inline-block; background:#E1F5EE; color:#0F6E56; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; }
 .follow-invited   { display:inline-block; background:#FEF9E7; color:#B7770D; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:500; }
 .follow-none      { display:inline-block; background:#f5f5f5; color:#aaa;    border-radius:999px; padding:2px 8px; font-size:11px; }
@@ -144,6 +146,7 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
           <th style="min-width:180px;">Website</th>
           <th style="min-width:160px;">Campaign</th>
           <th style="min-width:200px;" title="LinkedIn internal ID">Provider ID</th>
+          <th style="min-width:140px;text-align:center;" title="Already a 1st-degree LinkedIn connection">Already connected</th>
           <th style="min-width:130px;text-align:center;">Engagement</th>
           <th style="min-width:150px;text-align:center;" title="When engagement was last scraped">Last scraped</th>
           <th style="min-width:120px;text-align:center;" title="Post likes we sent">Post likes &#128077;</th>
@@ -246,6 +249,9 @@ function followBadge(inv,conf) {
   if(inv)  return '<span class="follow-invited">Invited</span>';
   return '<span class="follow-none">—</span>';
 }
+function connectedBadge(v) {
+  return v ? '<span class="connected-yes">Connected</span>' : '<span class="connected-no">—</span>';
+}
 function providerIdBadge(pid,pd) {
   if(pid) return '<span class="provider-id" title="'+esc(pid)+'">'+esc(pid)+'</span>';
   const has = pd && typeof pd==='object' ? Object.keys(pd).length>0 : (typeof pd==='string' && pd!=='' && pd!=='{}' && pd!=='null');
@@ -272,7 +278,7 @@ function hashC(cs) {
     c.id,c.invite_sent?1:0,c.invite_approved?1:0,c.msg_sent?1:0,c.msg_replied?1:0,c.positive_reply?1:0,
     c.profile_view_count||0,c.company_follow_invited?1:0,c.company_follow_confirmed?1:0,
     c.provider_id||'',c.engagement_level||'',c.post_likes_sent||0,c.comment_likes_sent||0,
-    c.first_name,c.last_name,c.title,c.company,c.location||'',
+    c.first_name,c.last_name,c.title,c.company,c.location||'',c.already_connected?1:0,
   ].join(':')).join('|');
 }
 
@@ -296,7 +302,8 @@ async function load(silent) {
           p.company_follow_invited!==c.company_follow_invited||p.company_follow_confirmed!==c.company_follow_confirmed||
           (p.provider_id||'')!==(c.provider_id||'')||(p.engagement_level||'')!==(c.engagement_level||'')||
           (p.post_likes_sent||0)!==(c.post_likes_sent||0)||(p.comment_likes_sent||0)!==(c.comment_likes_sent||0)||
-          p.first_name!==c.first_name||p.last_name!==c.last_name||p.company!==c.company||(p.location||'')!==(c.location||'')
+          p.first_name!==c.first_name||p.last_name!==c.last_name||p.company!==c.company||
+          (p.location||'')!==(c.location||'')||!!p.already_connected!==!!c.already_connected
         )) changed.add(String(c.id));
       }
     }
@@ -351,8 +358,11 @@ function renderContactStats() {
   const clC=f.reduce((s,r)=>s+(parseInt(r.comment_likes_sent)||0),0);
   const likedC=f.filter(r=>r.likes_sent_at).length;
   const coolC=f.filter(r=>r.likes_sent_at&&(Date.now()-new Date(r.likes_sent_at).getTime())<3*24*60*60*1000).length;
+  const connC=f.filter(r=>r.already_connected).length;
   const chips=[
-    {label:'Total contacts',val:f.length},{label:'Invites sent',val:f.filter(r=>r.invite_sent).length},
+    {label:'Total contacts',val:f.length},
+    {label:'Already connected',val:connC},
+    {label:'Invites sent',val:f.filter(r=>r.invite_sent).length},
     {label:'Approved',val:f.filter(r=>r.invite_approved).length+' ('+pct(f.filter(r=>r.invite_approved).length,f.filter(r=>r.invite_sent).length)+')'},
     {label:'Messages sent',val:f.filter(r=>r.msg_sent).length},
     {label:'Replied',val:f.filter(r=>r.msg_replied).length+' ('+pct(f.filter(r=>r.msg_replied).length,f.filter(r=>r.msg_sent).length)+')'},
@@ -367,7 +377,7 @@ function renderContactStats() {
 function renderContactsTable(flashIds) {
   const tbody=document.getElementById('contacts-body');
   document.getElementById('check-all').checked=filteredContacts.length>0&&selectedIds.size===filteredContacts.length;
-  if(!filteredContacts.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="25">No contacts match your filters</td></tr>'; return; }
+  if(!filteredContacts.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="26">No contacts match your filters</td></tr>'; return; }
   tbody.innerHTML=filteredContacts.map(r=>{
     const sel=selectedIds.has(String(r.id)), camp=campaigns.find(c=>String(c.id)===String(r.campaign_id));
     const bool=v=>v?'<span class="bool-yes">Yes</span>':'<span class="bool-no">No</span>';
@@ -385,6 +395,7 @@ function renderContactsTable(flashIds) {
       +'<td>'+(r.email?esc(r.email):'<span class="cell-muted">—</span>')+'</td><td>'+web+'</td>'
       +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||'—')+'</td>'
       +'<td>'+providerIdBadge(r.provider_id,r.profile_data)+'</td>'
+      +'<td style="text-align:center;">'+connectedBadge(r.already_connected)+'</td>'
       +'<td style="text-align:center;">'+engBadge(r.engagement_level)+'</td>'
       +'<td style="text-align:center;">'+fmtDate(r.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(r.post_likes_sent)+'</td>'
@@ -437,7 +448,7 @@ async function confirmDelete(){
 }
 function exportContactsCSV(){
   const labels=['First name','Last name','Job title','Company','Location','LinkedIn profile','LinkedIn company',
-    'Email','Website','Campaign','Provider ID','Engagement','Last scraped',
+    'Email','Website','Campaign','Provider ID','Already connected','Engagement','Last scraped',
     'Post likes sent','Comment likes sent','Last liked',
     'Invite sent','Invite approved','Message sent','Replied','Positive reply',
     'Profile views','Company follow invited','Company follow confirmed'];
@@ -446,7 +457,8 @@ function exportContactsCSV(){
     const c=campaigns.find(c=>String(c.id)===String(r.campaign_id));
     return [r.first_name||'',r.last_name||'',r.title||'',r.company||'',r.location||'',
       r.li_profile_url||'',r.li_company_url||'',r.email||'',r.website||'',
-      c?c.name:'',r.provider_id||'',r.engagement_level||'',r.engagement_scraped_at||'',
+      c?c.name:'',r.provider_id||'',r.already_connected?'Yes':'No',
+      r.engagement_level||'',r.engagement_scraped_at||'',
       parseInt(r.post_likes_sent)||0,parseInt(r.comment_likes_sent)||0,r.likes_sent_at||'',
       r.invite_sent?'Yes':'No',r.invite_approved?'Yes':'No',
       r.msg_sent?'Yes':'No',r.msg_replied?'Yes':'No',r.positive_reply?'Yes':'No',
