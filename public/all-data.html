@@ -69,6 +69,8 @@ tr:last-child td { border-bottom: none; }
 .bool-no   { display:inline-block; background:#f5f5f5; color:#aaa;    border-radius:999px; padding:2px 8px; font-size:11px; }
 .connected-yes { display:inline-block; background:#DBEAFE; color:#1D4ED8; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; }
 .connected-no  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
+.chat-yes { display:inline-block; background:#F0FDF4; color:#166534; border-radius:999px; padding:2px 10px; font-size:11px; font-weight:600; }
+.chat-no  { display:inline-block; background:#f5f5f5; color:#aaa; border-radius:999px; padding:2px 8px; font-size:11px; }
 .follow-confirmed { display:inline-block; background:#E1F5EE; color:#0F6E56; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:600; }
 .follow-invited   { display:inline-block; background:#FEF9E7; color:#B7770D; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:500; }
 .follow-none      { display:inline-block; background:#f5f5f5; color:#aaa;    border-radius:999px; padding:2px 8px; font-size:11px; }
@@ -147,6 +149,7 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
           <th style="min-width:160px;">Campaign</th>
           <th style="min-width:200px;" title="LinkedIn internal ID">Provider ID</th>
           <th style="min-width:140px;text-align:center;" title="Already a 1st-degree LinkedIn connection">Already connected</th>
+          <th style="min-width:130px;text-align:center;" title="Existing chat history in LinkedIn messages">Chat history</th>
           <th style="min-width:130px;text-align:center;">Engagement</th>
           <th style="min-width:150px;text-align:center;" title="When engagement was last scraped">Last scraped</th>
           <th style="min-width:120px;text-align:center;" title="Post likes we sent">Post likes &#128077;</th>
@@ -231,45 +234,50 @@ function pct(a,b) { return b ? Math.round(a/b*100)+'%' : '0%'; }
 function safeUrl(u) { if(!u)return''; u=u.trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
 function fmtTime(d) { return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
 function fmtDate(ts) {
-  if (!ts) return '<span class="cell-muted">—</span>';
+  if (!ts) return '<span class="cell-muted">\u2014</span>';
   const d = new Date(ts);
   return '<span style="font-size:11px;color:#666;">' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) + '</span>';
 }
 function cooldownBadge(ts) {
-  if (!ts) return '<span class="cell-muted">—</span>';
+  if (!ts) return '<span class="cell-muted">\u2014</span>';
   const d = new Date(ts);
   const diff = d.getTime() + 3*24*60*60*1000 - Date.now();
   const dateStr = d.toLocaleDateString();
-  if (diff > 0) { const h = Math.ceil(diff/3600000); return '<span class="cooldown-badge" title="Cooldown: '+h+'h remaining">'+dateStr+' 🔒</span>'; }
+  if (diff > 0) { const h = Math.ceil(diff/3600000); return '<span class="cooldown-badge" title="Cooldown: '+h+'h remaining">'+dateStr+' \ud83d\udd12</span>'; }
   return '<span style="font-size:11px;color:#666;">'+dateStr+'</span>';
 }
-function pvBadge(n) { n=parseInt(n)||0; return n>0 ? '<span class="pv-count">'+n+'</span>' : '<span class="pv-none">—</span>'; }
+function pvBadge(n) { n=parseInt(n)||0; return n>0 ? '<span class="pv-count">'+n+'</span>' : '<span class="pv-none">\u2014</span>'; }
 function followBadge(inv,conf) {
   if(conf) return '<span class="follow-confirmed">Following</span>';
   if(inv)  return '<span class="follow-invited">Invited</span>';
-  return '<span class="follow-none">—</span>';
+  return '<span class="follow-none">\u2014</span>';
 }
 function connectedBadge(v) {
-  return v ? '<span class="connected-yes">Connected</span>' : '<span class="connected-no">—</span>';
+  return v ? '<span class="connected-yes">Connected</span>' : '<span class="connected-no">\u2014</span>';
+}
+function chatHistoryBadge(v, connected) {
+  // Only relevant when already connected; show — if not connected
+  if (!connected) return '<span class="cell-muted">\u2014</span>';
+  return v ? '<span class="chat-yes">Yes</span>' : '<span class="chat-no">No</span>';
 }
 function providerIdBadge(pid,pd) {
   if(pid) return '<span class="provider-id" title="'+esc(pid)+'">'+esc(pid)+'</span>';
   const has = pd && typeof pd==='object' ? Object.keys(pd).length>0 : (typeof pd==='string' && pd!=='' && pd!=='{}' && pd!=='null');
-  return has ? '<span class="provider-id-missing" title="Enriched but ID not found">⚠ not found</span>' : '<span class="cell-muted">—</span>';
+  return has ? '<span class="provider-id-missing" title="Enriched but ID not found">\u26a0 not found</span>' : '<span class="cell-muted">\u2014</span>';
 }
 function engBadge(level) {
-  if(!level) return '<span class="eng-pending">—</span>';
+  if(!level) return '<span class="eng-pending">\u2014</span>';
   if(level==='engaged')         return '<span class="eng-engaged">Engaged</span>';
   if(level==='average_engaged') return '<span class="eng-average">Avg engaged</span>';
   if(level==='un_engaged')      return '<span class="eng-unengaged">Un-engaged</span>';
-  return '<span class="eng-pending">—</span>';
+  return '<span class="eng-pending">\u2014</span>';
 }
-function likeBadge(n) { n=parseInt(n)||0; return n>0 ? '<span class="like-count">'+n+'</span>' : '<span class="like-none">—</span>'; }
+function likeBadge(n) { n=parseInt(n)||0; return n>0 ? '<span class="like-count">'+n+'</span>' : '<span class="like-none">\u2014</span>'; }
 function posts14dBadge(engData) {
-  if (!engData) return '<span class="cell-muted">—</span>';
+  if (!engData) return '<span class="cell-muted">\u2014</span>';
   const d = typeof engData==='string' ? JSON.parse(engData) : engData;
   const n = d.posts_14d;
-  if (n == null) return '<span class="cell-muted">—</span>';
+  if (n == null) return '<span class="cell-muted">\u2014</span>';
   return n > 0 ? '<span class="posts14d-badge">'+n+'</span>' : '<span class="like-none">0</span>';
 }
 
@@ -278,7 +286,8 @@ function hashC(cs) {
     c.id,c.invite_sent?1:0,c.invite_approved?1:0,c.msg_sent?1:0,c.msg_replied?1:0,c.positive_reply?1:0,
     c.profile_view_count||0,c.company_follow_invited?1:0,c.company_follow_confirmed?1:0,
     c.provider_id||'',c.engagement_level||'',c.post_likes_sent||0,c.comment_likes_sent||0,
-    c.first_name,c.last_name,c.title,c.company,c.location||'',c.already_connected?1:0,
+    c.first_name,c.last_name,c.title,c.company,c.location||'',
+    c.already_connected?1:0,c.has_chat_history?1:0,
   ].join(':')).join('|');
 }
 
@@ -303,7 +312,8 @@ async function load(silent) {
           (p.provider_id||'')!==(c.provider_id||'')||(p.engagement_level||'')!==(c.engagement_level||'')||
           (p.post_likes_sent||0)!==(c.post_likes_sent||0)||(p.comment_likes_sent||0)!==(c.comment_likes_sent||0)||
           p.first_name!==c.first_name||p.last_name!==c.last_name||p.company!==c.company||
-          (p.location||'')!==(c.location||'')||!!p.already_connected!==!!c.already_connected
+          (p.location||'')!==(c.location||'')||
+          !!p.already_connected!==!!c.already_connected||!!p.has_chat_history!==!!c.has_chat_history
         )) changed.add(String(c.id));
       }
     }
@@ -330,7 +340,7 @@ async function updateEnrichStatus() {
     const pill=document.getElementById('enrich-status');
     if(d.queued>0||d.running) {
       pill.className='enrich-pill active';
-      pill.innerHTML='<span class="enrich-dot pulse"></span> Enriching '+d.queued+'…';
+      pill.innerHTML='<span class="enrich-dot pulse"></span> Enriching '+d.queued+'\u2026';
       clearTimeout(enrichPollTimer); enrichPollTimer=setTimeout(()=>load(true),8000);
     } else { pill.className='enrich-pill idle'; pill.innerHTML='<span class="enrich-dot"></span> Enriched: '+d.processed; }
   } catch(e){document.getElementById('enrich-status').innerHTML='';}
@@ -359,9 +369,11 @@ function renderContactStats() {
   const likedC=f.filter(r=>r.likes_sent_at).length;
   const coolC=f.filter(r=>r.likes_sent_at&&(Date.now()-new Date(r.likes_sent_at).getTime())<3*24*60*60*1000).length;
   const connC=f.filter(r=>r.already_connected).length;
+  const chatC=f.filter(r=>r.has_chat_history).length;
   const chips=[
     {label:'Total contacts',val:f.length},
     {label:'Already connected',val:connC},
+    {label:'With chat history',val:chatC},
     {label:'Invites sent',val:f.filter(r=>r.invite_sent).length},
     {label:'Approved',val:f.filter(r=>r.invite_approved).length+' ('+pct(f.filter(r=>r.invite_approved).length,f.filter(r=>r.invite_sent).length)+')'},
     {label:'Messages sent',val:f.filter(r=>r.msg_sent).length},
@@ -377,25 +389,26 @@ function renderContactStats() {
 function renderContactsTable(flashIds) {
   const tbody=document.getElementById('contacts-body');
   document.getElementById('check-all').checked=filteredContacts.length>0&&selectedIds.size===filteredContacts.length;
-  if(!filteredContacts.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="26">No contacts match your filters</td></tr>'; return; }
+  if(!filteredContacts.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="27">No contacts match your filters</td></tr>'; return; }
   tbody.innerHTML=filteredContacts.map(r=>{
     const sel=selectedIds.has(String(r.id)), camp=campaigns.find(c=>String(c.id)===String(r.campaign_id));
     const bool=v=>v?'<span class="bool-yes">Yes</span>':'<span class="bool-no">No</span>';
     const flash=flashIds&&flashIds.has(String(r.id));
-    const lip=r.li_profile_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_profile_url))+'" target="_blank" rel="noopener">View profile</a>':'<span class="cell-muted">—</span>';
-    const lic=r.li_company_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_company_url))+'" target="_blank" rel="noopener">View company</a>':'<span class="cell-muted">—</span>';
-    const web=r.website?'<a class="cell-link" href="'+esc(safeUrl(r.website))+'" target="_blank" rel="noopener">'+esc(r.website)+'</a>':'<span class="cell-muted">—</span>';
-    return '<tr class="'+(sel?'selected':'')+(flash?' row-flash':'')+'" id="row-'+r.id+'">'
+    const lip=r.li_profile_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_profile_url))+'" target="_blank" rel="noopener">View profile</a>':'<span class="cell-muted">\u2014</span>';
+    const lic=r.li_company_url?'<a class="cell-link" href="'+esc(safeUrl(r.li_company_url))+'" target="_blank" rel="noopener">View company</a>':'<span class="cell-muted">\u2014</span>';
+    const web=r.website?'<a class="cell-link" href="'+esc(safeUrl(r.website))+'" target="_blank" rel="noopener">'+esc(r.website)+'</a>':'<span class="cell-muted">\u2014</span>';
+    return '<tr class="'+(sel?'selected':'')+(flash?' row-flash':'')+'\" id="row-'+r.id+'">'
       +'<td class="check-col"><input type="checkbox" '+(sel?'checked':'')+' onchange="toggleRow(\''+r.id+'\',this.checked)"></td>'
       +'<td style="font-weight:500;">'+esc(r.first_name)+'</td><td style="font-weight:500;">'+esc(r.last_name)+'</td>'
-      +'<td class="cell-title">'+(r.title?esc(r.title):'<span class="cell-muted">—</span>')+'</td>'
-      +'<td>'+(r.company?esc(r.company):'<span class="cell-muted">—</span>')+'</td>'
-      +'<td class="cell-loc">'+(r.location?esc(r.location):'<span class="cell-muted">—</span>')+'</td>'
+      +'<td class="cell-title">'+(r.title?esc(r.title):'<span class="cell-muted">\u2014</span>')+'</td>'
+      +'<td>'+(r.company?esc(r.company):'<span class="cell-muted">\u2014</span>')+'</td>'
+      +'<td class="cell-loc">'+(r.location?esc(r.location):'<span class="cell-muted">\u2014</span>')+'</td>'
       +'<td>'+lip+'</td><td>'+lic+'</td>'
-      +'<td>'+(r.email?esc(r.email):'<span class="cell-muted">—</span>')+'</td><td>'+web+'</td>'
-      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||'—')+'</td>'
+      +'<td>'+(r.email?esc(r.email):'<span class="cell-muted">\u2014</span>')+'</td><td>'+web+'</td>'
+      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||'\u2014')+'</td>'
       +'<td>'+providerIdBadge(r.provider_id,r.profile_data)+'</td>'
       +'<td style="text-align:center;">'+connectedBadge(r.already_connected)+'</td>'
+      +'<td style="text-align:center;">'+chatHistoryBadge(r.has_chat_history, r.already_connected)+'</td>'
       +'<td style="text-align:center;">'+engBadge(r.engagement_level)+'</td>'
       +'<td style="text-align:center;">'+fmtDate(r.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(r.post_likes_sent)+'</td>'
@@ -448,7 +461,7 @@ async function confirmDelete(){
 }
 function exportContactsCSV(){
   const labels=['First name','Last name','Job title','Company','Location','LinkedIn profile','LinkedIn company',
-    'Email','Website','Campaign','Provider ID','Already connected','Engagement','Last scraped',
+    'Email','Website','Campaign','Provider ID','Already connected','Chat history','Engagement','Last scraped',
     'Post likes sent','Comment likes sent','Last liked',
     'Invite sent','Invite approved','Message sent','Replied','Positive reply',
     'Profile views','Company follow invited','Company follow confirmed'];
@@ -457,7 +470,9 @@ function exportContactsCSV(){
     const c=campaigns.find(c=>String(c.id)===String(r.campaign_id));
     return [r.first_name||'',r.last_name||'',r.title||'',r.company||'',r.location||'',
       r.li_profile_url||'',r.li_company_url||'',r.email||'',r.website||'',
-      c?c.name:'',r.provider_id||'',r.already_connected?'Yes':'No',
+      c?c.name:'',r.provider_id||'',
+      r.already_connected?'Yes':'No',
+      r.already_connected?(r.has_chat_history?'Yes':'No'):'N/A',
       r.engagement_level||'',r.engagement_scraped_at||'',
       parseInt(r.post_likes_sent)||0,parseInt(r.comment_likes_sent)||0,r.likes_sent_at||'',
       r.invite_sent?'Yes':'No',r.invite_approved?'Yes':'No',
@@ -504,16 +519,16 @@ function renderCompanyStats() {
 }
 function renderCompaniesTable() {
   const tbody = document.getElementById('companies-body');
-  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="10">No companies found — contacts need to be enriched first</td></tr>'; return; }
+  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="10">No companies found \u2014 contacts need to be enriched first</td></tr>'; return; }
   tbody.innerHTML = filteredCompanies.map(c => {
     const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
     const liUrl = c.li_company_url || (c.company_linkedin_id ? 'https://www.linkedin.com/company/'+c.company_linkedin_id : '');
-    const liLink = liUrl ? '<a class="cell-link" href="'+esc(safeUrl(liUrl))+'" target="_blank" rel="noopener">View company</a>' : '<span class="cell-muted">—</span>';
+    const liLink = liUrl ? '<a class="cell-link" href="'+esc(safeUrl(liUrl))+'" target="_blank" rel="noopener">View company</a>' : '<span class="cell-muted">\u2014</span>';
     return '<tr>'
-      +'<td style="font-weight:500;">'+(c.company_name?esc(c.company_name):'<span class="cell-muted">—</span>')+'</td>'
-      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||c.campaign_name||'—')+'</td>'
+      +'<td style="font-weight:500;">'+(c.company_name?esc(c.company_name):'<span class="cell-muted">\u2014</span>')+'</td>'
+      +'<td style="font-size:12px;color:#888;">'+esc(camp?.name||c.campaign_name||'\u2014')+'</td>'
       +'<td style="text-align:center;"><span class="contact-count-badge">'+(parseInt(c.contact_count)||1)+'</span></td>'
-      +'<td style="text-align:center;">'+(c.company_linkedin_id?'<span class="company-id-badge">'+esc(c.company_linkedin_id)+'</span>':'<span class="cell-muted">—</span>')+'</td>'
+      +'<td style="text-align:center;">'+(c.company_linkedin_id?'<span class="company-id-badge">'+esc(c.company_linkedin_id)+'</span>':'<span class="cell-muted">\u2014</span>')+'</td>'
       +'<td style="text-align:center;">'+engBadge(c.engagement_level)+'</td>'
       +'<td style="text-align:center;">'+posts14dBadge(c.engagement_data)+'</td>'
       +'<td style="text-align:center;">'+fmtDate(c.engagement_scraped_at)+'</td>'
