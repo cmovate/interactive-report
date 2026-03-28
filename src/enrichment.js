@@ -4,24 +4,17 @@
  *
  * After enrichment:
  *   1. Extracts fields + detects already_connected (1st-degree LinkedIn connection)
- *   2. Saves to DB
- *   3. If already_connected=true: checks for existing chat history via Unipile
- *      and saves has_chat_history + chat_id to DB.
- *
- * Field mapping confirmed from live Unipile API:
- *   profile.provider_id                   => LinkedIn internal ID (ACoXXX)
- *   profile.member_urn                    => numeric LinkedIn URN
- *   profile.work_experience[0].position   => title
- *   profile.work_experience[0].company    => company name
- *   profile.work_experience[0].company_id => numeric LinkedIn company ID
- *   profile.websites[0]                   => website
- *   profile.contact_info.emails[0]        => email
+ *   2. Saves to DB (including already_connected)
+ *   3. If already_connected=true: checks chat history → saves has_chat_history + chat_id
+ *   4. Classifies contact into a message sequence:
+ *        already_connected=false           → msg_sequence='new'
+ *        already_connected=true, no chat   → msg_sequence='existing_no_history'
+ *        already_connected=true, has chat  → msg_sequence='existing_with_history'
  *
  * network_distance values confirmed from live API:
- *   'FIRST_DEGREE'  => 1st degree (already connected)
- *   'SECOND_DEGREE' => 2nd degree (not connected)
- *   'THIRD_DEGREE'  => 3rd degree
- *   'OUT_OF_NETWORK' => not in network
+ *   'FIRST_DEGREE'  → 1st degree (already connected)
+ *   'SECOND_DEGREE' → 2nd degree
+ *   'THIRD_DEGREE'  → 3rd degree
  */
 
 const db = require('./db');
@@ -49,24 +42,14 @@ function getStatus() {
 /**
  * Detect if a contact is a 1st-degree LinkedIn connection.
  * Confirmed from live API: network_distance = 'FIRST_DEGREE' for connections.
- * Also handles legacy field names for safety.
  */
 function detectAlreadyConnected(profile) {
   const dist = String(profile.network_distance || '').toUpperCase();
-
-  // Primary field — confirmed from live Unipile API
   if (dist === 'FIRST_DEGREE') return true;
-
-  // Legacy / alternative field names
   if (dist === 'DISTANCE_1' || dist === '1') return true;
-
-  // relation_type: 1 = 1st degree (some Unipile versions)
   if (profile.relation_type === 1 || profile.relation_type === '1') return true;
-
-  // degree / connection_degree fields
   if (profile.degree === 1 || profile.degree === '1') return true;
   if (profile.connection_degree === 1 || profile.connection_degree === '1') return true;
-
   return false;
 }
 
@@ -78,9 +61,7 @@ function extractFields(profile, contactId) {
   const exp = Array.isArray(expArray) && expArray.length > 0 ? expArray[0] : null;
 
   const title =
-    exp?.position ||
-    exp?.title    ||
-    profile.headline || '';
+    exp?.position || exp?.title || profile.headline || '';
 
   const company =
     (typeof exp?.company === 'string' ? exp.company : '') ||
@@ -95,14 +76,10 @@ function extractFields(profile, contactId) {
 
   const website =
     (Array.isArray(profile.websites) && profile.websites.length > 0 ? profile.websites[0] : '') ||
-    (profile.contact_info?.websites?.[0]) ||
-    '';
+    (profile.contact_info?.websites?.[0]) || '';
 
   const email =
-    profile.contact_info?.emails?.[0] ||
-    profile.emails?.[0] ||
-    profile.email ||
-    '';
+    profile.contact_info?.emails?.[0] || profile.emails?.[0] || profile.email || '';
 
   const firstName        = profile.first_name || '';
   const lastName         = profile.last_name  || '';
@@ -138,10 +115,14 @@ async function processNext() {
     await applyToDb(item.contactId, fields, profile);
     await upsertCampaignCompany(item.contactId, fields);
 
-    // If already connected — check for existing chat history
+    // Check chat history (only if connected)
+    let hasChatHistory = false;
     if (fields.alreadyConnected && fields.providerId) {
-      await checkChatHistory(item.contactId, item.accountId, fields.providerId);
+      hasChatHistory = await checkChatHistory(item.contactId, item.accountId, fields.providerId);
     }
+
+    // Classify into message sequence
+    await classifySequence(item.contactId, fields.alreadyConnected, hasChatHistory);
 
     processed++;
     console.log('[Enrichment] OK ' + fields.firstName + ' ' + fields.lastName + ' @ ' + fields.company);
@@ -178,14 +159,13 @@ async function applyToDb(contactId, fields, profile) {
 
 /**
  * Check if there is an existing LinkedIn chat history with this contact.
- * Called only when already_connected = true.
- * Saves has_chat_history + chat_id to DB.
+ * Returns true if chat exists, false otherwise.
  */
 async function checkChatHistory(contactId, accountId, providerId) {
   try {
     const chats = await getChatsByAttendee(accountId, providerId);
     const hasChatHistory = chats.length > 0;
-    const chatId = hasChatHistory ? (chats[0].id || chats[0].provider_id || '') : null;
+    const chatId = hasChatHistory ? (chats[0].id || null) : null;
 
     await db.query(
       `UPDATE contacts SET has_chat_history = $1, chat_id = $2 WHERE id = $3`,
@@ -197,10 +177,45 @@ async function checkChatHistory(contactId, accountId, providerId) {
       `has_chat_history=${hasChatHistory}` +
       (chatId ? ` chat_id=${chatId}` : '')
     );
+    return hasChatHistory;
   } catch (err) {
-    // Non-fatal — log but don't fail enrichment
     console.warn(`[Enrichment] checkChatHistory failed for contact ${contactId}: ${err.message}`);
+    return false;
   }
+}
+
+/**
+ * Classify contact into a message sequence based on connection status.
+ * Sets msg_sequence and (for existing contacts) msg_sequence_started_at.
+ * Does not overwrite an existing sequence classification.
+ */
+async function classifySequence(contactId, alreadyConnected, hasChatHistory) {
+  let seq;
+  if (!alreadyConnected) {
+    seq = 'new';
+  } else if (hasChatHistory) {
+    seq = 'existing_with_history';
+  } else {
+    seq = 'existing_no_history';
+  }
+
+  if (alreadyConnected) {
+    // For existing contacts, set started_at now so delay is measured from enrichment
+    await db.query(
+      `UPDATE contacts
+         SET msg_sequence = $1, msg_sequence_started_at = NOW()
+       WHERE id = $2 AND msg_sequence IS NULL`,
+      [seq, contactId]
+    );
+  } else {
+    // For new contacts, set sequence only — started_at is set when invite is approved
+    await db.query(
+      `UPDATE contacts SET msg_sequence = $1 WHERE id = $2 AND msg_sequence IS NULL`,
+      [seq, contactId]
+    );
+  }
+
+  console.log(`[Enrichment] Classified contact ${contactId} → ${seq}`);
 }
 
 /**
@@ -217,7 +232,6 @@ async function upsertCampaignCompany(contactId, fields) {
     if (!rows.length || !rows[0].campaign_id) return;
 
     const { campaign_id, workspace_id } = rows[0];
-
     await db.query(
       `INSERT INTO campaign_companies
          (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)

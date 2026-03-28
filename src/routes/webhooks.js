@@ -6,7 +6,9 @@
  *
  * On new_relation:
  *   - Sets invite_approved = true
- *   - Sets invite_approved_at = NOW()  ← enables historical tracking
+ *   - Sets invite_approved_at = NOW()  ← trigger time for 'new' message sequence
+ *   - Sets msg_sequence_started_at = NOW() for contacts in 'new' sequence
+ *     (invite_approved_at is used as the sequence trigger, so this is equivalent)
  */
 
 const express = require('express');
@@ -53,9 +55,8 @@ async function handleNewRelation(payload) {
     return;
   }
 
-  // Find all matching contacts for this account
   const { rows: contacts } = await db.query(
-    `SELECT c.id, c.campaign_id, c.first_name, c.last_name
+    `SELECT c.id, c.campaign_id, c.first_name, c.last_name, c.msg_sequence
      FROM contacts c
      INNER JOIN campaigns camp ON camp.id = c.campaign_id
      WHERE camp.account_id = $1
@@ -73,12 +74,20 @@ async function handleNewRelation(payload) {
   console.log(`[Webhook] new_relation: ${contacts.length} contact(s) for "${user_full_name}" (${identifier})`);
 
   for (const contact of contacts) {
-    // Set both the flag and the timestamp for historical tracking
     await db.query(
-      'UPDATE contacts SET invite_approved = true, invite_approved_at = NOW() WHERE id = $1',
+      `UPDATE contacts SET
+         invite_approved = true,
+         invite_approved_at = NOW(),
+         -- For 'new' sequence: msg_sender uses invite_approved_at as trigger
+         -- Set msg_sequence_started_at as well for consistency
+         msg_sequence_started_at = CASE
+           WHEN msg_sequence = 'new' AND msg_sequence_started_at IS NULL THEN NOW()
+           ELSE msg_sequence_started_at
+         END
+       WHERE id = $1`,
       [contact.id]
     );
-    console.log(`[Webhook] Marked contact ${contact.id} (${contact.first_name} ${contact.last_name}) as approved`);
+    console.log(`[Webhook] Marked contact ${contact.id} (${contact.first_name} ${contact.last_name}) as approved, sequence: ${contact.msg_sequence}`);
   }
 }
 
