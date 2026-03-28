@@ -127,18 +127,46 @@ async function withdrawInvitation(accountId, linkedinUrl) {
 }
 
 /**
+ * Send a message in an existing chat.
+ * @param {string} accountId
+ * @param {string} chatId    - Unipile chat ID
+ * @param {string} text      - Message body
+ */
+async function sendMessage(accountId, chatId, text) {
+  return request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ account_id: accountId, text }),
+  });
+}
+
+/**
+ * Start a new 1:1 LinkedIn DM with a contact who has no existing chat.
+ * @param {string} accountId
+ * @param {string} providerId - LinkedIn ACoXXX of the recipient
+ * @param {string} text       - First message body
+ * @returns chat object with id field
+ */
+async function startDirectMessage(accountId, providerId, text) {
+  return request('/api/v1/chats', {
+    method: 'POST',
+    body: JSON.stringify({
+      account_id:    accountId,
+      attendees_ids: [providerId],
+      text,
+    }),
+  });
+}
+
+/**
  * Find 1-to-1 chat(s) with a specific LinkedIn contact by scanning the chats list.
- *
- * Scans /api/v1/chats and matches by attendee_provider_id (LinkedIn ACoXXX).
- * Note: /api/v1/attendees/{id}/chats uses Unipile internal ID, not provider_id.
+ * Scans /api/v1/chats and filters by attendee_provider_id === providerId.
  */
 async function getChatsByAttendee(accountId, providerId) {
   const PAGE_SIZE = 200;
   let cursor = null;
-  let page = 0;
   const MAX_PAGES = 5;
 
-  while (page < MAX_PAGES) {
+  for (let page = 0; page < MAX_PAGES; page++) {
     const params = new URLSearchParams({ account_id: accountId, limit: String(PAGE_SIZE) });
     if (cursor) params.set('cursor', cursor);
 
@@ -153,45 +181,10 @@ async function getChatsByAttendee(accountId, providerId) {
 
     if (!data.cursor || items.length < PAGE_SIZE) break;
     cursor = data.cursor;
-    page++;
   }
 
-  console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId} (scanned ${page + 1} page(s))`);
+  console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId}`);
   return [];
-}
-
-/**
- * Send a message in an existing LinkedIn DM chat.
- *
- * @param {string} accountId - Unipile account ID
- * @param {string} chatId    - Unipile chat ID (from chat_id column)
- * @param {string} text      - Message text (supports \n newlines)
- */
-async function sendMessage(accountId, chatId, text) {
-  return request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({ account_id: accountId, text }),
-  });
-}
-
-/**
- * Start a new LinkedIn DM and send the first message.
- * Used when a contact has no existing chat_id yet.
- *
- * @param {string} accountId       - Unipile account ID
- * @param {string} attendeeProviderId - LinkedIn provider_id of the contact (ACoXXX)
- * @param {string} text            - Message text
- * @returns {object} - chat object (contains .id = new chat_id)
- */
-async function startDirectMessage(accountId, attendeeProviderId, text) {
-  return request('/api/v1/chats', {
-    method: 'POST',
-    body: JSON.stringify({
-      account_id:    accountId,
-      attendees_ids: [attendeeProviderId],
-      text,
-    }),
-  });
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
@@ -231,8 +224,8 @@ module.exports = {
   deleteWebhook,
   sendInvitation,
   withdrawInvitation,
-  getChatsByAttendee,
   sendMessage,
   startDirectMessage,
+  getChatsByAttendee,
   sendCompanyFollowInvites,
 };

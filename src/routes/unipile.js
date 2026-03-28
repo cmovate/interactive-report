@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getAccounts, enrichProfile, getChatsByAttendee } = require('../unipile');
+const { getAccounts, enrichProfile, getChatsByAttendee, sendMessage, startDirectMessage } = require('../unipile');
 
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
@@ -44,20 +44,16 @@ router.get('/list-chats', async (req, res) => {
   }
 });
 
-// GET /api/unipile/chat-by-provider?account_id=&provider_id=ACoXXX&limit=100
+// GET /api/unipile/chat-by-provider?account_id=&provider_id=ACoXXX
 router.get('/chat-by-provider', async (req, res) => {
   try {
     const { account_id, provider_id, limit = '200' } = req.query;
     if (!account_id || !provider_id) return res.status(400).json({ error: 'account_id and provider_id required' });
-
-    // Strategy 1: direct lookup using provider_id as chat_id
     const direct = await rawGet('/api/v1/chats/' + encodeURIComponent(provider_id) + '?account_id=' + encodeURIComponent(account_id));
     if (direct.status === 200) {
       const c = direct.data;
       return res.json({ method: 'direct', found: true, chat_id: c.id, attendee_provider_id: c.attendee_provider_id });
     }
-
-    // Strategy 2: scan all chats for matching attendee_provider_id
     const params = new URLSearchParams({ account_id, limit });
     const list = await rawGet('/api/v1/chats?' + params);
     const chats = list.data.items || [];
@@ -66,7 +62,6 @@ router.get('/chat-by-provider', async (req, res) => {
       method: 'list_scan',
       found: !!match,
       total_checked: chats.length,
-      has_more: !!list.data.cursor,
       chat_id: match ? match.id : null,
       sample: chats.slice(0, 5).map(c => ({ attendee_provider_id: c.attendee_provider_id, name: c.name })),
     });
@@ -80,7 +75,6 @@ router.post('/enrich-test', async (req, res) => {
   try {
     const { account_id, li_profile_url } = req.body;
     if (!account_id || !li_profile_url) return res.status(400).json({ error: 'account_id and li_profile_url required' });
-
     const profile = await enrichProfile(account_id, li_profile_url);
     const dist = String(profile.network_distance || '').toUpperCase();
     const already_connected =
@@ -88,9 +82,7 @@ router.post('/enrich-test', async (req, res) => {
       profile.relation_type === 1 || profile.relation_type === '1' ||
       profile.degree === 1 || profile.degree === '1' ||
       profile.connection_degree === 1 || profile.connection_degree === '1';
-
     const exp = Array.isArray(profile.work_experience) && profile.work_experience.length > 0 ? profile.work_experience[0] : null;
-
     let has_chat_history = null, chat_id = null, chats_error = null;
     if (already_connected && profile.provider_id) {
       try {
@@ -99,7 +91,6 @@ router.post('/enrich-test', async (req, res) => {
         chat_id = has_chat_history ? (chats[0].id || null) : null;
       } catch (err) { chats_error = err.message; }
     }
-
     res.json({
       extracted: {
         provider_id: profile.provider_id || null,
@@ -113,6 +104,40 @@ router.post('/enrich-test', async (req, res) => {
         has_chat_history, chat_id, chats_error,
       },
       raw_keys: Object.keys(profile),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/unipile/send-test-message
+// Body: { account_id, provider_id, text }
+// Sends a test message to a LinkedIn contact (finds/creates chat automatically)
+router.post('/send-test-message', async (req, res) => {
+  try {
+    const { account_id, provider_id, text } = req.body;
+    if (!account_id || !provider_id || !text) {
+      return res.status(400).json({ error: 'account_id, provider_id, and text are required' });
+    }
+
+    // Check if a chat already exists
+    const existingChats = await getChatsByAttendee(account_id, provider_id);
+    let result, method;
+
+    if (existingChats.length > 0) {
+      const chatId = existingChats[0].id;
+      result = await sendMessage(account_id, chatId, text);
+      method = 'existing_chat';
+    } else {
+      result = await startDirectMessage(account_id, provider_id, text);
+      method = 'new_chat';
+    }
+
+    res.json({
+      success: true,
+      method,
+      chat_id: result?.id || result?.chat_id || existingChats[0]?.id || null,
+      result,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
