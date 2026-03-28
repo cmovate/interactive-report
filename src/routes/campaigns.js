@@ -10,84 +10,40 @@ const withdrawSender         = require('../withdrawSender');
 
 const MAX_MSG_SLOTS = 20;
 
-// ── Company search helpers ────────────────────────────────────────────────────
+// ── Company search helpers ────────────────────────────────────────────────
 
-/**
- * Extract the company slug or numeric ID from a LinkedIn company URL.
- * Handles both:
- *   https://www.linkedin.com/company/microsoft/
- *   https://www.linkedin.com/company/1234567
- * Returns the slug/id string or null.
- */
 function extractCompanySlug(url) {
   const match = String(url).match(/linkedin\.com\/company\/([^/?#]+)/);
   return match ? match[1].replace(/\/$/, '').trim() : null;
 }
 
-/**
- * Validate that a search result actually belongs to the target company.
- *
- * LinkedIn’s classic search with currentCompany filter is already precise, but
- * can occasionally leak results from sister companies or subsidiaries. This
- * function provides a secondary check using:
- *   1. Explicit company ID field on the result (most reliable)
- *   2. Company name match in headline / occupation (fallback)
- *
- * When company lookup failed (no companyId), we skip filtering so we don’t
- * silently drop valid results. The enrichment step provides final ground truth
- * via work_experience[0].company_id in the contact record.
- *
- * @param {object[]} people      Array of search result objects from Unipile
- * @param {string|null} companyId  Numeric LinkedIn company ID (or null)
- * @param {string} companyName    Human-readable name used for headline matching
- * @returns {object[]}            Validated subset
- */
 function validateCompanyResults(people, companyId, companyName) {
   if (!people.length) return [];
-
-  // If no company ID was resolved, fall back to keyword search quality — include all
   if (!companyId) {
     console.log(`[Search] No company ID available for "${companyName}" — skipping validation`);
     return people;
   }
-
-  // Normalise name for headline matching: take significant words (>2 chars)
   const nameParts = companyName
     .toLowerCase()
     .split(/[\s\-_,&.]+/)
     .filter(p => p.length > 2);
 
   const kept = [], dropped = [];
-
   for (const p of people) {
-    // 1. Explicit company ID on the result object (various field names Unipile may use)
     const resultId =
       p.current_company_id ||
       p.company_id ||
       p.positions?.[0]?.company_id ||
       p.position?.company_id ||
       null;
-
-    if (resultId && String(resultId) === String(companyId)) {
-      kept.push(p);
-      continue;
-    }
-
-    // 2. Company name in headline / occupation ("VP R&D at Microsoft")
+    if (resultId && String(resultId) === String(companyId)) { kept.push(p); continue; }
     const headline = (p.headline || p.occupation || p.title || '').toLowerCase();
     if (nameParts.length > 0) {
       const matchCount = nameParts.filter(part => headline.includes(part)).length;
-      // Require ≥60% of significant name parts to appear
-      if (matchCount >= Math.ceil(nameParts.length * 0.6)) {
-        kept.push(p);
-        continue;
-      }
+      if (matchCount >= Math.ceil(nameParts.length * 0.6)) { kept.push(p); continue; }
     }
-
-    // 3. No signal — neither ID nor name matched
     dropped.push(`${p.first_name || ''} ${p.last_name || ''} ("${p.headline || ''}")`).trimEnd();
   }
-
   if (dropped.length) {
     console.log(`[Search] Dropped ${dropped.length} unvalidated result(s) for "${companyName}":`, dropped);
   }
@@ -344,26 +300,26 @@ router.delete('/:id', async (req, res) => {
 /**
  * POST /api/campaigns/search-people
  *
- * Improved flow (fixes א, ג, ד):
- *  1. Extract company slug or numeric ID from URL  (א - robust slug extraction)
- *  2. Look up company to get numeric LinkedIn ID   (ג - direct company ID lookup)
- *  3. Search people using currentCompany ID filter (ג - precise, not keyword-only)
- *  4. Validate results match the target company    (ד - headline + ID validation)
- *
- * Diagnostic info (found / kept / dropped) is logged server-side.
- * The response includes `companies` metadata so the UI can display what was resolved.
+ * Improved flow:
+ *  1. Extract company slug or numeric ID from URL
+ *  2. Look up company to get numeric LinkedIn ID
+ *  3. Search people using currentCompany ID filter
+ *  4. Validate results match the target company
+ *  5. Respect the limit parameter from the UI
  */
 router.post('/search-people', async (req, res) => {
   try {
     const { account_id, company_urls, titles } = req.body;
+    // limit: wired through from UI (default 10, max 50)
+    const limit = Math.min(parseInt(req.body.limit, 10) || 10, 50);
+
     if (!account_id || !company_urls?.length)
       return res.status(400).json({ error: 'account_id and company_urls required' });
 
     const results = [];
-    const companiesMeta = []; // for response metadata
+    const companiesMeta = [];
 
     for (const url of company_urls) {
-      // Step א: extract slug / numeric ID from URL
       const slug = extractCompanySlug(url);
       if (!slug) {
         console.warn(`[Search] Could not extract company slug from: ${url}`);
@@ -372,20 +328,16 @@ router.post('/search-people', async (req, res) => {
       }
 
       try {
-        // Step ג: resolve slug → numeric LinkedIn company ID
-        const company = await lookupCompany(account_id, slug);
+        const company     = await lookupCompany(account_id, slug);
         const companyId   = company?.id   || null;
         const companyName = company?.name || slug.replace(/-/g, ' ');
 
-        // Step ג: search people with company ID filter (falls back to keywords if no ID)
-        const people = await searchPeopleByCompany(account_id, companyId, companyName, titles || []);
-
-        // Step ד: validate results
+        const people    = await searchPeopleByCompany(account_id, companyId, companyName, titles || [], limit);
         const validated = validateCompanyResults(people, companyId, companyName);
 
         console.log(
           `[Search] ${url} → company="${companyName}" id=${companyId || 'unknown'}` +
-          ` | found=${people.length} kept=${validated.length}`
+          ` | found=${people.length} kept=${validated.length} limit=${limit}`
         );
 
         results.push(...validated);
@@ -402,7 +354,6 @@ router.post('/search-people', async (req, res) => {
         companiesMeta.push({ url, status: 'error', error: err.message, found: 0, kept: 0 });
       }
 
-      // Rate-limit pause between companies
       await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
     }
 

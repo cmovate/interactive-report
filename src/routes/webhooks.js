@@ -40,7 +40,7 @@ router.post('/unipile', async (req, res) => {
   }
 });
 
-// ── new_relation ───────────────────────────────────────────────────────────────
+// ── new_relation ────────────────────────────────────────────────────────────────────
 
 async function handleNewRelation(payload) {
   const { account_id, user_public_identifier, user_profile_url, user_full_name } = payload;
@@ -81,7 +81,7 @@ async function handleNewRelation(payload) {
   }
 }
 
-// ── new_message ─────────────────────────────────────────────────────────────────
+// ── new_message ────────────────────────────────────────────────────────────────────
 
 async function handleNewMessage(payload) {
   const { account_id, chat_id, sender_id, is_sender } = payload;
@@ -109,32 +109,38 @@ async function handleNewMessage(payload) {
   }
 
   for (const contact of contacts) {
-    const newCount   = (parseInt(contact.reply_count) || 0) + 1;
+    const newCount        = (parseInt(contact.reply_count) || 0) + 1;
     const effectiveChatId = contact.chat_id || chat_id || null;
 
-    // Save chat_id if we didn't have it yet
-    const chatIdUpdate = (!contact.chat_id && chat_id) ? ', chat_id = $4' : '';
-    const params = chatIdUpdate
-      ? [contact.id, newCount, true, chat_id]
-      : [contact.id, newCount, true];
-
-    await db.query(
-      `UPDATE contacts SET
-         msg_replied    = true,
-         msg_replied_at = COALESCE(msg_replied_at, NOW()),
-         reply_count    = $2,
-         msg_sequence   = NULL
-         ${chatIdUpdate}
-       WHERE id = $1`,
-      params
-    );
+    if (!contact.chat_id && chat_id) {
+      // Save chat_id and update reply fields in one query
+      await db.query(
+        `UPDATE contacts SET
+           msg_replied    = true,
+           msg_replied_at = COALESCE(msg_replied_at, NOW()),
+           reply_count    = $2,
+           msg_sequence   = NULL,
+           chat_id        = $3
+         WHERE id = $1`,
+        [contact.id, newCount, chat_id]
+      );
+    } else {
+      await db.query(
+        `UPDATE contacts SET
+           msg_replied    = true,
+           msg_replied_at = COALESCE(msg_replied_at, NOW()),
+           reply_count    = $2,
+           msg_sequence   = NULL
+         WHERE id = $1`,
+        [contact.id, newCount]
+      );
+    }
 
     console.log(
       `[Webhook] Reply #${newCount} from contact ${contact.id}` +
       ` (${contact.first_name} ${contact.last_name}) — queuing analysis`
     );
 
-    // Enqueue for conversation analysis (debounced)
     if (effectiveChatId) {
       enqueueContact(contact.id, account_id, effectiveChatId, contact.campaign_id);
     } else {
