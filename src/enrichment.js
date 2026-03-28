@@ -3,14 +3,13 @@
  * Processes ONE contact at a time with 5-10s random delay.
  *
  * Field mapping confirmed from live Unipile API:
- *   profile.provider_id                  => LinkedIn internal ID (ACoXXX) ← needed for posts/comments API
- *   profile.member_urn                   => numeric LinkedIn URN (e.g. "854151091")
- *   profile.work_experience[0].position  => title
- *   profile.work_experience[0].company   => company name (plain STRING)
- *   profile.work_experience[0].company_id => linkedin.com/company/{id}
- *   profile.websites[0]                  => website (array of strings)
- *   profile.contact_info.emails[0]       => email
- *   profile.first_name / last_name / location => root level
+ *   profile.provider_id                   => LinkedIn internal ID (ACoXXX)
+ *   profile.member_urn                    => numeric LinkedIn URN
+ *   profile.work_experience[0].position   => title
+ *   profile.work_experience[0].company    => company name
+ *   profile.work_experience[0].company_id => numeric LinkedIn company ID (for posts API)
+ *   profile.websites[0]                   => website
+ *   profile.contact_info.emails[0]        => email
  */
 
 const db = require('./db');
@@ -36,44 +35,37 @@ function getStatus() {
 }
 
 function extractFields(profile, contactId) {
-  // ── LinkedIn identifiers ─────────────────────────────────────────────────────
-  // provider_id: e.g. "ACoAADLpT7MBOJZCKBaNIEP1RkDlOXnyKWJootE"
-  //   → used as {identifier} in /api/v1/users/{identifier}/posts and /comments
   const providerId = profile.provider_id || '';
+  const memberUrn  = profile.member_urn  || '';
 
-  // member_urn: e.g. "854151091" (numeric)
-  //   → used to build urn:li:fsd_profile:{member_urn} for company follow invites
-  const memberUrn = profile.member_urn || '';
-
-  // ── Work experience ─────────────────────────────────────────────────────
   const expArray = profile.work_experience || [];
   const exp = Array.isArray(expArray) && expArray.length > 0 ? expArray[0] : null;
 
   const title =
     exp?.position ||
     exp?.title    ||
-    profile.headline ||
-    '';
+    profile.headline || '';
 
   const company =
     (typeof exp?.company === 'string' ? exp.company : '') ||
     (typeof exp?.company === 'object' ? (exp?.company?.name || '') : '') ||
-    exp?.company_name ||
-    '';
+    exp?.company_name || '';
 
-  const liCompanyUrl = exp?.company_id
-    ? 'https://www.linkedin.com/company/' + exp.company_id
+  // Numeric LinkedIn company ID (e.g. "77603575") — needed for posts API
+  const companyLinkedInId = exp?.company_id ? String(exp.company_id) : '';
+
+  const liCompanyUrl = companyLinkedInId
+    ? 'https://www.linkedin.com/company/' + companyLinkedInId
     : (exp?.company_url || exp?.company_linkedin_url || '');
 
-  // ── Contact info ─────────────────────────────────────────────────────
   const website =
     (Array.isArray(profile.websites) && profile.websites.length > 0 ? profile.websites[0] : '') ||
-    (profile.contact_info && profile.contact_info.websites && profile.contact_info.websites[0]) ||
+    (profile.contact_info?.websites?.[0]) ||
     '';
 
   const email =
-    (profile.contact_info && profile.contact_info.emails && profile.contact_info.emails[0]) ||
-    (profile.emails && profile.emails[0]) ||
+    profile.contact_info?.emails?.[0] ||
+    profile.emails?.[0] ||
     profile.email ||
     '';
 
@@ -84,11 +76,12 @@ function extractFields(profile, contactId) {
   console.log(
     `[Enrichment] contact=${contactId}` +
     ` provider_id="${providerId}"` +
-    ` member_urn="${memberUrn}"` +
-    ` title="${title}" company="${company}"`
+    ` company_id="${companyLinkedInId}"` +
+    ` company="${company}"`
   );
 
-  return { firstName, lastName, title, company, location, email, website, liCompanyUrl, providerId, memberUrn };
+  return { firstName, lastName, title, company, location, email, website,
+           liCompanyUrl, companyLinkedInId, providerId, memberUrn };
 }
 
 function randomDelay() {
@@ -96,30 +89,26 @@ function randomDelay() {
 }
 
 async function processNext() {
-  if (queue.length === 0) {
-    isRunning = false;
-    console.log('[Enrichment] Queue empty - idle.');
-    return;
-  }
+  if (queue.length === 0) { isRunning = false; console.log('[Enrichment] Queue empty - idle.'); return; }
 
   isRunning = true;
   const item = queue.shift();
-  console.log('[Enrichment] Processing contact ' + item.contactId + ' - ' + item.li_profile_url);
+  console.log('[Enrichment] Processing contact ' + item.contactId);
 
   try {
     const profile = await enrichProfile(item.accountId, item.li_profile_url);
     const fields  = extractFields(profile, item.contactId);
     await applyToDb(item.contactId, fields, profile);
+    // Upsert company into campaign_companies table
+    await upsertCampaignCompany(item.contactId, fields);
     processed++;
-    console.log('[Enrichment] OK ' + fields.firstName + ' ' + fields.lastName + ' @ ' + fields.company + ' (contact ' + item.contactId + ')');
+    console.log('[Enrichment] OK ' + fields.firstName + ' ' + fields.lastName + ' @ ' + fields.company);
   } catch (err) {
     errors++;
     console.error('[Enrichment] FAIL contact ' + item.contactId + ': ' + err.message);
   }
 
-  const delay = randomDelay();
-  console.log('[Enrichment] Waiting ' + (delay / 1000).toFixed(1) + 's...');
-  setTimeout(processNext, delay);
+  setTimeout(processNext, randomDelay());
 }
 
 async function applyToDb(contactId, fields, profile) {
@@ -143,6 +132,43 @@ async function applyToDb(contactId, fields, profile) {
   );
 }
 
+/**
+ * Upsert this contact's employer into campaign_companies.
+ * Called after every successful enrichment.
+ * company_linkedin_id (numeric) is required — skip if missing.
+ */
+async function upsertCampaignCompany(contactId, fields) {
+  if (!fields.companyLinkedInId || !fields.company) return;
+
+  try {
+    // Get campaign_id and workspace_id from the contact
+    const { rows } = await db.query(
+      'SELECT campaign_id, workspace_id FROM contacts WHERE id = $1',
+      [contactId]
+    );
+    if (!rows.length || !rows[0].campaign_id) return;
+
+    const { campaign_id, workspace_id } = rows[0];
+
+    // Upsert: create if new, increment contact_count if existing
+    await db.query(
+      `INSERT INTO campaign_companies
+         (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
+       VALUES ($1, $2, $3, $4, $5, 1)
+       ON CONFLICT (campaign_id, company_linkedin_id)
+       DO UPDATE SET
+         company_name   = EXCLUDED.company_name,
+         li_company_url = EXCLUDED.li_company_url,
+         contact_count  = campaign_companies.contact_count + 1`,
+      [campaign_id, workspace_id, fields.company, fields.liCompanyUrl, fields.companyLinkedInId]
+    );
+    console.log(`[Enrichment] Upserted company "${fields.company}" (id=${fields.companyLinkedInId}) for campaign ${campaign_id}`);
+  } catch (err) {
+    // Non-fatal — log but don't fail enrichment
+    console.warn(`[Enrichment] upsertCampaignCompany failed for contact ${contactId}: ${err.message}`);
+  }
+}
+
 async function reExtractAll(workspaceId) {
   const { rows } = await db.query(
     `SELECT id, profile_data FROM contacts
@@ -158,8 +184,7 @@ async function reExtractAll(workspaceId) {
   for (const row of rows) {
     try {
       const profile = typeof row.profile_data === 'string'
-        ? JSON.parse(row.profile_data)
-        : row.profile_data;
+        ? JSON.parse(row.profile_data) : row.profile_data;
 
       const fields = extractFields(profile, row.id);
 
@@ -180,6 +205,9 @@ async function reExtractAll(workspaceId) {
          fields.location, fields.email, fields.website, fields.liCompanyUrl,
          fields.providerId, fields.memberUrn, row.id]
       );
+
+      // Also upsert into campaign_companies
+      await upsertCampaignCompany(row.id, fields);
       ok++;
     } catch (err) {
       fail++;
