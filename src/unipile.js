@@ -22,13 +22,6 @@ async function request(endpoint, options = {}) {
   return res.json();
 }
 
-function resolveIdentifier(input) {
-  if (!input) return null;
-  if (!input.includes('linkedin.com')) return input;
-  const match = input.match(/linkedin\.com\/in\/([^/?#]+)/);
-  return match ? match[1] : input;
-}
-
 async function getAccounts() {
   const data  = await request('/api/v1/accounts');
   const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
@@ -116,61 +109,40 @@ async function deleteWebhook(webhookId) {
   }
 }
 
-/**
- * Send a LinkedIn connection request.
- * @param {string} accountId   - Unipile account ID
- * @param {string} identifier  - provider_id (ACoXXX) OR LinkedIn profile URL
- * @param {string} [message]   - optional note (leave empty for no-note invite)
- */
-async function sendInvitation(accountId, identifier, message = '') {
-  const providerId = resolveIdentifier(identifier);
-  const body = { account_id: accountId, provider_id: providerId };
+async function sendInvitation(accountId, linkedinUrl, message = '') {
+  const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
+  const identifier = match ? match[1] : linkedinUrl;
+  const body       = { account_id: accountId, provider_id: identifier };
   if (message) body.message = message;
   return request('/api/v1/users/invite', { method: 'POST', body: JSON.stringify(body) });
 }
 
 /**
- * List pending sent invitations.
- * Returns items with id, provider_id, etc.
+ * Withdraw (cancel) a pending LinkedIn connection request.
  */
-async function listSentInvitations(accountId, limit = 100) {
-  const params = new URLSearchParams({ account_id: accountId, limit: String(limit) });
-  const data = await request(`/api/v1/users/invite/sent?${params}`);
-  return Array.isArray(data?.items) ? data.items : [];
+async function withdrawInvitation(accountId, linkedinUrl) {
+  const match      = linkedinUrl.match(/linkedin\.com\/in\/([^/?#]+)/);
+  const identifier = match ? match[1] : linkedinUrl;
+  return request(
+    `/api/v1/users/invite?account_id=${encodeURIComponent(accountId)}&provider_id=${encodeURIComponent(identifier)}`,
+    { method: 'DELETE' }
+  );
 }
 
 /**
- * Withdraw (cancel) a pending LinkedIn connection request.
- * Flow:
- *   1. List pending sent invitations
- *   2. Find the one matching the target's provider_id
- *   3. DELETE /api/v1/users/invite/sent/{invitation_id}
+ * Get all 1-to-1 chats between our account and a specific attendee.
+ * Uses the attendee's LinkedIn provider_id (ACoXXX format).
+ * Returns an array of chat objects, or empty array if no chats exist.
  *
  * @param {string} accountId   - Unipile account ID
- * @param {string} identifier  - provider_id (ACoXXX) OR LinkedIn profile URL
+ * @param {string} providerId  - LinkedIn provider_id of the contact (ACoXXX)
  */
-async function withdrawInvitation(accountId, identifier) {
-  const targetProviderId = resolveIdentifier(identifier);
-
-  const invitations = await listSentInvitations(accountId);
-
-  // Try to match by any provider_id field name
-  const inv = invitations.find(i =>
-    i.provider_id === targetProviderId ||
-    i.invitee_id  === targetProviderId ||
-    i.attendee_provider_id === targetProviderId
+async function getChatsByAttendee(accountId, providerId) {
+  const params = new URLSearchParams({ account_id: accountId });
+  const data = await request(
+    `/api/v1/attendees/${encodeURIComponent(providerId)}/chats?${params}`
   );
-
-  if (!inv) {
-    console.warn(`[Unipile] withdrawInvitation: no pending invite for ${targetProviderId}. Items: ${JSON.stringify(invitations.slice(0, 3))}`);
-    throw new Error(`No pending invitation found for: ${targetProviderId}`);
-  }
-
-  const invitationId = inv.id || inv.invitation_id;
-  return request(
-    `/api/v1/users/invite/sent/${encodeURIComponent(invitationId)}?account_id=${encodeURIComponent(accountId)}`,
-    { method: 'DELETE' }
-  );
+  return Array.isArray(data?.items) ? data.items : [];
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
@@ -209,7 +181,7 @@ module.exports = {
   createRelationWebhook,
   deleteWebhook,
   sendInvitation,
-  listSentInvitations,
   withdrawInvitation,
+  getChatsByAttendee,
   sendCompanyFollowInvites,
 };

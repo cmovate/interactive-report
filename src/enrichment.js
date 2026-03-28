@@ -2,18 +2,25 @@
  * Background enrichment queue.
  * Processes ONE contact at a time with 5-10s random delay.
  *
+ * After enrichment:
+ *   1. Extracts fields + detects already_connected (1st-degree LinkedIn connection)
+ *   2. Saves to DB
+ *   3. If already_connected=true: checks for existing chat history via Unipile
+ *      and saves has_chat_history + chat_id to DB.
+ *
  * Field mapping confirmed from live Unipile API:
  *   profile.provider_id                   => LinkedIn internal ID (ACoXXX)
  *   profile.member_urn                    => numeric LinkedIn URN
  *   profile.work_experience[0].position   => title
  *   profile.work_experience[0].company    => company name
- *   profile.work_experience[0].company_id => numeric LinkedIn company ID (for posts API)
+ *   profile.work_experience[0].company_id => numeric LinkedIn company ID
  *   profile.websites[0]                   => website
  *   profile.contact_info.emails[0]        => email
+ *   profile.relation_type / network_distance => connection degree
  */
 
 const db = require('./db');
-const { enrichProfile } = require('./unipile');
+const { enrichProfile, getChatsByAttendee } = require('./unipile');
 
 const queue = [];
 let isRunning = false;
@@ -34,6 +41,27 @@ function getStatus() {
   return { queued: queue.length, running: isRunning, processed, errors };
 }
 
+/**
+ * Detect if a contact is a 1st-degree LinkedIn connection.
+ * Unipile may return this in different fields depending on the API version.
+ */
+function detectAlreadyConnected(profile) {
+  // relation_type: 1 = 1st degree (most common in Unipile)
+  if (profile.relation_type === 1 || profile.relation_type === '1') return true;
+
+  // network_distance: 'DISTANCE_1' is used in some LinkedIn/Unipile versions
+  const dist = String(profile.network_distance || '').toUpperCase();
+  if (dist === 'DISTANCE_1' || dist === '1') return true;
+
+  // degree field (some Unipile versions use this)
+  if (profile.degree === 1 || profile.degree === '1') return true;
+
+  // connection_degree field
+  if (profile.connection_degree === 1 || profile.connection_degree === '1') return true;
+
+  return false;
+}
+
 function extractFields(profile, contactId) {
   const providerId = profile.provider_id || '';
   const memberUrn  = profile.member_urn  || '';
@@ -51,7 +79,6 @@ function extractFields(profile, contactId) {
     (typeof exp?.company === 'object' ? (exp?.company?.name || '') : '') ||
     exp?.company_name || '';
 
-  // Numeric LinkedIn company ID (e.g. "77603575") — needed for posts API
   const companyLinkedInId = exp?.company_id ? String(exp.company_id) : '';
 
   const liCompanyUrl = companyLinkedInId
@@ -69,19 +96,21 @@ function extractFields(profile, contactId) {
     profile.email ||
     '';
 
-  const firstName = profile.first_name || '';
-  const lastName  = profile.last_name  || '';
-  const location  = profile.location   || '';
+  const firstName        = profile.first_name || '';
+  const lastName         = profile.last_name  || '';
+  const location         = profile.location   || '';
+  const alreadyConnected = detectAlreadyConnected(profile);
 
   console.log(
     `[Enrichment] contact=${contactId}` +
     ` provider_id="${providerId}"` +
     ` company_id="${companyLinkedInId}"` +
-    ` company="${company}"`
+    ` company="${company}"` +
+    ` connected=${alreadyConnected}`
   );
 
   return { firstName, lastName, title, company, location, email, website,
-           liCompanyUrl, companyLinkedInId, providerId, memberUrn };
+           liCompanyUrl, companyLinkedInId, providerId, memberUrn, alreadyConnected };
 }
 
 function randomDelay() {
@@ -99,8 +128,13 @@ async function processNext() {
     const profile = await enrichProfile(item.accountId, item.li_profile_url);
     const fields  = extractFields(profile, item.contactId);
     await applyToDb(item.contactId, fields, profile);
-    // Upsert company into campaign_companies table
     await upsertCampaignCompany(item.contactId, fields);
+
+    // If already connected — check for existing chat history
+    if (fields.alreadyConnected && fields.providerId) {
+      await checkChatHistory(item.contactId, item.accountId, fields.providerId);
+    }
+
     processed++;
     console.log('[Enrichment] OK ' + fields.firstName + ' ' + fields.lastName + ' @ ' + fields.company);
   } catch (err) {
@@ -112,36 +146,62 @@ async function processNext() {
 }
 
 async function applyToDb(contactId, fields, profile) {
-  const { firstName, lastName, title, company, location, email, website, liCompanyUrl, providerId, memberUrn } = fields;
+  const { firstName, lastName, title, company, location, email, website,
+          liCompanyUrl, providerId, memberUrn, alreadyConnected } = fields;
   await db.query(
     `UPDATE contacts SET
-       first_name     = COALESCE(NULLIF($1,''),  first_name),
-       last_name      = COALESCE(NULLIF($2,''),  last_name),
-       title          = COALESCE(NULLIF($3,''),  title),
-       company        = COALESCE(NULLIF($4,''),  company),
-       location       = COALESCE(NULLIF($5,''),  location),
-       email          = COALESCE(NULLIF($6,''),  email),
-       website        = COALESCE(NULLIF($7,''),  website),
-       li_company_url = COALESCE(NULLIF($8,''),  li_company_url),
-       provider_id    = COALESCE(NULLIF($9,''),  provider_id),
-       member_urn     = COALESCE(NULLIF($10,''), member_urn),
-       profile_data   = $11
-     WHERE id = $12`,
+       first_name        = COALESCE(NULLIF($1,''),  first_name),
+       last_name         = COALESCE(NULLIF($2,''),  last_name),
+       title             = COALESCE(NULLIF($3,''),  title),
+       company           = COALESCE(NULLIF($4,''),  company),
+       location          = COALESCE(NULLIF($5,''),  location),
+       email             = COALESCE(NULLIF($6,''),  email),
+       website           = COALESCE(NULLIF($7,''),  website),
+       li_company_url    = COALESCE(NULLIF($8,''),  li_company_url),
+       provider_id       = COALESCE(NULLIF($9,''),  provider_id),
+       member_urn        = COALESCE(NULLIF($10,''), member_urn),
+       profile_data      = $11,
+       already_connected = $12
+     WHERE id = $13`,
     [firstName, lastName, title, company, location, email, website, liCompanyUrl,
-     providerId, memberUrn, JSON.stringify(profile), contactId]
+     providerId, memberUrn, JSON.stringify(profile), alreadyConnected, contactId]
   );
 }
 
 /**
+ * Check if there is an existing LinkedIn chat history with this contact.
+ * Called only when already_connected = true.
+ * Saves has_chat_history + chat_id to DB.
+ */
+async function checkChatHistory(contactId, accountId, providerId) {
+  try {
+    const chats = await getChatsByAttendee(accountId, providerId);
+    const hasChatHistory = chats.length > 0;
+    const chatId = hasChatHistory ? (chats[0].id || chats[0].provider_id || '') : null;
+
+    await db.query(
+      `UPDATE contacts SET has_chat_history = $1, chat_id = $2 WHERE id = $3`,
+      [hasChatHistory, chatId, contactId]
+    );
+
+    console.log(
+      `[Enrichment] Chat check contact=${contactId}: ` +
+      `has_chat_history=${hasChatHistory}` +
+      (chatId ? ` chat_id=${chatId}` : '')
+    );
+  } catch (err) {
+    // Non-fatal — log but don't fail enrichment
+    console.warn(`[Enrichment] checkChatHistory failed for contact ${contactId}: ${err.message}`);
+  }
+}
+
+/**
  * Upsert this contact's employer into campaign_companies.
- * Called after every successful enrichment.
- * company_linkedin_id (numeric) is required — skip if missing.
  */
 async function upsertCampaignCompany(contactId, fields) {
   if (!fields.companyLinkedInId || !fields.company) return;
 
   try {
-    // Get campaign_id and workspace_id from the contact
     const { rows } = await db.query(
       'SELECT campaign_id, workspace_id FROM contacts WHERE id = $1',
       [contactId]
@@ -150,7 +210,6 @@ async function upsertCampaignCompany(contactId, fields) {
 
     const { campaign_id, workspace_id } = rows[0];
 
-    // Upsert: create if new, increment contact_count if existing
     await db.query(
       `INSERT INTO campaign_companies
          (campaign_id, workspace_id, company_name, li_company_url, company_linkedin_id, contact_count)
@@ -164,7 +223,6 @@ async function upsertCampaignCompany(contactId, fields) {
     );
     console.log(`[Enrichment] Upserted company "${fields.company}" (id=${fields.companyLinkedInId}) for campaign ${campaign_id}`);
   } catch (err) {
-    // Non-fatal — log but don't fail enrichment
     console.warn(`[Enrichment] upsertCampaignCompany failed for contact ${contactId}: ${err.message}`);
   }
 }
@@ -190,23 +248,23 @@ async function reExtractAll(workspaceId) {
 
       await db.query(
         `UPDATE contacts SET
-           first_name     = COALESCE(NULLIF($1,''),  first_name),
-           last_name      = COALESCE(NULLIF($2,''),  last_name),
-           title          = COALESCE(NULLIF($3,''),  title),
-           company        = COALESCE(NULLIF($4,''),  company),
-           location       = COALESCE(NULLIF($5,''),  location),
-           email          = COALESCE(NULLIF($6,''),  email),
-           website        = COALESCE(NULLIF($7,''),  website),
-           li_company_url = COALESCE(NULLIF($8,''),  li_company_url),
-           provider_id    = COALESCE(NULLIF($9,''),  provider_id),
-           member_urn     = COALESCE(NULLIF($10,''), member_urn)
-         WHERE id = $11`,
+           first_name        = COALESCE(NULLIF($1,''),  first_name),
+           last_name         = COALESCE(NULLIF($2,''),  last_name),
+           title             = COALESCE(NULLIF($3,''),  title),
+           company           = COALESCE(NULLIF($4,''),  company),
+           location          = COALESCE(NULLIF($5,''),  location),
+           email             = COALESCE(NULLIF($6,''),  email),
+           website           = COALESCE(NULLIF($7,''),  website),
+           li_company_url    = COALESCE(NULLIF($8,''),  li_company_url),
+           provider_id       = COALESCE(NULLIF($9,''),  provider_id),
+           member_urn        = COALESCE(NULLIF($10,''), member_urn),
+           already_connected = $11
+         WHERE id = $12`,
         [fields.firstName, fields.lastName, fields.title, fields.company,
          fields.location, fields.email, fields.website, fields.liCompanyUrl,
-         fields.providerId, fields.memberUrn, row.id]
+         fields.providerId, fields.memberUrn, fields.alreadyConnected, row.id]
       );
 
-      // Also upsert into campaign_companies
       await upsertCampaignCompany(row.id, fields);
       ok++;
     } catch (err) {
