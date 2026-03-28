@@ -2,23 +2,33 @@
  * Engagement Scraper — Contacts
  *
  * Runs daily for ALL active campaigns regardless of settings.
- * Scrapes posts + comments for each enriched contact and saves
- * full data as JSONB to DB.
+ * Three distinct phases per campaign:
  *
- * Whether to LIKE is a separate decision controlled by campaign
- * settings (like_posts, like_comments). Scraping always happens.
+ *   Phase 1 — Scrape (unconditional)
+ *     Fetches posts + comments for unscraped contacts, saves JSONB to DB.
  *
- * Key rules:
- *   - Scrapes up to 50 posts and 50 comments per contact
- *   - Only scrapes contacts with NO existing engagement_data (never overwrites)
- *   - Liking is optional, controlled by campaign settings
- *   - Cooldown of 3 days between likes (not between scrapes)
- *   - Dedup via liked_ids JSONB
+ *   Phase 2 — Personal account likes (if enabled in campaign settings)
+ *     Selects up to 20 contacts with content.
+ *     Rule: skips contacts the company page already liked TODAY.
+ *     Tracks in: likes_sent_at, liked_ids, post_likes_sent, comment_likes_sent
+ *
+ *   Phase 3 — Company page likes (if enabled in campaign settings)
+ *     Selects up to 20 DIFFERENT contacts with content.
+ *     Rule: skips contacts the personal account liked TODAY (including Phase 2).
+ *     Tracks in: company_likes_sent_at, company_liked_ids,
+ *                company_post_likes_sent, company_comment_likes_sent
+ *
+ * ABSOLUTE ISOLATION RULE:
+ *   On any calendar day, a contact can only be liked by ONE identity
+ *   (personal OR company page). Never both on the same day. No exceptions.
  *
  * Engagement levels (OR logic):
  *   un_engaged       — 0 non-employer posts AND 0 non-employer comments in 14d
  *   average_engaged  — ≥1 non-employer post OR ≥1 non-employer comment in 14d
  *   engaged          — ≥2 non-employer posts OR ≥2 non-employer comments in 14d
+ *
+ * Cooldown: 3 days before re-liking the same contact (per identity)
+ * Dedup: liked_ids / company_liked_ids track IDs already liked
  *
  * Scheduled: once daily at 06:00.
  */
@@ -26,11 +36,12 @@
 const db      = require('./db');
 const unipile = require('./unipile');
 
-const DAYS_14        = 14 * 24 * 60 * 60 * 1000;
-const MAX_LIKES      = 3;
-const COOLDOWN_DAYS  = 3;
-const BATCH_SIZE     = 30;
-const SCRAPE_LIMIT   = 50;   // max posts/comments to fetch per contact
+const DAYS_14       = 14 * 24 * 60 * 60 * 1000;
+const MAX_LIKES     = 3;
+const COOLDOWN_DAYS = 3;
+const BATCH_SIZE    = 30;
+const SCRAPE_LIMIT  = 50;
+const LIKE_BATCH    = 20;   // max contacts liked per identity per run
 
 const rand  = (min, max) => min + Math.random() * (max - min);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -44,12 +55,12 @@ function start() {
 
 function scheduleDaily() {
   const now = new Date();
-  const next6am = new Date(now);
-  next6am.setHours(6, 0, 0, 0);
-  if (next6am <= now) next6am.setDate(next6am.getDate() + 1);
-  const msUntil = next6am - now;
-  console.log(`[EngagementScraper] Next run in ${Math.round(msUntil / 3600000)}h`);
-  setTimeout(() => { run(); setInterval(run, 24 * 60 * 60 * 1000); }, msUntil);
+  const next = new Date(now);
+  next.setHours(6, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const ms = next - now;
+  console.log(`[EngagementScraper] Next run in ${Math.round(ms / 3600000)}h`);
+  setTimeout(() => { run(); setInterval(run, 24 * 60 * 60 * 1000); }, ms);
 }
 
 async function run(campaignId = null) {
@@ -58,7 +69,6 @@ async function run(campaignId = null) {
   console.log('[EngagementScraper] Starting run...');
 
   try {
-    // ALL active campaigns — scraping is unconditional
     let query = `SELECT c.id, c.account_id, c.name, c.settings FROM campaigns c WHERE c.status = 'active'`;
     const qp = [];
     if (campaignId) { qp.push(campaignId); query += ` AND c.id = $${qp.length}`; }
@@ -82,32 +92,76 @@ async function run(campaignId = null) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────
 async function processCampaign(campaign) {
   console.log(`[EngagementScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
-  // Load account settings for company page URN (needed only if liking as company)
+  // Load company page URN and org ID
   const { rows: accRows } = await db.query(
     'SELECT settings FROM unipile_accounts WHERE account_id = $1',
     [campaign.account_id]
   );
   const companyPageUrn = accRows[0]?.settings?.company_page_urn || null;
+  const asOrgId        = companyPageUrn?.match(/(\d+)$/)?.[1] || null;
 
-  // Liking is optional — controlled by campaign settings
+  // What's enabled in campaign settings
   const eng = campaign.settings?.engagement || {};
-  const likeFlags = {
-    doLikePosts:           !!eng.like_posts,
-    doLikeComments:        !!eng.like_comments,
-    doCompanyLikePosts:    !!eng.company_like_posts    && !!companyPageUrn,
-    doCompanyLikeComments: !!eng.company_like_comments && !!companyPageUrn,
+  const personalFlags = {
+    doLikePosts:    !!eng.like_posts,
+    doLikeComments: !!eng.like_comments,
   };
-  const canLike = Object.values(likeFlags).some(Boolean);
+  const companyFlags = {
+    doLikePosts:    !!eng.company_like_posts    && !!asOrgId,
+    doLikeComments: !!eng.company_like_comments && !!asOrgId,
+  };
+  const canLikePersonal = personalFlags.doLikePosts || personalFlags.doLikeComments;
+  const canLikeCompany  = companyFlags.doLikePosts  || companyFlags.doLikeComments;
 
+  // ── Phase 1: Scrape new contacts (unconditional) ──────────────────────
+  const scrapedCount = await scrapeNewContacts(campaign);
+
+  // ── Phase 2: Personal account likes ─────────────────────────────
+  // Returns IDs of contacts liked in this run (to exclude from Phase 3)
+  let personalLikedIds = [];
+  if (canLikePersonal) {
+    personalLikedIds = await runPersonalLikes(
+      campaign.id, campaign.account_id, companyPageUrn, personalFlags
+    );
+  }
+
+  // ── Phase 3: Company page likes ──────────────────────────────
+  // Excludes personalLikedIds + contacts personal liked today
+  let companyLikedCount = 0;
+  if (canLikeCompany) {
+    companyLikedCount = await runCompanyLikes(
+      campaign.id, campaign.account_id, asOrgId, companyFlags, personalLikedIds
+    );
+  }
+
+  const { rows: statsRows } = await db.query(
+    `SELECT
+       COUNT(*) FILTER (WHERE engagement_level IN ('average_engaged','engaged')) AS with_content,
+       COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')                   AS un_engaged,
+       COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS pending
+     FROM contacts WHERE campaign_id = $1`,
+    [campaign.id]
+  );
+  const s = statsRows[0];
+  console.log(`[EngagementScraper] Campaign ${campaign.id}: with_content=${s.with_content} un_engaged=${s.un_engaged} pending=${s.pending}`);
+
+  return {
+    contacts_scraped:     scrapedCount,
+    personal_liked:       personalLikedIds.length,
+    company_liked:        companyLikedCount,
+  };
+}
+
+// ── Phase 1: Scrape new contacts ──────────────────────────────────────
+async function scrapeNewContacts(campaign) {
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Only fetch contacts with NO engagement_data yet (never overwrite existing scraped data)
-  // Also skip contacts still in like-cooldown (they'll be liked again after 3 days anyway)
   const { rows: contacts } = await db.query(
-    `SELECT id, first_name, last_name, company, provider_id, liked_ids, post_likes_sent, comment_likes_sent
+    `SELECT id, first_name, last_name, company, provider_id
      FROM contacts
      WHERE campaign_id = $1
        AND provider_id IS NOT NULL AND provider_id != ''
@@ -119,55 +173,114 @@ async function processCampaign(campaign) {
     [campaign.id, cooldownCutoff, BATCH_SIZE]
   );
 
+  if (!contacts.length) return 0;
+  console.log(`[EngagementScraper] Campaign ${campaign.id}: scraping ${contacts.length} contacts`);
+
+  let scraped = 0;
+  for (const contact of contacts) {
+    try {
+      await scrapeContact(contact, campaign.account_id);
+      scraped++;
+    } catch (err) {
+      console.error(`[EngagementScraper] ✗ scrape contact ${contact.id}: ${err.message}`);
+    }
+    if (scraped < contacts.length) await sleep(rand(8000, 20000));
+  }
+  return scraped;
+}
+
+// ── Phase 2: Personal account likes (up to LIKE_BATCH contacts) ────────────
+// Returns array of contact IDs that were liked in this run.
+async function runPersonalLikes(campaignId, accountId, companyPageUrn, flags) {
+  const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const { rows: contacts } = await db.query(
+    `SELECT id, first_name, last_name, engagement_data,
+            liked_ids, post_likes_sent, comment_likes_sent
+     FROM contacts
+     WHERE campaign_id = $1
+       AND engagement_level IN ('engaged', 'average_engaged')
+       AND engagement_data IS NOT NULL
+       AND (likes_sent_at IS NULL OR likes_sent_at < $2)
+       AND (
+         company_likes_sent_at IS NULL
+         OR DATE(company_likes_sent_at AT TIME ZONE 'UTC') < CURRENT_DATE
+       )
+     ORDER BY CASE engagement_level WHEN 'engaged' THEN 0 ELSE 1 END, RANDOM()
+     LIMIT $3`,
+    [campaignId, cooldownCutoff, LIKE_BATCH]
+  );
+
   if (!contacts.length) {
-    console.log(`[EngagementScraper] Campaign ${campaign.id}: no unscraped contacts`);
-    return { contacts_scraped: 0 };
+    console.log(`[EngagementScraper] Personal likes: no eligible contacts`);
+    return [];
   }
 
-  console.log(`[EngagementScraper] Campaign ${campaign.id}: processing ${contacts.length} contacts`);
-
-  let scraped = 0, foundContent = 0, totalLiked = 0;
+  console.log(`[EngagementScraper] Personal likes: processing ${contacts.length} contacts`);
+  const asOrgId = companyPageUrn?.match(/(\d+)$/)?.[1] || null;
+  const likedContactIds = [];
 
   for (const contact of contacts) {
     try {
-      // Always scrape and save
-      const scrapeResult = await scrapeContact(contact, campaign.account_id);
-      scraped++;
-
-      // Like only if campaign settings allow it AND contact has content
-      if (scrapeResult && scrapeResult.engagement_level !== 'un_engaged') {
-        foundContent++;
-        if (canLike) {
-          await sleep(rand(2000, 5000));
-          const liked = await likeContactFromData(
-            contact, scrapeResult.engagementData,
-            campaign.account_id, companyPageUrn, likeFlags
-          );
-          totalLiked += liked.postLikes + liked.commentLikes;
-        }
-      }
+      const liked = await likeContactPersonal(contact, accountId, asOrgId, flags);
+      if (liked > 0) likedContactIds.push(contact.id);
     } catch (err) {
-      console.error(`[EngagementScraper] ✗ contact ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] ✗ personal like contact ${contact.id}: ${err.message}`);
     }
-
-    if (scraped < contacts.length) await sleep(rand(8000, 20000));
+    await sleep(rand(5000, 15000));
   }
 
-  const { rows: statsRows } = await db.query(
-    `SELECT
-       COUNT(*) FILTER (WHERE engagement_level IN ('average_engaged','engaged')) AS with_content,
-       COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')                   AS un_engaged,
-       COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS pending
-     FROM contacts WHERE campaign_id = $1`,
-    [campaign.id]
-  );
-  const stats = statsRows[0];
-  console.log(`[EngagementScraper] Campaign ${campaign.id}: with_content=${stats.with_content} un_engaged=${stats.un_engaged} pending=${stats.pending}`);
-
-  return { contacts_scraped: scraped, found_with_content: foundContent, total_likes_sent: totalLiked };
+  return likedContactIds;
 }
 
-// ── Scrape a single contact ────────────────────────────────────────────────────
+// ── Phase 3: Company page likes (up to LIKE_BATCH DIFFERENT contacts) ───────
+// Excludes: contacts liked personally today + contacts just liked in Phase 2.
+async function runCompanyLikes(campaignId, accountId, asOrgId, flags, excludeContactIds) {
+  const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  // Use [-1] as dummy when no exclusions to keep the query valid
+  const excludeArr = excludeContactIds.length > 0 ? excludeContactIds : [-1];
+
+  const { rows: contacts } = await db.query(
+    `SELECT id, first_name, last_name, engagement_data,
+            company_liked_ids, company_post_likes_sent, company_comment_likes_sent
+     FROM contacts
+     WHERE campaign_id = $1
+       AND engagement_level IN ('engaged', 'average_engaged')
+       AND engagement_data IS NOT NULL
+       AND (company_likes_sent_at IS NULL OR company_likes_sent_at < $2)
+       AND (
+         likes_sent_at IS NULL
+         OR DATE(likes_sent_at AT TIME ZONE 'UTC') < CURRENT_DATE
+       )
+       AND id != ALL($3)
+     ORDER BY CASE engagement_level WHEN 'engaged' THEN 0 ELSE 1 END, RANDOM()
+     LIMIT $4`,
+    [campaignId, cooldownCutoff, excludeArr, LIKE_BATCH]
+  );
+
+  if (!contacts.length) {
+    console.log(`[EngagementScraper] Company likes: no eligible contacts`);
+    return 0;
+  }
+
+  console.log(`[EngagementScraper] Company likes: processing ${contacts.length} contacts`);
+  let likedCount = 0;
+
+  for (const contact of contacts) {
+    try {
+      const liked = await likeContactAsCompany(contact, accountId, asOrgId, flags);
+      if (liked > 0) likedCount++;
+    } catch (err) {
+      console.error(`[EngagementScraper] ✗ company like contact ${contact.id}: ${err.message}`);
+    }
+    await sleep(rand(5000, 15000));
+  }
+
+  return likedCount;
+}
+
+// ── Scrape one contact and save JSONB ──────────────────────────────────────
 async function scrapeContact(contact, accountId) {
   const cutoff = new Date(Date.now() - DAYS_14);
   const contactCompany = (contact.company || '').toLowerCase().trim();
@@ -225,63 +338,38 @@ async function scrapeContact(contact, accountId) {
   return { engagement_level: level, engagementData };
 }
 
-// ── Like items immediately after scraping (only if campaign settings allow) ───
-async function likeContactFromData(contact, engData, accountId, companyPageUrn, flags) {
+// ── Like as personal account ───────────────────────────────────────────────
+async function likeContactPersonal(contact, accountId, asOrgId, flags) {
   const { rows } = await db.query('SELECT liked_ids FROM contacts WHERE id = $1', [contact.id]);
   const alreadyLiked = new Set(Array.isArray(rows[0]?.liked_ids) ? rows[0].liked_ids : []);
 
-  const items = [];
+  const engData = typeof contact.engagement_data === 'string'
+    ? JSON.parse(contact.engagement_data) : (contact.engagement_data || {});
 
-  if (flags.doLikePosts || flags.doCompanyLikePosts) {
-    const posts = engData.non_employer_posts_14d_data || engData.posts_14d_data || [];
-    for (const p of posts) {
-      const sid = String(p.social_id || p.id || p.post_id || '');
-      if (sid && !alreadyLiked.has(sid)) items.push({ type: 'post', social_id: sid, key: sid });
-    }
-  }
+  const items = buildLikeItems(engData, alreadyLiked, flags, false);
+  if (!items.length) return 0;
 
-  if (flags.doLikeComments || flags.doCompanyLikeComments) {
-    const comments = engData.non_employer_comments_14d_data || engData.comments_14d_data || [];
-    for (const c of comments) {
-      const postSid = String(c.post?.social_id || c.post_id || c.parent_post_id || '');
-      const cid     = String(c.id || c.comment_id || '');
-      const key     = `comment:${cid}`;
-      if (postSid && cid && !alreadyLiked.has(key))
-        items.push({ type: 'comment', social_id: postSid, comment_id: cid, key });
-    }
-  }
-
-  if (!items.length) return { postLikes: 0, commentLikes: 0 };
-
-  let postLikes = 0, commentLikes = 0, sent = 0;
-  const asOrgId = companyPageUrn?.match(/(\d+)$/)?.[1] || null;
-  const newLikedKeys = [];
+  let sent = 0;
+  const newKeys = [];
+  let postLikes = 0, commentLikes = 0;
 
   for (const item of items) {
     if (sent >= MAX_LIKES) break;
-    const usePersonal = (item.type === 'post' && flags.doLikePosts) || (item.type === 'comment' && flags.doLikeComments);
-    const useCompany  = (item.type === 'post' && flags.doCompanyLikePosts && asOrgId) || (item.type === 'comment' && flags.doCompanyLikeComments && asOrgId);
-    if (!usePersonal && !useCompany) continue;
-
     try {
-      await unipile.likePost(
-        accountId, item.social_id,
-        item.type === 'comment' ? item.comment_id : undefined,
-        (useCompany && asOrgId) ? asOrgId : undefined
-      );
+      await unipile.likePost(accountId, item.social_id, item.comment_id, undefined);
+      newKeys.push(item.key);
       if (item.type === 'post')    postLikes++;
       if (item.type === 'comment') commentLikes++;
-      newLikedKeys.push(item.key);
       sent++;
-      console.log(`[EngagementScraper] 👍 Liked ${item.type} for ${contact.first_name} ${contact.last_name}`);
+      console.log(`[EngagementScraper] 👍 Personal: ${item.type} → ${contact.first_name} ${contact.last_name}`);
       if (sent < MAX_LIKES) await sleep(rand(5000, 15000));
     } catch (err) {
-      console.error(`[EngagementScraper] ✗ like failed contact ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] ✗ personal like ${contact.id}: ${err.message}`);
     }
   }
 
-  if (postLikes > 0 || commentLikes > 0) {
-    const merged = [...alreadyLiked, ...newLikedKeys];
+  if (sent > 0) {
+    const merged = [...alreadyLiked, ...newKeys];
     await db.query(
       `UPDATE contacts
        SET post_likes_sent    = COALESCE(post_likes_sent, 0)    + $1,
@@ -293,22 +381,96 @@ async function likeContactFromData(contact, engData, accountId, companyPageUrn, 
     );
   }
 
-  return { postLikes, commentLikes };
+  return sent;
+}
+
+// ── Like as company page ────────────────────────────────────────────────
+async function likeContactAsCompany(contact, accountId, asOrgId, flags) {
+  if (!asOrgId) return 0;
+
+  const { rows } = await db.query('SELECT company_liked_ids FROM contacts WHERE id = $1', [contact.id]);
+  const alreadyLiked = new Set(Array.isArray(rows[0]?.company_liked_ids) ? rows[0].company_liked_ids : []);
+
+  const engData = typeof contact.engagement_data === 'string'
+    ? JSON.parse(contact.engagement_data) : (contact.engagement_data || {});
+
+  const items = buildLikeItems(engData, alreadyLiked, flags, true);
+  if (!items.length) return 0;
+
+  let sent = 0;
+  const newKeys = [];
+  let postLikes = 0, commentLikes = 0;
+
+  for (const item of items) {
+    if (sent >= MAX_LIKES) break;
+    try {
+      await unipile.likePost(accountId, item.social_id, item.comment_id, asOrgId);
+      newKeys.push(item.key);
+      if (item.type === 'post')    postLikes++;
+      if (item.type === 'comment') commentLikes++;
+      sent++;
+      console.log(`[EngagementScraper] 👍 Company page: ${item.type} → ${contact.first_name} ${contact.last_name}`);
+      if (sent < MAX_LIKES) await sleep(rand(5000, 15000));
+    } catch (err) {
+      console.error(`[EngagementScraper] ✗ company like ${contact.id}: ${err.message}`);
+    }
+  }
+
+  if (sent > 0) {
+    const merged = [...alreadyLiked, ...newKeys];
+    await db.query(
+      `UPDATE contacts
+       SET company_post_likes_sent    = COALESCE(company_post_likes_sent, 0)    + $1,
+           company_comment_likes_sent = COALESCE(company_comment_likes_sent, 0) + $2,
+           company_likes_sent_at      = NOW(),
+           company_liked_ids          = $3::jsonb
+       WHERE id = $4`,
+      [postLikes, commentLikes, JSON.stringify(merged), contact.id]
+    );
+  }
+
+  return sent;
+}
+
+// ── Build list of likeable items not yet liked ─────────────────────────────
+// isCompany=true: use doLikePosts/doLikeComments from company flags (same field names)
+function buildLikeItems(engData, alreadyLiked, flags, isCompany) {
+  const items = [];
+
+  if (flags.doLikePosts) {
+    const posts = engData.non_employer_posts_14d_data || engData.posts_14d_data || [];
+    for (const p of posts) {
+      const sid = String(p.social_id || p.id || p.post_id || '');
+      if (sid && !alreadyLiked.has(sid))
+        items.push({ type: 'post', social_id: sid, comment_id: undefined, key: sid });
+    }
+  }
+
+  if (flags.doLikeComments) {
+    const comments = engData.non_employer_comments_14d_data || engData.comments_14d_data || [];
+    for (const c of comments) {
+      const postSid = String(c.post?.social_id || c.post_id || c.parent_post_id || '');
+      const cid     = String(c.id || c.comment_id || '');
+      const key     = `comment:${cid}`;
+      if (postSid && cid && !alreadyLiked.has(key))
+        items.push({ type: 'comment', social_id: postSid, comment_id: cid, key });
+    }
+  }
+
+  return items;
 }
 
 // ── Re-classify from existing data (no API calls) ─────────────────────────────
 async function reclassifyFromExistingData(campaignId) {
   const { rows } = await db.query(
-    `SELECT id, first_name, last_name, engagement_data
-     FROM contacts WHERE campaign_id = $1 AND engagement_data IS NOT NULL AND engagement_level IS NOT NULL`,
+    `SELECT id, first_name, last_name, engagement_data FROM contacts
+     WHERE campaign_id = $1 AND engagement_data IS NOT NULL AND engagement_level IS NOT NULL`,
     [campaignId]
   );
   let updated = 0;
   for (const row of rows) {
     const d = typeof row.engagement_data === 'string' ? JSON.parse(row.engagement_data) : row.engagement_data;
-    const nep = d.non_employer_posts_14d || 0;
-    const nec = d.non_employer_comments_14d || 0;
-    const newLevel = classifyEngagement(nep, nec);
+    const newLevel = classifyEngagement(d.non_employer_posts_14d || 0, d.non_employer_comments_14d || 0);
     const oldLevel = d.engagement_level;
     d.engagement_level = newLevel;
     await db.query('UPDATE contacts SET engagement_level = $1, engagement_data = $2 WHERE id = $3', [newLevel, JSON.stringify(d), row.id]);
