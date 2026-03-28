@@ -21,6 +21,7 @@ const profileViewer            = require('./src/profileViewer');
 const engagementScraper        = require('./src/engagementScraper');
 const companyEngagementScraper = require('./src/companyEngagementScraper');
 const messageSender            = require('./src/messageSender');
+const conversationQueue        = require('./src/conversationQueue');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -139,6 +140,13 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       comment_likes_sent    INTEGER DEFAULT 0,
       likes_sent_at         TIMESTAMP,
       liked_ids             JSONB DEFAULT '[]',
+      -- Conversation analysis
+      conversation_stage       VARCHAR(30),
+      conversation_score       INTEGER,
+      conversation_signals     JSONB,
+      conversation_analyzed_at TIMESTAMP,
+      -- Reply tracking
+      reply_count              INTEGER DEFAULT 0,
       created_at TIMESTAMP DEFAULT NOW()
     )
   `));
@@ -214,6 +222,8 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_contacts_profile_view',      'contacts(last_profile_view_at)'],
     ['idx_contacts_engagement',        'contacts(engagement_level)'],
     ['idx_contacts_likes_sent_at',     'contacts(likes_sent_at)'],
+    ['idx_contacts_conv_stage',        'contacts(conversation_stage)'],
+    ['idx_contacts_conv_score',        'contacts(conversation_score)'],
     ['idx_camp_companies_campaign',    'campaign_companies(campaign_id)'],
     ['idx_camp_companies_workspace',   'campaign_companies(workspace_id)'],
     ['idx_camp_companies_linkedin_id', 'campaign_companies(company_linkedin_id)'],
@@ -230,7 +240,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
   }
 
-  // Fixed columns (non-message)
+  // Fixed columns (non-message, non-conversation)
   const fixedCols = [
     ['ua.webhook_id',              'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
     ['ua.settings',                'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
@@ -281,6 +291,12 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['cc.likes_sent_at',           'campaign_companies',  'likes_sent_at',               'TIMESTAMP'],
     ['cc.liked_ids',               'campaign_companies',  'liked_ids',                   "JSONB DEFAULT '[]'"],
     ['cc.contact_count',           'campaign_companies',  'contact_count',               'INTEGER DEFAULT 1'],
+    // Conversation analysis columns
+    ['ct.conv_stage',              'contacts',            'conversation_stage',          'VARCHAR(30)'],
+    ['ct.conv_score',              'contacts',            'conversation_score',          'INTEGER'],
+    ['ct.conv_signals',            'contacts',            'conversation_signals',        'JSONB'],
+    ['ct.conv_analyzed_at',        'contacts',            'conversation_analyzed_at',    'TIMESTAMP'],
+    ['ct.reply_count',             'contacts',            'reply_count',                 'INTEGER DEFAULT 0'],
   ];
   for (const [label, table, col, type] of fixedCols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
@@ -384,6 +400,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   engagementScraper.start();
   companyEngagementScraper.start();
   messageSender.start();
+  conversationQueue.start();
 })();
 
 app.get('*', (req, res) => {
