@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Analytics — El-Via ABM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f5f7; color: #1a1a1a; font-size: 14px; }
+.topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 28px; display: flex; align-items: center; gap: 24px; height: 54px; position: sticky; top: 0; z-index: 10; }
+.topbar-logo { font-size: 15px; font-weight: 700; color: #1D9E75; letter-spacing: -0.3px; }
+.topbar-back { font-size: 12px; color: #888; text-decoration: none; display: flex; align-items: center; gap: 4px; }
+.topbar-back:hover { color: #1D9E75; }
+.topbar-title { font-size: 15px; font-weight: 600; color: #111; margin-left: 4px; }
+.topbar-spacer { flex: 1; }
+.page { padding: 24px 28px; max-width: 1280px; }
+
+/* Period picker */
+.period-bar { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+.period-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-right: 4px; }
+.preset-btn { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; color: #555; background: white; cursor: pointer; font-family: inherit; transition: all 0.12s; }
+.preset-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
+.preset-btn.active { background: #1D9E75; color: white; border-color: #1D9E75; }
+.period-sep { width: 1px; height: 20px; background: #eee; }
+.date-input { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-family: inherit; color: #333; }
+.date-input:focus { outline: none; border-color: #1D9E75; }
+.apply-btn { background: #1D9E75; border: none; border-radius: 6px; padding: 5px 14px; font-size: 12px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; }
+.apply-btn:hover { background: #178f68; }
+
+/* KPI cards */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 12px; margin-bottom: 24px; }
+.kpi-card { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; }
+.kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; margin-bottom: 8px; }
+.kpi-value { font-size: 28px; font-weight: 700; color: #111; }
+.kpi-sub { font-size: 11px; color: #1D9E75; font-weight: 600; margin-top: 3px; }
+.kpi-card.highlight { border-color: #A7F3D0; background: #F0FBF7; }
+.kpi-card.highlight .kpi-value { color: #0F6E56; }
+
+/* Section */
+.section { background: white; border: 1px solid #e5e5e5; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
+.section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
+.section-title { font-size: 13px; font-weight: 600; color: #111; }
+.section-sub { font-size: 11px; color: #999; margin-top: 2px; }
+
+/* Chart */
+.chart-wrap { padding: 18px; height: 240px; position: relative; }
+
+/* Tables */
+.ana-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ana-table th { text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; padding: 10px 14px; border-bottom: 1px solid #f0f0f0; background: #fafafa; cursor: pointer; white-space: nowrap; user-select: none; }
+.ana-table th:hover { color: #1D9E75; }
+.ana-table th.sorted { color: #1D9E75; }
+.ana-table th .sort-arrow { display: inline; margin-left: 3px; opacity: 0.5; }
+.ana-table th.sorted .sort-arrow { opacity: 1; }
+.ana-table td { padding: 11px 14px; border-bottom: 1px solid #f5f5f5; color: #333; vertical-align: middle; }
+.ana-table tr:last-child td { border-bottom: none; }
+.ana-table tbody tr:hover td { background: #F0FBF7; }
+.ana-table tbody tr { cursor: default; }
+.ana-table tbody tr.clickable:hover td { background: #F0FBF7; cursor: pointer; }
+.num-cell { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
+.rate-cell { text-align: right; font-size: 12px; }
+.rate-pill { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
+.rate-low  { background: #f5f5f5; color: #888; }
+.rate-mid  { background: #FEF3C7; color: #B45309; }
+.rate-high { background: #E1F5EE; color: #0F6E56; }
+.ws-name { font-weight: 600; }
+.ws-sub  { font-size: 11px; color: #888; margin-top: 2px; }
+.status-pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
+.status-active { background: #E1F5EE; color: #0F6E56; }
+.status-paused { background: #FFF3E0; color: #E65100; }
+.empty-row td { text-align: center; color: #aaa; padding: 32px; }
+.loading-overlay { display: flex; align-items: center; justify-content: center; padding: 48px; color: #aaa; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">El-Via ABM</div>
+  <span style="color:#ddd;">|</span>
+  <a href="/" class="topbar-back">&#8592; Workspaces</a>
+  <div class="topbar-title">Admin Analytics</div>
+  <div class="topbar-spacer"></div>
+  <span id="last-updated" style="font-size:11px;color:#aaa;"></span>
+</div>
+
+<div class="page">
+
+  <!-- Period picker -->
+  <div class="period-bar">
+    <span class="period-label">Period</span>
+    <button class="preset-btn" data-preset="today" onclick="applyPreset('today')">Today</button>
+    <button class="preset-btn" data-preset="7d"    onclick="applyPreset('7d')">Last 7 days</button>
+    <button class="preset-btn active" data-preset="30d" onclick="applyPreset('30d')">Last 30 days</button>
+    <button class="preset-btn" data-preset="90d"   onclick="applyPreset('90d')">Last 90 days</button>
+    <button class="preset-btn" data-preset="month" onclick="applyPreset('month')">This month</button>
+    <button class="preset-btn" data-preset="year"  onclick="applyPreset('year')">This year</button>
+    <button class="preset-btn" data-preset="all"   onclick="applyPreset('all')">All time</button>
+    <div class="period-sep"></div>
+    <input type="date" class="date-input" id="date-from" placeholder="From">
+    <span style="color:#aaa;font-size:12px;">→</span>
+    <input type="date" class="date-input" id="date-to" placeholder="To">
+    <button class="apply-btn" onclick="applyCustom()">Apply</button>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="kpi-grid" id="kpi-grid">
+    <div class="loading-overlay" style="grid-column:1/-1;">Loading analytics…</div>
+  </div>
+
+  <!-- Timeline chart -->
+  <div class="section" id="chart-section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">Activity Timeline</div>
+        <div class="section-sub">Daily actions in the selected period</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;" id="chart-legend"></div>
+    </div>
+    <div class="chart-wrap"><canvas id="timeline-chart"></canvas></div>
+  </div>
+
+  <!-- By workspace -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">By Workspace</div>
+        <div class="section-sub" id="ws-sub">—</div>
+      </div>
+    </div>
+    <div id="ws-table-wrap"><div class="loading-overlay">Loading…</div></div>
+  </div>
+
+  <!-- By account -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">By Unipile Account</div>
+        <div class="section-sub">Actions performed per LinkedIn account</div>
+      </div>
+    </div>
+    <div id="acc-table-wrap"><div class="loading-overlay">Loading…</div></div>
+  </div>
+
+  <!-- All campaigns -->
+  <div class="section">
+    <div class="section-head">
+      <div>
+        <div class="section-title">All Campaigns</div>
+        <div class="section-sub" id="camp-sub">—</div>
+      </div>
+    </div>
+    <div id="camp-table-wrap"><div class="loading-overlay">Loading…</div></div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let state = { from: null, to: null, data: null };
+let chartInstance = null;
+
+// Sort state per table
+const sortState = {
+  ws:   { col: 'invites_sent', dir: 'desc' },
+  acc:  { col: 'invites_sent', dir: 'desc' },
+  camp: { col: 'invites_sent', dir: 'desc' },
+};
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function fmt(d) { return d.toISOString().slice(0,10); }
+function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function n(v) { return parseInt(v)||0; }
+function num(v) { return n(v).toLocaleString(); }
+function pct(a, b) { const bn = n(b); return bn > 0 ? (Math.round(n(a)/bn*100)+'%') : '—'; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function ratePill(v, denom) {
+  const p = denom > 0 ? n(v)/denom : 0;
+  const cls = p >= 0.15 ? 'rate-high' : p >= 0.05 ? 'rate-mid' : 'rate-low';
+  return `<span class="rate-pill ${cls}">${pct(v, denom)}</span>`;
+}
+
+// ── Period presets ─────────────────────────────────────────────────────────
+function applyPreset(preset) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-preset="${preset}"]`)?.classList.add('active');
+  const today = new Date();
+  switch(preset) {
+    case 'today':  state.from = fmt(today); state.to = fmt(today); break;
+    case '7d':     state.from = fmt(addDays(today,-6)); state.to = fmt(today); break;
+    case '30d':    state.from = fmt(addDays(today,-29)); state.to = fmt(today); break;
+    case '90d':    state.from = fmt(addDays(today,-89)); state.to = fmt(today); break;
+    case 'month':  state.from = fmt(new Date(today.getFullYear(),today.getMonth(),1)); state.to = fmt(today); break;
+    case 'year':   state.from = today.getFullYear()+'-01-01'; state.to = fmt(today); break;
+    case 'all':    state.from = null; state.to = null; break;
+  }
+  document.getElementById('date-from').value = state.from || '';
+  document.getElementById('date-to').value   = state.to   || '';
+  load();
+}
+
+function applyCustom() {
+  state.from = document.getElementById('date-from').value || null;
+  state.to   = document.getElementById('date-to').value   || null;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  load();
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────
+async function load() {
+  const params = new URLSearchParams();
+  if (state.from) params.set('from', state.from);
+  if (state.to)   params.set('to',   state.to);
+  try {
+    const res  = await fetch('/api/admin/analytics?' + params);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    state.data = data;
+    render();
+    document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch(err) {
+    document.getElementById('kpi-grid').innerHTML = `<div style="color:#DC2626;padding:24px;grid-column:1/-1;">Error loading analytics: ${esc(err.message)}</div>`;
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+function render() {
+  const { summary, by_workspace, by_account, by_campaign, timeline } = state.data;
+  renderKPIs(summary);
+  renderChart(timeline);
+  renderWsTable(by_workspace);
+  renderAccTable(by_account);
+  renderCampTable(by_campaign);
+}
+
+function renderKPIs(s) {
+  const approvalRate = s.invites_sent > 0 ? Math.round(n(s.invites_approved)/n(s.invites_sent)*100) : 0;
+  const replyRate    = s.messages_sent > 0 ? Math.round(n(s.messages_replied)/n(s.messages_sent)*100) : 0;
+  const posRate      = s.messages_replied > 0 ? Math.round(n(s.positive_replies)/n(s.messages_replied)*100) : 0;
+  const periodLabel  = state.from && state.to ? `${state.from} → ${state.to}` : state.from ? `from ${state.from}` : 'All time';
+  document.getElementById('kpi-grid').innerHTML = `
+    <div class="kpi-card"><div class="kpi-label">Campaigns</div><div class="kpi-value">${num(s.campaign_count)}</div><div class="kpi-sub">${periodLabel}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Contacts Added</div><div class="kpi-value">${num(s.contacts_added)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Invites Sent</div><div class="kpi-value">${num(s.invites_sent)}</div></div>
+    <div class="kpi-card highlight"><div class="kpi-label">Approved</div><div class="kpi-value">${num(s.invites_approved)}</div><div class="kpi-sub">${approvalRate}% rate</div></div>
+    <div class="kpi-card"><div class="kpi-label">Messages Sent</div><div class="kpi-value">${num(s.messages_sent)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Replied</div><div class="kpi-value">${num(s.messages_replied)}</div><div class="kpi-sub">${replyRate}% rate</div></div>
+    <div class="kpi-card highlight"><div class="kpi-label">Positive Replies</div><div class="kpi-value">${num(s.positive_replies)}</div><div class="kpi-sub">${posRate}% of replies</div></div>
+  `;
+}
+
+function renderChart(timeline) {
+  if (!timeline || !timeline.length) {
+    document.getElementById('chart-section').style.display = 'none';
+    return;
+  }
+  document.getElementById('chart-section').style.display = '';
+  const labels  = timeline.map(r => r.date);
+  const series  = [
+    { key: 'invites_sent',    label: 'Invites Sent',    color: '#1D9E75', fill: false },
+    { key: 'invites_approved',label: 'Approved',        color: '#52b788', fill: false },
+    { key: 'messages_sent',   label: 'Messages Sent',   color: '#3B82F6', fill: false },
+    { key: 'messages_replied',label: 'Replied',         color: '#6366F1', fill: false },
+    { key: 'positive_replies',label: 'Positive',        color: '#F59E0B', fill: false },
+  ];
+
+  // Render legend
+  document.getElementById('chart-legend').innerHTML = series.map(s =>
+    `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555;">
+       <span style="width:12px;height:3px;background:${s.color};display:inline-block;border-radius:2px;"></span>${s.label}
+     </div>`
+  ).join('');
+
+  const ctx = document.getElementById('timeline-chart').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: series.map(s => ({
+        label:       s.label,
+        data:        timeline.map(r => n(r[s.key])),
+        borderColor: s.color,
+        backgroundColor: s.color + '18',
+        borderWidth: 2,
+        pointRadius: labels.length > 60 ? 0 : 3,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        fill: false,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { title: (items) => items[0].label } }
+      },
+      scales: {
+        x: {
+          ticks: { maxRotation: 0, font: { size: 10 }, color: '#999',
+                   maxTicksLimit: Math.min(labels.length, 15) },
+          grid:  { display: false },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { font: { size: 10 }, color: '#999' },
+          grid:  { color: '#f0f0f0' },
+        },
+      },
+    },
+  });
+}
+
+// ── Tables ────────────────────────────────────────────────────────────────
+const TABLE_COLS = [
+  { key: 'contacts_added',   label: 'Contacts' },
+  { key: 'invites_sent',     label: 'Invites' },
+  { key: 'invites_approved', label: 'Approved',  rate: ['invites_approved','invites_sent'] },
+  { key: 'messages_sent',    label: 'Messages' },
+  { key: 'messages_replied', label: 'Replied',   rate: ['messages_replied','messages_sent'] },
+  { key: 'positive_replies', label: 'Positive',  rate: ['positive_replies','messages_replied'] },
+];
+
+function sortRows(rows, col, dir) {
+  return [...rows].sort((a, b) => {
+    const av = n(a[col]), bv = n(b[col]);
+    return dir === 'desc' ? bv - av : av - bv;
+  });
+}
+
+function thClick(tableKey, col) {
+  if (sortState[tableKey].col === col) {
+    sortState[tableKey].dir = sortState[tableKey].dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    sortState[tableKey].col = col;
+    sortState[tableKey].dir = 'desc';
+  }
+  if (tableKey === 'ws')   renderWsTable(state.data.by_workspace);
+  if (tableKey === 'acc')  renderAccTable(state.data.by_account);
+  if (tableKey === 'camp') renderCampTable(state.data.by_campaign);
+}
+
+function headerRow(tableKey, firstColLabel, firstColKey) {
+  const { col, dir } = sortState[tableKey];
+  const arrow = dir === 'desc' ? '↓' : '↑';
+  const th = (key, label) => {
+    const active = col === key;
+    return `<th onclick="thClick('${tableKey}','${key}')" class="${active?'sorted':''}">${label}<span class="sort-arrow">${active?arrow:'↕'}</span></th>`;
+  };
+  return `<tr>
+    ${th(firstColKey, firstColLabel)}
+    ${TABLE_COLS.map(c => th(c.key, c.label)).join('')}
+  </tr>`;
+}
+
+function metricCells(row) {
+  return TABLE_COLS.map(c => {
+    const val = `<td class="num-cell">${num(row[c.key])}</td>`;
+    if (c.rate) {
+      return val + `<td class="rate-cell">${ratePill(row[c.rate[0]], n(row[c.rate[1]]))}</td>`;
+    }
+    return val + `<td></td>`;
+  }).join('');
+}
+
+function renderWsTable(rows) {
+  const sorted = sortRows(rows, sortState.ws.col, sortState.ws.dir);
+  const totalCamps = rows.reduce((s,r)=>s+n(r.campaign_count),0);
+  document.getElementById('ws-sub').textContent = `${rows.length} workspaces · ${totalCamps} campaigns total`;
+  if (!sorted.length) {
+    document.getElementById('ws-table-wrap').innerHTML = '<div class="loading-overlay">No data</div>';
+    return;
+  }
+  // Build header: 2 rate columns for approved and replied
+  const { col, dir } = sortState.ws;
+  const arrow = dir === 'desc' ? '↓' : '↑';
+  const th = (key, label) => `<th onclick="thClick('ws','${key}')" class="${col===key?'sorted':''}">${label}<span class="sort-arrow">${col===key?arrow:'↕'}</span></th>`;
+  document.getElementById('ws-table-wrap').innerHTML = `
+    <table class="ana-table">
+      <thead><tr>
+        ${th('workspace_name','Workspace')}${th('active_campaigns','Active')}
+        ${TABLE_COLS.map(c=>`${th(c.key,c.label)}${c.rate?'<th></th>':''}`).join('')}
+      </tr></thead>
+      <tbody>${sorted.map(r => `<tr class="clickable" onclick="window.location='/workspace.html?id=${r.workspace_id}'">
+        <td><div class="ws-name">${esc(r.workspace_name)}</div><div class="ws-sub">${n(r.campaign_count)} campaigns</div></td>
+        <td class="num-cell">${n(r.active_campaigns)}</td>
+        ${metricCells(r)}
+      </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+function renderAccTable(rows) {
+  if (!rows.length) {
+    document.getElementById('acc-table-wrap').innerHTML = '<div class="loading-overlay">No account data</div>';
+    return;
+  }
+  const sorted = sortRows(rows, sortState.acc.col, sortState.acc.dir);
+  const { col, dir } = sortState.acc;
+  const arrow = dir === 'desc' ? '↓' : '↑';
+  const th = (key, label) => `<th onclick="thClick('acc','${key}')" class="${col===key?'sorted':''}">${label}<span class="sort-arrow">${col===key?arrow:'↕'}</span></th>`;
+  document.getElementById('acc-table-wrap').innerHTML = `
+    <table class="ana-table">
+      <thead><tr>
+        ${th('account_name','Account')}
+        ${TABLE_COLS.map(c=>`${th(c.key,c.label)}${c.rate?'<th></th>':''}`).join('')}
+      </tr></thead>
+      <tbody>${sorted.map(r => `<tr>
+        <td><div class="ws-name">${esc(r.account_name)}</div><div class="ws-sub">${esc(r.workspace_name)} · ${n(r.campaign_count)} campaigns</div></td>
+        ${metricCells(r)}
+      </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+function renderCampTable(rows) {
+  const sorted = sortRows(rows, sortState.camp.col, sortState.camp.dir);
+  document.getElementById('camp-sub').textContent = `${rows.length} campaigns across all workspaces`;
+  if (!sorted.length) {
+    document.getElementById('camp-table-wrap').innerHTML = '<div class="loading-overlay">No campaigns</div>';
+    return;
+  }
+  const { col, dir } = sortState.camp;
+  const arrow = dir === 'desc' ? '↓' : '↑';
+  const th = (key, label) => `<th onclick="thClick('camp','${key}')" class="${col===key?'sorted':''}">${label}<span class="sort-arrow">${col===key?arrow:'↕'}</span></th>`;
+  document.getElementById('camp-table-wrap').innerHTML = `
+    <table class="ana-table">
+      <thead><tr>
+        ${th('campaign_name','Campaign')}${th('status','Status')}
+        ${TABLE_COLS.map(c=>`${th(c.key,c.label)}${c.rate?'<th></th>':''}`).join('')}
+      </tr></thead>
+      <tbody>${sorted.map(r => {
+        const statusClass = r.status === 'active' ? 'status-active' : 'status-paused';
+        return `<tr class="clickable" onclick="window.location='/workspace.html?id=${r.workspace_id}'">
+          <td><div class="ws-name">${esc(r.campaign_name)}</div><div class="ws-sub">${esc(r.workspace_name)} · ${esc(r.account_name||'—')}</div></td>
+          <td><span class="status-pill ${statusClass}">${esc(r.status)}</span></td>
+          ${metricCells(r)}
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+applyPreset('30d');
+</script>
+</body>
+</html>
