@@ -10,6 +10,30 @@ const withdrawSender         = require('../withdrawSender');
 
 const MAX_MSG_SLOTS = 20;
 
+// ── Workspace isolation helper ────────────────────────────────────────────────
+// Every route that touches a specific campaign MUST call this first.
+// Returns the campaign row, or sends 403/404 and returns null.
+async function requireCampaign(req, res, workspaceId) {
+  if (!workspaceId) {
+    res.status(400).json({ error: 'workspace_id required' });
+    return null;
+  }
+  const campaignId = parseInt(req.params.id, 10);
+  if (isNaN(campaignId)) {
+    res.status(400).json({ error: 'Invalid campaign ID' });
+    return null;
+  }
+  const { rows } = await db.query(
+    'SELECT * FROM campaigns WHERE id = $1 AND workspace_id = $2',
+    [campaignId, workspaceId]
+  );
+  if (!rows.length) {
+    res.status(404).json({ error: 'Campaign not found or access denied' });
+    return null;
+  }
+  return rows[0];
+}
+
 function extractCompanySlug(url) {
   const match = String(url).match(/linkedin\.com\/company\/([^/?#]+)/);
   return match ? match[1].replace(/\/$/, '').trim() : null;
@@ -72,11 +96,13 @@ router.get('/company-follow-status', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/ab-analytics
+// GET /api/campaigns/:id/ab-analytics?workspace_id=
 router.get('/:id/ab-analytics', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    const campaignId = camp.id;
     const { rows: overallRows } = await db.query(`
       SELECT
         COUNT(*)                                           AS total_contacts,
@@ -87,10 +113,9 @@ router.get('/:id/ab-analytics', async (req, res) => {
         COUNT(*) FILTER (WHERE msg_replied = true)        AS messages_replied,
         COUNT(*) FILTER (WHERE positive_reply = true)     AS positive_replies,
         COALESCE(SUM(msgs_sent_count), 0)                 AS total_msgs_sent
-      FROM contacts WHERE campaign_id = $1
-    `, [campaignId]);
-    const { rows: campRows } = await db.query('SELECT name, settings FROM campaigns WHERE id = $1', [campaignId]);
-    const rawSettings = campRows[0]?.settings || {};
+      FROM contacts WHERE campaign_id = $1 AND workspace_id = $2
+    `, [campaignId, wsId]);
+    const rawSettings = camp.settings || {};
     const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
     const messages = settings.messages || {};
     const steps = [];
@@ -98,9 +123,9 @@ router.get('/:id/ab-analytics', async (req, res) => {
       const { rows } = await db.query(`
         SELECT COALESCE(msg_${i}_variant, 'A') AS variant, COUNT(*) AS sent,
           COUNT(*) FILTER (WHERE msg_replied = true) AS replied
-        FROM contacts WHERE campaign_id = $1 AND msg_${i}_text IS NOT NULL
+        FROM contacts WHERE campaign_id = $1 AND workspace_id = $2 AND msg_${i}_text IS NOT NULL
         GROUP BY COALESCE(msg_${i}_variant, 'A') ORDER BY COALESCE(msg_${i}_variant, 'A')
-      `, [campaignId]);
+      `, [campaignId, wsId]);
       if (rows.length > 0) {
         const allSeqs = [...(messages.new||[]),...(messages.existing_no_history||[]),...(messages.existing_with_history||[])];
         const stepCfg = allSeqs[i-1];
@@ -109,14 +134,16 @@ router.get('/:id/ab-analytics', async (req, res) => {
             rate: parseInt(r.sent)>0 ? Math.round(parseInt(r.replied)/parseInt(r.sent)*100) : 0 })) });
       }
     }
-    res.json({ overall: overallRows[0], campaign_name: campRows[0]?.name||'', steps });
+    res.json({ overall: overallRows[0], campaign_name: camp.name, steps });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/engagement-stats
+// GET /api/campaigns/:id/engagement-stats?workspace_id=
 router.get('/:id/engagement-stats', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const { rows } = await db.query(
       `SELECT
          COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')     AS un_engaged,
@@ -129,8 +156,8 @@ router.get('/:id/engagement-stats', async (req, res) => {
          COALESCE(SUM(comment_likes_sent),0)                          AS total_comment_likes,
          COUNT(*) FILTER (WHERE post_likes_sent > 0 OR comment_likes_sent > 0) AS contacts_liked,
          COUNT(*)                                                      AS total
-       FROM contacts WHERE campaign_id = $1`,
-      [campaignId]
+       FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`,
+      [camp.id, wsId]
     );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -168,24 +195,29 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/:id/scrape-engagement
+// POST /api/campaigns/:id/scrape-engagement  (workspace_id in body or query)
 router.post('/:id/scrape-engagement', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    if (req.body?.force) await db.query('UPDATE contacts SET engagement_level=NULL,engagement_scraped_at=NULL,engagement_data=NULL WHERE campaign_id=$1',[campaignId]);
-    engagementScraper.run(campaignId).then(r=>console.log(`[API] Scrape done ${campaignId}:`,JSON.stringify(r))).catch(e=>console.error('[API] Scrape error:',e.message));
-    res.json({ status: 'started', campaign_id: campaignId });
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    if (req.body?.force) await db.query(
+      'UPDATE contacts SET engagement_level=NULL,engagement_scraped_at=NULL,engagement_data=NULL WHERE campaign_id=$1 AND workspace_id=$2',
+      [camp.id, wsId]
+    );
+    engagementScraper.run(camp.id).catch(e=>console.error('[API] Scrape error:',e.message));
+    res.json({ status: 'started', campaign_id: camp.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/campaigns/:id/reclassify
 router.post('/:id/reclassify', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const result = await engagementScraper.reclassifyFromExistingData(campaignId);
-    engagementScraper.run(campaignId).catch(e=>console.error('[API] Post-reclassify error:',e.message));
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    const result = await engagementScraper.reclassifyFromExistingData(camp.id);
+    engagementScraper.run(camp.id).catch(e=>console.error('[API] Post-reclassify error:',e.message));
     res.json({ ...result, scrape_started: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -193,30 +225,37 @@ router.post('/:id/reclassify', async (req, res) => {
 // POST /api/campaigns/:id/send-likes
 router.post('/:id/send-likes', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    likeSender.run(campaignId, { force: !!req.body?.force }).catch(e=>console.error('[API] Likes error:',e.message));
-    res.json({ status: 'started', campaign_id: campaignId });
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    likeSender.run(camp.id, { force: !!req.body?.force }).catch(e=>console.error('[API] Likes error:',e.message));
+    res.json({ status: 'started', campaign_id: camp.id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/campaigns/:id/run-withdraw
 router.post('/:id/run-withdraw', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const result = await withdrawSender.run(campaignId);
-    res.json({ campaign_id: campaignId, ...result });
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    const result = await withdrawSender.run(camp.id);
+    res.json({ campaign_id: camp.id, ...result });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/campaigns/:id/status
 router.patch('/:id/status', async (req, res) => {
   try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const { status } = req.body;
     if (!['active','paused'].includes(status)) return res.status(400).json({ error: 'status must be active or paused' });
-    const { rows } = await db.query('UPDATE campaigns SET status=$1 WHERE id=$2 RETURNING *', [status, req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const { rows } = await db.query(
+      'UPDATE campaigns SET status=$1 WHERE id=$2 AND workspace_id=$3 RETURNING *',
+      [status, camp.id, wsId]
+    );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -224,10 +263,15 @@ router.patch('/:id/status', async (req, res) => {
 // PATCH /api/campaigns/:id/settings
 router.patch('/:id/settings', async (req, res) => {
   try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const { settings } = req.body;
     if (!settings) return res.status(400).json({ error: 'settings required' });
-    const { rows } = await db.query('UPDATE campaigns SET settings=$1 WHERE id=$2 RETURNING *', [JSON.stringify(settings), req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const { rows } = await db.query(
+      'UPDATE campaigns SET settings=$1 WHERE id=$2 AND workspace_id=$3 RETURNING *',
+      [JSON.stringify(settings), camp.id, wsId]
+    );
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -235,7 +279,10 @@ router.patch('/:id/settings', async (req, res) => {
 // DELETE /api/campaigns/:id
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM campaigns WHERE id=$1', [req.params.id]);
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    await db.query('DELETE FROM campaigns WHERE id=$1 AND workspace_id=$2', [camp.id, wsId]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -267,52 +314,60 @@ router.post('/search-people', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Campaign detail / edit endpoints ─────────────────────────────────────
+// ── Campaign detail / edit endpoints ─────────────────────────────────────────
 
-// GET /api/campaigns/:id
+// GET /api/campaigns/:id?workspace_id=
 router.get('/:id', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const { rows } = await db.query(`
-      SELECT c.*,
-        (SELECT COUNT(*) FROM contacts           WHERE campaign_id = c.id) AS contact_count,
-        (SELECT COUNT(*) FROM campaign_companies WHERE campaign_id = c.id) AS company_count
-      FROM campaigns c WHERE c.id = $1`, [campaignId]);
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    const camp = rows[0];
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    // Augment with counts
+    const { rows: cnt } = await db.query(
+      `SELECT
+         (SELECT COUNT(*) FROM contacts           WHERE campaign_id=$1 AND workspace_id=$2) AS contact_count,
+         (SELECT COUNT(*) FROM campaign_companies WHERE campaign_id=$1 AND workspace_id=$2) AS company_count`,
+      [camp.id, wsId]
+    );
     if (typeof camp.settings === 'string') camp.settings = JSON.parse(camp.settings);
-    res.json(camp);
+    res.json({ ...camp, ...cnt[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/companies
+// GET /api/campaigns/:id/companies?workspace_id=
 router.get('/:id/companies', async (req, res) => {
   try {
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const { rows } = await db.query(
       `SELECT id, company_name, company_linkedin_id, li_company_url, contact_count, created_at
-       FROM campaign_companies WHERE campaign_id = $1 ORDER BY company_name`,
-      [req.params.id]);
+       FROM campaign_companies WHERE campaign_id=$1 AND workspace_id=$2 ORDER BY company_name`,
+      [camp.id, wsId]);
     res.json({ items: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/contacts?page=&limit=
+// GET /api/campaigns/:id/contacts?workspace_id=&page=&limit=
 router.get('/:id/contacts', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const page   = Math.max(1, parseInt(req.query.page)  || 1);
     const limit  = Math.min(100, parseInt(req.query.limit) || 50);
     const offset = (page - 1) * limit;
-    const { rows: cnt } = await db.query('SELECT COUNT(*) FROM contacts WHERE campaign_id = $1', [campaignId]);
+    const { rows: cnt } = await db.query(
+      'SELECT COUNT(*) FROM contacts WHERE campaign_id=$1 AND workspace_id=$2',
+      [camp.id, wsId]);
     const total = parseInt(cnt[0].count);
     const { rows } = await db.query(
       `SELECT id, first_name, last_name, company, title, li_profile_url,
               invite_sent, invite_approved, already_connected,
               msg_sent, msg_replied, positive_reply, created_at
-       FROM contacts WHERE campaign_id = $1
-       ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
-      [campaignId, limit, offset]);
+       FROM contacts WHERE campaign_id=$1 AND workspace_id=$2
+       ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+      [camp.id, wsId, limit, offset]);
     res.json({ items: rows, total, page, limit, pages: Math.ceil(total / limit) || 1 });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -320,26 +375,24 @@ router.get('/:id/contacts', async (req, res) => {
 // POST /api/campaigns/:id/contacts
 router.post('/:id/contacts', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const { contacts } = req.body;
     if (!Array.isArray(contacts) || !contacts.length) return res.status(400).json({ error: 'contacts[] required' });
-    const { rows: cr } = await db.query('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
-    if (!cr.length) return res.status(404).json({ error: 'Campaign not found' });
-    const camp = cr[0];
     let added = 0, skipped = 0;
     const toEnrich = [];
     for (const c of contacts) {
       const url = (c.li_profile_url || '').trim();
       if (!url.includes('linkedin.com/in/')) { skipped++; continue; }
       const { rows: dup } = await db.query(
-        'SELECT id FROM contacts WHERE campaign_id = $1 AND li_profile_url = $2 LIMIT 1',
-        [campaignId, url]);
+        'SELECT id FROM contacts WHERE campaign_id=$1 AND workspace_id=$2 AND li_profile_url=$3 LIMIT 1',
+        [camp.id, wsId, url]);
       if (dup.length) { skipped++; continue; }
       const { rows: ins } = await db.query(
         `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [campaignId, camp.workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'', url]);
+        [camp.id, wsId, c.first_name||'', c.last_name||'', c.company||'', c.title||'', url]);
       added++;
       if (ins[0]?.id) toEnrich.push({ id: ins[0].id, li_profile_url: url });
     }
@@ -348,19 +401,21 @@ router.post('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/campaigns/:id/contacts/:contactId
+// DELETE /api/campaigns/:id/contacts/:contactId?workspace_id=
 router.delete('/:id/contacts/:contactId', async (req, res) => {
   try {
+    const wsId = req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const { rowCount } = await db.query(
-      'DELETE FROM contacts WHERE id = $1 AND campaign_id = $2',
-      [req.params.contactId, req.params.id]);
+      'DELETE FROM contacts WHERE id=$1 AND campaign_id=$2 AND workspace_id=$3',
+      [req.params.contactId, camp.id, wsId]);
     if (!rowCount) return res.status(404).json({ error: 'Contact not found' });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Background company fetch (post-creation) ──────────────────────────────
-
+// ── Background company fetch ──────────────────────────────────────────────────
 async function runCompanyFetch(campaignId, workspaceId, accountId, companyUrls, titles, limit) {
   console.log(`[CompanyFetch] Campaign ${campaignId}: fetching ${companyUrls.length} companies`);
   let totalAdded = 0;
@@ -378,14 +433,13 @@ async function runCompanyFetch(campaignId, workspaceId, accountId, companyUrls, 
         const liUrl = p.public_profile_url || p.li_profile_url || '';
         if (!liUrl.includes('linkedin.com/in/')) continue;
         const { rows: dup } = await db.query(
-          'SELECT id FROM contacts WHERE campaign_id = $1 AND li_profile_url = $2 LIMIT 1',
-          [campaignId, liUrl]);
+          'SELECT id FROM contacts WHERE campaign_id=$1 AND workspace_id=$2 AND li_profile_url=$3 LIMIT 1',
+          [campaignId, workspaceId, liUrl]);
         if (dup.length) continue;
         const { rows: ins } = await db.query(
           `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
            VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-          [campaignId, workspaceId,
-           p.first_name||'', p.last_name||p.lastName||'',
+          [campaignId, workspaceId, p.first_name||'', p.last_name||p.lastName||'',
            p.company||companyName, p.headline||p.title||'', liUrl]);
         if (ins[0]?.id) { totalAdded++; enqueue(ins[0].id, accountId, liUrl); }
       }
@@ -400,19 +454,17 @@ async function runCompanyFetch(campaignId, workspaceId, accountId, companyUrls, 
 // POST /api/campaigns/:id/fetch-all-companies
 router.post('/:id/fetch-all-companies', async (req, res) => {
   try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const { rows } = await db.query('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    const camp = rows[0];
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
     const settings = typeof camp.settings === 'string' ? JSON.parse(camp.settings) : (camp.settings || {});
     const sc = settings.searchConfig || {};
     const { companyUrls = [], titles = [], maxPerCompany = 10, previewedCount = 0 } = sc;
     const urlsToFetch = companyUrls.slice(previewedCount);
     if (!urlsToFetch.length) return res.json({ status: 'nothing_to_fetch' });
     const estimatedMin = Math.max(2, Math.ceil(urlsToFetch.length * 0.8));
-    runCompanyFetch(campaignId, camp.workspace_id, camp.account_id, urlsToFetch, titles, maxPerCompany)
-      .catch(e => console.error(`[CompanyFetch] Campaign ${campaignId}:`, e.message));
+    runCompanyFetch(camp.id, camp.workspace_id, camp.account_id, urlsToFetch, titles, maxPerCompany)
+      .catch(e => console.error(`[CompanyFetch] Campaign ${camp.id}:`, e.message));
     res.json({ status: 'started', companies_to_fetch: urlsToFetch.length, estimated_minutes: estimatedMin });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
