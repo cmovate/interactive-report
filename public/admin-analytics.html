@@ -8,16 +8,15 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f5f7; color: #1a1a1a; font-size: 14px; }
-.topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 28px; display: flex; align-items: center; gap: 24px; height: 54px; position: sticky; top: 0; z-index: 10; }
+.topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 28px; display: flex; align-items: center; gap: 24px; height: 54px; position: sticky; top: 0; z-index: 20; }
 .topbar-logo { font-size: 15px; font-weight: 700; color: #1D9E75; letter-spacing: -0.3px; }
 .topbar-back { font-size: 12px; color: #888; text-decoration: none; display: flex; align-items: center; gap: 4px; }
 .topbar-back:hover { color: #1D9E75; }
 .topbar-title { font-size: 15px; font-weight: 600; color: #111; margin-left: 4px; }
 .topbar-spacer { flex: 1; }
 .page { padding: 24px 28px; max-width: 1280px; }
-
 /* Period picker */
-.period-bar { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+.period-bar { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .period-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-right: 4px; }
 .preset-btn { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; color: #555; background: white; cursor: pointer; font-family: inherit; transition: all 0.12s; }
 .preset-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
@@ -27,7 +26,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .date-input:focus { outline: none; border-color: #1D9E75; }
 .apply-btn { background: #1D9E75; border: none; border-radius: 6px; padding: 5px 14px; font-size: 12px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; }
 .apply-btn:hover { background: #178f68; }
-
+/* Filter bar */
+.filter-bar { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 10px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.filter-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; }
+.filter-group { display: flex; align-items: center; gap: 8px; }
+.filter-icon { font-size: 14px; }
+.ac-wrap { position: relative; }
+.ac-input { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 26px 5px 10px; font-size: 12px; font-family: inherit; color: #333; width: 200px; transition: border-color 0.12s; }
+.ac-input:focus { outline: none; border-color: #1D9E75; }
+.ac-clear { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 15px; color: #bbb; cursor: pointer; line-height: 1; display: none; padding: 0; }
+.ac-input.has-value { border-color: #1D9E75; background: #F0FBF7; }
+.ac-list { position: absolute; top: calc(100% + 4px); left: 0; min-width: 100%; background: white; border: 1px solid #e0e0e0; border-radius: 8px; max-height: 220px; overflow-y: auto; z-index: 100; box-shadow: 0 6px 20px rgba(0,0,0,0.12); display: none; }
+.ac-item { padding: 8px 12px; cursor: pointer; font-size: 12px; color: #333; white-space: nowrap; }
+.ac-item:hover { background: #F0FBF7; color: #1D9E75; }
+.ac-item.ac-more { color: #aaa; cursor: default; font-style: italic; font-size: 11px; }
+.ac-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ac-chip { display: inline-flex; align-items: center; gap: 5px; background: #E1F5EE; border: 1px solid #A7F3D0; border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 11px; font-weight: 600; color: #0F6E56; }
+.ac-chip button { background: none; border: none; color: #0F6E56; cursor: pointer; font-size: 14px; line-height: 1; padding: 0; display: flex; align-items: center; }
 /* KPI cards */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px,1fr)); gap: 12px; margin-bottom: 24px; }
 .kpi-card { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; }
@@ -36,16 +51,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .kpi-sub { font-size: 11px; color: #1D9E75; font-weight: 600; margin-top: 3px; }
 .kpi-card.highlight { border-color: #A7F3D0; background: #F0FBF7; }
 .kpi-card.highlight .kpi-value { color: #0F6E56; }
-
 /* Section */
 .section { background: white; border: 1px solid #e5e5e5; border-radius: 10px; margin-bottom: 20px; overflow: hidden; }
 .section-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #f0f0f0; background: #fafafa; }
 .section-title { font-size: 13px; font-weight: 600; color: #111; }
 .section-sub { font-size: 11px; color: #999; margin-top: 2px; }
-
 /* Chart */
 .chart-wrap { padding: 18px; height: 240px; position: relative; }
-
 /* Tables */
 .ana-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .ana-table th { text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; padding: 10px 14px; border-bottom: 1px solid #f0f0f0; background: #fafafa; cursor: pointer; white-space: nowrap; user-select: none; }
@@ -56,8 +68,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .ana-table td { padding: 11px 14px; border-bottom: 1px solid #f5f5f5; color: #333; vertical-align: middle; }
 .ana-table tr:last-child td { border-bottom: none; }
 .ana-table tbody tr:hover td { background: #F0FBF7; }
-.ana-table tbody tr { cursor: default; }
-.ana-table tbody tr.clickable:hover td { background: #F0FBF7; cursor: pointer; }
+.ana-table tbody tr.clickable:hover td { cursor: pointer; }
 .num-cell { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
 .rate-cell { text-align: right; font-size: 12px; }
 .rate-pill { display: inline-block; border-radius: 4px; padding: 1px 6px; font-size: 11px; font-weight: 600; }
@@ -69,7 +80,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .status-pill { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
 .status-active { background: #E1F5EE; color: #0F6E56; }
 .status-paused { background: #FFF3E0; color: #E65100; }
-.empty-row td { text-align: center; color: #aaa; padding: 32px; }
 .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 48px; color: #aaa; font-size: 13px; }
 </style>
 </head>
@@ -97,10 +107,39 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <button class="preset-btn" data-preset="year"  onclick="applyPreset('year')">This year</button>
     <button class="preset-btn" data-preset="all"   onclick="applyPreset('all')">All time</button>
     <div class="period-sep"></div>
-    <input type="date" class="date-input" id="date-from" placeholder="From">
+    <input type="date" class="date-input" id="date-from">
     <span style="color:#aaa;font-size:12px;">→</span>
-    <input type="date" class="date-input" id="date-to" placeholder="To">
+    <input type="date" class="date-input" id="date-to">
     <button class="apply-btn" onclick="applyCustom()">Apply</button>
+  </div>
+
+  <!-- Filter bar: country + company autocomplete -->
+  <div class="filter-bar">
+    <span class="filter-label">Filter</span>
+
+    <div class="filter-group">
+      <span class="filter-icon">&#127757;</span>
+      <div class="ac-wrap">
+        <input type="text" id="ac-input-country" class="ac-input" placeholder="Country…"
+               oninput="acFilter('country')" onfocus="acFilter('country')" onblur="acBlur('country')"
+               autocomplete="off">
+        <button class="ac-clear" id="ac-clear-country" onclick="acClear('country')">&times;</button>
+        <div class="ac-list" id="ac-list-country"></div>
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-icon">&#127970;</span>
+      <div class="ac-wrap">
+        <input type="text" id="ac-input-company" class="ac-input" placeholder="Company…"
+               oninput="acFilter('company')" onfocus="acFilter('company')" onblur="acBlur('company')"
+               autocomplete="off">
+        <button class="ac-clear" id="ac-clear-company" onclick="acClear('company')">&times;</button>
+        <div class="ac-list" id="ac-list-company"></div>
+      </div>
+    </div>
+
+    <div class="ac-chips" id="active-chips"></div>
   </div>
 
   <!-- KPI cards -->
@@ -123,10 +162,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <!-- By workspace -->
   <div class="section">
     <div class="section-head">
-      <div>
-        <div class="section-title">By Workspace</div>
-        <div class="section-sub" id="ws-sub">—</div>
-      </div>
+      <div><div class="section-title">By Workspace</div><div class="section-sub" id="ws-sub">—</div></div>
     </div>
     <div id="ws-table-wrap"><div class="loading-overlay">Loading…</div></div>
   </div>
@@ -134,10 +170,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <!-- By account -->
   <div class="section">
     <div class="section-head">
-      <div>
-        <div class="section-title">By Unipile Account</div>
-        <div class="section-sub">Actions performed per LinkedIn account</div>
-      </div>
+      <div><div class="section-title">By Unipile Account</div><div class="section-sub">Actions performed per LinkedIn account</div></div>
     </div>
     <div id="acc-table-wrap"><div class="loading-overlay">Loading…</div></div>
   </div>
@@ -145,29 +178,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <!-- All campaigns -->
   <div class="section">
     <div class="section-head">
-      <div>
-        <div class="section-title">All Campaigns</div>
-        <div class="section-sub" id="camp-sub">—</div>
-      </div>
+      <div><div class="section-title">All Campaigns</div><div class="section-sub" id="camp-sub">—</div></div>
     </div>
     <div id="camp-table-wrap"><div class="loading-overlay">Loading…</div></div>
   </div>
 
-</div><!-- /page -->
+</div>
 
 <script>
-// ── State ─────────────────────────────────────────────────────────────────
+// ── State ───────────────────────────────────────────────────────────
 let state = { from: null, to: null, data: null };
 let chartInstance = null;
+let filterOpts = { countries: [], companies: [] };
+let activeFilters = { country: '', company: '' };
 
-// Sort state per table
 const sortState = {
   ws:   { col: 'invites_sent', dir: 'desc' },
   acc:  { col: 'invites_sent', dir: 'desc' },
   camp: { col: 'invites_sent', dir: 'desc' },
 };
 
-// ── Utilities ─────────────────────────────────────────────────────────────
+// ── Utilities ─────────────────────────────────────────────────────────
 function fmt(d) { return d.toISOString().slice(0,10); }
 function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
 function n(v) { return parseInt(v)||0; }
@@ -180,7 +211,79 @@ function ratePill(v, denom) {
   return `<span class="rate-pill ${cls}">${pct(v, denom)}</span>`;
 }
 
-// ── Period presets ─────────────────────────────────────────────────────────
+// ── Autocomplete filter ────────────────────────────────────────────
+async function loadFilterOptions() {
+  try {
+    const data = await fetch('/api/admin/filter-options').then(r => r.json());
+    filterOpts = data;
+  } catch(e) { console.warn('filter-options failed:', e.message); }
+}
+
+function acFilter(type) {
+  const input = document.getElementById(`ac-input-${type}`);
+  const list  = document.getElementById(`ac-list-${type}`);
+  const q = (input.value || '').toLowerCase().trim();
+  const opts = type === 'country' ? filterOpts.countries : filterOpts.companies;
+  const matches = q ? opts.filter(o => o.toLowerCase().includes(q)) : opts.slice(0, 50);
+  if (!matches.length) { list.style.display = 'none'; return; }
+  list.innerHTML = matches.slice(0, 25).map(m =>
+    `<div class="ac-item" onmousedown="acSelect('${type}', ${JSON.stringify(m)})">${esc(m)}</div>`
+  ).join('') + (matches.length > 25 ? `<div class="ac-item ac-more">+${matches.length - 25} more—keep typing to narrow</div>` : '');
+  list.style.display = 'block';
+}
+
+function acSelect(type, value) {
+  const input = document.getElementById(`ac-input-${type}`);
+  const list  = document.getElementById(`ac-list-${type}`);
+  const clear = document.getElementById(`ac-clear-${type}`);
+  input.value = value;
+  input.classList.add('has-value');
+  if (clear) clear.style.display = 'block';
+  list.style.display = 'none';
+  activeFilters[type] = value;
+  renderFilterChips();
+  load();
+}
+
+function acClear(type) {
+  const input = document.getElementById(`ac-input-${type}`);
+  const list  = document.getElementById(`ac-list-${type}`);
+  const clear = document.getElementById(`ac-clear-${type}`);
+  input.value = '';
+  input.classList.remove('has-value');
+  if (clear) clear.style.display = 'none';
+  list.style.display = 'none';
+  activeFilters[type] = '';
+  renderFilterChips();
+  load();
+}
+
+function acBlur(type) {
+  // Small delay so onmousedown in ac-item fires first
+  setTimeout(() => {
+    const list = document.getElementById(`ac-list-${type}`);
+    if (list) list.style.display = 'none';
+    // If input has text but no selection was made, treat as free-text filter
+    const input = document.getElementById(`ac-input-${type}`);
+    const val = (input?.value || '').trim();
+    if (val !== activeFilters[type]) {
+      activeFilters[type] = val;
+      if (val) { input.classList.add('has-value'); document.getElementById(`ac-clear-${type}`).style.display = 'block'; }
+      else      { input.classList.remove('has-value'); document.getElementById(`ac-clear-${type}`).style.display = 'none'; }
+      renderFilterChips();
+      load();
+    }
+  }, 180);
+}
+
+function renderFilterChips() {
+  const chips = [];
+  if (activeFilters.country) chips.push(`<span class="ac-chip">&#127757; ${esc(activeFilters.country)}<button onclick="acClear('country')">&times;</button></span>`);
+  if (activeFilters.company) chips.push(`<span class="ac-chip">&#127970; ${esc(activeFilters.company)}<button onclick="acClear('company')">&times;</button></span>`);
+  document.getElementById('active-chips').innerHTML = chips.join('');
+}
+
+// ── Period presets ───────────────────────────────────────────────────
 function applyPreset(preset) {
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`[data-preset="${preset}"]`)?.classList.add('active');
@@ -206,11 +309,13 @@ function applyCustom() {
   load();
 }
 
-// ── Data loading ──────────────────────────────────────────────────────────
+// ── Data loading ────────────────────────────────────────────────────
 async function load() {
   const params = new URLSearchParams();
-  if (state.from) params.set('from', state.from);
-  if (state.to)   params.set('to',   state.to);
+  if (state.from)              params.set('from',    state.from);
+  if (state.to)                params.set('to',      state.to);
+  if (activeFilters.country)   params.set('country', activeFilters.country);
+  if (activeFilters.company)   params.set('company', activeFilters.company);
   try {
     const res  = await fetch('/api/admin/analytics?' + params);
     const data = await res.json();
@@ -219,11 +324,11 @@ async function load() {
     render();
     document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
   } catch(err) {
-    document.getElementById('kpi-grid').innerHTML = `<div style="color:#DC2626;padding:24px;grid-column:1/-1;">Error loading analytics: ${esc(err.message)}</div>`;
+    document.getElementById('kpi-grid').innerHTML = `<div style="color:#DC2626;padding:24px;grid-column:1/-1;">Error: ${esc(err.message)}</div>`;
   }
 }
 
-// ── Render ────────────────────────────────────────────────────────────────
+// ── Render ──────────────────────────────────────────────────────────
 function render() {
   const { summary, by_workspace, by_account, by_campaign, timeline } = state.data;
   renderKPIs(summary);
@@ -238,8 +343,9 @@ function renderKPIs(s) {
   const replyRate    = s.messages_sent > 0 ? Math.round(n(s.messages_replied)/n(s.messages_sent)*100) : 0;
   const posRate      = s.messages_replied > 0 ? Math.round(n(s.positive_replies)/n(s.messages_replied)*100) : 0;
   const periodLabel  = state.from && state.to ? `${state.from} → ${state.to}` : state.from ? `from ${state.from}` : 'All time';
+  const filterBadge  = [activeFilters.country, activeFilters.company].filter(Boolean).join(' · ');
   document.getElementById('kpi-grid').innerHTML = `
-    <div class="kpi-card"><div class="kpi-label">Campaigns</div><div class="kpi-value">${num(s.campaign_count)}</div><div class="kpi-sub">${periodLabel}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Campaigns</div><div class="kpi-value">${num(s.campaign_count)}</div><div class="kpi-sub">${periodLabel}${filterBadge ? ' · '+esc(filterBadge) : ''}</div></div>
     <div class="kpi-card"><div class="kpi-label">Contacts Added</div><div class="kpi-value">${num(s.contacts_added)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Invites Sent</div><div class="kpi-value">${num(s.invites_sent)}</div></div>
     <div class="kpi-card highlight"><div class="kpi-label">Approved</div><div class="kpi-value">${num(s.invites_approved)}</div><div class="kpi-sub">${approvalRate}% rate</div></div>
@@ -250,27 +356,21 @@ function renderKPIs(s) {
 }
 
 function renderChart(timeline) {
-  if (!timeline || !timeline.length) {
-    document.getElementById('chart-section').style.display = 'none';
-    return;
-  }
+  if (!timeline || !timeline.length) { document.getElementById('chart-section').style.display = 'none'; return; }
   document.getElementById('chart-section').style.display = '';
   const labels  = timeline.map(r => r.date);
   const series  = [
-    { key: 'invites_sent',    label: 'Invites Sent',    color: '#1D9E75', fill: false },
-    { key: 'invites_approved',label: 'Approved',        color: '#52b788', fill: false },
-    { key: 'messages_sent',   label: 'Messages Sent',   color: '#3B82F6', fill: false },
-    { key: 'messages_replied',label: 'Replied',         color: '#6366F1', fill: false },
-    { key: 'positive_replies',label: 'Positive',        color: '#F59E0B', fill: false },
+    { key: 'invites_sent',    label: 'Invites Sent',  color: '#1D9E75' },
+    { key: 'invites_approved',label: 'Approved',      color: '#52b788' },
+    { key: 'messages_sent',   label: 'Messages Sent', color: '#3B82F6' },
+    { key: 'messages_replied',label: 'Replied',       color: '#6366F1' },
+    { key: 'positive_replies',label: 'Positive',      color: '#F59E0B' },
   ];
-
-  // Render legend
   document.getElementById('chart-legend').innerHTML = series.map(s =>
     `<div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#555;">
        <span style="width:12px;height:3px;background:${s.color};display:inline-block;border-radius:2px;"></span>${s.label}
      </div>`
   ).join('');
-
   const ctx = document.getElementById('timeline-chart').getContext('2d');
   if (chartInstance) chartInstance.destroy();
   chartInstance = new Chart(ctx, {
@@ -278,42 +378,25 @@ function renderChart(timeline) {
     data: {
       labels,
       datasets: series.map(s => ({
-        label:       s.label,
-        data:        timeline.map(r => n(r[s.key])),
-        borderColor: s.color,
-        backgroundColor: s.color + '18',
-        borderWidth: 2,
-        pointRadius: labels.length > 60 ? 0 : 3,
-        pointHoverRadius: 5,
-        tension: 0.3,
-        fill: false,
+        label: s.label, data: timeline.map(r => n(r[s.key])),
+        borderColor: s.color, backgroundColor: s.color + '18',
+        borderWidth: 2, pointRadius: labels.length > 60 ? 0 : 3,
+        pointHoverRadius: 5, tension: 0.3, fill: false,
       })),
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { title: (items) => items[0].label } }
-      },
+      plugins: { legend: { display: false } },
       scales: {
-        x: {
-          ticks: { maxRotation: 0, font: { size: 10 }, color: '#999',
-                   maxTicksLimit: Math.min(labels.length, 15) },
-          grid:  { display: false },
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { font: { size: 10 }, color: '#999' },
-          grid:  { color: '#f0f0f0' },
-        },
+        x: { ticks: { maxRotation: 0, font: { size: 10 }, color: '#999', maxTicksLimit: Math.min(labels.length, 15) }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { font: { size: 10 }, color: '#999' }, grid: { color: '#f0f0f0' } },
       },
     },
   });
 }
 
-// ── Tables ────────────────────────────────────────────────────────────────
+// ── Tables ─────────────────────────────────────────────────────────
 const TABLE_COLS = [
   { key: 'contacts_added',   label: 'Contacts' },
   { key: 'invites_sent',     label: 'Invites' },
@@ -324,123 +407,75 @@ const TABLE_COLS = [
 ];
 
 function sortRows(rows, col, dir) {
-  return [...rows].sort((a, b) => {
-    const av = n(a[col]), bv = n(b[col]);
-    return dir === 'desc' ? bv - av : av - bv;
-  });
+  return [...rows].sort((a, b) => { const av = n(a[col]), bv = n(b[col]); return dir === 'desc' ? bv - av : av - bv; });
 }
-
 function thClick(tableKey, col) {
-  if (sortState[tableKey].col === col) {
-    sortState[tableKey].dir = sortState[tableKey].dir === 'desc' ? 'asc' : 'desc';
-  } else {
-    sortState[tableKey].col = col;
-    sortState[tableKey].dir = 'desc';
-  }
+  if (sortState[tableKey].col === col) sortState[tableKey].dir = sortState[tableKey].dir === 'desc' ? 'asc' : 'desc';
+  else { sortState[tableKey].col = col; sortState[tableKey].dir = 'desc'; }
   if (tableKey === 'ws')   renderWsTable(state.data.by_workspace);
   if (tableKey === 'acc')  renderAccTable(state.data.by_account);
   if (tableKey === 'camp') renderCampTable(state.data.by_campaign);
 }
-
-function headerRow(tableKey, firstColLabel, firstColKey) {
-  const { col, dir } = sortState[tableKey];
-  const arrow = dir === 'desc' ? '↓' : '↑';
-  const th = (key, label) => {
-    const active = col === key;
-    return `<th onclick="thClick('${tableKey}','${key}')" class="${active?'sorted':''}">${label}<span class="sort-arrow">${active?arrow:'↕'}</span></th>`;
-  };
-  return `<tr>
-    ${th(firstColKey, firstColLabel)}
-    ${TABLE_COLS.map(c => th(c.key, c.label)).join('')}
-  </tr>`;
-}
-
 function metricCells(row) {
   return TABLE_COLS.map(c => {
     const val = `<td class="num-cell">${num(row[c.key])}</td>`;
-    if (c.rate) {
-      return val + `<td class="rate-cell">${ratePill(row[c.rate[0]], n(row[c.rate[1]]))}</td>`;
-    }
-    return val + `<td></td>`;
+    return c.rate ? val + `<td class="rate-cell">${ratePill(row[c.rate[0]], n(row[c.rate[1]]))}</td>` : val + '<td></td>';
   }).join('');
+}
+function buildTh(tableKey, key, label) {
+  const { col, dir } = sortState[tableKey];
+  const active = col === key;
+  const arrow = dir === 'desc' ? '↓' : '↑';
+  return `<th onclick="thClick('${tableKey}','${key}')" class="${active?'sorted':''}">${label}<span class="sort-arrow">${active?arrow:'↕'}</span></th>`;
 }
 
 function renderWsTable(rows) {
   const sorted = sortRows(rows, sortState.ws.col, sortState.ws.dir);
-  const totalCamps = rows.reduce((s,r)=>s+n(r.campaign_count),0);
-  document.getElementById('ws-sub').textContent = `${rows.length} workspaces · ${totalCamps} campaigns total`;
-  if (!sorted.length) {
-    document.getElementById('ws-table-wrap').innerHTML = '<div class="loading-overlay">No data</div>';
-    return;
-  }
-  // Build header: 2 rate columns for approved and replied
-  const { col, dir } = sortState.ws;
-  const arrow = dir === 'desc' ? '↓' : '↑';
-  const th = (key, label) => `<th onclick="thClick('ws','${key}')" class="${col===key?'sorted':''}">${label}<span class="sort-arrow">${col===key?arrow:'↕'}</span></th>`;
+  document.getElementById('ws-sub').textContent = `${rows.length} workspaces · ${rows.reduce((s,r)=>s+n(r.campaign_count),0)} campaigns`;
+  if (!sorted.length) { document.getElementById('ws-table-wrap').innerHTML = '<div class="loading-overlay">No data</div>'; return; }
   document.getElementById('ws-table-wrap').innerHTML = `
-    <table class="ana-table">
-      <thead><tr>
-        ${th('workspace_name','Workspace')}${th('active_campaigns','Active')}
-        ${TABLE_COLS.map(c=>`${th(c.key,c.label)}${c.rate?'<th></th>':''}`).join('')}
-      </tr></thead>
-      <tbody>${sorted.map(r => `<tr class="clickable" onclick="window.location='/workspace.html?id=${r.workspace_id}'">
-        <td><div class="ws-name">${esc(r.workspace_name)}</div><div class="ws-sub">${n(r.campaign_count)} campaigns</div></td>
-        <td class="num-cell">${n(r.active_campaigns)}</td>
-        ${metricCells(r)}
-      </tr>`).join('')}</tbody>
-    </table>`;
+    <table class="ana-table"><thead><tr>
+      ${buildTh('ws','workspace_name','Workspace')}${buildTh('ws','active_campaigns','Active')}
+      ${TABLE_COLS.map(c => buildTh('ws',c.key,c.label) + (c.rate?'<th></th>':'')).join('')}
+    </tr></thead><tbody>${sorted.map(r => `<tr class="clickable" onclick="window.location='/workspace.html?id=${r.workspace_id}'">
+      <td><div class="ws-name">${esc(r.workspace_name)}</div><div class="ws-sub">${n(r.campaign_count)} campaigns</div></td>
+      <td class="num-cell">${n(r.active_campaigns)}</td>${metricCells(r)}
+    </tr>`).join('')}</tbody></table>`;
 }
 
 function renderAccTable(rows) {
-  if (!rows.length) {
-    document.getElementById('acc-table-wrap').innerHTML = '<div class="loading-overlay">No account data</div>';
-    return;
-  }
+  if (!rows.length) { document.getElementById('acc-table-wrap').innerHTML = '<div class="loading-overlay">No account data</div>'; return; }
   const sorted = sortRows(rows, sortState.acc.col, sortState.acc.dir);
-  const { col, dir } = sortState.acc;
-  const arrow = dir === 'desc' ? '↓' : '↑';
-  const th = (key, label) => `<th onclick="thClick('acc','${key}')" class="${col===key?'sorted':''}">${label}<span class="sort-arrow">${col===key?arrow:'↕'}</span></th>`;
   document.getElementById('acc-table-wrap').innerHTML = `
-    <table class="ana-table">
-      <thead><tr>
-        ${th('account_name','Account')}
-        ${TABLE_COLS.map(c=>`${th(c.key,c.label)}${c.rate?'<th></th>':''}`).join('')}
-      </tr></thead>
-      <tbody>${sorted.map(r => `<tr>
-        <td><div class="ws-name">${esc(r.account_name)}</div><div class="ws-sub">${esc(r.workspace_name)} · ${n(r.campaign_count)} campaigns</div></td>
-        ${metricCells(r)}
-      </tr>`).join('')}</tbody>
-    </table>`;
+    <table class="ana-table"><thead><tr>
+      ${buildTh('acc','account_name','Account')}
+      ${TABLE_COLS.map(c => buildTh('acc',c.key,c.label) + (c.rate?'<th></th>':'')).join('')}
+    </tr></thead><tbody>${sorted.map(r => `<tr>
+      <td><div class="ws-name">${esc(r.account_name)}</div><div class="ws-sub">${esc(r.workspace_name)} · ${n(r.campaign_count)} campaigns</div></td>
+      ${metricCells(r)}
+    </tr>`).join('')}</tbody></table>`;
 }
 
 function renderCampTable(rows) {
   const sorted = sortRows(rows, sortState.camp.col, sortState.camp.dir);
-  document.getElementById('camp-sub').textContent = `${rows.length} campaigns across all workspaces`;
-  if (!sorted.length) {
-    document.getElementById('camp-table-wrap').innerHTML = '<div class="loading-overlay">No campaigns</div>';
-    return;
-  }
-  const { col, dir } = sortState.camp;
-  const arrow = dir === 'desc' ? '↓' : '↑';
-  const th = (key, label) => `<th onclick="thClick('camp','${key}')" class="${col===key?'sorted':''}">${label}<span class="sort-arrow">${col===key?arrow:'↕'}</span></th>`;
+  document.getElementById('camp-sub').textContent = `${rows.length} campaigns`;
+  if (!sorted.length) { document.getElementById('camp-table-wrap').innerHTML = '<div class="loading-overlay">No campaigns</div>'; return; }
   document.getElementById('camp-table-wrap').innerHTML = `
-    <table class="ana-table">
-      <thead><tr>
-        ${th('campaign_name','Campaign')}${th('status','Status')}
-        ${TABLE_COLS.map(c=>`${th(c.key,c.label)}${c.rate?'<th></th>':''}`).join('')}
-      </tr></thead>
-      <tbody>${sorted.map(r => {
-        const statusClass = r.status === 'active' ? 'status-active' : 'status-paused';
-        return `<tr class="clickable" onclick="window.location='/workspace.html?id=${r.workspace_id}'">
-          <td><div class="ws-name">${esc(r.campaign_name)}</div><div class="ws-sub">${esc(r.workspace_name)} · ${esc(r.account_name||'—')}</div></td>
-          <td><span class="status-pill ${statusClass}">${esc(r.status)}</span></td>
-          ${metricCells(r)}
-        </tr>`;
-      }).join('')}</tbody>
-    </table>`;
+    <table class="ana-table"><thead><tr>
+      ${buildTh('camp','campaign_name','Campaign')}${buildTh('camp','status','Status')}
+      ${TABLE_COLS.map(c => buildTh('camp',c.key,c.label) + (c.rate?'<th></th>':'')).join('')}
+    </tr></thead><tbody>${sorted.map(r => {
+      const sc = r.status === 'active' ? 'status-active' : 'status-paused';
+      return `<tr class="clickable" onclick="window.location='/workspace.html?id=${r.workspace_id}'">
+        <td><div class="ws-name">${esc(r.campaign_name)}</div><div class="ws-sub">${esc(r.workspace_name)} · ${esc(r.account_name||'—')}</div></td>
+        <td><span class="status-pill ${sc}">${esc(r.status)}</span></td>
+        ${metricCells(r)}
+      </tr>`;
+    }).join('')}</tbody></table>`;
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────
+loadFilterOptions();
 applyPreset('30d');
 </script>
 </body>
