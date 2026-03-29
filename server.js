@@ -271,13 +271,18 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   }
 
   const fixedCols = [
+    // unipile_accounts
     ['ua.webhook_id',              'unipile_accounts',    'webhook_id',                  'VARCHAR(255)'],
     ['ua.settings',                'unipile_accounts',    'settings',                    "JSONB DEFAULT '{}'"],
+    ['ua.avatar_url',              'unipile_accounts',    'avatar_url',                  'TEXT'],
+    ['ua.full_name',               'unipile_accounts',    'full_name',                   'TEXT'],
+    // campaigns
     ['c.workspace_id',             'campaigns',           'workspace_id',                'INTEGER'],
     ['c.account_id',               'campaigns',           'account_id',                  'VARCHAR(255)'],
     ['c.settings',                 'campaigns',           'settings',                    "JSONB DEFAULT '{}'"],
     ['c.status',                   'campaigns',           'status',                      "VARCHAR(50) DEFAULT 'active'"],
     ['c.audience_type',            'campaigns',           'audience_type',               'VARCHAR(50)'],
+    // contacts
     ['ct.campaign_id',             'contacts',            'campaign_id',                 'INTEGER'],
     ['ct.workspace_id',            'contacts',            'workspace_id',                'INTEGER'],
     ['ct.provider_id',             'contacts',            'provider_id',                 'VARCHAR(255)'],
@@ -417,6 +422,36 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       upserted++;
     }
     console.log(`[DB] campaign_companies backfill: ${upserted} companies from ${contacts.length} contacts`);
+  });
+
+  // Backfill avatar_url / full_name for existing accounts that don't have them yet.
+  // Runs once at startup; safe to re-run (no-op if already populated).
+  await s('backfill.account_profiles', async () => {
+    const { getAccountInfo } = require('./src/unipile');
+    const { rows: accounts } = await db.query(
+      "SELECT account_id FROM unipile_accounts WHERE avatar_url IS NULL OR full_name IS NULL"
+    );
+    if (!accounts.length) return;
+    console.log(`[DB] Backfilling profiles for ${accounts.length} account(s)...`);
+    for (const acc of accounts) {
+      try {
+        const profile = await getAccountInfo(acc.account_id);
+        const avatarUrl =
+          profile?.picture || profile?.avatar || profile?.avatar_url ||
+          profile?.profile_picture_url || profile?.photo_url ||
+          profile?.sources?.find(s => s.type === 'picture')?.value || null;
+        const fullName = profile?.name || null;
+        if (avatarUrl || fullName) {
+          await db.query(
+            'UPDATE unipile_accounts SET avatar_url=$1, full_name=$2 WHERE account_id=$3',
+            [avatarUrl, fullName, acc.account_id]
+          );
+          console.log(`[DB] Hydrated profile for ${acc.account_id}: "${fullName}"`);
+        }
+      } catch (err) {
+        console.warn(`[DB] Could not backfill profile for ${acc.account_id}: ${err.message}`);
+      }
+    }
   });
 
   console.log(`[DB] Schema ready — msg slots: ${MAX_MSG_SLOTS}`);
