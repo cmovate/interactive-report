@@ -1,8 +1,8 @@
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
 
-// Retry delays (ms) for 503 / 429 responses: 3s, 10s, 20s
-const RETRY_DELAYS = [3000, 10000, 20000];
+// Retry delays (ms) for 503 / 429 responses
+const RETRY_DELAYS = [3000, 8000, 15000];
 
 async function request(endpoint, options = {}, _attempt = 0) {
   if (!UNIPILE_DSN || !UNIPILE_API_KEY) {
@@ -22,7 +22,7 @@ async function request(endpoint, options = {}, _attempt = 0) {
   // Retry on 503 (service unavailable) or 429 (rate limit)
   if ((res.status === 503 || res.status === 429) && _attempt < RETRY_DELAYS.length) {
     const delay = RETRY_DELAYS[_attempt];
-    console.warn(`[Unipile] ${res.status} on ${endpoint} — retry ${_attempt + 1}/${RETRY_DELAYS.length} in ${delay}ms`);
+    console.warn(`[Unipile] ${res.status} on ${endpoint} \u2014 retry ${_attempt + 1}/${RETRY_DELAYS.length} in ${delay}ms`);
     await new Promise(r => setTimeout(r, delay));
     return request(endpoint, options, _attempt + 1);
   }
@@ -54,10 +54,32 @@ async function searchPeople(accountId, companyName, titles = []) {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
+/**
+ * Keyword-based people search — single call for multiple companies + titles.
+ * Supports cursor-based pagination for fetching subsequent pages.
+ *
+ * @param {string}      accountId
+ * @param {string}      keywords   e.g. "(VP R&D OR CTO) (Bezeq OR Partner OR HOT)"
+ * @param {number}      limit      1–100 (LinkedIn Classic max ~50 reliably)
+ * @param {string|null} cursor     pagination cursor from previous call
+ * @returns {{ items: object[], cursor: string|null, totalCount: number }}
+ */
+async function searchPeopleByKeywords(accountId, keywords, limit = 50, cursor = null) {
+  const body = { api: 'classic', category: 'people', keywords, limit };
+  if (cursor) body.cursor = cursor;
+  const data = await request(
+    `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return {
+    items:      Array.isArray(data?.items) ? data.items : [],
+    cursor:     data?.paging?.cursor || null,
+    totalCount: data?.paging?.total_count || 0,
+  };
+}
+
 async function lookupCompany(accountId, slugOrId) {
-  if (/^\d+$/.test(slugOrId)) {
-    return { id: slugOrId, name: slugOrId };
-  }
+  if (/^\d+$/.test(slugOrId)) return { id: slugOrId, name: slugOrId };
   const keywords = slugOrId.replace(/-/g, ' ');
   let items = [];
   try {
@@ -67,7 +89,7 @@ async function lookupCompany(accountId, slugOrId) {
     );
     items = Array.isArray(data?.items) ? data.items : [];
   } catch (err) {
-    console.warn(`[Unipile] lookupCompany search failed for "${slugOrId}": ${err.message}`);
+    console.warn(`[Unipile] lookupCompany failed for "${slugOrId}": ${err.message}`);
     return null;
   }
   if (!items.length) return null;
@@ -105,10 +127,7 @@ async function searchPeopleByCompany(accountId, companyId, companyName, titles =
 }
 
 async function getChatMessages(accountId, chatId, limit = 200) {
-  const params = new URLSearchParams({
-    account_id: accountId,
-    limit: String(Math.min(limit, 200)),
-  });
+  const params = new URLSearchParams({ account_id: accountId, limit: String(Math.min(limit, 200)) });
   const data  = await request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages?${params}`);
   const items = Array.isArray(data?.items) ? data.items : [];
   return items.reverse();
@@ -117,20 +136,12 @@ async function getChatMessages(accountId, chatId, limit = 200) {
 async function enrichProfile(accountId, li_profile_url, notify = false) {
   const match      = li_profile_url.match(/linkedin\.com\/in\/([^/?#]+)/);
   const identifier = match ? match[1] : li_profile_url;
-  const params     = new URLSearchParams({
-    account_id:        accountId,
-    linkedin_sections: '*',
-    notify:            notify ? 'true' : 'false',
-  });
+  const params     = new URLSearchParams({ account_id: accountId, linkedin_sections: '*', notify: notify ? 'true' : 'false' });
   return request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
 }
 
 async function viewProfile(accountId, identifier) {
-  const params = new URLSearchParams({
-    account_id:        accountId,
-    linkedin_sections: '*_preview',
-    notify:            'true',
-  });
+  const params = new URLSearchParams({ account_id: accountId, linkedin_sections: '*_preview', notify: 'true' });
   return request(`/api/v1/users/${encodeURIComponent(identifier)}?${params}`);
 }
 
@@ -158,12 +169,9 @@ async function createRelationWebhook(accountId, serverUrl) {
   const data = await request('/api/v1/webhooks', {
     method: 'POST',
     body: JSON.stringify({
-      source:      'users',
-      name:        `new_relation_${accountId}`,
+      source: 'users', name: `new_relation_${accountId}`,
       request_url: `${serverUrl}/api/webhooks/unipile`,
-      account_ids: [accountId],
-      events:      ['new_relation'],
-      format:      'json',
+      account_ids: [accountId], events: ['new_relation'], format: 'json',
       headers: [
         { key: 'Content-Type',     value: 'application/json' },
         { key: 'X-Webhook-Secret', value: process.env.WEBHOOK_SECRET || 'elvia-secret' },
@@ -174,11 +182,8 @@ async function createRelationWebhook(accountId, serverUrl) {
 }
 
 async function deleteWebhook(webhookId) {
-  try {
-    await request(`/api/v1/webhooks/${webhookId}`, { method: 'DELETE' });
-  } catch (err) {
-    console.warn(`[Unipile] Could not delete webhook ${webhookId}: ${err.message}`);
-  }
+  try { await request(`/api/v1/webhooks/${webhookId}`, { method: 'DELETE' }); }
+  catch (err) { console.warn(`[Unipile] Could not delete webhook ${webhookId}: ${err.message}`); }
 }
 
 async function sendInvitation(accountId, linkedinUrl, message = '') {
@@ -200,15 +205,13 @@ async function withdrawInvitation(accountId, linkedinUrl) {
 
 async function sendMessage(accountId, chatId, text) {
   return request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({ account_id: accountId, text }),
+    method: 'POST', body: JSON.stringify({ account_id: accountId, text }),
   });
 }
 
 async function startDirectMessage(accountId, providerId, text) {
   return request('/api/v1/chats', {
-    method: 'POST',
-    body: JSON.stringify({ account_id: accountId, attendees_ids: [providerId], text }),
+    method: 'POST', body: JSON.stringify({ account_id: accountId, attendees_ids: [providerId], text }),
   });
 }
 
@@ -231,10 +234,9 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
   return request('/api/v1/linkedin', {
     method: 'POST',
     body: JSON.stringify({
-      account_id:  accountId,
+      account_id: accountId,
       request_url: 'https://www.linkedin.com/voyager/api/voyagerRelationshipsDashInvitations',
-      method:      'POST',
-      body:        { elements },
+      method: 'POST', body: { elements },
       query_params: { inviter: `(organizationUrn:urn%3Ali%3Afsd_company%3A${companyId})` },
       headers: { 'x-restli-method': 'batch_create' },
       encoding: false,
@@ -245,6 +247,7 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
 module.exports = {
   getAccounts,
   searchPeople,
+  searchPeopleByKeywords,
   searchPeopleByCompany,
   lookupCompany,
   getChatMessages,
