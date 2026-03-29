@@ -267,7 +267,7 @@ router.post('/search-people', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Campaign detail / edit endpoints ──────────────────────────────────────
+// ── Campaign detail / edit endpoints ─────────────────────────────────────
 
 // GET /api/campaigns/:id
 router.get('/:id', async (req, res) => {
@@ -356,6 +356,64 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
       [req.params.contactId, req.params.id]);
     if (!rowCount) return res.status(404).json({ error: 'Contact not found' });
     res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Background company fetch (post-creation) ──────────────────────────────
+
+async function runCompanyFetch(campaignId, workspaceId, accountId, companyUrls, titles, limit) {
+  console.log(`[CompanyFetch] Campaign ${campaignId}: fetching ${companyUrls.length} companies`);
+  let totalAdded = 0;
+  for (const url of companyUrls) {
+    try {
+      const slug = extractCompanySlug(url);
+      if (!slug) continue;
+      const company     = await lookupCompany(accountId, slug);
+      const companyId   = company?.id   || null;
+      const companyName = company?.name || slug.replace(/-/g, ' ');
+      const people    = await searchPeopleByCompany(accountId, companyId, companyName, titles || [], limit);
+      const validated = validateCompanyResults(people, companyId, companyName);
+      console.log(`[CompanyFetch] Campaign ${campaignId}: ${companyName} \u2192 ${validated.length} validated`);
+      for (const p of validated) {
+        const liUrl = p.public_profile_url || p.li_profile_url || '';
+        if (!liUrl.includes('linkedin.com/in/')) continue;
+        const { rows: dup } = await db.query(
+          'SELECT id FROM contacts WHERE campaign_id = $1 AND li_profile_url = $2 LIMIT 1',
+          [campaignId, liUrl]);
+        if (dup.length) continue;
+        const { rows: ins } = await db.query(
+          `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+          [campaignId, workspaceId,
+           p.first_name||'', p.last_name||p.lastName||'',
+           p.company||companyName, p.headline||p.title||'', liUrl]);
+        if (ins[0]?.id) { totalAdded++; enqueue(ins[0].id, accountId, liUrl); }
+      }
+    } catch (e) {
+      console.error(`[CompanyFetch] Campaign ${campaignId}: error for ${url}:`, e.message);
+    }
+    await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
+  }
+  console.log(`[CompanyFetch] Campaign ${campaignId}: complete \u2014 ${totalAdded} contacts added`);
+}
+
+// POST /api/campaigns/:id/fetch-all-companies
+router.post('/:id/fetch-all-companies', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const { rows } = await db.query('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const camp = rows[0];
+    const settings = typeof camp.settings === 'string' ? JSON.parse(camp.settings) : (camp.settings || {});
+    const sc = settings.searchConfig || {};
+    const { companyUrls = [], titles = [], maxPerCompany = 10, previewedCount = 0 } = sc;
+    const urlsToFetch = companyUrls.slice(previewedCount);
+    if (!urlsToFetch.length) return res.json({ status: 'nothing_to_fetch' });
+    const estimatedMin = Math.max(2, Math.ceil(urlsToFetch.length * 0.8));
+    runCompanyFetch(campaignId, camp.workspace_id, camp.account_id, urlsToFetch, titles, maxPerCompany)
+      .catch(e => console.error(`[CompanyFetch] Campaign ${campaignId}:`, e.message));
+    res.json({ status: 'started', companies_to_fetch: urlsToFetch.length, estimated_minutes: estimatedMin });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
