@@ -14,6 +14,7 @@ const followersRouter          = require('./src/routes/followers');
 const statsRouter              = require('./src/routes/stats');
 const opportunitiesRouter      = require('./src/routes/opportunities');
 const adminRouter              = require('./src/routes/admin');
+const feedRouter               = require('./src/routes/feed');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -43,6 +44,7 @@ app.use('/api/followers',     followersRouter);
 app.use('/api/stats',         statsRouter);
 app.use('/api/opportunities', opportunitiesRouter);
 app.use('/api/admin',         adminRouter);
+app.use('/api/feed',          feedRouter);
 
 async function s(label, fn) {
   try { await fn(); }
@@ -231,6 +233,44 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
+  // ── Feed tables ────────────────────────────────────────────────────────────
+  await s('linkedin_posts', () => db.query(`
+    CREATE TABLE IF NOT EXISTS linkedin_posts (
+      id                 SERIAL PRIMARY KEY,
+      campaign_id        INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+      workspace_id       INTEGER,
+      contact_id         INTEGER REFERENCES contacts(id)  ON DELETE SET NULL,
+      post_urn           TEXT UNIQUE NOT NULL,
+      author_name        TEXT,
+      author_title       TEXT,
+      author_profile_url TEXT,
+      author_avatar_url  TEXT,
+      content            TEXT,
+      likes_count        INTEGER DEFAULT 0,
+      comments_count     INTEGER DEFAULT 0,
+      shares_count       INTEGER DEFAULT 0,
+      posted_at          TIMESTAMPTZ,
+      fetched_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `));
+
+  await s('linkedin_comments', () => db.query(`
+    CREATE TABLE IF NOT EXISTS linkedin_comments (
+      id                 SERIAL PRIMARY KEY,
+      post_id            INTEGER REFERENCES linkedin_posts(id) ON DELETE CASCADE,
+      parent_comment_id  INTEGER REFERENCES linkedin_comments(id) ON DELETE CASCADE,
+      comment_urn        TEXT UNIQUE NOT NULL,
+      author_name        TEXT,
+      author_title       TEXT,
+      author_profile_url TEXT,
+      author_avatar_url  TEXT,
+      content            TEXT,
+      likes_count        INTEGER DEFAULT 0,
+      commented_at       TIMESTAMPTZ,
+      fetched_at         TIMESTAMPTZ DEFAULT NOW()
+    )
+  `));
+
   const indexes = [
     ['idx_contacts_campaign',          'contacts(campaign_id)'],
     ['idx_contacts_workspace',         'contacts(workspace_id)'],
@@ -265,6 +305,13 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_daily_stats_campaign',       'campaign_daily_stats(campaign_id)'],
     ['idx_daily_stats_workspace',      'campaign_daily_stats(workspace_id)'],
     ['idx_page_stats_date',            'company_page_daily_stats(snapshot_date)'],
+    // feed
+    ['idx_posts_campaign',             'linkedin_posts(campaign_id)'],
+    ['idx_posts_workspace',            'linkedin_posts(workspace_id)'],
+    ['idx_posts_contact',              'linkedin_posts(contact_id)'],
+    ['idx_posts_posted_at',            'linkedin_posts(posted_at DESC)'],
+    ['idx_comments_post',              'linkedin_comments(post_id)'],
+    ['idx_comments_parent',            'linkedin_comments(parent_comment_id)'],
   ];
   for (const [name, col] of indexes) {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
@@ -424,8 +471,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     console.log(`[DB] campaign_companies backfill: ${upserted} companies from ${contacts.length} contacts`);
   });
 
-  // Backfill avatar_url / full_name for existing accounts that don't have them yet.
-  // Runs once at startup; safe to re-run (no-op if already populated).
   await s('backfill.account_profiles', async () => {
     const { getAccountInfo } = require('./src/unipile');
     const { rows: accounts } = await db.query(
