@@ -83,6 +83,41 @@ async function handleNewRelation(payload) {
 
 // ── new_message ────────────────────────────────────────────────────────────────────
 
+    // Sync to inbox_threads + inbox_messages so Inbox tab stays real-time
+    try {
+      const chatId = payload.chat_id || payload.object_id;
+      const msgId  = payload.message_id || payload.id || ('wh_' + Date.now());
+      const text   = payload.text || payload.body || payload.content || '';
+      if (chatId && text) {
+        // Upsert thread
+        const { rows: thrRows } = await db.query(
+          `INSERT INTO inbox_threads (workspace_id, account_id, thread_id, updated_at)
+           SELECT DISTINCT c.workspace_id, camp.account_id, $1, NOW()
+           FROM contacts c
+           JOIN campaigns camp ON camp.id = c.campaign_id
+           WHERE c.provider_id = $2
+           ON CONFLICT (thread_id) DO UPDATE SET
+             unread_count = inbox_threads.unread_count + 1,
+             last_message_at = NOW(),
+             last_message_preview = $3,
+             updated_at = NOW()
+           RETURNING id`,
+          [chatId, sender_id, text.slice(0, 120)]
+        );
+        const threadDbId = thrRows[0]?.id;
+        if (threadDbId) {
+          await db.query(
+            `INSERT INTO inbox_messages (thread_id, unipile_msg_id, direction, content, sent_at)
+             VALUES ($1, $2, 'received', $3, NOW())
+             ON CONFLICT (unipile_msg_id) DO NOTHING`,
+            [threadDbId, msgId, text]
+          );
+        }
+      }
+    } catch (inboxErr) {
+      console.warn('[Webhook] inbox sync failed:', inboxErr.message);
+    }
+
 async function handleNewMessage(payload) {
   const { account_id, chat_id, sender_id, is_sender } = payload;
 
