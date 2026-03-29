@@ -151,16 +151,21 @@ router.post('/:id/accounts/:accountId/refresh-profile', async (req, res) => {
 // PATCH /api/workspaces/:id/accounts/:accountId/settings
 router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
   try {
-    const { limits } = req.body;
+    const { limits, company_page_url } = req.body;
     if (!limits || typeof limits !== 'object') {
       return res.status(400).json({ error: 'limits object required' });
     }
+    // Build settings update — merge limits + optional company_page_url
+    const settingsPatch = { limits };
+    if (typeof company_page_url === 'string') {
+      settingsPatch.company_page_url = company_page_url.trim();
+    }
     const { rows } = await db.query(
       `UPDATE unipile_accounts
-       SET settings = settings || jsonb_build_object('limits', $1::jsonb)
+       SET settings = settings || $1::jsonb
        WHERE workspace_id = $2 AND account_id = $3
        RETURNING *`,
-      [JSON.stringify(limits), req.params.id, req.params.accountId]
+      [JSON.stringify(settingsPatch), req.params.id, req.params.accountId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Account not found' });
     console.log(`[Settings] Saved limits for account ${req.params.accountId}:`, limits);
