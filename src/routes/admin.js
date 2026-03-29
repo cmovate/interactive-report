@@ -1,32 +1,60 @@
 /**
  * Admin Analytics Route
- * GET /api/admin/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD
  *
- * Returns cross-workspace analytics:
- * - Global summary
- * - Per workspace breakdown
- * - Per Unipile account breakdown
- * - Per campaign breakdown
- * - Daily timeline (when date range provided)
+ * GET /api/admin/filter-options
+ *   Returns distinct countries (from contacts.location) and companies
+ *   (from contacts.company) for the autocomplete filters.
  *
- * All date filtering uses _at timestamp columns so numbers
- * reflect WHEN actions actually happened, not cumulative totals.
+ * GET /api/admin/analytics?from=&to=&country=&company=
+ *   Cross-workspace analytics filtered by date range AND optionally by
+ *   contact country (location ILIKE) and/or company (company ILIKE).
  */
 
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
 
+// GET /api/admin/filter-options
+// Returns distinct values to populate the autocomplete dropdowns.
+router.get('/filter-options', async (req, res) => {
+  try {
+    const [locRes, compRes] = await Promise.all([
+      db.query(`
+        SELECT DISTINCT TRIM(location) AS value
+        FROM contacts
+        WHERE location IS NOT NULL AND TRIM(location) != ''
+        ORDER BY value
+        LIMIT 300
+      `),
+      db.query(`
+        SELECT DISTINCT TRIM(company) AS value
+        FROM contacts
+        WHERE company IS NOT NULL AND TRIM(company) != ''
+        ORDER BY value
+        LIMIT 500
+      `),
+    ]);
+    res.json({
+      countries: locRes.rows.map(r => r.value).filter(Boolean),
+      companies: compRes.rows.map(r => r.value).filter(Boolean),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/admin/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD&country=&company=
 router.get('/analytics', async (req, res) => {
   try {
-    const from = req.query.from || null;  // YYYY-MM-DD or null (= all time)
-    const to   = req.query.to   || null;
-    const p    = [from, to];  // $1, $2 reused throughout
+    const from    = req.query.from    || null;  // date or null
+    const to      = req.query.to      || null;  // date or null
+    const country = req.query.country || null;  // ILIKE filter on contacts.location
+    const company = req.query.company || null;  // ILIKE filter on contacts.company
 
-    // When $1/$2 are NULL, conditions collapse to TRUE (no date bound)
-    // When given, conditions filter by the _at timestamp column for the period.
-    // The boolean col (invite_sent, etc.) is always checked so we don't count
-    // contacts where the action timestamp is missing.
+    // $1 = from, $2 = to, $3 = country, $4 = company
+    const p = [from, to, country, company];
+
+    // Date-range conditions on _at timestamp columns ($1/$2 = date bounds)
     const inv  = `ct.invite_sent    = true AND ($1::date IS NULL OR ct.invite_sent_at    >= $1::date) AND ($2::date IS NULL OR ct.invite_sent_at    < $2::date + interval '1 day')`;
     const appr = `ct.invite_approved= true AND ($1::date IS NULL OR ct.invite_approved_at>= $1::date) AND ($2::date IS NULL OR ct.invite_approved_at< $2::date + interval '1 day')`;
     const msgs = `ct.msg_sent       = true AND ($1::date IS NULL OR ct.msg_sent_at        >= $1::date) AND ($2::date IS NULL OR ct.msg_sent_at        < $2::date + interval '1 day')`;
@@ -34,43 +62,54 @@ router.get('/analytics', async (req, res) => {
     const pos  = `ct.positive_reply = true AND ($1::date IS NULL OR ct.positive_reply_at  >= $1::date) AND ($2::date IS NULL OR ct.positive_reply_at  < $2::date + interval '1 day')`;
     const added= `($1::date IS NULL OR ct.created_at >= $1::date) AND ($2::date IS NULL OR ct.created_at < $2::date + interval '1 day')`;
 
-    // 1. Per-workspace breakdown
+    // Pre-filtered contacts subquery ($3/$4 = country/company ILIKE filters)
+    // Using a subquery in the JOIN lets us keep LEFT JOIN semantics while
+    // restricting which contacts contribute to the aggregate counts.
+    const ctJoin = `
+      LEFT JOIN (
+        SELECT * FROM contacts
+        WHERE ($3::text IS NULL OR location ILIKE '%' || $3 || '%')
+          AND ($4::text IS NULL OR company  ILIKE '%' || $4 || '%')
+      ) ct ON ct.campaign_id = c.id
+    `;
+
+    // 1. Per-workspace
     const { rows: byWorkspace } = await db.query(`
       SELECT
         w.id   AS workspace_id,
         w.name AS workspace_name,
-        COUNT(DISTINCT c.id)                                               AS campaign_count,
-        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'active')           AS active_campaigns,
-        COUNT(ct.id) FILTER (WHERE ${added})                              AS contacts_added,
-        COUNT(ct.id) FILTER (WHERE ${inv})                                AS invites_sent,
-        COUNT(ct.id) FILTER (WHERE ${appr})                               AS invites_approved,
-        COUNT(ct.id) FILTER (WHERE ${msgs})                               AS messages_sent,
-        COUNT(ct.id) FILTER (WHERE ${repl})                               AS messages_replied,
-        COUNT(ct.id) FILTER (WHERE ${pos})                                AS positive_replies
+        COUNT(DISTINCT c.id)                                     AS campaign_count,
+        COUNT(DISTINCT c.id) FILTER (WHERE c.status = 'active') AS active_campaigns,
+        COUNT(ct.id) FILTER (WHERE ${added})                    AS contacts_added,
+        COUNT(ct.id) FILTER (WHERE ${inv})                      AS invites_sent,
+        COUNT(ct.id) FILTER (WHERE ${appr})                     AS invites_approved,
+        COUNT(ct.id) FILTER (WHERE ${msgs})                     AS messages_sent,
+        COUNT(ct.id) FILTER (WHERE ${repl})                     AS messages_replied,
+        COUNT(ct.id) FILTER (WHERE ${pos})                      AS positive_replies
       FROM workspaces w
-      LEFT JOIN campaigns c  ON c.workspace_id = w.id
-      LEFT JOIN contacts  ct ON ct.campaign_id  = c.id
+      LEFT JOIN campaigns c ON c.workspace_id = w.id
+      ${ctJoin}
       GROUP BY w.id, w.name
       ORDER BY (COUNT(ct.id) FILTER (WHERE ${inv})) DESC NULLS LAST
     `, p);
 
-    // 2. Per Unipile account breakdown
+    // 2. Per Unipile account
     const { rows: byAccount } = await db.query(`
       SELECT
         c.account_id,
-        COALESCE(ua.display_name, c.account_id)  AS account_name,
-        COALESCE(w.name, '?')                    AS workspace_name,
-        COUNT(DISTINCT c.id)                                               AS campaign_count,
-        COUNT(ct.id) FILTER (WHERE ${added})                              AS contacts_added,
-        COUNT(ct.id) FILTER (WHERE ${inv})                                AS invites_sent,
-        COUNT(ct.id) FILTER (WHERE ${appr})                               AS invites_approved,
-        COUNT(ct.id) FILTER (WHERE ${msgs})                               AS messages_sent,
-        COUNT(ct.id) FILTER (WHERE ${repl})                               AS messages_replied,
-        COUNT(ct.id) FILTER (WHERE ${pos})                                AS positive_replies
+        COALESCE(ua.display_name, c.account_id) AS account_name,
+        COALESCE(w.name, '?')                   AS workspace_name,
+        COUNT(DISTINCT c.id)                                     AS campaign_count,
+        COUNT(ct.id) FILTER (WHERE ${added})                    AS contacts_added,
+        COUNT(ct.id) FILTER (WHERE ${inv})                      AS invites_sent,
+        COUNT(ct.id) FILTER (WHERE ${appr})                     AS invites_approved,
+        COUNT(ct.id) FILTER (WHERE ${msgs})                     AS messages_sent,
+        COUNT(ct.id) FILTER (WHERE ${repl})                     AS messages_replied,
+        COUNT(ct.id) FILTER (WHERE ${pos})                      AS positive_replies
       FROM campaigns c
-      LEFT JOIN workspaces     w  ON w.id          = c.workspace_id
+      LEFT JOIN workspaces       w  ON w.id          = c.workspace_id
       LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id
-      LEFT JOIN contacts        ct ON ct.campaign_id = c.id
+      ${ctJoin}
       WHERE c.account_id IS NOT NULL
       GROUP BY c.account_id, ua.display_name, w.name
       ORDER BY (COUNT(ct.id) FILTER (WHERE ${inv})) DESC NULLS LAST
@@ -81,36 +120,41 @@ router.get('/analytics', async (req, res) => {
       SELECT
         c.id, c.name AS campaign_name, c.status,
         c.account_id, c.workspace_id, c.created_at,
-        w.name                                   AS workspace_name,
-        COALESCE(ua.display_name, c.account_id)  AS account_name,
-        COUNT(ct.id) FILTER (WHERE ${added})     AS contacts_added,
-        COUNT(ct.id) FILTER (WHERE ${inv})       AS invites_sent,
-        COUNT(ct.id) FILTER (WHERE ${appr})      AS invites_approved,
-        COUNT(ct.id) FILTER (WHERE ${msgs})      AS messages_sent,
-        COUNT(ct.id) FILTER (WHERE ${repl})      AS messages_replied,
-        COUNT(ct.id) FILTER (WHERE ${pos})       AS positive_replies
+        w.name                                  AS workspace_name,
+        COALESCE(ua.display_name, c.account_id) AS account_name,
+        COUNT(ct.id) FILTER (WHERE ${added})    AS contacts_added,
+        COUNT(ct.id) FILTER (WHERE ${inv})      AS invites_sent,
+        COUNT(ct.id) FILTER (WHERE ${appr})     AS invites_approved,
+        COUNT(ct.id) FILTER (WHERE ${msgs})     AS messages_sent,
+        COUNT(ct.id) FILTER (WHERE ${repl})     AS messages_replied,
+        COUNT(ct.id) FILTER (WHERE ${pos})      AS positive_replies
       FROM campaigns c
       LEFT JOIN workspaces       w  ON w.id          = c.workspace_id
       LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id
-      LEFT JOIN contacts         ct ON ct.campaign_id = c.id
+      ${ctJoin}
       GROUP BY c.id, c.name, c.status, c.account_id, c.workspace_id, c.created_at, w.name, ua.display_name
       ORDER BY c.created_at DESC
     `, p);
 
-    // 4. Daily timeline (always generated for the given range; fallback = last 30 days)
+    // 4. Daily timeline filtered by country/company as well.
+    // $1/$2 = effectiveFrom/To, $3/$4 = country/company
     const effectiveFrom = from || (() => { const d = new Date(); d.setDate(d.getDate()-29); return d.toISOString().slice(0,10); })();
     const effectiveTo   = to   || new Date().toISOString().slice(0,10);
+    const tp = [effectiveFrom, effectiveTo, country, company];
+
+    const ctFilter = `($3::text IS NULL OR location ILIKE '%' || $3 || '%')
+        AND ($4::text IS NULL OR company  ILIKE '%' || $4 || '%')`;
 
     const { rows: timeline } = await db.query(`
       WITH ds AS (
-        SELECT generate_series($3::date, $4::date, '1 day'::interval)::date AS d
+        SELECT generate_series($1::date, $2::date, '1 day'::interval)::date AS d
       ),
-      inv  AS (SELECT invite_sent_at::date   AS d, COUNT(*) AS cnt FROM contacts WHERE invite_sent_at::date    BETWEEN $3::date AND $4::date GROUP BY 1),
-      appr AS (SELECT invite_approved_at::date AS d, COUNT(*) AS cnt FROM contacts WHERE invite_approved_at::date BETWEEN $3::date AND $4::date GROUP BY 1),
-      msgs AS (SELECT msg_sent_at::date      AS d, COUNT(*) AS cnt FROM contacts WHERE msg_sent_at::date       BETWEEN $3::date AND $4::date GROUP BY 1),
-      repl AS (SELECT msg_replied_at::date   AS d, COUNT(*) AS cnt FROM contacts WHERE msg_replied_at::date    BETWEEN $3::date AND $4::date GROUP BY 1),
-      pos  AS (SELECT positive_reply_at::date AS d, COUNT(*) AS cnt FROM contacts WHERE positive_reply_at::date BETWEEN $3::date AND $4::date GROUP BY 1),
-      adc  AS (SELECT created_at::date        AS d, COUNT(*) AS cnt FROM contacts WHERE created_at::date        BETWEEN $3::date AND $4::date GROUP BY 1)
+      inv  AS (SELECT invite_sent_at::date    AS d, COUNT(*) AS cnt FROM contacts WHERE invite_sent_at::date    BETWEEN $1::date AND $2::date AND ${ctFilter} GROUP BY 1),
+      appr AS (SELECT invite_approved_at::date AS d, COUNT(*) AS cnt FROM contacts WHERE invite_approved_at::date BETWEEN $1::date AND $2::date AND ${ctFilter} GROUP BY 1),
+      msgs AS (SELECT msg_sent_at::date       AS d, COUNT(*) AS cnt FROM contacts WHERE msg_sent_at::date       BETWEEN $1::date AND $2::date AND ${ctFilter} GROUP BY 1),
+      repl AS (SELECT msg_replied_at::date    AS d, COUNT(*) AS cnt FROM contacts WHERE msg_replied_at::date    BETWEEN $1::date AND $2::date AND ${ctFilter} GROUP BY 1),
+      pos  AS (SELECT positive_reply_at::date  AS d, COUNT(*) AS cnt FROM contacts WHERE positive_reply_at::date  BETWEEN $1::date AND $2::date AND ${ctFilter} GROUP BY 1),
+      adc  AS (SELECT created_at::date         AS d, COUNT(*) AS cnt FROM contacts WHERE created_at::date         BETWEEN $1::date AND $2::date AND ${ctFilter} GROUP BY 1)
       SELECT
         ds.d::text            AS date,
         COALESCE(inv.cnt,  0) AS invites_sent,
@@ -127,9 +171,9 @@ router.get('/analytics', async (req, res) => {
       LEFT JOIN pos  ON pos.d  = ds.d
       LEFT JOIN adc  ON adc.d  = ds.d
       ORDER BY ds.d
-    `, [from, to, effectiveFrom, effectiveTo]);
+    `, tp);
 
-    // Aggregate global summary from by_workspace rows
+    // Global summary
     const summary = byWorkspace.reduce((acc, r) => {
       acc.contacts_added   += parseInt(r.contacts_added)   || 0;
       acc.invites_sent     += parseInt(r.invites_sent)     || 0;

@@ -9,7 +9,7 @@ const likeSender                 = require('../likeSender');
 const withdrawSender             = require('../withdrawSender');
 
 const MAX_MSG_SLOTS   = 20;
-const BATCH_SIZE      = 4;   // max companies per keywords query (LinkedIn rejects larger payloads)
+const BATCH_SIZE      = 4;   // max companies per keywords query
 const BATCH_MAX_PAGES = 3;   // pages per batch in background fetch
 
 // Workspace isolation helper
@@ -30,9 +30,12 @@ function extractCompanySlug(url) {
   return match ? match[1].replace(/\/$/, '').trim() : null;
 }
 
-// Build a LinkedIn keywords query for a BATCH of company URLs + titles.
-// Keeps queries short — max BATCH_SIZE companies to avoid 400 content_too_large.
-function buildKeywordsQuery(companyUrls, titles) {
+/**
+ * Build a LinkedIn keywords query for a batch of company URLs + titles + optional country.
+ * e.g. "(VP R&D OR CTO) (Bezeq OR Partner OR HOT) Israel"
+ * country is appended verbatim — LinkedIn uses it to geo-filter results.
+ */
+function buildKeywordsQuery(companyUrls, titles, country) {
   const companyNames = [...new Set(
     (companyUrls || []).map(url => {
       const slug = extractCompanySlug(url);
@@ -41,8 +44,9 @@ function buildKeywordsQuery(companyUrls, titles) {
     }).filter(Boolean)
   )];
   const parts = [];
-  if (titles?.length)      parts.push(`(${titles.join(' OR ')})`);
-  if (companyNames.length) parts.push(`(${companyNames.join(' OR ')})`);
+  if (titles?.length)       parts.push(`(${titles.join(' OR ')})`);
+  if (companyNames.length)  parts.push(`(${companyNames.join(' OR ')})`);
+  if (country?.trim())      parts.push(country.trim());
   return parts.join(' ');
 }
 
@@ -250,20 +254,19 @@ router.delete('/:id', async (req, res) => {
 });
 
 // POST /api/campaigns/search-people
-// Preview = first batch (4 companies). Background fetch handles the rest.
 router.post('/search-people', async (req, res) => {
   try {
-    const { account_id, company_urls, titles } = req.body;
+    const { account_id, company_urls, titles, target_country } = req.body;
     if (!account_id || !company_urls?.length)
       return res.status(400).json({ error: 'account_id and company_urls required' });
 
     const previewBatch = company_urls.slice(0, BATCH_SIZE);
-    const keywords = buildKeywordsQuery(previewBatch, titles || []);
+    const keywords = buildKeywordsQuery(previewBatch, titles || [], target_country || '');
     if (!keywords)
       return res.json({ items: [], companies: [], keywords_query: '', next_cursor: null, total_batches: 0 });
 
     const totalBatches = Math.ceil(company_urls.length / BATCH_SIZE);
-    console.log(`[Search] Batch 1/${totalBatches} (${previewBatch.length} companies): "${keywords.slice(0, 120)}"`);
+    console.log(`[Search] Batch 1/${totalBatches} (${previewBatch.length} co${target_country ? ' + '+target_country : ''}): "${keywords.slice(0, 120)}"`);
 
     const { items, cursor, totalCount } = await searchPeopleByKeywords(account_id, keywords, 50);
 
@@ -376,15 +379,15 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
 });
 
 // Background batched keywords fetch
-async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, companyUrls, titles, startBatchIdx) {
+async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, companyUrls, titles, startBatchIdx, country) {
   const totalBatches = Math.ceil(companyUrls.length / BATCH_SIZE);
-  console.log(`[BatchFetch] Campaign ${campaignId}: batches ${startBatchIdx + 1}-${totalBatches} (${BATCH_SIZE} companies each)`);
+  console.log(`[BatchFetch] Campaign ${campaignId}: batches ${startBatchIdx + 1}-${totalBatches}${country ? ' country='+country : ''}`);
   let totalAdded = 0;
 
   for (let batchIdx = startBatchIdx; batchIdx < totalBatches; batchIdx++) {
     const batch    = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-    const keywords = buildKeywordsQuery(batch, titles);
-    console.log(`[BatchFetch] Campaign ${campaignId}: batch ${batchIdx + 1}/${totalBatches} — "${keywords.slice(0, 100)}"`);
+    const keywords = buildKeywordsQuery(batch, titles, country);
+    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx + 1}/${totalBatches} \u2014 "${keywords.slice(0, 100)}"`);
 
     let cursor = null;
     let page   = 0;
@@ -429,13 +432,13 @@ router.post('/:id/fetch-all-companies', async (req, res) => {
     if (!camp) return;
     const settings = typeof camp.settings === 'string' ? JSON.parse(camp.settings) : (camp.settings || {});
     const sc = settings.searchConfig || {};
-    const { companyUrls = [], titles = [] } = sc;
+    const { companyUrls = [], titles = [], targetCountry = '' } = sc;
     if (!companyUrls.length) return res.json({ status: 'nothing_to_fetch', reason: 'no companyUrls in searchConfig' });
 
     const totalBatches = Math.ceil(companyUrls.length / BATCH_SIZE);
     if (totalBatches <= 1) return res.json({ status: 'nothing_to_fetch', reason: 'preview covered all companies' });
 
-    runKeywordsBatchFetch(camp.id, camp.workspace_id, camp.account_id, companyUrls, titles, 1)
+    runKeywordsBatchFetch(camp.id, camp.workspace_id, camp.account_id, companyUrls, titles, 1, targetCountry)
       .catch(e => console.error(`[BatchFetch] Campaign ${camp.id}:`, e.message));
 
     res.json({ status: 'started', mode: 'batched_keywords', remaining_batches: totalBatches - 1, total_companies: companyUrls.length });
