@@ -18,7 +18,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .nav-item.active { background: #F0FBF7; color: #1D9E75; font-weight: 500; border-right: 2px solid #1D9E75; }
 .nav-item .nav-icon { font-size: 15px; }
 .nav-new-badge { font-size: 9px; font-weight: 700; background: #1D9E75; color: white; border-radius: 3px; padding: 1px 4px; margin-left: 4px; }
-/* Account footer in sidebar */
 .sidebar-footer { margin-top: auto; border-top: 1px solid #f0f0f0; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
 .sidebar-account { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
 .sidebar-avatar-wrap { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#DBEAFE,#C7F2D8); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #1E5F3E; flex-shrink: 0; overflow: hidden; border: 2px solid #e5e5e5; position: relative; }
@@ -28,7 +27,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .sidebar-account-name { font-size: 12px; font-weight: 500; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
 .sidebar-account-badge { font-size: 10px; color: #aaa; margin-top: 1px; display: flex; align-items: center; gap: 3px; }
 .li-dot { width: 6px; height: 6px; border-radius: 50%; background: #0A66C2; display: inline-block; }
-/* Content */
 .content { flex: 1; overflow: auto; }
 .screen { display: none; }
 .screen.active { display: block; }
@@ -57,13 +55,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="nav-item" onclick="showScreen('feed')" id="nav-feed">
     <span class="nav-icon">&#128240;</span> Feed
   </div>
+  <div class="nav-item" onclick="showScreen('inbox')" id="nav-inbox">
+    <span class="nav-icon">&#128233;</span> Inbox
+  </div>
 
   <div class="nav-section">Account</div>
   <div class="nav-item" onclick="showScreen('settings')" id="nav-settings">
     <span class="nav-icon">&#9881;</span> Settings
   </div>
 
-  <!-- LinkedIn account avatar(s) — shown at bottom of sidebar -->
   <div class="sidebar-footer" id="sidebar-footer" style="display:none;"></div>
 </div>
 
@@ -72,6 +72,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="screen" id="screen-all-data"></div>
   <div class="screen" id="screen-opportunities"></div>
   <div class="screen" id="screen-feed"></div>
+  <div class="screen" id="screen-inbox"></div>
   <div class="screen" id="screen-settings"></div>
 </div>
 
@@ -90,7 +91,6 @@ async function loadAccounts() {
     const data = await res.json();
     const accounts = (data.items || []);
     if (!accounts.length) return;
-
     const footer = document.getElementById('sidebar-footer');
     footer.style.display = 'flex';
     footer.innerHTML = accounts.map(acc => {
