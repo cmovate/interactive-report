@@ -16,6 +16,7 @@ const opportunitiesRouter      = require('./src/routes/opportunities');
 const adminRouter              = require('./src/routes/admin');
 const feedRouter               = require('./src/routes/feed');
 const inboxRouter              = require('./src/routes/inbox');
+const hotOpportunitiesRouter   = require('./src/routes/hot-opportunities');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -35,18 +36,19 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api/workspaces',    workspacesRouter);
-app.use('/api/unipile',       unipileRouter);
-app.use('/api/campaigns',     campaignsRouter);
-app.use('/api/contacts',      contactsRouter);
-app.use('/api/companies',     companiesRouter);
-app.use('/api/webhooks',      webhooksRouter);
-app.use('/api/followers',     followersRouter);
-app.use('/api/stats',         statsRouter);
-app.use('/api/opportunities', opportunitiesRouter);
-app.use('/api/admin',         adminRouter);
-app.use('/api/feed',          feedRouter);
-app.use('/api/inbox',         inboxRouter);
+app.use('/api/workspaces',         workspacesRouter);
+app.use('/api/unipile',            unipileRouter);
+app.use('/api/campaigns',          campaignsRouter);
+app.use('/api/contacts',           contactsRouter);
+app.use('/api/companies',          companiesRouter);
+app.use('/api/webhooks',           webhooksRouter);
+app.use('/api/followers',          followersRouter);
+app.use('/api/stats',              statsRouter);
+app.use('/api/opportunities',      opportunitiesRouter);
+app.use('/api/admin',              adminRouter);
+app.use('/api/feed',               feedRouter);
+app.use('/api/inbox',              inboxRouter);
+app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 
 async function s(label, fn) {
   try { await fn(); }
@@ -235,7 +237,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ── Feed tables ────────────────────────────────────────────────────────────
+  // ── Feed tables ────────────────────────────────────────────────────────
   await s('linkedin_posts', () => db.query(`
     CREATE TABLE IF NOT EXISTS linkedin_posts (
       id                 SERIAL PRIMARY KEY,
@@ -273,7 +275,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ── Inbox tables ───────────────────────────────────────────────────────────
+  // ── Inbox tables ───────────────────────────────────────────────────────
   await s('inbox_threads', () => db.query(`
     CREATE TABLE IF NOT EXISTS inbox_threads (
       id                   SERIAL PRIMARY KEY,
@@ -303,6 +305,36 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
+  // ── Hot Opportunities tables ──────────────────────────────────────────────
+  await s('company_news', () => db.query(`
+    CREATE TABLE IF NOT EXISTS company_news (
+      id           SERIAL PRIMARY KEY,
+      campaign_id  INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+      workspace_id INTEGER,
+      company_name TEXT,
+      headline     TEXT,
+      url          TEXT,
+      source       TEXT,
+      published_at DATE,
+      summary      TEXT,
+      fetched_at   TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(campaign_id, url)
+    )
+  `));
+
+  await s('opportunity_drafts', () => db.query(`
+    CREATE TABLE IF NOT EXISTS opportunity_drafts (
+      id            SERIAL PRIMARY KEY,
+      news_id       INTEGER REFERENCES company_news(id) ON DELETE CASCADE,
+      contact_id    INTEGER REFERENCES contacts(id)    ON DELETE CASCADE,
+      workspace_id  INTEGER,
+      draft_message TEXT,
+      status        TEXT DEFAULT 'pending' CHECK (status IN ('pending','sent','dismissed')),
+      created_at    TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(news_id, contact_id)
+    )
+  `));
+
   const indexes = [
     ['idx_contacts_campaign',          'contacts(campaign_id)'],
     ['idx_contacts_workspace',         'contacts(workspace_id)'],
@@ -323,6 +355,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_contacts_comp_likes_at',     'contacts(company_likes_sent_at)'],
     ['idx_contacts_conv_stage',        'contacts(conversation_stage)'],
     ['idx_contacts_conv_score',        'contacts(conversation_score)'],
+    ['idx_contacts_osint_run',         'contacts(osint_last_run)'],
     ['idx_camp_companies_campaign',    'campaign_companies(campaign_id)'],
     ['idx_camp_companies_workspace',   'campaign_companies(workspace_id)'],
     ['idx_camp_companies_linkedin_id', 'campaign_companies(company_linkedin_id)'],
@@ -352,6 +385,13 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_inbox_messages_thread',      'inbox_messages(thread_id)'],
     ['idx_inbox_messages_direction',   'inbox_messages(direction)'],
     ['idx_inbox_messages_sent_at',     'inbox_messages(sent_at)'],
+    // hot opportunities
+    ['idx_company_news_workspace',     'company_news(workspace_id)'],
+    ['idx_company_news_campaign',      'company_news(campaign_id)'],
+    ['idx_company_news_fetched',       'company_news(fetched_at DESC)'],
+    ['idx_opp_drafts_news',            'opportunity_drafts(news_id)'],
+    ['idx_opp_drafts_contact',         'opportunity_drafts(contact_id)'],
+    ['idx_opp_drafts_status',          'opportunity_drafts(status)'],
   ];
   for (const [name, col] of indexes) {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
@@ -422,6 +462,13 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['ct.conv_analyzed_at',        'contacts',            'conversation_analyzed_at',    'TIMESTAMP'],
     ['ct.reply_count',             'contacts',            'reply_count',                 'INTEGER DEFAULT 0'],
     ['oc.view_id',                 'opportunity_companies', 'view_id',                   'INTEGER'],
+    // OSINT columns on contacts
+    ['ct.osint_summary',           'contacts',            'osint_summary',               'TEXT'],
+    ['ct.osint_hobby',             'contacts',            'osint_hobby',                 'TEXT'],
+    ['ct.osint_reason',            'contacts',            'osint_reason',                'TEXT'],
+    ['ct.osint_source_urls',       'contacts',            'osint_source_urls',           'TEXT[]'],
+    ['ct.osint_confidence',        'contacts',            'osint_confidence',            'SMALLINT'],
+    ['ct.osint_last_run',          'contacts',            'osint_last_run',              'DATE'],
   ];
   for (const [label, table, col, type] of fixedCols) {
     await s(label, () => db.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${col} ${type}`));
