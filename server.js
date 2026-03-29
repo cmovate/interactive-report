@@ -15,6 +15,7 @@ const statsRouter              = require('./src/routes/stats');
 const opportunitiesRouter      = require('./src/routes/opportunities');
 const adminRouter              = require('./src/routes/admin');
 const feedRouter               = require('./src/routes/feed');
+const inboxRouter              = require('./src/routes/inbox');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -45,6 +46,7 @@ app.use('/api/stats',         statsRouter);
 app.use('/api/opportunities', opportunitiesRouter);
 app.use('/api/admin',         adminRouter);
 app.use('/api/feed',          feedRouter);
+app.use('/api/inbox',         inboxRouter);
 
 async function s(label, fn) {
   try { await fn(); }
@@ -271,6 +273,36 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
+  // ── Inbox tables ───────────────────────────────────────────────────────────
+  await s('inbox_threads', () => db.query(`
+    CREATE TABLE IF NOT EXISTS inbox_threads (
+      id                   SERIAL PRIMARY KEY,
+      campaign_id          INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+      workspace_id         INTEGER,
+      contact_id           INTEGER REFERENCES contacts(id)  ON DELETE CASCADE,
+      account_id           VARCHAR(255),
+      thread_id            TEXT UNIQUE NOT NULL,
+      last_message_at      TIMESTAMPTZ,
+      last_message_preview TEXT,
+      unread_count         INTEGER DEFAULT 0,
+      updated_at           TIMESTAMPTZ DEFAULT NOW(),
+      created_at           TIMESTAMPTZ DEFAULT NOW()
+    )
+  `));
+
+  await s('inbox_messages', () => db.query(`
+    CREATE TABLE IF NOT EXISTS inbox_messages (
+      id             SERIAL PRIMARY KEY,
+      thread_id      INTEGER REFERENCES inbox_threads(id) ON DELETE CASCADE,
+      unipile_msg_id TEXT UNIQUE NOT NULL,
+      direction      TEXT CHECK (direction IN ('sent','received')),
+      content        TEXT,
+      sent_at        TIMESTAMPTZ,
+      read_at        TIMESTAMPTZ,
+      created_at     TIMESTAMPTZ DEFAULT NOW()
+    )
+  `));
+
   const indexes = [
     ['idx_contacts_campaign',          'contacts(campaign_id)'],
     ['idx_contacts_workspace',         'contacts(workspace_id)'],
@@ -312,6 +344,14 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['idx_posts_posted_at',            'linkedin_posts(posted_at DESC)'],
     ['idx_comments_post',              'linkedin_comments(post_id)'],
     ['idx_comments_parent',            'linkedin_comments(parent_comment_id)'],
+    // inbox
+    ['idx_inbox_threads_workspace',    'inbox_threads(workspace_id)'],
+    ['idx_inbox_threads_campaign',     'inbox_threads(campaign_id)'],
+    ['idx_inbox_threads_contact',      'inbox_threads(contact_id)'],
+    ['idx_inbox_threads_last_msg',     'inbox_threads(last_message_at DESC)'],
+    ['idx_inbox_messages_thread',      'inbox_messages(thread_id)'],
+    ['idx_inbox_messages_direction',   'inbox_messages(direction)'],
+    ['idx_inbox_messages_sent_at',     'inbox_messages(sent_at)'],
   ];
   for (const [name, col] of indexes) {
     await s(name, () => db.query(`CREATE INDEX IF NOT EXISTS ${name} ON ${col}`));
