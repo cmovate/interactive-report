@@ -97,10 +97,11 @@ function msgColsCreate() {
   await s('unipile_accounts', () => db.query(`
     CREATE TABLE IF NOT EXISTS unipile_accounts (
       id SERIAL PRIMARY KEY, workspace_id INTEGER,
-      account_id VARCHAR(255) NOT NULL UNIQUE, display_name VARCHAR(255),
+      account_id VARCHAR(255) NOT NULL, display_name VARCHAR(255),
       provider VARCHAR(50) DEFAULT 'linkedin', status VARCHAR(50),
       webhook_id VARCHAR(255), settings JSONB DEFAULT '{}',
-      created_at TIMESTAMP DEFAULT NOW()
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(workspace_id, account_id)
     )
   `));
 
@@ -556,6 +557,10 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       upserted++;
     }
     console.log(`[DB] campaign_companies backfill: ${upserted} companies from ${contacts.length} contacts`);
+  });
+
+  await s('migrate.ua_unique', async () => {
+    await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key');
   });
 
   await s('backfill.account_profiles', async () => {
