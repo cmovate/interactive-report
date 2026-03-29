@@ -1,7 +1,6 @@
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
 
-// Retry delays (ms) for 503 / 429 responses
 const RETRY_DELAYS = [3000, 8000, 15000];
 
 async function request(endpoint, options = {}, _attempt = 0) {
@@ -19,7 +18,6 @@ async function request(endpoint, options = {}, _attempt = 0) {
     },
   });
 
-  // Retry on 503 (service unavailable) or 429 (rate limit)
   if ((res.status === 503 || res.status === 429) && _attempt < RETRY_DELAYS.length) {
     const delay = RETRY_DELAYS[_attempt];
     console.warn(`[Unipile] ${res.status} on ${endpoint} \u2014 retry ${_attempt + 1}/${RETRY_DELAYS.length} in ${delay}ms`);
@@ -43,6 +41,17 @@ async function getAccounts() {
   });
 }
 
+/**
+ * Fetch a single Unipile account object (includes name, picture, etc.).
+ * Used to hydrate avatar_url / full_name on our unipile_accounts row.
+ *
+ * Returned object typically contains:
+ *   { id, name, type, provider, sources, picture, ... }
+ */
+async function getAccountInfo(accountId) {
+  return request(`/api/v1/accounts/${encodeURIComponent(accountId)}`);
+}
+
 async function searchPeople(accountId, companyName, titles = []) {
   const keywords = titles.length
     ? `${titles.join(' OR ')} "${companyName}"`
@@ -54,16 +63,6 @@ async function searchPeople(accountId, companyName, titles = []) {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-/**
- * Keyword-based people search — single call for multiple companies + titles.
- * Supports cursor-based pagination for fetching subsequent pages.
- *
- * @param {string}      accountId
- * @param {string}      keywords   e.g. "(VP R&D OR CTO) (Bezeq OR Partner OR HOT)"
- * @param {number}      limit      1–100 (LinkedIn Classic max ~50 reliably)
- * @param {string|null} cursor     pagination cursor from previous call
- * @returns {{ items: object[], cursor: string|null, totalCount: number }}
- */
 async function searchPeopleByKeywords(accountId, keywords, limit = 50, cursor = null) {
   const body = { api: 'classic', category: 'people', keywords, limit };
   if (cursor) body.cursor = cursor;
@@ -246,6 +245,7 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
 
 module.exports = {
   getAccounts,
+  getAccountInfo,
   searchPeople,
   searchPeopleByKeywords,
   searchPeopleByCompany,

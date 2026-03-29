@@ -1,9 +1,48 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
-const { createRelationWebhook, deleteWebhook } = require('../unipile');
+const { createRelationWebhook, deleteWebhook, getAccountInfo } = require('../unipile');
 
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
+
+/**
+ * Extract avatar URL from a Unipile account object.
+ * Unipile returns different shapes across provider versions —
+ * fall through the known field names in priority order.
+ */
+function extractAvatar(profile) {
+  return (
+    profile?.picture ||
+    profile?.avatar ||
+    profile?.avatar_url ||
+    profile?.profile_picture_url ||
+    profile?.photo_url ||
+    profile?.sources?.find(s => s.type === 'picture')?.value ||
+    null
+  );
+}
+
+/**
+ * Fetch Unipile account info and write avatar_url / full_name to DB.
+ * Fire-and-forget safe — errors are only warned, never thrown.
+ */
+async function hydrateAccountProfile(accountId) {
+  try {
+    const profile = await getAccountInfo(accountId);
+    const avatarUrl = extractAvatar(profile);
+    const fullName  = profile?.name || null;
+    if (avatarUrl || fullName) {
+      await db.query(
+        `UPDATE unipile_accounts SET avatar_url = $1, full_name = $2
+         WHERE account_id = $3`,
+        [avatarUrl, fullName, accountId]
+      );
+      console.log(`[Workspace] Profile hydrated for ${accountId}: name="${fullName}" avatar=${avatarUrl ? 'yes' : 'no'}`);
+    }
+  } catch (err) {
+    console.warn(`[Workspace] Could not hydrate profile for ${accountId}: ${err.message}`);
+  }
+}
 
 // GET /api/workspaces
 router.get('/', async (req, res) => {
@@ -34,9 +73,7 @@ router.delete('/:id', async (req, res) => {
       [req.params.id]
     );
     for (const acc of accounts) {
-      if (acc.webhook_id) {
-        await deleteWebhook(acc.webhook_id);
-      }
+      if (acc.webhook_id) await deleteWebhook(acc.webhook_id);
     }
     await db.query('DELETE FROM workspaces WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -82,20 +119,42 @@ router.post('/:id/accounts', async (req, res) => {
       [req.params.id, account_id, display_name || account_id,
        provider || 'linkedin', status || 'connected', webhookId]
     );
-    res.status(201).json(rows[0]);
+    const saved = rows[0];
+
+    // Fire-and-forget profile hydration (avatar + full_name)
+    hydrateAccountProfile(account_id);
+
+    res.status(201).json(saved);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/workspaces/:id/accounts/:accountId/refresh-profile
+// Manually re-fetch the LinkedIn profile picture + name for an account.
+// Call this from the settings page or on a weekly cron.
+router.post('/:id/accounts/:accountId/refresh-profile', async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
+      [req.params.id, req.params.accountId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Account not found' });
+    await hydrateAccountProfile(req.params.accountId);
+    // Return the freshly updated row
+    const { rows: updated } = await db.query(
+      'SELECT * FROM unipile_accounts WHERE account_id = $1',
+      [req.params.accountId]
+    );
+    res.json({ success: true, account: updated[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/workspaces/:id/accounts/:accountId/settings
-// Saves daily action limits for an account to the DB.
-// Body: { limits: { connection_requests, messages, profile_views, ... } }
 router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
   try {
     const { limits } = req.body;
     if (!limits || typeof limits !== 'object') {
       return res.status(400).json({ error: 'limits object required' });
     }
-    // Merge into existing settings JSONB — only overwrite the limits key
     const { rows } = await db.query(
       `UPDATE unipile_accounts
        SET settings = settings || jsonb_build_object('limits', $1::jsonb)
