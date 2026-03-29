@@ -180,16 +180,12 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 16px; font-size: 14px; color: #555; cursor: pointer; }
 .ghost-btn:hover { background: #f5f5f5; }
 /* No-accounts notice box */
-.notice-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 20px 22px; font-size: 13px; color: #5D4037; line-height: 1.6; }
-.notice-box .notice-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #4E342E; }
-.notice-box a.settings-link {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-top: 14px;
-  background: #1D9E75; color: white; text-decoration: none;
-  border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 500;
-  transition: background 0.15s;
+.notice-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 20px 22px; font-size: 13px; color: #5D4037; line-height: 1.7; }
+.notice-box .notice-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: #4E342E; }
+.notice-box a.inline-link {
+  color: #1D9E75; font-weight: 600; text-decoration: underline; cursor: pointer;
 }
-.notice-box a.settings-link:hover { background: #178f68; }
+.notice-box a.inline-link:hover { color: #178f68; }
 </style>
 </head>
 <body>
@@ -412,7 +408,6 @@ function renderStep() {
   document.getElementById('btn-back').style.visibility = currentStep===0 ? 'hidden' : 'visible';
   const btnNext = document.getElementById('btn-next');
   btnNext.textContent = currentStep===STEPS.length-1 ? 'Create campaign' : 'Continue';
-  // Disable Continue on step 0 when no accounts are connected
   btnNext.disabled = (currentStep === 0 && !workspaceAccounts.length);
   [renderStepAccount, renderStepAudience, renderStepSequence, renderStepName][currentStep](document.getElementById('modal-body'));
 }
@@ -432,12 +427,11 @@ function renderStepAccount(body) {
   if (!workspaceAccounts.length) {
     body.innerHTML = `
       <div class="notice-box">
-        <div class="notice-title">&#128273; Before you start, add at least one LinkedIn account.</div>
-        No LinkedIn accounts have been connected to this workspace yet. You need at least one account
-        to run campaigns. Go to Settings and click <strong>+ Add account</strong> to connect your
-        first LinkedIn account \u2014 then come back here to create a campaign.
-        <br>
-        <a class="settings-link" href="${settingsUrl}">&#9881;&#65039; Go to Settings &rarr; Add account</a>
+        <div class="notice-title">&#128273; Before you start, add at least one user.</div>
+        No LinkedIn accounts have been connected to this workspace yet. You need at least one
+        account to run campaigns. Please
+        <a class="inline-link" href="${settingsUrl}">Add Users</a>
+        in Settings, then come back here to create a campaign.
       </div>`;
     return;
   }
@@ -653,9 +647,9 @@ function renderDlgVariants() {
         ${i > 0 ? `<button class="variant-remove-btn" onclick="removeVariant(${i})">&times;</button>` : ''}
       </div>
       <div class="tokens-row">
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{first_name}}')">{&#123;first_name}}</button>
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{last_name}}')">{&#123;last_name}}</button>
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{company}}')">{&#123;company}}</button>
+        <button class="token-btn" onclick="insertVariantToken(${i},'{{first_name}}')">&#123;&#123;first_name&#125;&#125;</button>
+        <button class="token-btn" onclick="insertVariantToken(${i},'{{last_name}}')">&#123;&#123;last_name&#125;&#125;</button>
+        <button class="token-btn" onclick="insertVariantToken(${i},'{{company}}')">&#123;&#123;company&#125;&#125;</button>
       </div>
       <textarea id="variant-ta-${i}" rows="4" placeholder="Hi {{first_name}}, I came across your profile..." oninput="dlgVariants[${i}].text=this.value">${esc(v.text)}</textarea>
     </div>`).join('');
