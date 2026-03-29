@@ -58,12 +58,23 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; background: #fafafa; }
 textarea:focus { outline: none; border-color: #1D9E75; }
 .search-progress { border: 1px solid #e5e5e5; border-radius: 10px; padding: 32px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.contacts-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
-.contact-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; }
+/* contacts list — no max-height, modal body scrolls */
+.contacts-list { display: flex; flex-direction: column; gap: 4px; }
+.contact-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; transition: background 0.1s; }
+.contact-row.selected-row { background: #F0FBF7; border-color: #A7F3D0; }
+.contact-cb { width: 16px; height: 16px; accent-color: #1D9E75; cursor: pointer; flex-shrink: 0; }
+.contact-info { flex: 1; min-width: 0; }
 .contact-name { font-size: 13px; font-weight: 500; }
-.contact-title { font-size: 12px; color: #888; }
-.contact-remove { background: none; border: none; font-size: 18px; color: #ccc; cursor: pointer; }
+.contact-title { font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact-remove { background: none; border: none; font-size: 18px; color: #ccc; cursor: pointer; flex-shrink: 0; padding: 0 4px; }
 .contact-remove:hover { color: #DC2626; }
+/* contacts toolbar */
+.contacts-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: white; border: 1px solid #e5e5e5; border-radius: 8px; margin-bottom: 6px; }
+.contacts-toolbar-left { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #555; }
+.contacts-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.remove-sel-btn { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 5px 10px; font-size: 12px; color: #DC2626; cursor: pointer; font-family: inherit; }
+.remove-sel-btn:hover { background: #FEE2E2; }
+.remove-sel-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .conn-section { border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; margin-bottom: 20px; }
 .conn-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .conn-label { font-size: 14px; font-weight: 500; }
@@ -326,6 +337,7 @@ function resetWizard() {
     searchStatus: null, contacts: [], companiesMeta: [],
     allCompanyUrls: [], isPreview: false, totalCompanies: 0,
     keywordsQuery: '', nextCursor: null,
+    selectedContactIndices: new Set(),
     connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
     newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
     engagement: {}, campaignName: '', hours: defaultHours()
@@ -397,9 +409,10 @@ async function nextStep() {
       if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
       if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
       if (wizard.searchStatus !== 'done') {
-        startSearch(); // keywords search — all companies in one call
+        startSearch();
         return;
       }
+      if (wizard.contacts.length === 0) return alert('No contacts found. Try a different search.');
     }
   }
   if (currentStep===STEPS.length-1) { await createCampaign(); return; }
@@ -440,13 +453,87 @@ function renderAudienceDetail() {
     } else if (wizard.searchStatus==='loading') {
       el.innerHTML=`<div class="search-progress"><div style="font-size:40px;color:#1D9E75;display:inline-block;animation:spin 0.8s linear infinite;">&#8635;</div><div style="font-size:13px;color:#888;margin-top:8px;">Searching LinkedIn&hellip; this takes a few seconds.</div></div>`;
     } else {
+      // Results view — full list, no height cap
+      const selCount = wizard.selectedContactIndices.size;
+      const allChecked = wizard.contacts.length > 0 && selCount === wizard.contacts.length;
       const previewBanner = wizard.isPreview
-        ? `<div class="preview-notice">&#128203; <strong>First 50 results shown</strong> \u2014 ${wizard.contacts.length} contacts found across ${wizard.totalCompanies} companies.<br>More results will be fetched automatically in the background after campaign creation.</div>`
+        ? `<div class="preview-notice">&#128203; <strong>First results shown</strong> \u2014 ${wizard.contacts.length} contacts found. More will be fetched in the background after campaign creation.</div>`
         : '';
-      el.innerHTML=`${previewBanner}<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:14px;font-weight:500;">&#10003; ${wizard.contacts.length} contacts found</div><button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Reset</button></div><div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeWizContact(${i})">&times;</button></div>`).join('')}</div>`;
+      const toolbar = `<div class="contacts-toolbar">
+        <div class="contacts-toolbar-left">
+          <input type="checkbox" class="contact-cb" id="cb-all" ${allChecked?'checked':''} onchange="toggleSelectAll(this.checked)">
+          <label for="cb-all" style="cursor:pointer;user-select:none;">
+            ${selCount > 0 ? `${selCount} selected` : `${wizard.contacts.length} contacts found`}
+          </label>
+        </div>
+        <div class="contacts-toolbar-right">
+          <button class="remove-sel-btn" onclick="removeSelected()" ${selCount===0?'disabled':''}>
+            Remove selected${selCount>0?' ('+selCount+')':''}
+          </button>
+          <button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Reset</button>
+        </div>
+      </div>`;
+      const rows = wizard.contacts.map((c,i) => {
+        const checked = wizard.selectedContactIndices.has(i);
+        const name = esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '));
+        const subtitle = esc((c.headline||c.title||'') + (c.company?' \u00b7 '+c.company:''));
+        return `<div class="contact-row${checked?' selected-row':''}">
+          <input type="checkbox" class="contact-cb" ${checked?'checked':''} onchange="toggleContactSelect(${i},this.checked)">
+          <div class="contact-info">
+            <div class="contact-name">${name}</div>
+            <div class="contact-title">${subtitle}</div>
+          </div>
+          <button class="contact-remove" onclick="removeWizContact(${i})" title="Remove">&times;</button>
+        </div>`;
+      }).join('');
+      el.innerHTML = `${previewBanner}${toolbar}<div class="contacts-list">${rows}</div>`;
     }
   }
 }
+
+// ── Contact selection helpers ────────────────────────────────────────────────
+function toggleSelectAll(checked) {
+  if (checked) {
+    wizard.contacts.forEach((_,i) => wizard.selectedContactIndices.add(i));
+  } else {
+    wizard.selectedContactIndices.clear();
+  }
+  renderAudienceDetail();
+}
+function toggleContactSelect(i, checked) {
+  if (checked) wizard.selectedContactIndices.add(i);
+  else wizard.selectedContactIndices.delete(i);
+  // Update toolbar without full re-render (just update counts)
+  const selCount = wizard.selectedContactIndices.size;
+  const total = wizard.contacts.length;
+  const allCb = document.getElementById('cb-all');
+  if (allCb) allCb.checked = selCount === total;
+  const label = allCb?.nextElementSibling;
+  if (label) label.textContent = selCount > 0 ? `${selCount} selected` : `${total} contacts found`;
+  const removeBtn = document.querySelector('.remove-sel-btn');
+  if (removeBtn) {
+    removeBtn.disabled = selCount === 0;
+    removeBtn.textContent = `Remove selected${selCount>0?' ('+selCount+')':''}`;
+  }
+  // Highlight row
+  const row = document.querySelectorAll('.contact-row')[i];
+  if (row) row.classList.toggle('selected-row', checked);
+}
+function removeSelected() {
+  if (!wizard.selectedContactIndices.size) return;
+  wizard.contacts = wizard.contacts.filter((_,i) => !wizard.selectedContactIndices.has(i));
+  wizard.selectedContactIndices.clear();
+  renderAudienceDetail();
+}
+function removeWizContact(i) {
+  wizard.contacts.splice(i, 1);
+  // Re-index selected set
+  const newSel = new Set();
+  wizard.selectedContactIndices.forEach(idx => { if (idx < i) newSel.add(idx); else if (idx > i) newSel.add(idx - 1); });
+  wizard.selectedContactIndices = newSel;
+  renderAudienceDetail();
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function startSearch() {
   if (!wizard.companyUrls.trim()) return;
@@ -462,18 +549,17 @@ async function startSearch() {
     if(!res.ok) throw new Error(data.error||'Search failed');
     wizard.searchStatus='done';
     wizard.contacts=Array.isArray(data.items)?data.items:[];
+    wizard.selectedContactIndices=new Set();
     wizard.companiesMeta=[];
     wizard.keywordsQuery=data.keywords_query||'';
     wizard.nextCursor=data.next_cursor||null;
     wizard.totalCompanies=allUrls.length;
     wizard.isPreview=!!data.next_cursor;
-    // Auto-advance to next step after successful search
-    currentStep++; renderStep();
+    // Stay on audience step so user can review results before continuing
   } catch(err){wizard.searchStatus=null;alert('Search failed: '+err.message);}
-  if (wizard.searchStatus==='loading') renderAudienceDetail();
+  renderAudienceDetail();
 }
-function resetSearch() { wizard.searchStatus=null;wizard.contacts=[];wizard.companiesMeta=[];wizard.isPreview=false;wizard.keywordsQuery='';wizard.nextCursor=null;renderAudienceDetail(); }
-function removeWizContact(i) { wizard.contacts.splice(i,1);renderAudienceDetail(); }
+function resetSearch() { wizard.searchStatus=null;wizard.contacts=[];wizard.selectedContactIndices=new Set();wizard.companiesMeta=[];wizard.isPreview=false;wizard.keywordsQuery='';wizard.nextCursor=null;renderAudienceDetail(); }
 
 function renderStepSequence(body) {
   const engHtml=ENGAGEMENT_ACTIONS.map(a=>`<div class="engagement-item"><div><div class="eng-label">${a.label}</div>${a.sub?`<div class="eng-sub">${a.sub}</div>`:''}</div><button class="toggle${wizard.engagement[a.key]?' on':''}" id="eng-${a.key}" onclick="toggleEng('${a.key}')"></button></div>`).join('');
@@ -511,7 +597,7 @@ function renderStepName(body) {
     ? `<div class="preview-notice" style="margin-top:12px;">&#9200; More contacts will be fetched automatically in the background after campaign creation.</div>`
     : '';
   const as = wizard.isPreview
-    ? `${wizard.contacts.length} contacts preview (${wizard.totalCompanies} companies searched)`
+    ? `${wizard.contacts.length} contacts (${wizard.totalCompanies} companies searched)`
     : wizard.audienceType==='people' ? countUrls(wizard.urlsPasted)+' profile URLs' : wizard.contacts.length+' contacts from search';
   const daysHtml=DAYS.map(d=>{const h=wizard.hours[d.key];return `<div class="day-card${h.on?'':' off'}" id="wdc-${d.key}"><div class="day-head"><span class="day-name">${d.label}</span><button class="day-toggle${h.on?' on':''}" id="wdt-${d.key}" onclick="wizToggleDay('${d.key}')"></button></div><div id="wdts-${d.key}" style="display:${h.on?'':'none'}"><div class="time-inputs"><div class="time-row"><span class="time-lbl">from</span><input class="time-input" type="time" value="${h.from}" onchange="wizUpdateHour('${d.key}','from',this.value)"></div><div class="time-row"><span class="time-lbl">to</span><input class="time-input" type="time" value="${h.to}" onchange="wizUpdateHour('${d.key}','to',this.value)"></div></div></div><div id="wdof-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div></div>`;}).join('');
   const ad=DAYS.filter(d=>wizard.hours[d.key].on).map(d=>d.label);
@@ -542,8 +628,7 @@ async function createCampaign() {
     const res=await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,account_id:wizard.selectedAccount,name:wizard.campaignName,audience_type:wizard.audienceType,contacts,settings:{connection:{enabled:wizard.connectionEnabled,withdraw_after_days:wizard.withdrawEnabled?parseInt(wizard.withdrawDays)||14:0,resend:wizard.resendEnabled},engagement:wizard.engagement,messages:{new:wizard.newMessages,existing_no_history:wizard.existingNoHistoryMessages,existing_with_history:wizard.existingWithHistoryMessages},hours:wizard.hours,searchConfig:wizard.audienceType==='company'?{titles:wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean),companyUrls:wizard.allCompanyUrls||[],keywordsQuery:wizard.keywordsQuery||'',nextCursor:wizard.nextCursor||null}:null}})});
     const newCamp = await res.json();
     if (!res.ok) throw new Error(newCamp.error);
-    // Trigger background fetch for more pages if cursor available
-    if (wizard.audienceType==='company' && wizard.nextCursor) {
+    if (wizard.audienceType==='company' && (wizard.allCompanyUrls||[]).length > 4) {
       fetch(`/api/campaigns/${newCamp.id}/fetch-all-companies?workspace_id=${workspaceId}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId})}).catch(()=>{});
     }
     closeModal(); await load();
