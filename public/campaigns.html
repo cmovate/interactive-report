@@ -24,7 +24,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .stat-rate { font-size: 11px; color: #999; margin-top: 2px; }
 .status-pill { display: inline-block; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 500; }
 .status-active { background: #E1F5EE; color: #0F6E56; }
-.status-draft { background: #f0f0f0; color: #666; }
+.status-paused { background: #FFF3E0; color: #E65100; }
+.status-draft  { background: #f0f0f0; color: #666; }
 .action-btn { background: white; border: 1px solid #e5e5e5; border-radius: 6px; padding: 5px 10px; font-size: 12px; color: #666; cursor: pointer; }
 .action-btn:hover { background: #f5f5f5; }
 .action-btn.danger:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
@@ -42,34 +43,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .modal-step.done { color: #666; }
 .modal-body { padding: 26px 24px; overflow-y: auto; flex: 1; }
 .modal-footer { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-top: 1px solid #f0f0f0; background: #fafafa; flex-shrink: 0; }
-.analytics-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.analytics-modal { background: white; border-radius: 14px; width: min(720px,100%); max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 24px 80px rgba(0,0,0,0.25); overflow: hidden; }
-.analytics-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid #f0f0f0; background: #fafafa; flex-shrink: 0; }
-.analytics-title { font-size: 16px; font-weight: 600; }
-.analytics-subtitle { font-size: 12px; color: #888; margin-top: 2px; }
-.analytics-body { padding: 24px; overflow-y: auto; flex: 1; }
-.analytics-section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 14px; }
-.overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-bottom: 28px; }
-.overview-card { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px 12px; text-align: center; }
-.overview-card-num { font-size: 22px; font-weight: 700; color: #1a1a1a; }
-.overview-card-rate { font-size: 11px; color: #1D9E75; font-weight: 500; margin-top: 2px; }
-.overview-card-label { font-size: 11px; color: #888; margin-top: 4px; }
-.ab-step-block { margin-bottom: 20px; }
-.ab-step-title { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 10px; }
-.ab-table { width: 100%; border-collapse: collapse; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; font-size: 13px; }
-.ab-table th { background: #fafafa; padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #888; border-bottom: 1px solid #e5e5e5; }
-.ab-table td { padding: 11px 14px; border-bottom: 1px solid #f5f5f5; }
-.ab-table tr:last-child td { border-bottom: none; }
-.ab-table tr.best-row td { background: #F0FBF7; }
-.variant-pill { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 700; min-width: 26px; text-align: center; }
-.variant-a { background: #EDE9FE; color: #6D28D9; }
-.variant-b { background: #DBEAFE; color: #1D4ED8; }
-.variant-c { background: #FEF3C7; color: #B45309; }
-.best-badge { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; margin-left: 6px; }
-.rate-bar-wrap { display: flex; align-items: center; gap: 8px; }
-.rate-bar { height: 6px; border-radius: 3px; background: #1D9E75; min-width: 2px; }
-.rate-text { font-size: 12px; font-weight: 600; color: #333; white-space: nowrap; }
-.no-ab-msg { text-align: center; color: #aaa; font-size: 13px; padding: 24px; background: #fafafa; border-radius: 8px; }
 .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 16px; }
 .user-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 10px; }
 .user-card { border: 1.5px solid #e5e5e5; border-radius: 10px; padding: 14px; cursor: pointer; display: flex; align-items: center; gap: 12px; }
@@ -114,7 +87,7 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .seq-head { padding: 12px 14px; background: #fafafa; border-bottom: 1px solid #f0f0f0; }
 .seq-head-title { font-size: 13px; font-weight: 600; }
 .seq-head-sub { font-size: 11px; color: #888; margin-top: 2px; }
-.seq-body { padding: 12px; min-height: 100px; display: flex; flex-direction: column; gap: 8px; }
+.seq-body { padding: 12px; min-height: 80px; display: flex; flex-direction: column; gap: 8px; }
 .seq-msg { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px; position: relative; }
 .seq-msg-delay { font-size: 11px; color: #888; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
 .seq-msg-text { font-size: 12px; color: #333; }
@@ -125,17 +98,17 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .vbadge-a { background: #EDE9FE; color: #6D28D9; }
 .vbadge-b { background: #DBEAFE; color: #1D4ED8; }
 .vbadge-c { background: #FEF3C7; color: #B45309; }
-.add-msg-btn { background: none; border: 1px dashed #ddd; border-radius: 8px; padding: 8px; font-size: 12px; color: #888; cursor: pointer; width: 100%; text-align: center; }
+.add-msg-btn { background: none; border: 1px dashed #ddd; border-radius: 8px; padding: 8px; font-size: 12px; color: #888; cursor: pointer; width: 100%; text-align: center; font-family: inherit; }
 .add-msg-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
 .engagement-list { display: flex; flex-direction: column; gap: 8px; }
 .engagement-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid #e5e5e5; border-radius: 10px; }
 .eng-label { font-size: 13px; font-weight: 500; }
 .eng-sub { font-size: 11px; color: #888; margin-top: 2px; }
-.toggle { width: 38px; height: 22px; border-radius: 11px; background: #ddd; border: none; cursor: pointer; position: relative; transition: background 0.15s; }
+.toggle { width: 38px; height: 22px; border-radius: 11px; background: #ddd; border: none; cursor: pointer; position: relative; transition: background 0.15s; flex-shrink: 0; }
 .toggle.on { background: #1D9E75; }
 .toggle::after { content: ''; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: white; top: 3px; left: 3px; transition: left 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 .toggle.on::after { left: 19px; }
-.msg-dialog-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.msg-dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .msg-dialog { background: white; border-radius: 14px; width: min(580px,100%); max-height: 90vh; overflow-y: auto; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .msg-dialog h3 { font-size: 16px; font-weight: 600; margin-bottom: 18px; }
 .field-label { font-size: 12px; font-weight: 500; color: #555; margin-bottom: 6px; }
@@ -148,9 +121,9 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .variant-remove-btn { background: none; border: none; font-size: 15px; color: #ccc; cursor: pointer; }
 .variant-remove-btn:hover { color: #DC2626; }
 .tokens-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-.token-btn { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 999px; padding: 4px 10px; font-size: 12px; color: #555; cursor: pointer; }
+.token-btn { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 999px; padding: 4px 10px; font-size: 12px; color: #555; cursor: pointer; font-family: inherit; }
 .token-btn:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; }
-.add-variant-btn { background: none; border: 1px dashed #c4b5fd; border-radius: 8px; padding: 8px; font-size: 12px; color: #7C3AED; cursor: pointer; width: 100%; text-align: center; margin-bottom: 10px; }
+.add-variant-btn { background: none; border: 1px dashed #c4b5fd; border-radius: 8px; padding: 8px; font-size: 12px; color: #7C3AED; cursor: pointer; width: 100%; text-align: center; margin-bottom: 10px; font-family: inherit; }
 .add-variant-btn:hover { background: #F5F3FF; }
 .ab-info-box { background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #5B21B6; margin-bottom: 16px; }
 .name-input { width: 100%; padding: 12px 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 16px; font-family: inherit; }
@@ -174,18 +147,77 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .summary-row:last-child { border-bottom: none; }
 .summary-key { color: #888; min-width: 180px; }
 .summary-val { font-weight: 500; }
-.primary-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 9px 20px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; }
+.primary-btn { background: #1D9E75; border: none; border-radius: 8px; padding: 9px 20px; font-size: 14px; font-weight: 500; color: white; cursor: pointer; font-family: inherit; }
 .primary-btn:hover { background: #178f68; }
 .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 16px; font-size: 14px; color: #555; cursor: pointer; }
+.ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 16px; font-size: 14px; color: #555; cursor: pointer; font-family: inherit; }
 .ghost-btn:hover { background: #f5f5f5; }
-/* No-accounts notice box */
 .notice-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 20px 22px; font-size: 13px; color: #5D4037; line-height: 1.7; }
 .notice-box .notice-title { font-size: 15px; font-weight: 600; margin-bottom: 10px; color: #4E342E; }
-.notice-box a.inline-link {
-  color: #1D9E75; font-weight: 600; text-decoration: underline; cursor: pointer;
-}
-.notice-box a.inline-link:hover { color: #178f68; }
+.notice-box a.inline-link { color: #1D9E75; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.cell-link { color: #1D9E75; text-decoration: none; font-size: 12px; }
+.cell-link:hover { text-decoration: underline; }
+.analytics-section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 14px; }
+.overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-bottom: 28px; }
+.overview-card { background: #fafafa; border: 1px solid #f0f0f0; border-radius: 10px; padding: 14px 12px; text-align: center; }
+.overview-card-num { font-size: 22px; font-weight: 700; color: #1a1a1a; }
+.overview-card-rate { font-size: 11px; color: #1D9E75; font-weight: 500; margin-top: 2px; }
+.overview-card-label { font-size: 11px; color: #888; margin-top: 4px; }
+.ab-step-block { margin-bottom: 20px; }
+.ab-step-title { font-size: 13px; font-weight: 600; color: #333; margin-bottom: 10px; }
+.ab-table { width: 100%; border-collapse: collapse; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; font-size: 13px; }
+.ab-table th { background: #fafafa; padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #888; border-bottom: 1px solid #e5e5e5; }
+.ab-table td { padding: 11px 14px; border-bottom: 1px solid #f5f5f5; }
+.ab-table tr:last-child td { border-bottom: none; }
+.ab-table tr.best-row td { background: #F0FBF7; }
+.variant-pill { display: inline-block; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 700; min-width: 26px; text-align: center; }
+.variant-a { background: #EDE9FE; color: #6D28D9; }
+.variant-b { background: #DBEAFE; color: #1D4ED8; }
+.variant-c { background: #FEF3C7; color: #B45309; }
+.best-badge { display: inline-block; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+.rate-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.rate-bar { height: 6px; border-radius: 3px; background: #1D9E75; min-width: 2px; }
+.rate-text { font-size: 12px; font-weight: 600; color: #333; white-space: nowrap; }
+.no-ab-msg { text-align: center; color: #aaa; font-size: 13px; padding: 24px; background: #fafafa; border-radius: 8px; }
+/* Campaign edit modal */
+.cm-back { position:fixed;inset:0;z-index:70;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:16px; }
+.cm-modal { background:white;border-radius:14px;width:min(980px,96vw);height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,0.25);overflow:hidden; }
+.cm-head { display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid #f0f0f0;background:#fafafa;flex-shrink:0; }
+.cm-name { font-size:16px;font-weight:600; }
+.cm-meta { font-size:12px;color:#888;margin-top:3px; }
+.cm-nav { display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0;background:white; }
+.cm-tab { flex:1;padding:12px 8px;font-size:13px;font-weight:500;color:#888;background:none;border:none;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;transition:all 0.12s;white-space:nowrap; }
+.cm-tab:hover { color:#1D9E75;background:#F0FBF7; }
+.cm-tab.active { color:#1D9E75;border-bottom-color:#1D9E75;background:#F0FBF7; }
+.cm-body { flex:1;overflow-y:auto;padding:22px 24px; }
+.cm-foot { display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 22px;border-top:1px solid #f0f0f0;background:#fafafa;flex-shrink:0; }
+.tab-spin { text-align:center;color:#aaa;padding:60px;font-size:13px; }
+.tab-err  { color:#DC2626;text-align:center;padding:40px;font-size:13px; }
+.add-card { background:#fafafa;border:1px solid #e5e5e5;border-radius:10px;padding:18px;margin-top:20px; }
+.add-card-title { font-size:13px;font-weight:600;margin-bottom:12px;color:#333; }
+.add-res { font-size:12px;margin:8px 0 0;min-height:18px; }
+.auto-box { background:#F0FBF7;border:1px solid #A7F3D0;border-radius:8px;padding:10px 14px;font-size:12px;color:#0F6E56;margin-bottom:12px;line-height:1.5; }
+.add-ta { width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:90px;background:white;line-height:1.6; }
+.add-ta:focus { outline:none;border-color:#1D9E75; }
+.cm-table { width:100%;border-collapse:collapse;font-size:13px; }
+.cm-table th { text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:#888;padding:8px 12px;border-bottom:1px solid #f0f0f0;background:#fafafa; }
+.cm-table td { padding:10px 12px;border-bottom:1px solid #f5f5f5;vertical-align:middle; }
+.cm-table tr:last-child td { border-bottom:none; }
+.cm-table tbody tr:hover td { background:#fafafa; }
+.tbl-wrap { border:1px solid #e5e5e5;border-radius:10px;overflow:hidden; }
+.sc { display:inline-block;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;margin-right:3px;white-space:nowrap; }
+.sc-g { background:#E1F5EE;color:#0F6E56; }
+.sc-b { background:#DBEAFE;color:#1D4ED8; }
+.sc-t { background:#F0FBF7;color:#178f68; }
+.sc-x { background:#f5f5f5;color:#888; }
+.pager { display:flex;align-items:center;justify-content:center;gap:5px;padding-top:14px; }
+.pg { background:white;border:1px solid #e0e0e0;border-radius:6px;padding:5px 10px;font-size:12px;color:#555;cursor:pointer;font-family:inherit; }
+.pg:hover:not(:disabled) { background:#f5f5f5; }
+.pg.on { background:#1D9E75;color:white;border-color:#1D9E75; }
+.pg:disabled { opacity:0.4;cursor:not-allowed; }
+.rm-btn { background:none;border:none;font-size:16px;color:#ccc;cursor:pointer;padding:2px 6px; }
+.rm-btn:hover { color:#DC2626; }
+.fsl { display:block;font-size:11px;font-weight:600;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em; }
 </style>
 </head>
 <body>
@@ -234,17 +266,31 @@ textarea:focus { outline: none; border-color: #1D9E75; }
   </div>
 </div>
 
-<div id="analytics-backdrop" class="analytics-backdrop" style="display:none;">
-  <div class="analytics-modal">
-    <div class="analytics-head">
+<div id="cm-back" class="cm-back" style="display:none;" onclick="if(event.target===this)closeCM()">
+  <div class="cm-modal">
+    <div class="cm-head">
       <div>
-        <div class="analytics-title" id="analytics-title">Campaign Analytics</div>
-        <div class="analytics-subtitle">A/B/C message performance &amp; campaign overview</div>
+        <div class="cm-name" id="cm-name">Loading...</div>
+        <div class="cm-meta" id="cm-meta"></div>
       </div>
-      <button class="modal-close" onclick="closeAnalytics()">&times;</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="cm-st-btn" class="ghost-btn" style="font-size:12px;" onclick="toggleCMStatus()"></button>
+        <button class="modal-close" onclick="closeCM()">&times;</button>
+      </div>
     </div>
-    <div class="analytics-body" id="analytics-body">
-      <div style="text-align:center;color:#aaa;padding:40px;">Loading...</div>
+    <div class="cm-nav">
+      <button class="cm-tab" data-tab="analytics" onclick="switchCMTab('analytics')">&#128200; Analytics</button>
+      <button class="cm-tab" data-tab="companies" onclick="switchCMTab('companies')">&#127970; Companies</button>
+      <button class="cm-tab" data-tab="audience"  onclick="switchCMTab('audience')">&#128100; Audience</button>
+      <button class="cm-tab" data-tab="settings"  onclick="switchCMTab('settings')">&#9881;&#65039; Settings</button>
+    </div>
+    <div id="cmb-analytics" class="cm-body"></div>
+    <div id="cmb-companies" class="cm-body" style="display:none;"></div>
+    <div id="cmb-audience"  class="cm-body" style="display:none;"></div>
+    <div id="cmb-settings"  class="cm-body" style="display:none;"></div>
+    <div id="cm-foot" class="cm-foot" style="display:none;">
+      <button class="ghost-btn" onclick="closeCM()">Close</button>
+      <button class="primary-btn" id="cm-save-btn" onclick="saveCMSettings()">Save settings</button>
     </div>
   </div>
 </div>
@@ -275,11 +321,15 @@ function defaultHours() {
 let campaigns = [], workspaceAccounts = [], currentStep = 0;
 let wizard = resetWizard(), activeMsgCanvas = null, dlgVariants = [];
 
+// Globals shared with campaign-modal.js
+var msgEditCanvas = null;
+var CKEY = { new:'new', existingNo:'existing_no_history', existingYes:'existing_with_history' };
+var cmId=null, cmData=null, cmTab=null, cmLoaded={}, cmSettings=null, cmCtPage=1;
+
 function resetWizard() {
   return {
     selectedAccount: null, audienceType: null,
-    urlsPasted: '', companyUrls: '', searchTitles: '',
-    maxPerCompany: 10,
+    urlsPasted: '', companyUrls: '', searchTitles: '', maxPerCompany: 10,
     searchStatus: null, searchPct: 0, contacts: [], companiesMeta: [],
     connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
     newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
@@ -291,6 +341,7 @@ function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join(''
 function pct(a, b) { const bn = parseInt(b) || 0; return bn > 0 ? Math.round((parseInt(a)||0) / bn * 100) + '%' : '\u2014'; }
 function countUrls(t){ return (t.match(/linkedin\.com\/in\//g)||[]).length; }
 function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function safeUrl(u)  { u=(u||'').trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
 
 async function load() {
   try {
@@ -308,20 +359,13 @@ async function load() {
 function renderCampaigns() {
   const el = document.getElementById('campaigns-area');
   if (!campaigns.length) {
-    el.innerHTML = `<div class="empty-state">
-      <div style="font-size:32px;margin-bottom:12px;opacity:0.3;">&#128203;</div>
-      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">No campaigns yet</div>
-      <div style="font-size:13px;color:#888;">Create your first campaign to start outreach</div>
-    </div>`;
+    el.innerHTML = `<div class="empty-state"><div style="font-size:32px;margin-bottom:12px;opacity:0.3;">&#128203;</div><div style="font-size:16px;font-weight:500;margin-bottom:6px;">No campaigns yet</div><div style="font-size:13px;color:#888;">Create your first campaign to start outreach</div></div>`;
     return;
   }
   el.innerHTML = `<div class="campaigns-table-wrap"><table class="campaigns-table">
     <thead><tr><th>Campaign</th><th>Account</th><th>Invites sent</th><th>Approved</th><th>Messages</th><th>Positive replies</th><th>Status</th><th></th></tr></thead>
-    <tbody>${campaigns.map(c=>`<tr onclick="openAnalytics(${c.id}, '${esc(c.name)}')">
-      <td>
-        <strong>${esc(c.name)}</strong>
-        <div class="analytics-hint">&#128200; Click to view analytics &amp; A/B results</div>
-      </td>
+    <tbody>${campaigns.map(c=>`<tr onclick="openCampaignModal(${c.id})">
+      <td><strong>${esc(c.name)}</strong><div class="analytics-hint">&#9998; Click to view &amp; edit</div></td>
       <td style="color:#888;">${esc(c.account_id||'\u2014')}</td>
       <td><div class="stat-num">${parseInt(c.invites_sent)||0}</div></td>
       <td><div class="stat-num">${parseInt(c.invites_approved)||0}</div><div class="stat-rate">${pct(c.invites_approved,c.invites_sent)}</div></td>
@@ -337,68 +381,6 @@ async function deleteCampaign(id) {
   if (!confirm('Delete this campaign?')) return;
   await fetch(`/api/campaigns/${id}`, { method: 'DELETE' });
   await load();
-}
-
-async function openAnalytics(id, name) {
-  document.getElementById('analytics-title').textContent = name;
-  document.getElementById('analytics-body').innerHTML = '<div style="text-align:center;color:#aaa;padding:40px;">Loading...</div>';
-  document.getElementById('analytics-backdrop').style.display = 'flex';
-  try {
-    const data = await fetch(`/api/campaigns/${id}/ab-analytics`).then(r => r.json());
-    renderAnalytics(data);
-  } catch(e) {
-    document.getElementById('analytics-body').innerHTML = `<div style="text-align:center;color:#DC2626;padding:40px;">Error: ${esc(e.message)}</div>`;
-  }
-}
-function closeAnalytics() { document.getElementById('analytics-backdrop').style.display = 'none'; }
-
-function renderAnalytics(data) {
-  const o = data.overall || {};
-  const invApprRate = parseInt(o.invites_sent) > 0 ? Math.round(parseInt(o.invites_approved) / parseInt(o.invites_sent) * 100) : 0;
-  const replyRate   = parseInt(o.messages_sent) > 0 ? Math.round(parseInt(o.messages_replied) / parseInt(o.messages_sent) * 100) : 0;
-  const overviewHtml = `
-    <div class="analytics-section-label">Overview</div>
-    <div class="overview-grid">
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.total_contacts)||0}</div><div class="overview-card-label">Contacts</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.invites_sent)||0}</div><div class="overview-card-label">Invites sent</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.invites_approved)||0}</div><div class="overview-card-rate">${invApprRate}%</div><div class="overview-card-label">Approved</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.messages_sent)||0}</div><div class="overview-card-label">Msgs sent</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.messages_replied)||0}</div><div class="overview-card-rate">${replyRate}%</div><div class="overview-card-label">Replied</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.positive_replies)||0}</div><div class="overview-card-label">Positive</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.total_msgs_sent)||0}</div><div class="overview-card-label">Total msgs</div></div>
-    </div>`;
-  const steps = data.steps || [];
-  let abHtml = '';
-  if (!steps.length) {
-    abHtml = `<div class="no-ab-msg">No messages have been sent yet.<br>A/B/C performance will appear here once the campaign is running.</div>`;
-  } else {
-    const VARIANT_CLASS = { A: 'variant-a', B: 'variant-b', C: 'variant-c' };
-    abHtml = steps.map(step => {
-      const variants = step.variants || [];
-      if (!variants.length) return '';
-      const maxRate = Math.max(...variants.map(v => v.rate));
-      const isAB = variants.length > 1;
-      const rows = variants.map(v => {
-        const isBest = isAB && v.rate === maxRate && maxRate > 0;
-        const barWidth = maxRate > 0 ? Math.round(v.rate / maxRate * 80) : 0;
-        return `<tr class="${isBest ? 'best-row' : ''}">
-          <td><span class="variant-pill ${VARIANT_CLASS[v.label] || 'variant-a'}">${v.label}</span>${isBest ? '<span class="best-badge">&#10003; Best</span>' : ''}</td>
-          <td style="font-weight:600;">${v.sent}</td>
-          <td>${v.replied}</td>
-          <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${barWidth}px;"></div><span class="rate-text">${v.rate}%</span></div></td>
-        </tr>`;
-      }).join('');
-      const delayInfo = step.delay ? ` \u2014 wait ${step.delay} ${step.unit}` : '';
-      return `<div class="ab-step-block">
-        <div class="ab-step-title">Message ${step.step}${delayInfo}</div>
-        <table class="ab-table">
-          <thead><tr><th>Variant</th><th>Sent</th><th>Replied</th><th>Reply rate</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-    }).join('');
-  }
-  document.getElementById('analytics-body').innerHTML = `${overviewHtml}<div class="analytics-section-label">A/B/C message performance</div>${abHtml}`;
 }
 
 function openModal()  { wizard = resetWizard(); currentStep = 0; document.getElementById('modal').style.display='flex'; renderStep(); }
@@ -425,21 +407,14 @@ function prevStep() { if (currentStep>0) { currentStep--; renderStep(); } }
 
 function renderStepAccount(body) {
   if (!workspaceAccounts.length) {
-    body.innerHTML = `
-      <div class="notice-box">
-        <div class="notice-title">&#128273; Before you start, add at least one user.</div>
-        No LinkedIn accounts have been connected to this workspace yet. You need at least one
-        account to run campaigns. Please
-        <a class="inline-link" href="${settingsUrl}">Add Users</a>
-        in Settings, then come back here to create a campaign.
-      </div>`;
+    body.innerHTML = `<div class="notice-box"><div class="notice-title">&#128273; Before you start, add at least one user.</div>No LinkedIn accounts connected yet. Please <a class="inline-link" href="${settingsUrl}">Add Users</a> in Settings, then come back here.</div>`;
     return;
   }
-  body.innerHTML = `<div class="section-label">Select LinkedIn account</div><div class="user-grid">${workspaceAccounts.map(a => `<div class="user-card${wizard.selectedAccount===a.account_id?' selected':''}" onclick="selectAccount('${a.account_id}')"><div class="user-avatar">${initials(a.display_name)}</div><div><div class="user-name">${esc(a.display_name)}</div></div></div>`).join('')}</div>`;
+  body.innerHTML = `<div class="section-label">Select LinkedIn account</div><div class="user-grid">${workspaceAccounts.map(a=>`<div class="user-card${wizard.selectedAccount===a.account_id?' selected':''}" onclick="selectAccount('${a.account_id}')"><div class="user-avatar">${initials(a.display_name)}</div><div><div class="user-name">${esc(a.display_name)}</div></div></div>`).join('')}</div>`;
 }
 function selectAccount(id) {
-  wizard.selectedAccount = id;
-  document.querySelectorAll('.user-card').forEach(el => el.classList.toggle('selected', el.getAttribute('onclick') === `selectAccount('${id}')`));
+  wizard.selectedAccount=id;
+  document.querySelectorAll('.user-card').forEach(el=>el.classList.toggle('selected',el.getAttribute('onclick')===`selectAccount('${id}')`));
 }
 
 function renderStepAudience(body) {
@@ -464,58 +439,40 @@ function renderAudienceDetail() {
       el.innerHTML=`<div class="search-progress"><div class="progress-pct" id="search-pct">${wizard.searchPct}%</div><div class="progress-bar-wrap" style="width:100%;"><div class="progress-bar-fill" id="search-bar" style="width:${wizard.searchPct}%;"></div></div><div style="font-size:13px;color:#888;">Searching LinkedIn...</div></div>`;
     } else {
       const metaHtml = buildCompaniesMetaHtml(wizard.companiesMeta);
-      el.innerHTML=`
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div style="font-size:14px;font-weight:500;">${wizard.contacts.length} contacts found</div>
-          <button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Search again</button>
-        </div>
-        ${metaHtml}
-        <div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeContact(${i})">&times;</button></div>`).join('')}</div>`;
+      el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:14px;font-weight:500;">${wizard.contacts.length} contacts found</div><button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Search again</button></div>${metaHtml}<div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeWizContact(${i})">&times;</button></div>`).join('')}</div>`;
     }
   }
 }
-
 function buildCompaniesMetaHtml(meta) {
-  if (!meta || !meta.length) return '';
-  const rows = meta.map(m => {
-    const statusClass = m.status === 'ok' ? 'meta-ok' : m.status === 'error' ? 'meta-err' : 'meta-warn';
-    const statusLabel = m.status === 'ok' ? `&#10003; ${esc(m.company_name || '')}` : m.status === 'error' ? `&#10007; Error` : 'Invalid URL';
-    const foundKept = m.status === 'ok'
-      ? `${m.found} found &rarr; <strong>${m.kept} kept</strong>${m.found > m.kept ? ` <span class="meta-warn">(${m.found - m.kept} filtered)</span>` : ''}`
-      : m.error ? `<span class="meta-err">${esc(m.error)}</span>` : '\u2014';
-    return `<tr><td class="${statusClass}">${statusLabel}</td><td style="color:#666;font-size:11px;">${esc(m.company_id || '\u2014')}</td><td>${foundKept}</td></tr>`;
-  }).join('');
+  if (!meta||!meta.length) return '';
+  const rows=meta.map(m=>{const sc=m.status==='ok'?'meta-ok':m.status==='error'?'meta-err':'meta-warn';const sl=m.status==='ok'?`&#10003; ${esc(m.company_name||'')}`:m.status==='error'?'&#10007; Error':'Invalid URL';const fk=m.status==='ok'?`${m.found} found &rarr; <strong>${m.kept} kept</strong>${m.found>m.kept?` <span class="meta-warn">(${m.found-m.kept} filtered)</span>`:''}`:(m.error?`<span class="meta-err">${esc(m.error)}</span>`:'\u2014');return `<tr><td class="${sc}">${sl}</td><td style="color:#666;font-size:11px;">${esc(m.company_id||'\u2014')}</td><td>${fk}</td></tr>`;}).join('');
   return `<table class="company-meta-table"><thead><tr><th>Company</th><th>LinkedIn ID</th><th>Results</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
-
 async function startSearch() {
   if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
   if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
-  const limit = Math.max(1, parseInt(wizard.maxPerCompany) || 10);
-  wizard.maxPerCompany = limit;
+  const limit=Math.max(1,parseInt(wizard.maxPerCompany)||10); wizard.maxPerCompany=limit;
   wizard.searchStatus='loading'; wizard.searchPct=0; renderAudienceDetail();
-  const progressInterval = setInterval(() => {
-    if (wizard.searchPct < 85) { wizard.searchPct = Math.min(wizard.searchPct + Math.floor(Math.random()*8)+3, 85); const bar=document.getElementById('search-bar'), pctEl=document.getElementById('search-pct'); if(bar) bar.style.width=wizard.searchPct+'%'; if(pctEl) pctEl.textContent=wizard.searchPct+'%'; }
-  }, 400);
+  const pi=setInterval(()=>{if(wizard.searchPct<85){wizard.searchPct=Math.min(wizard.searchPct+Math.floor(Math.random()*8)+3,85);const bar=document.getElementById('search-bar'),pctEl=document.getElementById('search-pct');if(bar)bar.style.width=wizard.searchPct+'%';if(pctEl)pctEl.textContent=wizard.searchPct+'%';}},400);
   try {
-    const companyUrls = wizard.companyUrls.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/company/'));
-    const titles = wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean);
-    const res = await fetch('/api/campaigns/search-people', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ account_id: wizard.selectedAccount, company_urls: companyUrls, titles, limit }) });
-    const data = await res.json();
-    clearInterval(progressInterval); wizard.searchPct=100; wizard.searchStatus='done';
-    wizard.contacts = Array.isArray(data.items) ? data.items : [];
-    wizard.companiesMeta = Array.isArray(data.companies) ? data.companies : [];
-  } catch(err) { clearInterval(progressInterval); wizard.searchStatus=null; alert('Search failed: ' + err.message); }
+    const cu=wizard.companyUrls.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/company/'));
+    const ti=wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean);
+    const res=await fetch('/api/campaigns/search-people',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:wizard.selectedAccount,company_urls:cu,titles:ti,limit})});
+    const data=await res.json();
+    clearInterval(pi); wizard.searchPct=100; wizard.searchStatus='done';
+    wizard.contacts=Array.isArray(data.items)?data.items:[];
+    wizard.companiesMeta=Array.isArray(data.companies)?data.companies:[];
+  } catch(err){clearInterval(pi);wizard.searchStatus=null;alert('Search failed: '+err.message);}
   renderAudienceDetail();
 }
-function resetSearch()    { wizard.searchStatus=null; wizard.contacts=[]; wizard.companiesMeta=[]; renderAudienceDetail(); }
-function removeContact(i) { wizard.contacts.splice(i,1); renderAudienceDetail(); }
+function resetSearch()       { wizard.searchStatus=null;wizard.contacts=[];wizard.companiesMeta=[];renderAudienceDetail(); }
+function removeWizContact(i) { wizard.contacts.splice(i,1);renderAudienceDetail(); }
 
 function renderStepSequence(body) {
-  const engHtml = ENGAGEMENT_ACTIONS.map(a=>`<div class="engagement-item"><div><div class="eng-label">${a.label}</div>${a.sub?`<div class="eng-sub">${a.sub}</div>`:''}</div><button class="toggle${wizard.engagement[a.key]?' on':''}" id="eng-${a.key}" onclick="toggleEng('${a.key}')"></button></div>`).join('');
+  const engHtml=ENGAGEMENT_ACTIONS.map(a=>`<div class="engagement-item"><div><div class="eng-label">${a.label}</div>${a.sub?`<div class="eng-sub">${a.sub}</div>`:''}</div><button class="toggle${wizard.engagement[a.key]?' on':''}" id="eng-${a.key}" onclick="toggleEng('${a.key}')"></button></div>`).join('');
   body.innerHTML=`
     <div class="conn-section">
-      <div class="conn-row"><div><div class="conn-label">Send connection requests</div><div class="conn-sub">Automatically send LinkedIn connection requests to all prospects</div></div><button class="toggle${wizard.connectionEnabled?' on':''}" id="conn-toggle" onclick="toggleConn()"></button></div>
+      <div class="conn-row"><div><div class="conn-label">Send connection requests</div><div class="conn-sub">Automatically send LinkedIn invites to all prospects</div></div><button class="toggle${wizard.connectionEnabled?' on':''}" id="conn-toggle" onclick="toggleConn()"></button></div>
       <div id="conn-opts" class="conn-options" style="display:${wizard.connectionEnabled?'':'none'};">
         <div class="conn-opt-row"><div class="conn-opt-label">Withdraw if not accepted after</div><div style="display:flex;align-items:center;gap:8px;"><input class="num-input" type="number" value="${wizard.withdrawDays}" min="1" oninput="wizard.withdrawDays=this.value"> days<button class="toggle${wizard.withdrawEnabled?' on':''}" id="withdraw-toggle" onclick="toggleWithdraw()"></button></div></div>
         <div id="resend-row" style="display:${wizard.withdrawEnabled?'':'none'};" class="conn-opt-row"><div class="conn-opt-label">Resend request after 21+ days</div><button class="toggle${wizard.resendEnabled?' on':''}" id="resend-toggle" onclick="toggleResend()"></button></div>
@@ -523,148 +480,96 @@ function renderStepSequence(body) {
     </div>
     <div class="section-label">Message sequences</div>
     <div class="sequence-grid">
-      <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">New contacts</div><div class="seq-head-sub">People not yet connected</div></div><div class="seq-body" id="canvas-new">${renderMsgs(wizard.newMessages,'new')}<button class="add-msg-btn" onclick="openMsgDialog('new')">+ Add message</button></div></div>
+      <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">New contacts</div><div class="seq-head-sub">Not yet connected</div></div><div class="seq-body" id="canvas-new">${renderMsgs(wizard.newMessages,'new')}<button class="add-msg-btn" onclick="openMsgDialog('new')">+ Add message</button></div></div>
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing \u2014 no chat history</div><div class="seq-head-sub">Connected, never messaged</div></div><div class="seq-body" id="canvas-existingNo">${renderMsgs(wizard.existingNoHistoryMessages,'existingNo')}<button class="add-msg-btn" onclick="openMsgDialog('existingNo')">+ Add message</button></div></div>
-        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing \u2014 with chat history</div><div class="seq-head-sub">Connected, previous conversation</div></div><div class="seq-body" id="canvas-existingYes">${renderMsgs(wizard.existingWithHistoryMessages,'existingYes')}<button class="add-msg-btn" onclick="openMsgDialog('existingYes')">+ Add message</button></div></div>
+        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing \u2014 no history</div><div class="seq-head-sub">Connected, never messaged</div></div><div class="seq-body" id="canvas-existingNo">${renderMsgs(wizard.existingNoHistoryMessages,'existingNo')}<button class="add-msg-btn" onclick="openMsgDialog('existingNo')">+ Add message</button></div></div>
+        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing \u2014 with history</div><div class="seq-head-sub">Connected, previous conversation</div></div><div class="seq-body" id="canvas-existingYes">${renderMsgs(wizard.existingWithHistoryMessages,'existingYes')}<button class="add-msg-btn" onclick="openMsgDialog('existingYes')">+ Add message</button></div></div>
       </div>
     </div>
     <div class="section-label" style="margin-top:20px;">Engagement actions</div>
     <div class="engagement-list">${engHtml}</div>`;
 }
-
-function renderMsgs(msgs, canvas) {
-  return msgs.map((m,i) => {
-    const variants = m.variants || (m.text ? [{ label:'A', text: m.text }] : []);
-    const preview = variants[0]?.text || '';
-    const badges = variants.length > 1 ? `<span class="variant-badge">${variants.map(v=>`<span class="vbadge vbadge-${v.label.toLowerCase()}">${v.label}</span>`).join('')}</span>` : '';
-    return `<div class="seq-msg"><button class="seq-msg-remove" onclick="removeMsg('${canvas}',${i})">&times;</button><div class="seq-msg-delay">Wait ${m.delay} ${m.unit} ${badges}</div><div class="seq-msg-text">${esc(preview.slice(0,80))}${preview.length>80?'...':''}</div></div>`;
-  }).join('');
+function renderMsgs(msgs,canvas) {
+  return msgs.map((m,i)=>{const variants=m.variants||(m.text?[{label:'A',text:m.text}]:[]);const preview=variants[0]?.text||'';const badges=variants.length>1?`<span class="variant-badge">${variants.map(v=>`<span class="vbadge vbadge-${v.label.toLowerCase()}">${v.label}</span>`).join('')}</span>`:'';return `<div class="seq-msg"><button class="seq-msg-remove" onclick="removeMsg('${canvas}',${i})">&times;</button><div class="seq-msg-delay">Wait ${m.delay} ${m.unit} ${badges}</div><div class="seq-msg-text">${esc(preview.slice(0,80))}${preview.length>80?'...':''}</div></div>`;}).join('');
 }
-
-function toggleConn()    { wizard.connectionEnabled=!wizard.connectionEnabled; document.getElementById('conn-toggle').classList.toggle('on',wizard.connectionEnabled); document.getElementById('conn-opts').style.display=wizard.connectionEnabled?'':'none'; }
-function toggleWithdraw(){ wizard.withdrawEnabled=!wizard.withdrawEnabled; document.getElementById('withdraw-toggle').classList.toggle('on',wizard.withdrawEnabled); document.getElementById('resend-row').style.display=wizard.withdrawEnabled?'':'none'; }
-function toggleResend()  { wizard.resendEnabled=!wizard.resendEnabled; document.getElementById('resend-toggle').classList.toggle('on',wizard.resendEnabled); }
-function toggleEng(key)  { wizard.engagement[key]=!wizard.engagement[key]; document.getElementById('eng-'+key).classList.toggle('on',wizard.engagement[key]); }
-function removeMsg(canvas,i) {
-  if(canvas==='new') wizard.newMessages.splice(i,1);
-  if(canvas==='existingNo') wizard.existingNoHistoryMessages.splice(i,1);
-  if(canvas==='existingYes') wizard.existingWithHistoryMessages.splice(i,1);
-  renderStep();
-}
+function toggleConn()    { wizard.connectionEnabled=!wizard.connectionEnabled;document.getElementById('conn-toggle').classList.toggle('on',wizard.connectionEnabled);document.getElementById('conn-opts').style.display=wizard.connectionEnabled?'':'none'; }
+function toggleWithdraw(){ wizard.withdrawEnabled=!wizard.withdrawEnabled;document.getElementById('withdraw-toggle').classList.toggle('on',wizard.withdrawEnabled);document.getElementById('resend-row').style.display=wizard.withdrawEnabled?'':'none'; }
+function toggleResend()  { wizard.resendEnabled=!wizard.resendEnabled;document.getElementById('resend-toggle').classList.toggle('on',wizard.resendEnabled); }
+function toggleEng(key)  { wizard.engagement[key]=!wizard.engagement[key];document.getElementById('eng-'+key).classList.toggle('on',wizard.engagement[key]); }
+function removeMsg(canvas,i) { if(canvas==='new')wizard.newMessages.splice(i,1);if(canvas==='existingNo')wizard.existingNoHistoryMessages.splice(i,1);if(canvas==='existingYes')wizard.existingWithHistoryMessages.splice(i,1);renderStep(); }
 
 function renderStepName(body) {
-  const acc = workspaceAccounts.find(a=>a.account_id===wizard.selectedAccount);
-  const audienceSummary = wizard.audienceType==='people' ? countUrls(wizard.urlsPasted)+' profile URLs' : wizard.contacts.length+' contacts from company search';
-  const daysHtml = DAYS.map(d => { const h = wizard.hours[d.key]; return `<div class="day-card${h.on?'':' off'}" id="wdc-${d.key}"><div class="day-head"><span class="day-name">${d.label}</span><button class="day-toggle${h.on?' on':''}" id="wdt-${d.key}" onclick="wizToggleDay('${d.key}')"></button></div><div id="wdts-${d.key}" style="display:${h.on?'':'none'}"><div class="time-inputs"><div class="time-row"><span class="time-lbl">from</span><input class="time-input" type="time" value="${h.from}" onchange="wizUpdateHour('${d.key}','from',this.value)"></div><div class="time-row"><span class="time-lbl">to</span><input class="time-input" type="time" value="${h.to}" onchange="wizUpdateHour('${d.key}','to',this.value)"></div></div></div><div id="wdof-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div></div>`; }).join('');
-  const activeDays = DAYS.filter(d => wizard.hours[d.key].on).map(d => d.label);
-  const firstActive = DAYS.find(d => wizard.hours[d.key].on);
-  const hoursSummary = activeDays.length ? activeDays.join(', ') + (firstActive ? ' \u00b7 ' + wizard.hours[firstActive.key].from + '\u2013' + wizard.hours[firstActive.key].to : '') : 'No active days';
-  body.innerHTML=`
-    <div class="section-label">Campaign name</div>
-    <input class="name-input" type="text" placeholder="e.g. TFT Israel \u2014 VP R&D outreach" value="${esc(wizard.campaignName)}" oninput="wizard.campaignName=this.value" autofocus>
-    <div style="margin-top:24px;"><div class="section-label">Working hours</div><div style="font-size:12px;color:#888;margin-bottom:10px;">The campaign only runs during these hours. All times are in your server timezone.</div><div class="hours-grid">${daysHtml}</div></div>
-    <div class="summary-box"><div style="font-size:12px;font-weight:600;color:#888;margin-bottom:10px;">Summary</div>
-      <div class="summary-row"><span class="summary-key">Account</span><span class="summary-val">${esc(acc?.display_name||'\u2014')}</span></div>
-      <div class="summary-row"><span class="summary-key">Audience</span><span class="summary-val">${audienceSummary}</span></div>
-      <div class="summary-row"><span class="summary-key">Connection requests</span><span class="summary-val">${wizard.connectionEnabled?'Yes':'No'}</span></div>
-      <div class="summary-row"><span class="summary-key">New contact messages</span><span class="summary-val">${wizard.newMessages.length} step${wizard.newMessages.length!==1?'s':''}</span></div>
-      <div class="summary-row"><span class="summary-key">Engagement actions</span><span class="summary-val">${Object.values(wizard.engagement).filter(Boolean).length} enabled</span></div>
-      <div class="summary-row"><span class="summary-key">Working hours</span><span class="summary-val" id="hours-summary">${esc(hoursSummary)}</span></div>
-    </div>`;
+  const acc=workspaceAccounts.find(a=>a.account_id===wizard.selectedAccount);
+  const as=wizard.audienceType==='people'?countUrls(wizard.urlsPasted)+' profile URLs':wizard.contacts.length+' contacts from search';
+  const daysHtml=DAYS.map(d=>{const h=wizard.hours[d.key];return `<div class="day-card${h.on?'':' off'}" id="wdc-${d.key}"><div class="day-head"><span class="day-name">${d.label}</span><button class="day-toggle${h.on?' on':''}" id="wdt-${d.key}" onclick="wizToggleDay('${d.key}')"></button></div><div id="wdts-${d.key}" style="display:${h.on?'':'none'}"><div class="time-inputs"><div class="time-row"><span class="time-lbl">from</span><input class="time-input" type="time" value="${h.from}" onchange="wizUpdateHour('${d.key}','from',this.value)"></div><div class="time-row"><span class="time-lbl">to</span><input class="time-input" type="time" value="${h.to}" onchange="wizUpdateHour('${d.key}','to',this.value)"></div></div></div><div id="wdof-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div></div>`;}).join('');
+  const ad=DAYS.filter(d=>wizard.hours[d.key].on).map(d=>d.label);
+  const fa=DAYS.find(d=>wizard.hours[d.key].on);
+  const hs=ad.length?ad.join(', ')+(fa?' \u00b7 '+wizard.hours[fa.key].from+'\u2013'+wizard.hours[fa.key].to:''):'No active days';
+  body.innerHTML=`<div class="section-label">Campaign name</div><input class="name-input" type="text" placeholder="e.g. TFT Israel \u2014 VP R&D outreach" value="${esc(wizard.campaignName)}" oninput="wizard.campaignName=this.value" autofocus><div style="margin-top:24px;"><div class="section-label">Working hours</div><div style="font-size:12px;color:#888;margin-bottom:10px;">The campaign only runs during these hours.</div><div class="hours-grid">${daysHtml}</div></div><div class="summary-box"><div style="font-size:12px;font-weight:600;color:#888;margin-bottom:10px;">Summary</div><div class="summary-row"><span class="summary-key">Account</span><span class="summary-val">${esc(acc?.display_name||'\u2014')}</span></div><div class="summary-row"><span class="summary-key">Audience</span><span class="summary-val">${as}</span></div><div class="summary-row"><span class="summary-key">Connection requests</span><span class="summary-val">${wizard.connectionEnabled?'Yes':'No'}</span></div><div class="summary-row"><span class="summary-key">New contact messages</span><span class="summary-val">${wizard.newMessages.length} step${wizard.newMessages.length!==1?'s':''}</span></div><div class="summary-row"><span class="summary-key">Engagement actions</span><span class="summary-val">${Object.values(wizard.engagement).filter(Boolean).length} enabled</span></div><div class="summary-row"><span class="summary-key">Working hours</span><span class="summary-val" id="hours-summary">${esc(hs)}</span></div></div>`;
 }
 function wizToggleDay(key) {
-  const h = wizard.hours[key]; h.on = !h.on;
-  const card=document.getElementById('wdc-'+key), toggle=document.getElementById('wdt-'+key), times=document.getElementById('wdts-'+key), off=document.getElementById('wdof-'+key);
-  if(toggle) toggle.classList.toggle('on',h.on); if(card) card.classList.toggle('off',!h.on);
-  if(times) times.style.display=h.on?'':'none'; if(off) off.style.display=h.on?'none':'';
-  const activeDays = DAYS.filter(d => wizard.hours[d.key].on).map(d => d.label);
-  const firstActive = DAYS.find(d => wizard.hours[d.key].on);
-  const el = document.getElementById('hours-summary');
-  if (el) el.textContent = activeDays.length ? activeDays.join(', ') + (firstActive ? ' \u00b7 ' + wizard.hours[firstActive.key].from + '\u2013' + wizard.hours[firstActive.key].to : '') : 'No active days';
+  const h=wizard.hours[key]; h.on=!h.on;
+  const card=document.getElementById('wdc-'+key),toggle=document.getElementById('wdt-'+key),times=document.getElementById('wdts-'+key),off=document.getElementById('wdof-'+key);
+  if(toggle)toggle.classList.toggle('on',h.on);if(card)card.classList.toggle('off',!h.on);
+  if(times)times.style.display=h.on?'':'none';if(off)off.style.display=h.on?'none':'';
+  const ad=DAYS.filter(d=>wizard.hours[d.key].on).map(d=>d.label);const fa=DAYS.find(d=>wizard.hours[d.key].on);
+  const el=document.getElementById('hours-summary');if(el)el.textContent=ad.length?ad.join(', ')+(fa?' \u00b7 '+wizard.hours[fa.key].from+'\u2013'+wizard.hours[fa.key].to:''):'No active days';
 }
-function wizUpdateHour(key, field, value) { wizard.hours[key][field] = value; }
+function wizUpdateHour(key,field,value){wizard.hours[key][field]=value;}
 
 async function createCampaign() {
   if (!wizard.campaignName.trim()) return alert('Please enter a campaign name.');
-  const btn = document.getElementById('btn-next'); btn.disabled=true; btn.textContent='Creating...';
-  let contacts = [];
+  const btn=document.getElementById('btn-next');btn.disabled=true;btn.textContent='Creating...';
+  let contacts=[];
   if (wizard.audienceType==='people') {
-    contacts = wizard.urlsPasted.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/in/')).map(url => ({ li_profile_url: url }));
+    contacts=wizard.urlsPasted.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/in/')).map(url=>({li_profile_url:url}));
   } else {
-    contacts = wizard.contacts.map(c => ({ first_name: c.first_name||c.name?.split(' ')[0]||'', last_name: c.last_name||c.name?.split(' ').slice(1).join(' ')||'', company: c.company||'', title: c.headline||c.title||'', li_profile_url: c.public_profile_url||c.li_profile_url||'' }));
+    contacts=wizard.contacts.map(c=>({first_name:c.first_name||c.name?.split(' ')[0]||'',last_name:c.last_name||c.name?.split(' ').slice(1).join(' ')||'',company:c.company||'',title:c.headline||c.title||'',li_profile_url:c.public_profile_url||c.li_profile_url||''}));
   }
   try {
-    const res = await fetch('/api/campaigns', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
-      workspace_id: workspaceId,
-      account_id: wizard.selectedAccount,
-      name: wizard.campaignName,
-      audience_type: wizard.audienceType,
-      contacts,
-      settings: {
-        connection: {
-          enabled: wizard.connectionEnabled,
-          withdraw_after_days: wizard.withdrawEnabled ? parseInt(wizard.withdrawDays) || 14 : 0,
-          resend: wizard.resendEnabled,
-        },
-        engagement: wizard.engagement,
-        messages: {
-          new: wizard.newMessages,
-          existing_no_history: wizard.existingNoHistoryMessages,
-          existing_with_history: wizard.existingWithHistoryMessages,
-        },
-        hours: wizard.hours,
-        searchConfig: wizard.audienceType === 'company' ? {
-          titles: wizard.searchTitles.split(',').map(s => s.trim()).filter(Boolean),
-          maxPerCompany: parseInt(wizard.maxPerCompany) || 10,
-        } : null,
-      }
-    })});
+    const res=await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,account_id:wizard.selectedAccount,name:wizard.campaignName,audience_type:wizard.audienceType,contacts,settings:{connection:{enabled:wizard.connectionEnabled,withdraw_after_days:wizard.withdrawEnabled?parseInt(wizard.withdrawDays)||14:0,resend:wizard.resendEnabled},engagement:wizard.engagement,messages:{new:wizard.newMessages,existing_no_history:wizard.existingNoHistoryMessages,existing_with_history:wizard.existingWithHistoryMessages},hours:wizard.hours,searchConfig:wizard.audienceType==='company'?{titles:wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean),maxPerCompany:parseInt(wizard.maxPerCompany)||10}:null}})});
     if (!res.ok) throw new Error((await res.json()).error);
     closeModal(); await load();
-  } catch(err) { alert('Failed to create campaign: ' + err.message); btn.disabled=false; btn.textContent='Create campaign'; }
+  } catch(err){alert('Failed: '+err.message);btn.disabled=false;btn.textContent='Create campaign';}
 }
 
-const VARIANT_LABELS = ['A', 'B', 'C'];
+const VARIANT_LABELS=['A','B','C'];
 
 function openMsgDialog(canvas) {
-  activeMsgCanvas = canvas;
-  const titles = { new:'New contacts', existingNo:'Existing \u2014 no history', existingYes:'Existing \u2014 with history' };
-  document.getElementById('msg-dialog-title').textContent = 'Add message \u2014 ' + titles[canvas];
-  document.getElementById('msg-delay-val').value = 3;
-  document.getElementById('msg-delay-unit').value = 'days';
-  dlgVariants = [{ label: 'A', text: '' }];
+  msgEditCanvas = null;
+  activeMsgCanvas=canvas;
+  const titles={new:'New contacts',existingNo:'Existing \u2014 no history',existingYes:'Existing \u2014 with history'};
+  document.getElementById('msg-dialog-title').textContent='Add message \u2014 '+titles[canvas];
+  document.getElementById('msg-delay-val').value=3;
+  document.getElementById('msg-delay-unit').value='days';
+  dlgVariants=[{label:'A',text:''}];
   renderDlgVariants();
-  document.getElementById('msg-dialog').style.display = 'flex';
+  document.getElementById('msg-dialog').style.display='flex';
 }
 
 function renderDlgVariants() {
-  const VCLASS = { A: 'variant-a', B: 'variant-b', C: 'variant-c' };
-  document.getElementById('variant-sections').innerHTML = dlgVariants.map((v, i) => `
-    <div class="variant-section" style="border-color:${i===0?'#DDD6FE':i===1?'#BFDBFE':'#FDE68A'};">
-      <div class="variant-section-head">
-        <div class="variant-section-label"><span class="variant-pill ${VCLASS[v.label]}">${v.label}</span>${i===0?'<span style="font-size:11px;color:#888;">(required)</span>':'<span style="font-size:11px;color:#888;">(optional \u2014 for A/B testing)</span>'}</div>
-        ${i > 0 ? `<button class="variant-remove-btn" onclick="removeVariant(${i})">&times;</button>` : ''}
-      </div>
-      <div class="tokens-row">
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{first_name}}')">&#123;&#123;first_name&#125;&#125;</button>
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{last_name}}')">&#123;&#123;last_name&#125;&#125;</button>
-        <button class="token-btn" onclick="insertVariantToken(${i},'{{company}}')">&#123;&#123;company&#125;&#125;</button>
-      </div>
-      <textarea id="variant-ta-${i}" rows="4" placeholder="Hi {{first_name}}, I came across your profile..." oninput="dlgVariants[${i}].text=this.value">${esc(v.text)}</textarea>
-    </div>`).join('');
-  const addEl = document.getElementById('add-variant-area');
-  addEl.innerHTML = dlgVariants.length < 3 ? `<button class="add-variant-btn" onclick="addVariant()">+ Add Variant ${VARIANT_LABELS[dlgVariants.length]} (A/B test)</button>` : '';
+  const VCLASS={A:'variant-a',B:'variant-b',C:'variant-c'};
+  document.getElementById('variant-sections').innerHTML=dlgVariants.map((v,i)=>`<div class="variant-section" style="border-color:${i===0?'#DDD6FE':i===1?'#BFDBFE':'#FDE68A'};"><div class="variant-section-head"><div class="variant-section-label"><span class="variant-pill ${VCLASS[v.label]}">${v.label}</span>${i===0?'<span style="font-size:11px;color:#888;">(required)</span>':'<span style="font-size:11px;color:#888;">(optional \u2014 A/B)</span>'}</div>${i>0?`<button class="variant-remove-btn" onclick="removeVariant(${i})">&times;</button>`:''}</div><div class="tokens-row"><button class="token-btn" onclick="insertVariantToken(${i},'{{first_name}}')">&#123;&#123;first_name&#125;&#125;</button><button class="token-btn" onclick="insertVariantToken(${i},'{{last_name}}')">&#123;&#123;last_name&#125;&#125;</button><button class="token-btn" onclick="insertVariantToken(${i},'{{company}}')">&#123;&#123;company&#125;&#125;</button></div><textarea id="variant-ta-${i}" rows="4" placeholder="Hi {{first_name}}, I came across your profile..." oninput="dlgVariants[${i}].text=this.value">${esc(v.text)}</textarea></div>`).join('');
+  const addEl=document.getElementById('add-variant-area');
+  addEl.innerHTML=dlgVariants.length<3?`<button class="add-variant-btn" onclick="addVariant()">+ Add Variant ${VARIANT_LABELS[dlgVariants.length]} (A/B test)</button>`:'';
 }
 
-function addVariant() { if (dlgVariants.length >= 3) return; dlgVariants.push({ label: VARIANT_LABELS[dlgVariants.length], text: '' }); renderDlgVariants(); }
-function removeVariant(i) { dlgVariants.splice(i, 1); dlgVariants = dlgVariants.map((v, idx) => ({ ...v, label: VARIANT_LABELS[idx] })); renderDlgVariants(); }
-function insertVariantToken(i, token) { const ta = document.getElementById('variant-ta-'+i); if (!ta) return; const p = ta.selectionStart; ta.value = ta.value.slice(0,p)+token+ta.value.slice(p); dlgVariants[i].text = ta.value; ta.selectionStart = ta.selectionEnd = p+token.length; ta.focus(); }
-function closeMsgDialog() { document.getElementById('msg-dialog').style.display = 'none'; }
+function addVariant() { if(dlgVariants.length>=3)return; dlgVariants.push({label:VARIANT_LABELS[dlgVariants.length],text:''}); renderDlgVariants(); }
+function removeVariant(i) { dlgVariants.splice(i,1); dlgVariants=dlgVariants.map((v,idx)=>({...v,label:VARIANT_LABELS[idx]})); renderDlgVariants(); }
+function insertVariantToken(i,token) { const ta=document.getElementById('variant-ta-'+i);if(!ta)return;const p=ta.selectionStart;ta.value=ta.value.slice(0,p)+token+ta.value.slice(p);dlgVariants[i].text=ta.value;ta.selectionStart=ta.selectionEnd=p+token.length;ta.focus(); }
+function closeMsgDialog() { document.getElementById('msg-dialog').style.display='none'; }
+
 function saveMsgDialog() {
   if (!dlgVariants[0]?.text?.trim()) return alert('Variant A cannot be empty.');
-  const variants = dlgVariants.map(v => ({ label: v.label, text: v.text.trim() })).filter(v => v.text);
-  const msg = { delay: document.getElementById('msg-delay-val').value, unit: document.getElementById('msg-delay-unit').value, variants };
+  const variants=dlgVariants.map(v=>({label:v.label,text:v.text.trim()})).filter(v=>v.text);
+  const msg={delay:document.getElementById('msg-delay-val').value,unit:document.getElementById('msg-delay-unit').value,variants};
+  if (msgEditCanvas !== null) {
+    const key=CKEY[msgEditCanvas];
+    if (!cmSettings.messages) cmSettings.messages={};
+    if (!cmSettings.messages[key]) cmSettings.messages[key]=[];
+    cmSettings.messages[key].push(msg);
+    closeMsgDialog(); msgEditCanvas=null; refreshCMSeq(); return;
+  }
   if (activeMsgCanvas==='new') wizard.newMessages.push(msg);
   if (activeMsgCanvas==='existingNo') wizard.existingNoHistoryMessages.push(msg);
   if (activeMsgCanvas==='existingYes') wizard.existingWithHistoryMessages.push(msg);
@@ -673,5 +578,6 @@ function saveMsgDialog() {
 
 load();
 </script>
+<script src="campaign-modal.js"></script>
 </body>
 </html>
