@@ -5,108 +5,147 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Feed</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f2ef; color: #1a1a1a; font-size: 14px; }
-.topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 24px; display: flex; align-items: center; gap: 16px; height: 52px; position: sticky; top: 0; z-index: 10; }
-.topbar-title { font-size: 15px; font-weight: 600; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #F3F2EF; color: #191919; font-size: 14px; }
+
+/* ── Topbar ── */
+.topbar { background: white; border-bottom: 1px solid #E9E5DF; padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 54px; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.topbar-logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #1D9E75; letter-spacing: -0.3px; }
+.topbar-logo-dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#1D9E75,#0A66C2); display: inline-block; }
 .topbar-spacer { flex: 1; }
-.feed-layout { display: flex; gap: 20px; max-width: 900px; margin: 0 auto; padding: 20px 16px; }
-.feed-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.feed-sidebar { width: 220px; flex-shrink: 0; }
+.topbar-badge { font-size: 11px; font-weight: 600; background: #F0FBF7; color: #0F6E56; border: 1px solid #B7E4D2; border-radius: 20px; padding: 3px 10px; }
 
-/* Filter bar */
-.filter-bar { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; }
-.filter-label { font-size: 11px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; }
-.filter-select { border: 1px solid #e0e0e0; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-family: inherit; color: #333; background: white; cursor: pointer; }
-.filter-select:focus { outline: none; border-color: #0A66C2; }
-.sync-btn { margin-left: auto; background: #0A66C2; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 6px; }
-.sync-btn:hover { background: #004182; }
-.sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+/* ── Layout ── */
+.page { display: flex; gap: 20px; max-width: 980px; margin: 0 auto; padding: 20px 16px; }
+.feed-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
+.sidebar-col { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
 
-/* Post card */
-.post-card { background: white; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }
-.post-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 12px; }
-.post-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #DBEAFE, #C7F2D8); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #1E5F3E; flex-shrink: 0; overflow: hidden; position: relative; }
-.post-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.post-avatar .campaign-dot { position: absolute; bottom: 0; right: 0; width: 12px; height: 12px; background: #1D9E75; border-radius: 50%; border: 2px solid white; }
+/* ── Filter bar ── */
+.filter-bar { background: white; border: 1px solid #E9E5DF; border-radius: 12px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.filter-label { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; }
+.filter-select { border: 1px solid #DED9D3; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-family: inherit; color: #333; background: white; cursor: pointer; flex: 1; }
+.filter-select:focus { outline: none; border-color: #1D9E75; box-shadow: 0 0 0 3px rgba(29,158,117,.1); }
+.fetch-btn { background: linear-gradient(135deg,#1D9E75,#15805E); border: none; border-radius: 8px; padding: 7px 16px; font-size: 12px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; white-space: nowrap; display: flex; align-items: center; gap: 6px; transition: opacity .15s; }
+.fetch-btn:hover { opacity: .9; }
+.fetch-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Post card ── */
+.post-card { background: white; border: 1px solid #E9E5DF; border-radius: 12px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: box-shadow .15s; }
+.post-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+
+.post-header { display: flex; align-items: flex-start; gap: 12px; padding: 16px 16px 10px; }
+.post-avatar { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; position: relative; overflow: hidden; background: linear-gradient(135deg,#E0F5EE,#DBEAFE); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #0F6E56; border: 2px solid #F0FBF7; }
+.post-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.post-avatar .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #0F6E56; }
+.campaign-ring { position: absolute; inset: -2px; border-radius: 50%; border: 2px solid #1D9E75; pointer-events: none; }
+
 .post-author { flex: 1; min-width: 0; }
-.post-author-name { font-size: 14px; font-weight: 600; color: #191919; }
-.post-author-name a { color: inherit; text-decoration: none; }
-.post-author-name a:hover { text-decoration: underline; color: #0A66C2; }
-.post-author-title { font-size: 12px; color: #666; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.post-time { font-size: 11px; color: #aaa; margin-top: 3px; }
-.post-campaign-badge { display: inline-block; font-size: 10px; font-weight: 600; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
-.post-body { padding: 0 16px 12px; font-size: 14px; line-height: 1.6; color: #333; }
-.post-body.collapsed { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
-.see-more { color: #0A66C2; font-size: 13px; cursor: pointer; margin-top: 4px; display: inline-block; }
-.see-more:hover { text-decoration: underline; }
-.post-stats { padding: 8px 16px; border-top: 1px solid #f0f0f0; border-bottom: 1px solid #f0f0f0; display: flex; gap: 16px; font-size: 12px; color: #666; }
-.post-stat { display: flex; align-items: center; gap: 4px; }
-.stat-icon { font-size: 14px; }
+.post-name { font-size: 14px; font-weight: 600; color: #191919; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.post-name a { color: inherit; text-decoration: none; }
+.post-name a:hover { color: #0A66C2; text-decoration: underline; }
+.in-campaign-chip { font-size: 10px; font-weight: 600; background: #E0F5EE; color: #0F6E56; border: 1px solid #B7E4D2; border-radius: 20px; padding: 1px 7px; white-space: nowrap; }
+.post-headline { font-size: 12px; color: #666; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.post-time { font-size: 11px; color: #999; margin-top: 3px; display: flex; align-items: center; gap: 4px; }
+.post-time .globe-icon { font-size: 10px; }
 
-/* Comments section */
-.comments-section { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 12px; }
-.comment { display: flex; gap: 10px; }
-.comment-avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #EDE9FE, #DBEAFE); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #5B21B6; flex-shrink: 0; overflow: hidden; }
-.comment-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.comment-body-wrap { flex: 1; min-width: 0; }
-.comment-bubble { background: #f3f2ef; border-radius: 0 12px 12px 12px; padding: 9px 12px; }
-.comment-author { font-size: 12px; font-weight: 600; color: #191919; margin-bottom: 3px; }
-.comment-author a { color: inherit; text-decoration: none; }
-.comment-author a:hover { color: #0A66C2; text-decoration: underline; }
-.comment-author-title { font-size: 11px; color: #888; font-weight: 400; }
-.comment-text { font-size: 13px; line-height: 1.5; color: #333; }
-.comment-meta { font-size: 11px; color: #aaa; margin-top: 5px; display: flex; gap: 10px; }
-.comment-likes { display: flex; align-items: center; gap: 3px; }
-/* Threaded replies — indented */
-.replies { margin-top: 8px; padding-left: 12px; border-left: 2px solid #e5e5e5; display: flex; flex-direction: column; gap: 8px; }
-.reply { display: flex; gap: 8px; }
-.reply-avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #FEF3C7, #DBEAFE); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: #92400E; flex-shrink: 0; overflow: hidden; }
-.reply-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.reply-bubble { flex: 1; background: #f9f9f9; border-radius: 0 10px 10px 10px; padding: 7px 10px; }
-.reply-author { font-size: 11px; font-weight: 600; color: #191919; }
-.reply-text { font-size: 12px; color: #444; margin-top: 2px; line-height: 1.4; }
-/* Empty state */
-.empty-state { background: white; border: 1px dashed #e0e0e0; border-radius: 10px; padding: 56px 24px; text-align: center; }
-.empty-icon { font-size: 40px; margin-bottom: 14px; opacity: 0.3; }
-.empty-title { font-size: 16px; font-weight: 500; color: #333; margin-bottom: 8px; }
-.empty-sub { font-size: 13px; color: #888; line-height: 1.6; }
-/* Loading */
-.loading-card { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 40px; text-align: center; color: #aaa; font-size: 13px; }
-.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #e5e5e5; border-top-color: #0A66C2; border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 10px; }
+/* Post body */
+.post-body { padding: 0 16px 10px; font-size: 14px; line-height: 1.65; color: #333; word-break: break-word; }
+.post-body.clamped { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.see-more-btn { color: #1D9E75; font-size: 13px; font-weight: 500; cursor: pointer; padding: 0 16px 12px; display: inline-block; }
+.see-more-btn:hover { text-decoration: underline; }
+
+/* Post stats bar */
+.post-stats { padding: 6px 16px 6px; display: flex; align-items: center; gap: 4px; font-size: 12px; color: #666; border-top: 1px solid #F3F2EF; }
+.stat-reactions { display: flex; align-items: center; gap: 4px; flex: 1; }
+.reaction-icons { display: flex; }
+.reaction-icon { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid white; font-size: 10px; display: flex; align-items: center; justify-content: center; margin-left: -3px; background: #0A66C2; }
+.reaction-icon:first-child { margin-left: 0; }
+.stat-count { color: #555; }
+.stat-divider { color: #ccc; margin: 0 4px; }
+.stat-link { color: #666; cursor: pointer; }
+.stat-link:hover { color: #333; text-decoration: underline; }
+
+/* Action buttons row */
+.post-actions { display: flex; border-top: 1px solid #F3F2EF; }
+.action-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; font-size: 13px; font-weight: 500; color: #666; cursor: pointer; transition: background .12s; border-radius: 0; }
+.action-btn:hover { background: #F3F2EF; color: #333; }
+.action-btn .icon { font-size: 16px; }
+
+/* ── Comments ── */
+.comments-section { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #F3F2EF; padding-top: 12px; }
+.comment { display: flex; gap: 8px; }
+.comment-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#EDE9FE,#DBEAFE); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #5B21B6; flex-shrink: 0; overflow: hidden; position: relative; }
+.comment-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.comment-avatar .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #5B21B6; }
+.comment-bubble { flex: 1; background: #F3F2EF; border-radius: 0 12px 12px 12px; padding: 8px 12px; }
+.comment-name { font-size: 12px; font-weight: 600; color: #191919; }
+.comment-name a { color: inherit; text-decoration: none; }
+.comment-name a:hover { color: #0A66C2; }
+.comment-title-small { font-size: 11px; color: #888; font-weight: 400; }
+.comment-text { font-size: 13px; color: #333; line-height: 1.5; margin-top: 3px; }
+.comment-meta { font-size: 11px; color: #aaa; margin-top: 4px; display: flex; gap: 10px; align-items: center; }
+.comment-like-count { display: flex; align-items: center; gap: 3px; }
+
+/* Threaded replies */
+.replies { margin-top: 8px; padding-left: 14px; border-left: 2px solid #DED9D3; display: flex; flex-direction: column; gap: 8px; }
+.reply { display: flex; gap: 7px; }
+.reply-avatar { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg,#FEF3C7,#DBEAFE); display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #92400E; flex-shrink: 0; overflow: hidden; position: relative; }
+.reply-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.reply-avatar .ini { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; }
+.reply-bubble { flex: 1; background: #F9F9F7; border-radius: 0 10px 10px 10px; padding: 6px 10px; }
+.reply-name { font-size: 11px; font-weight: 600; color: #333; }
+.reply-text { font-size: 12px; color: #444; line-height: 1.4; margin-top: 2px; }
+.reply-time { font-size: 10px; color: #bbb; margin-top: 3px; }
+
+/* ── Loading / Empty ── */
+.loading-card { background: white; border: 1px solid #E9E5DF; border-radius: 12px; padding: 48px; text-align: center; }
+.spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #E9E5DF; border-top-color: #1D9E75; border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-/* Pagination */
-.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 0; }
-.pg-btn { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit; color: #555; }
-.pg-btn:hover:not(:disabled) { background: #f0f8ff; border-color: #0A66C2; color: #0A66C2; }
-.pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.empty-card { background: white; border: 2px dashed #E9E5DF; border-radius: 12px; padding: 56px 24px; text-align: center; }
+.empty-icon { font-size: 44px; opacity: .25; margin-bottom: 14px; }
+.empty-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 8px; }
+.empty-sub { font-size: 13px; color: #888; line-height: 1.7; }
+
+/* ── Pagination ── */
+.pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 0 4px; }
+.pg-btn { background: white; border: 1px solid #DED9D3; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; font-family: inherit; color: #555; transition: all .12s; }
+.pg-btn:hover:not(:disabled) { background: #F0FBF7; border-color: #1D9E75; color: #1D9E75; }
+.pg-btn:disabled { opacity: .4; cursor: not-allowed; }
 .pg-info { font-size: 12px; color: #888; }
-/* Sidebar widget */
-.sidebar-widget { background: white; border: 1px solid #e5e5e5; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
-.widget-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 10px; }
-.widget-stat { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; }
-.widget-stat:last-child { border-bottom: none; }
-.widget-stat-label { color: #666; }
-.widget-stat-val { font-weight: 600; color: #111; }
+
+/* ── Sidebar widgets ── */
+.widget { background: white; border: 1px solid #E9E5DF; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.widget-title { font-size: 13px; font-weight: 700; color: #191919; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
+.widget-title-icon { font-size: 16px; }
+.stat-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #F3F2EF; font-size: 12px; }
+.stat-row:last-child { border-bottom: none; }
+.stat-lbl { color: #666; }
+.stat-val { font-weight: 600; color: #191919; }
+.date-badge { background: #F0FBF7; border: 1px solid #B7E4D2; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #0F6E56; font-weight: 500; text-align: center; margin-bottom: 6px; }
 </style>
 </head>
 <body>
+
 <div class="topbar">
-  <div class="topbar-title">&#128240; Feed</div>
+  <div class="topbar-logo">
+    <span class="topbar-logo-dot"></span>
+    El-Via Feed
+  </div>
   <div class="topbar-spacer"></div>
-  <span id="last-refresh" style="font-size:11px;color:#aaa;"></span>
+  <div class="topbar-badge" id="date-range-badge">Last 14 days</div>
+  <span id="last-sync" style="font-size:11px;color:#aaa;"></span>
 </div>
 
-<div class="feed-layout">
-  <div class="feed-main">
-
+<div class="page">
+  <div class="feed-col">
     <!-- Filter bar -->
     <div class="filter-bar">
       <span class="filter-label">Campaign</span>
       <select class="filter-select" id="campaign-select" onchange="onCampaignChange()">
         <option value="">All campaigns</option>
       </select>
-      <button class="sync-btn" id="sync-btn" onclick="triggerFetch()">
+      <button class="fetch-btn" id="fetch-btn" onclick="triggerFetch()">
         &#8635; Fetch posts
       </button>
     </div>
@@ -120,71 +159,93 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     </div>
   </div>
 
-  <div class="feed-sidebar">
-    <div class="sidebar-widget">
-      <div class="widget-title">&#128200; Feed Stats</div>
-      <div id="feed-stats">
-        <div class="widget-stat"><span class="widget-stat-label">Total posts</span><span class="widget-stat-val" id="stat-posts">—</span></div>
-        <div class="widget-stat"><span class="widget-stat-label">Total comments</span><span class="widget-stat-val" id="stat-comments">—</span></div>
-        <div class="widget-stat"><span class="widget-stat-label">Contacts with posts</span><span class="widget-stat-val" id="stat-contacts">—</span></div>
-      </div>
+  <div class="sidebar-col">
+    <div class="widget">
+      <div class="widget-title"><span class="widget-title-icon">&#128200;</span> Feed stats</div>
+      <div class="date-badge" id="cutoff-badge">&#128197; Showing posts from the last 14 days</div>
+      <div class="stat-row"><span class="stat-lbl">Posts</span><span class="stat-val" id="st-posts">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Comments</span><span class="stat-val" id="st-comments">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Contacts</span><span class="stat-val" id="st-contacts">—</span></div>
+      <div class="stat-row"><span class="stat-lbl">Avg likes/post</span><span class="stat-val" id="st-avg-likes">—</span></div>
     </div>
   </div>
 </div>
 
 <script>
-const urlParams    = new URLSearchParams(window.location.search);
-const workspaceId  = urlParams.get('workspace_id');
-let campaigns      = [];
+const urlParams      = new URLSearchParams(window.location.search);
+const workspaceId    = urlParams.get('workspace_id');
+let campaigns        = [];
 let selectedCampaign = null;
-let currentPage    = 1;
-const PAGE_SIZE    = 20;
-let totalPosts     = 0;
+let currentPage      = 1;
+const PAGE_SIZE      = 20;
+let totalPosts       = 0;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function ini(name) {
+  return String(name||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase();
 }
 
-function timeAgo(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return '';
-  const diff = Math.floor((Date.now() - d) / 1000);
-  if (diff < 60)   return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-  if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
-  return `${Math.floor(diff/86400)}d ago`;
+function formatDate(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  const now = new Date();
+  const diff = Math.floor((now - dt) / 1000);
+  if (diff < 60)    return 'Just now';
+  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  if (diff < 172800) return 'Yesterday';
+  // Same year: "Mar 15"
+  const opts = dt.getFullYear() === now.getFullYear()
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' };
+  return dt.toLocaleDateString('en-US', opts);
 }
 
-function initials(name) {
-  return String(name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
+function formatDateTime(d) {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  const now = new Date();
+  const diff = Math.floor((now - dt) / 1000);
+  if (diff < 60)    return 'Just now';
+  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  const opts = dt.getFullYear() === now.getFullYear()
+    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+    : { month: 'short', day: 'numeric', year: 'numeric' };
+  return dt.toLocaleDateString('en-US', opts);
 }
 
-function avatarHtml(url, name, size = 'post') {
-  const ini = initials(name);
-  if (!url) return `<span>${ini}</span>`;
-  return `<img src="${esc(url)}" alt="" loading="lazy"
-    onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-    <span style="display:none;position:absolute;inset:0;display:none;align-items:center;justify-content:center;">${ini}</span>`;
+function avatarHtml(url, name, size) {
+  const i = esc(ini(name));
+  const inner = url
+    ? '<img src="' + esc(url) + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+    : '';
+  return inner + '<span class="ini">' + i + '</span>';
 }
+
+// ── Data ─────────────────────────────────────────────────────────────────────
 
 async function loadCampaigns() {
   try {
-    const res  = await fetch(`/api/campaigns?workspace_id=${workspaceId}`);
+    const res  = await fetch('/api/campaigns?workspace_id=' + workspaceId);
     const data = await res.json();
     campaigns  = data.items || [];
     const sel  = document.getElementById('campaign-select');
     campaigns.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.name;
-      sel.appendChild(opt);
+      const o = document.createElement('option');
+      o.value = c.id; o.textContent = c.name; sel.appendChild(o);
     });
     if (campaigns.length === 1) {
       sel.value = campaigns[0].id;
       selectedCampaign = campaigns[0].id;
     }
-  } catch(e) { console.error('loadCampaigns:', e); }
+  } catch(e) { console.error(e); }
 }
 
 function onCampaignChange() {
@@ -195,133 +256,144 @@ function onCampaignChange() {
 
 async function loadFeed() {
   const wrap = document.getElementById('feed-wrap');
-  wrap.innerHTML = `<div class="loading-card"><div class="spinner"></div><br>Loading feed…</div>`;
+  wrap.innerHTML = '<div class="loading-card"><div class="spinner"></div><p style="margin-top:14px;color:#aaa;font-size:13px;">Loading feed&hellip;</p></div>';
   document.getElementById('pagination').style.display = 'none';
+
   try {
     const params = new URLSearchParams({ workspace_id: workspaceId, page: currentPage, limit: PAGE_SIZE });
     if (selectedCampaign) params.set('campaign_id', selectedCampaign);
-    const res  = await fetch(`/api/feed?${params}`);
+    const res  = await fetch('/api/feed?' + params);
     const data = await res.json();
     const posts = data.items || [];
     totalPosts  = data.total || 0;
 
-    document.getElementById('stat-posts').textContent = totalPosts.toLocaleString();
+    // Stats
+    document.getElementById('st-posts').textContent = totalPosts.toLocaleString();
     const contactIds = new Set(posts.map(p => p.contact_id).filter(Boolean));
-    document.getElementById('stat-contacts').textContent = contactIds.size;
-    const totalComments = posts.reduce((s, p) => s + (p.comments || []).reduce((cs, c) => cs + 1 + (c.replies || []).length, 0), 0);
-    document.getElementById('stat-comments').textContent = totalComments;
+    document.getElementById('st-contacts').textContent = contactIds.size;
+    let totalComments = 0, totalLikes = 0;
+    posts.forEach(p => {
+      totalLikes += p.likes_count || 0;
+      (p.comments || []).forEach(c => { totalComments++; totalComments += (c.replies||[]).length; });
+    });
+    document.getElementById('st-comments').textContent = totalComments;
+    document.getElementById('st-avg-likes').textContent = posts.length
+      ? (totalLikes / posts.length).toFixed(1) : '—';
 
     if (!posts.length) {
-      wrap.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">&#128240;</div>
-          <div class="empty-title">No posts yet</div>
-          <div class="empty-sub">Click "Fetch posts" to import LinkedIn posts from your campaign contacts.<br>Posts + up to 10 comments per post will be saved here.</div>
-        </div>`;
+      wrap.innerHTML = '<div class="empty-card"><div class="empty-icon">&#128240;</div><div class="empty-title">No posts in the last 14 days</div><div class="empty-sub">Click "Fetch posts" to import recent LinkedIn activity<br>from your campaign contacts.</div></div>';
       return;
     }
 
-    wrap.innerHTML = posts.map(post => renderPost(post)).join('');
-    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    wrap.innerHTML = posts.map(renderPost).join('');
+    document.getElementById('last-sync').textContent = 'Updated ' + new Date().toLocaleTimeString();
 
-    // Pagination
     const pages = data.pages || 1;
     if (pages > 1) {
       document.getElementById('pagination').style.display = 'flex';
-      document.getElementById('pg-info').textContent = `Page ${currentPage} of ${pages} (${totalPosts} posts)`;
+      document.getElementById('pg-info').textContent = 'Page ' + currentPage + ' of ' + pages;
       document.getElementById('pg-prev').disabled = currentPage <= 1;
       document.getElementById('pg-next').disabled = currentPage >= pages;
     }
   } catch(err) {
-    wrap.innerHTML = `<div class="loading-card" style="color:#DC2626;">Error: ${esc(err.message)}</div>`;
+    wrap.innerHTML = '<div class="loading-card" style="color:#DC2626;">Error: ' + esc(err.message) + '</div>';
   }
 }
 
+// ── Render post ───────────────────────────────────────────────────────────────
+
 function renderPost(post) {
-  const ini = initials(post.author_name);
-  const profileHref = post.author_profile_url ? `href="${esc(post.author_profile_url)}" target="_blank" rel="noopener"` : '';
-  const nameTag = post.author_profile_url
-    ? `<a ${profileHref}>${esc(post.author_name)}</a>`
-    : esc(post.author_name);
+  const name        = esc(post.author_name || 'Unknown');
+  const isInCampaign = !!post.contact_id;
+  const profileHref = post.author_profile_url
+    ? 'href="' + esc(post.author_profile_url) + '" target="_blank" rel="noopener"'
+    : '';
+  const nameTag = profileHref
+    ? '<a ' + profileHref + '>' + name + '</a>'
+    : name;
 
-  const campaignBadge = post.contact_id ? '<span class="post-campaign-badge">In campaign</span>' : '';
-
-  const imgHtml = post.author_avatar_url
-    ? `<img src="${esc(post.author_avatar_url)}" alt="" loading="lazy"
-         onerror="this.style.display='none';this.parentElement.querySelector('.av-ini').style.display='flex'">
-       <span class="av-ini" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#1E5F3E;">${ini}</span>`
-    : `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">${ini}</span>`;
+  const av = avatarHtml(post.author_avatar_url, post.author_name);
+  const campaignRing = isInCampaign ? '<div class="campaign-ring"></div>' : '';
+  const campaignChip = isInCampaign ? '<span class="in-campaign-chip">&#127919; In campaign</span>' : '';
 
   const content = esc(post.content || '').replace(/\n/g, '<br>');
-  const isLong  = (post.content || '').length > 400;
+  const isLong  = (post.content || '').length > 350;
   const bodyHtml = isLong
-    ? `<div class="post-body collapsed" id="pb-${post.id}">${content}</div>
-       <span class="see-more" onclick="expandPost(${post.id})">…see more</span>`
-    : `<div class="post-body">${content}</div>`;
+    ? '<div class="post-body clamped" id="pb-' + post.id + '">' + content + '</div><span class="see-more-btn" onclick="expandPost(' + post.id + ')">…see more</span>'
+    : '<div class="post-body">' + content + '</div>';
 
   const likes    = post.likes_count    || 0;
   const comments = post.comments_count || 0;
   const shares   = post.shares_count   || 0;
 
+  const statsBar = (likes > 0 || comments > 0 || shares > 0) ? `
+    <div class="post-stats">
+      <div class="stat-reactions">
+        ${likes > 0 ? '<div class="reaction-icons"><div class="reaction-icon">&#128077;</div></div> <span class="stat-count">' + likes.toLocaleString() + '</span>' : ''}
+      </div>
+      ${comments > 0 ? '<span class="stat-link">' + comments.toLocaleString() + ' comment' + (comments>1?'s':'') + '</span>' : ''}
+      ${comments > 0 && shares > 0 ? '<span class="stat-divider">&middot;</span>' : ''}
+      ${shares > 0 ? '<span class="stat-link">' + shares.toLocaleString() + ' repost' + (shares>1?'s':'') + '</span>' : ''}
+    </div>` : '';
+
   const commentsHtml = renderComments(post.comments || []);
 
   return `
-    <div class="post-card" id="post-${post.id}">
+    <div class="post-card">
       <div class="post-header">
-        <div class="post-avatar" style="position:relative;">
-          ${imgHtml}
-          ${post.contact_id ? '<div class="campaign-dot"></div>' : ''}
+        <div class="post-avatar">
+          ${av}
+          ${campaignRing}
         </div>
         <div class="post-author">
-          <div class="post-author-name">${nameTag}${campaignBadge}</div>
-          <div class="post-author-title">${esc(post.author_title || '')}</div>
-          <div class="post-time">${timeAgo(post.posted_at)}</div>
+          <div class="post-name">${nameTag} ${campaignChip}</div>
+          <div class="post-headline">${esc(post.author_title || '')}</div>
+          <div class="post-time">
+            ${formatDate(post.posted_at)}
+            ${post.posted_at ? ' &middot; <span class="globe-icon">&#127760;</span>' : ''}
+          </div>
         </div>
       </div>
       ${post.content ? bodyHtml : ''}
-      <div class="post-stats">
-        <div class="post-stat"><span class="stat-icon">&#128077;</span> ${likes.toLocaleString()}</div>
-        <div class="post-stat"><span class="stat-icon">&#128172;</span> ${comments.toLocaleString()} comments</div>
-        ${shares > 0 ? `<div class="post-stat"><span class="stat-icon">&#8635;</span> ${shares.toLocaleString()} reposts</div>` : ''}
+      ${statsBar}
+      <div class="post-actions">
+        <div class="action-btn"><span class="icon">&#128077;</span> Like</div>
+        <div class="action-btn"><span class="icon">&#128172;</span> Comment</div>
+        <div class="action-btn"><span class="icon">&#8635;</span> Repost</div>
       </div>
       ${commentsHtml}
     </div>`;
 }
 
+// ── Render comments ───────────────────────────────────────────────────────────
+
 function renderComments(comments) {
   if (!comments.length) return '';
-  const html = comments.map(c => renderComment(c)).join('');
-  return `<div class="comments-section">${html}</div>`;
+  return '<div class="comments-section">' + comments.map(renderComment).join('') + '</div>';
 }
 
 function renderComment(c) {
-  const ini = initials(c.author_name);
-  const imgHtml = c.author_avatar_url
-    ? `<img src="${esc(c.author_avatar_url)}" alt="" loading="lazy"
-         onerror="this.style.display='none';this.nextElementSibling.textContent='${ini}'">
-       <span style="display:none;"></span>`
-    : `<span>${ini}</span>`;
-
-  const profileHref = c.author_profile_url ? `href="${esc(c.author_profile_url)}" target="_blank" rel="noopener"` : '';
-  const nameTag = c.author_profile_url
-    ? `<a ${profileHref}>${esc(c.author_name)}</a>`
-    : esc(c.author_name);
-
-  const titleSpan = c.author_title ? `<span class="comment-author-title"> · ${esc(c.author_title)}</span>` : '';
-  const replies   = (c.replies || []).map(r => renderReply(r)).join('');
-  const repliesHtml = replies ? `<div class="replies">${replies}</div>` : '';
-
+  const name = esc(c.author_name || 'Unknown');
+  const av   = avatarHtml(c.author_avatar_url, c.author_name);
+  const profileHref = c.author_profile_url
+    ? 'href="' + esc(c.author_profile_url) + '" target="_blank" rel="noopener"'
+    : '';
+  const nameTag = profileHref ? '<a ' + profileHref + '>' + name + '</a>' : name;
+  const titlePart = c.author_title ? ' <span class="comment-title-small">&middot; ' + esc(c.author_title) + '</span>' : '';
+  const repliesHtml = (c.replies||[]).length > 0
+    ? '<div class="replies">' + c.replies.map(renderReply).join('') + '</div>'
+    : '';
   return `
     <div class="comment">
-      <div class="comment-avatar">${imgHtml}</div>
-      <div class="comment-body-wrap">
+      <div class="comment-avatar">${av}</div>
+      <div class="comment-body-wrap" style="flex:1;min-width:0;">
         <div class="comment-bubble">
-          <div class="comment-author">${nameTag}${titleSpan}</div>
-          <div class="comment-text">${esc(c.content || '').replace(/\n/g,'<br>')}</div>
+          <div class="comment-name">${nameTag}${titlePart}</div>
+          <div class="comment-text">${esc(c.content||'').replace(/\n/g,'<br>')}</div>
         </div>
         <div class="comment-meta">
-          <span>${timeAgo(c.commented_at)}</span>
-          ${c.likes_count > 0 ? `<span class="comment-likes">&#128077; ${c.likes_count}</span>` : ''}
+          <span>${formatDateTime(c.commented_at)}</span>
+          ${c.likes_count > 0 ? '<span class="comment-like-count">&#128077; ' + c.likes_count + '</span>' : ''}
         </div>
         ${repliesHtml}
       </div>
@@ -329,27 +401,26 @@ function renderComment(c) {
 }
 
 function renderReply(r) {
-  const ini = initials(r.author_name);
-  const imgHtml = r.author_avatar_url
-    ? `<img src="${esc(r.author_avatar_url)}" alt="" loading="lazy"
-         onerror="this.style.display='none';this.nextElementSibling.textContent='${ini}'">
-       <span style="display:none;"></span>`
-    : `<span>${ini}</span>`;
+  const name = esc(r.author_name || 'Unknown');
+  const av   = avatarHtml(r.author_avatar_url, r.author_name);
   return `
     <div class="reply">
-      <div class="reply-avatar">${imgHtml}</div>
+      <div class="reply-avatar">${av}</div>
       <div class="reply-bubble">
-        <div class="reply-author">${esc(r.author_name)}</div>
-        <div class="reply-text">${esc(r.content || '').replace(/\n/g,'<br>')}</div>
+        <div class="reply-name">${name}</div>
+        <div class="reply-text">${esc(r.content||'').replace(/\n/g,'<br>')}</div>
+        <div class="reply-time">${formatDateTime(r.commented_at)}</div>
       </div>
     </div>`;
 }
 
-function expandPost(postId) {
-  const el = document.getElementById(`pb-${postId}`);
+// ── Actions ───────────────────────────────────────────────────────────────────
+
+function expandPost(id) {
+  const el = document.getElementById('pb-' + id);
   if (!el) return;
-  el.classList.remove('collapsed');
-  el.nextElementSibling.style.display = 'none';
+  el.classList.remove('clamped');
+  el.nextElementSibling?.remove();
 }
 
 function changePage(delta) {
@@ -359,38 +430,27 @@ function changePage(delta) {
 }
 
 async function triggerFetch() {
-  const btn = document.getElementById('sync-btn');
-  if (!selectedCampaign) {
-    alert('Please select a specific campaign to fetch posts for.');
-    return;
-  }
-  btn.disabled = true;
-  btn.innerHTML = '&#8635; Fetching…';
+  if (!selectedCampaign) { alert('Please select a campaign first.'); return; }
+  const btn = document.getElementById('fetch-btn');
+  btn.disabled = true; btn.innerHTML = '&#8635; Fetching&hellip;';
   try {
     await fetch('/api/feed/fetch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspace_id: workspaceId, campaign_id: selectedCampaign }),
     });
     btn.innerHTML = '&#10003; Fetch started';
     setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = '&#8635; Fetch posts';
+      btn.disabled = false; btn.innerHTML = '&#8635; Fetch posts';
       loadFeed();
     }, 4000);
-  } catch(err) {
-    alert('Error: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '&#8635; Fetch posts';
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false; btn.innerHTML = '&#8635; Fetch posts';
   }
 }
 
-async function init() {
-  await loadCampaigns();
-  loadFeed();
-}
-
-init();
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadCampaigns().then(loadFeed);
 </script>
 </body>
 </html>
