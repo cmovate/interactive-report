@@ -10,8 +10,6 @@ const withdrawSender         = require('../withdrawSender');
 
 const MAX_MSG_SLOTS = 20;
 
-// ── Company search helpers ────────────────────────────────────────────────
-
 function extractCompanySlug(url) {
   const match = String(url).match(/linkedin\.com\/company\/([^/?#]+)/);
   return match ? match[1].replace(/\/$/, '').trim() : null;
@@ -19,23 +17,11 @@ function extractCompanySlug(url) {
 
 function validateCompanyResults(people, companyId, companyName) {
   if (!people.length) return [];
-  if (!companyId) {
-    console.log(`[Search] No company ID available for "${companyName}" — skipping validation`);
-    return people;
-  }
-  const nameParts = companyName
-    .toLowerCase()
-    .split(/[\s\-_,&.]+/)
-    .filter(p => p.length > 2);
-
+  if (!companyId) { return people; }
+  const nameParts = companyName.toLowerCase().split(/[\s\-_,&.]+/).filter(p => p.length > 2);
   const kept = [], dropped = [];
   for (const p of people) {
-    const resultId =
-      p.current_company_id ||
-      p.company_id ||
-      p.positions?.[0]?.company_id ||
-      p.position?.company_id ||
-      null;
+    const resultId = p.current_company_id || p.company_id || p.positions?.[0]?.company_id || p.position?.company_id || null;
     if (resultId && String(resultId) === String(companyId)) { kept.push(p); continue; }
     const headline = (p.headline || p.occupation || p.title || '').toLowerCase();
     if (nameParts.length > 0) {
@@ -44,9 +30,7 @@ function validateCompanyResults(people, companyId, companyName) {
     }
     dropped.push(`${p.first_name || ''} ${p.last_name || ''} ("${p.headline || ''}")`).trimEnd();
   }
-  if (dropped.length) {
-    console.log(`[Search] Dropped ${dropped.length} unvalidated result(s) for "${companyName}":`, dropped);
-  }
+  if (dropped.length) console.log(`[Search] Dropped ${dropped.length} for "${companyName}":`, dropped);
   return kept;
 }
 
@@ -93,7 +77,6 @@ router.get('/:id/ab-analytics', async (req, res) => {
   try {
     const campaignId = parseInt(req.params.id, 10);
     if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-
     const { rows: overallRows } = await db.query(`
       SELECT
         COUNT(*)                                           AS total_contacts,
@@ -106,138 +89,27 @@ router.get('/:id/ab-analytics', async (req, res) => {
         COALESCE(SUM(msgs_sent_count), 0)                 AS total_msgs_sent
       FROM contacts WHERE campaign_id = $1
     `, [campaignId]);
-
-    const { rows: campRows } = await db.query(
-      'SELECT name, settings FROM campaigns WHERE id = $1', [campaignId]
-    );
+    const { rows: campRows } = await db.query('SELECT name, settings FROM campaigns WHERE id = $1', [campaignId]);
     const rawSettings = campRows[0]?.settings || {};
     const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
     const messages = settings.messages || {};
-
     const steps = [];
     for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
       const { rows } = await db.query(`
-        SELECT
-          COALESCE(msg_${i}_variant, 'A') AS variant,
-          COUNT(*)                         AS sent,
+        SELECT COALESCE(msg_${i}_variant, 'A') AS variant, COUNT(*) AS sent,
           COUNT(*) FILTER (WHERE msg_replied = true) AS replied
-        FROM contacts
-        WHERE campaign_id = $1 AND msg_${i}_text IS NOT NULL
-        GROUP BY COALESCE(msg_${i}_variant, 'A')
-        ORDER BY COALESCE(msg_${i}_variant, 'A')
+        FROM contacts WHERE campaign_id = $1 AND msg_${i}_text IS NOT NULL
+        GROUP BY COALESCE(msg_${i}_variant, 'A') ORDER BY COALESCE(msg_${i}_variant, 'A')
       `, [campaignId]);
-
       if (rows.length > 0) {
-        const allSeqs = [
-          ...(messages.new || []),
-          ...(messages.existing_no_history || []),
-          ...(messages.existing_with_history || []),
-        ];
-        const stepCfg = allSeqs[i - 1];
-        steps.push({
-          step: i,
-          delay: stepCfg?.delay,
-          unit: stepCfg?.unit,
-          variants: rows.map(r => ({
-            label: r.variant,
-            sent: parseInt(r.sent),
-            replied: parseInt(r.replied),
-            rate: parseInt(r.sent) > 0
-              ? Math.round(parseInt(r.replied) / parseInt(r.sent) * 100)
-              : 0,
-          })),
-        });
+        const allSeqs = [...(messages.new||[]),...(messages.existing_no_history||[]),...(messages.existing_with_history||[])];
+        const stepCfg = allSeqs[i-1];
+        steps.push({ step:i, delay:stepCfg?.delay, unit:stepCfg?.unit,
+          variants: rows.map(r=>({ label:r.variant, sent:parseInt(r.sent), replied:parseInt(r.replied),
+            rate: parseInt(r.sent)>0 ? Math.round(parseInt(r.replied)/parseInt(r.sent)*100) : 0 })) });
       }
     }
-
-    res.json({ overall: overallRows[0], campaign_name: campRows[0]?.name || '', steps });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/campaigns
-router.post('/', async (req, res) => {
-  try {
-    const { workspace_id, account_id, name, audience_type, contacts, settings } = req.body;
-    if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' });
-    const { rows } = await db.query(
-      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status)
-       VALUES ($1, $2, $3, $4, $5, 'active') RETURNING *`,
-      [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {})]
-    );
-    const campaign = rows[0];
-    const toEnrich = [];
-    if (Array.isArray(contacts) && contacts.length > 0) {
-      for (const c of contacts) {
-        const { rows: ins } = await db.query(
-          `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title,
-             li_profile_url, li_company_url, email, website)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, li_profile_url`,
-          [campaign.id, workspace_id,
-           c.first_name||'', c.last_name||'', c.company||'', c.title||'',
-           c.li_profile_url||c.linkedin_url||'', c.li_company_url||'',
-           c.email||'', c.website||'']
-        );
-        const saved = ins[0];
-        if (saved?.li_profile_url?.includes('linkedin.com/in/')) {
-          toEnrich.push({ id: saved.id, li_profile_url: saved.li_profile_url });
-        }
-      }
-    }
-    res.status(201).json({ ...campaign, enrichment_queued: toEnrich.length });
-    for (const c of toEnrich) enqueue(c.id, account_id, c.li_profile_url);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/campaigns/:id/scrape-engagement
-router.post('/:id/scrape-engagement', async (req, res) => {
-  try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    if (req.body?.force) {
-      await db.query(
-        'UPDATE contacts SET engagement_level = NULL, engagement_scraped_at = NULL, engagement_data = NULL WHERE campaign_id = $1',
-        [campaignId]
-      );
-    }
-    engagementScraper.run(campaignId)
-      .then(r => console.log(`[API] Scrape done campaign ${campaignId}:`, JSON.stringify(r)))
-      .catch(e => console.error(`[API] Scrape error:`, e.message));
-    res.json({ status: 'started', campaign_id: campaignId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/campaigns/:id/reclassify
-router.post('/:id/reclassify', async (req, res) => {
-  try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const result = await engagementScraper.reclassifyFromExistingData(campaignId);
-    engagementScraper.run(campaignId)
-      .then(r => console.log(`[API] Post-reclassify scrape done:`, JSON.stringify(r)))
-      .catch(e => console.error(`[API] Post-reclassify scrape error:`, e.message));
-    res.json({ ...result, scrape_started: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/campaigns/:id/send-likes
-router.post('/:id/send-likes', async (req, res) => {
-  try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    likeSender.run(campaignId, { force: !!req.body?.force })
-      .then(r => console.log(`[API] Likes done campaign ${campaignId}:`, JSON.stringify(r)))
-      .catch(e => console.error(`[API] Likes error:`, e.message));
-    res.json({ status: 'started', campaign_id: campaignId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// POST /api/campaigns/:id/run-withdraw
-router.post('/:id/run-withdraw', async (req, res) => {
-  try {
-    const campaignId = parseInt(req.params.id, 10);
-    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
-    const result = await withdrawSender.run(campaignId);
-    res.json({ campaign_id: campaignId, ...result });
+    res.json({ overall: overallRows[0], campaign_name: campRows[0]?.name||'', steps });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -264,6 +136,80 @@ router.get('/:id/engagement-stats', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/campaigns
+router.post('/', async (req, res) => {
+  try {
+    const { workspace_id, account_id, name, audience_type, contacts, settings } = req.body;
+    if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' });
+    const { rows } = await db.query(
+      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status)
+       VALUES ($1, $2, $3, $4, $5, 'active') RETURNING *`,
+      [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {})]
+    );
+    const campaign = rows[0];
+    const toEnrich = [];
+    if (Array.isArray(contacts) && contacts.length > 0) {
+      for (const c of contacts) {
+        const { rows: ins } = await db.query(
+          `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title,
+             li_profile_url, li_company_url, email, website)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, li_profile_url`,
+          [campaign.id, workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'',
+           c.li_profile_url||c.linkedin_url||'', c.li_company_url||'', c.email||'', c.website||'']
+        );
+        const saved = ins[0];
+        if (saved?.li_profile_url?.includes('linkedin.com/in/')) {
+          toEnrich.push({ id: saved.id, li_profile_url: saved.li_profile_url });
+        }
+      }
+    }
+    res.status(201).json({ ...campaign, enrichment_queued: toEnrich.length });
+    for (const c of toEnrich) enqueue(c.id, account_id, c.li_profile_url);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/scrape-engagement
+router.post('/:id/scrape-engagement', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    if (req.body?.force) await db.query('UPDATE contacts SET engagement_level=NULL,engagement_scraped_at=NULL,engagement_data=NULL WHERE campaign_id=$1',[campaignId]);
+    engagementScraper.run(campaignId).then(r=>console.log(`[API] Scrape done ${campaignId}:`,JSON.stringify(r))).catch(e=>console.error('[API] Scrape error:',e.message));
+    res.json({ status: 'started', campaign_id: campaignId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/reclassify
+router.post('/:id/reclassify', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const result = await engagementScraper.reclassifyFromExistingData(campaignId);
+    engagementScraper.run(campaignId).catch(e=>console.error('[API] Post-reclassify error:',e.message));
+    res.json({ ...result, scrape_started: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/send-likes
+router.post('/:id/send-likes', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    likeSender.run(campaignId, { force: !!req.body?.force }).catch(e=>console.error('[API] Likes error:',e.message));
+    res.json({ status: 'started', campaign_id: campaignId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/run-withdraw
+router.post('/:id/run-withdraw', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const result = await withdrawSender.run(campaignId);
+    res.json({ campaign_id: campaignId, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // PATCH /api/campaigns/:id/status
 router.patch('/:id/status', async (req, res) => {
   try {
@@ -280,10 +226,7 @@ router.patch('/:id/settings', async (req, res) => {
   try {
     const { settings } = req.body;
     if (!settings) return res.status(400).json({ error: 'settings required' });
-    const { rows } = await db.query(
-      'UPDATE campaigns SET settings=$1 WHERE id=$2 RETURNING *',
-      [JSON.stringify(settings), req.params.id]
-    );
+    const { rows } = await db.query('UPDATE campaigns SET settings=$1 WHERE id=$2 RETURNING *', [JSON.stringify(settings), req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -297,67 +240,122 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-/**
- * POST /api/campaigns/search-people
- *
- * Improved flow:
- *  1. Extract company slug or numeric ID from URL
- *  2. Look up company to get numeric LinkedIn ID
- *  3. Search people using currentCompany ID filter
- *  4. Validate results match the target company
- *  5. Respect the limit parameter from the UI
- */
+// POST /api/campaigns/search-people
 router.post('/search-people', async (req, res) => {
   try {
     const { account_id, company_urls, titles } = req.body;
-    // limit: wired through from UI (default 10, max 50)
     const limit = Math.min(parseInt(req.body.limit, 10) || 10, 50);
-
-    if (!account_id || !company_urls?.length)
-      return res.status(400).json({ error: 'account_id and company_urls required' });
-
-    const results = [];
-    const companiesMeta = [];
-
+    if (!account_id || !company_urls?.length) return res.status(400).json({ error: 'account_id and company_urls required' });
+    const results = [], companiesMeta = [];
     for (const url of company_urls) {
       const slug = extractCompanySlug(url);
-      if (!slug) {
-        console.warn(`[Search] Could not extract company slug from: ${url}`);
-        companiesMeta.push({ url, status: 'invalid_url', found: 0, kept: 0 });
-        continue;
-      }
-
+      if (!slug) { companiesMeta.push({ url, status: 'invalid_url', found: 0, kept: 0 }); continue; }
       try {
         const company     = await lookupCompany(account_id, slug);
         const companyId   = company?.id   || null;
         const companyName = company?.name || slug.replace(/-/g, ' ');
-
         const people    = await searchPeopleByCompany(account_id, companyId, companyName, titles || [], limit);
         const validated = validateCompanyResults(people, companyId, companyName);
-
-        console.log(
-          `[Search] ${url} → company="${companyName}" id=${companyId || 'unknown'}` +
-          ` | found=${people.length} kept=${validated.length} limit=${limit}`
-        );
-
         results.push(...validated);
-        companiesMeta.push({
-          url,
-          company_name: companyName,
-          company_id:   companyId,
-          status: 'ok',
-          found: people.length,
-          kept:  validated.length,
-        });
+        companiesMeta.push({ url, company_name: companyName, company_id: companyId, status: 'ok', found: people.length, kept: validated.length });
       } catch (err) {
-        console.error(`[Search] Failed for ${url}:`, err.message);
         companiesMeta.push({ url, status: 'error', error: err.message, found: 0, kept: 0 });
       }
-
       await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
     }
-
     res.json({ items: results, companies: companiesMeta });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Campaign detail / edit endpoints ──────────────────────────────────────
+
+// GET /api/campaigns/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const { rows } = await db.query(`
+      SELECT c.*,
+        (SELECT COUNT(*) FROM contacts           WHERE campaign_id = c.id) AS contact_count,
+        (SELECT COUNT(*) FROM campaign_companies WHERE campaign_id = c.id) AS company_count
+      FROM campaigns c WHERE c.id = $1`, [campaignId]);
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const camp = rows[0];
+    if (typeof camp.settings === 'string') camp.settings = JSON.parse(camp.settings);
+    res.json(camp);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/campaigns/:id/companies
+router.get('/:id/companies', async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT id, company_name, company_linkedin_id, li_company_url, contact_count, created_at
+       FROM campaign_companies WHERE campaign_id = $1 ORDER BY company_name`,
+      [req.params.id]);
+    res.json({ items: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/campaigns/:id/contacts?page=&limit=
+router.get('/:id/contacts', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(100, parseInt(req.query.limit) || 50);
+    const offset = (page - 1) * limit;
+    const { rows: cnt } = await db.query('SELECT COUNT(*) FROM contacts WHERE campaign_id = $1', [campaignId]);
+    const total = parseInt(cnt[0].count);
+    const { rows } = await db.query(
+      `SELECT id, first_name, last_name, company, title, li_profile_url,
+              invite_sent, invite_approved, already_connected,
+              msg_sent, msg_replied, positive_reply, created_at
+       FROM contacts WHERE campaign_id = $1
+       ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      [campaignId, limit, offset]);
+    res.json({ items: rows, total, page, limit, pages: Math.ceil(total / limit) || 1 });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/campaigns/:id/contacts
+router.post('/:id/contacts', async (req, res) => {
+  try {
+    const campaignId = parseInt(req.params.id, 10);
+    if (isNaN(campaignId)) return res.status(400).json({ error: 'Invalid campaign ID' });
+    const { contacts } = req.body;
+    if (!Array.isArray(contacts) || !contacts.length) return res.status(400).json({ error: 'contacts[] required' });
+    const { rows: cr } = await db.query('SELECT * FROM campaigns WHERE id = $1', [campaignId]);
+    if (!cr.length) return res.status(404).json({ error: 'Campaign not found' });
+    const camp = cr[0];
+    let added = 0, skipped = 0;
+    const toEnrich = [];
+    for (const c of contacts) {
+      const url = (c.li_profile_url || '').trim();
+      if (!url.includes('linkedin.com/in/')) { skipped++; continue; }
+      const { rows: dup } = await db.query(
+        'SELECT id FROM contacts WHERE campaign_id = $1 AND li_profile_url = $2 LIMIT 1',
+        [campaignId, url]);
+      if (dup.length) { skipped++; continue; }
+      const { rows: ins } = await db.query(
+        `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+        [campaignId, camp.workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'', url]);
+      added++;
+      if (ins[0]?.id) toEnrich.push({ id: ins[0].id, li_profile_url: url });
+    }
+    for (const c of toEnrich) enqueue(c.id, camp.account_id, c.li_profile_url);
+    res.json({ added, skipped, enrichment_queued: toEnrich.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/campaigns/:id/contacts/:contactId
+router.delete('/:id/contacts/:contactId', async (req, res) => {
+  try {
+    const { rowCount } = await db.query(
+      'DELETE FROM contacts WHERE id = $1 AND campaign_id = $2',
+      [req.params.contactId, req.params.id]);
+    if (!rowCount) return res.status(404).json({ error: 'Contact not found' });
+    res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
