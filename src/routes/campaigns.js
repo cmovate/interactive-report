@@ -8,10 +8,11 @@ const engagementScraper          = require('../engagementScraper');
 const likeSender                 = require('../likeSender');
 const withdrawSender             = require('../withdrawSender');
 
-const MAX_MSG_SLOTS  = 20;
-const FETCH_MAX_PAGES = 30;  // max pages in background fetch (~1500 contacts)
+const MAX_MSG_SLOTS   = 20;
+const BATCH_SIZE      = 20;  // max companies per keywords query (avoid 400 content_too_large)
+const BATCH_MAX_PAGES = 3;   // pages per batch in background fetch
 
-// ── Workspace isolation helper ───────────────────────────────────────────────
+// Workspace isolation helper
 async function requireCampaign(req, res, workspaceId) {
   if (!workspaceId) { res.status(400).json({ error: 'workspace_id required' }); return null; }
   const campaignId = parseInt(req.params.id, 10);
@@ -29,28 +30,21 @@ function extractCompanySlug(url) {
   return match ? match[1].replace(/\/$/, '').trim() : null;
 }
 
-/**
- * Build a LinkedIn keywords query from company URLs + job titles.
- * Result: "(VP R&D OR CTO OR Head of Engineering) (Bezeq OR Partner OR HOT)"
- * No API calls — purely derived from the slug in each LinkedIn URL.
- */
+// Build a LinkedIn keywords query for a BATCH of company URLs + titles.
+// Keeps queries short by limiting to BATCH_SIZE companies.
 function buildKeywordsQuery(companyUrls, titles) {
   const companyNames = [...new Set(
     (companyUrls || []).map(url => {
       const slug = extractCompanySlug(url);
       if (!slug) return null;
-      // Convert kebab-case slug to Title Case name
       return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }).filter(Boolean)
   )];
-
   const parts = [];
-  if (titles?.length)       parts.push(`(${titles.join(' OR ')})`);
-  if (companyNames.length)  parts.push(`(${companyNames.join(' OR ')})`);
+  if (titles?.length)      parts.push(`(${titles.join(' OR ')})`);
+  if (companyNames.length) parts.push(`(${companyNames.join(' OR ')})`);
   return parts.join(' ');
 }
-
-// ── Standard routes ───────────────────────────────────────────────────────────
 
 router.get('/', async (req, res) => {
   try {
@@ -255,35 +249,41 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── POST /api/campaigns/search-people ────────────────────────────────────────
-// Keywords approach: single Unipile call instead of per-company lookups.
-// Returns first page of results + cursor for background pagination.
+// POST /api/campaigns/search-people
+// Batched keywords approach: split companies into groups of BATCH_SIZE to avoid
+// the 400 content_too_large error. Preview = first batch only.
 router.post('/search-people', async (req, res) => {
   try {
     const { account_id, company_urls, titles } = req.body;
     if (!account_id || !company_urls?.length)
       return res.status(400).json({ error: 'account_id and company_urls required' });
 
-    const keywords = buildKeywordsQuery(company_urls, titles || []);
+    // Preview: search only first batch of BATCH_SIZE companies
+    const previewBatch = company_urls.slice(0, BATCH_SIZE);
+    const keywords = buildKeywordsQuery(previewBatch, titles || []);
     if (!keywords)
-      return res.json({ items: [], companies: [], keywords_query: '', next_cursor: null });
+      return res.json({ items: [], companies: [], keywords_query: '', next_cursor: null, total_batches: 0 });
 
-    console.log(`[Search] Keywords query (${company_urls.length} companies): "${keywords.slice(0, 120)}..."`);
+    const totalBatches = Math.ceil(company_urls.length / BATCH_SIZE);
+    console.log(`[Search] Batch 1/${totalBatches} (${previewBatch.length} companies): "${keywords.slice(0, 100)}"`);
 
     const { items, cursor, totalCount } = await searchPeopleByKeywords(account_id, keywords, 50);
 
     res.json({
       items,
-      companies:     [], // no per-company breakdown in keywords mode
-      keywords_query: keywords,
-      next_cursor:    cursor,
-      total_count:    totalCount,
-      total_companies: company_urls.length,
+      companies:         [],
+      keywords_query:    keywords,
+      next_cursor:       cursor,
+      total_count:       totalCount,
+      total_companies:   company_urls.length,
+      previewed_batches: 1,
+      total_batches:     totalBatches,
+      has_more_batches:  totalBatches > 1,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Campaign detail / edit endpoints ─────────────────────────────────────────
+// Campaign detail / edit endpoints
 
 router.get('/:id', async (req, res) => {
   try {
@@ -377,46 +377,51 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Background keywords-based fetch ──────────────────────────────────────────
-// Continues paginating from a cursor returned by the preview search.
-async function runKeywordsFetch(campaignId, workspaceId, accountId, keywords, startCursor) {
-  console.log(`[KeywordsFetch] Campaign ${campaignId}: continuing from cursor, keywords="${keywords.slice(0, 80)}..."`);
-  let cursor     = startCursor || null;
+// Background batched keywords fetch
+// Processes remaining company batches (each <= BATCH_SIZE) after the preview.
+async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, companyUrls, titles, startBatchIdx) {
+  const totalBatches = Math.ceil(companyUrls.length / BATCH_SIZE);
+  console.log(`[BatchFetch] Campaign ${campaignId}: batches ${startBatchIdx + 1}-${totalBatches}`);
   let totalAdded = 0;
-  let page       = 0;
 
-  do {
-    page++;
-    try {
-      const { items, cursor: nextCursor } = await searchPeopleByKeywords(accountId, keywords, 50, cursor);
-      cursor = nextCursor;
-      console.log(`[KeywordsFetch] Campaign ${campaignId}: page ${page} → ${items.length} results, cursor=${cursor ? 'yes' : 'end'}`);
+  for (let batchIdx = startBatchIdx; batchIdx < totalBatches; batchIdx++) {
+    const batch    = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+    const keywords = buildKeywordsQuery(batch, titles);
+    console.log(`[BatchFetch] Campaign ${campaignId}: batch ${batchIdx + 1}/${totalBatches} — "${keywords.slice(0, 80)}"`);
 
-      for (const p of items) {
-        const liUrl = p.public_profile_url || p.li_profile_url || '';
-        if (!liUrl.includes('linkedin.com/in/')) continue;
-        const { rows: dup } = await db.query(
-          'SELECT id FROM contacts WHERE campaign_id=$1 AND workspace_id=$2 AND li_profile_url=$3 LIMIT 1',
-          [campaignId, workspaceId, liUrl]);
-        if (dup.length) continue;
-        const { rows: ins } = await db.query(
-          `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
-           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-          [campaignId, workspaceId,
-           p.first_name||'', p.last_name||'',
-           p.company||'', p.headline||'', liUrl]);
-        if (ins[0]?.id) { totalAdded++; enqueue(ins[0].id, accountId, liUrl); }
+    let cursor = null;
+    let page   = 0;
+    do {
+      page++;
+      try {
+        const { items, cursor: nextCursor } = await searchPeopleByKeywords(accountId, keywords, 50, cursor);
+        cursor = nextCursor;
+        console.log(`[BatchFetch] Campaign ${campaignId}: batch ${batchIdx + 1} p${page} — ${items.length} results`);
+        for (const p of items) {
+          const liUrl = p.public_profile_url || p.li_profile_url || '';
+          if (!liUrl.includes('linkedin.com/in/')) continue;
+          const { rows: dup } = await db.query(
+            'SELECT id FROM contacts WHERE campaign_id=$1 AND workspace_id=$2 AND li_profile_url=$3 LIMIT 1',
+            [campaignId, workspaceId, liUrl]);
+          if (dup.length) continue;
+          const { rows: ins } = await db.query(
+            `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url)
+             VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+            [campaignId, workspaceId, p.first_name||'', p.last_name||'', p.company||'', p.headline||'', liUrl]);
+          if (ins[0]?.id) { totalAdded++; enqueue(ins[0].id, accountId, liUrl); }
+        }
+      } catch (e) {
+        console.error(`[BatchFetch] Campaign ${campaignId} b${batchIdx + 1} p${page}:`, e.message);
+        break;
       }
-    } catch (e) {
-      console.error(`[KeywordsFetch] Campaign ${campaignId} page ${page} error:`, e.message);
-      break;
-    }
+      if (!cursor) break;
+      await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
+    } while (page < BATCH_MAX_PAGES);
 
-    if (!cursor) break;
-    await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
-  } while (page < FETCH_MAX_PAGES);
-
-  console.log(`[KeywordsFetch] Campaign ${campaignId}: complete \u2014 ${totalAdded} new contacts added over ${page} pages`);
+    if (batchIdx < totalBatches - 1)
+      await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
+  }
+  console.log(`[BatchFetch] Campaign ${campaignId}: complete \u2014 ${totalAdded} contacts added`);
 }
 
 // POST /api/campaigns/:id/fetch-all-companies
@@ -427,17 +432,17 @@ router.post('/:id/fetch-all-companies', async (req, res) => {
     if (!camp) return;
     const settings = typeof camp.settings === 'string' ? JSON.parse(camp.settings) : (camp.settings || {});
     const sc = settings.searchConfig || {};
+    const { companyUrls = [], titles = [] } = sc;
+    if (!companyUrls.length) return res.json({ status: 'nothing_to_fetch', reason: 'no companyUrls in searchConfig' });
 
-    // Keywords mode: use stored keywords + cursor
-    if (sc.keywordsQuery) {
-      const { keywordsQuery, nextCursor } = sc;
-      if (!nextCursor) return res.json({ status: 'nothing_to_fetch', reason: 'no cursor — all pages already fetched' });
-      runKeywordsFetch(camp.id, camp.workspace_id, camp.account_id, keywordsQuery, nextCursor)
-        .catch(e => console.error(`[KeywordsFetch] Campaign ${camp.id}:`, e.message));
-      return res.json({ status: 'started', mode: 'keywords' });
-    }
+    const totalBatches = Math.ceil(companyUrls.length / BATCH_SIZE);
+    if (totalBatches <= 1) return res.json({ status: 'nothing_to_fetch', reason: 'preview covered all companies' });
 
-    res.json({ status: 'nothing_to_fetch', reason: 'no keywordsQuery in searchConfig' });
+    // Start from batch index 1 (batch 0 was the preview)
+    runKeywordsBatchFetch(camp.id, camp.workspace_id, camp.account_id, companyUrls, titles, 1)
+      .catch(e => console.error(`[BatchFetch] Campaign ${camp.id}:`, e.message));
+
+    res.json({ status: 'started', mode: 'batched_keywords', remaining_batches: totalBatches - 1, total_companies: companyUrls.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
