@@ -559,21 +559,14 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   });
 
   await s('migrate.ua_unique', async () => {
-    // Drop old single-column unique constraint if it exists
+    // Drop old single-column unique constraint if it exists (safe — IF EXISTS)
     await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key');
-    // Add composite unique (workspace_id, account_id) if it doesn't already exist
-    await db.query(`
-      DO $$ BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint
-          WHERE conname = 'unipile_accounts_workspace_id_account_id_key'
-        ) THEN
-          ALTER TABLE unipile_accounts
-          ADD CONSTRAINT unipile_accounts_workspace_id_account_id_key
-          UNIQUE (workspace_id, account_id);
-        END IF;
-      END $$
-    `);
+    // Add composite unique — silently ignore if already exists
+    try {
+      await db.query('ALTER TABLE unipile_accounts ADD CONSTRAINT unipile_accounts_workspace_id_account_id_key UNIQUE (workspace_id, account_id)');
+    } catch (e) {
+      if (!e.message.includes('already exists')) throw e;
+    }
   });
 
   await s('backfill.account_profiles', async () => {
