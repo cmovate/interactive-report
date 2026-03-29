@@ -10,7 +10,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; m
 .shell { width: min(900px, 100%); text-align: center; }
 .kicker { font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #1D9E75; margin-bottom: 14px; }
 .title { font-size: 34px; font-weight: 700; color: #111; margin-bottom: 10px; letter-spacing: -0.5px; }
-.subtitle { font-size: 15px; color: #888; margin-bottom: 48px; }
+.subtitle { font-size: 15px; color: #888; margin-bottom: 36px; }
+.admin-bar { display: flex; justify-content: center; margin-bottom: 24px; }
+.admin-link { display: inline-flex; align-items: center; gap: 7px; background: white; border: 1px solid #e0e0e0; border-radius: 10px; padding: 10px 18px; font-size: 13px; font-weight: 500; color: #555; text-decoration: none; transition: all 0.12s; }
+.admin-link:hover { border-color: #1D9E75; color: #1D9E75; background: #F0FBF7; box-shadow: 0 2px 8px rgba(29,158,117,0.1); }
+.admin-link-icon { font-size: 16px; }
 .workspace-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
 .workspace-tile { background: white; border: 1.5px solid #e8e8e8; border-radius: 18px; padding: 28px 20px 22px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 14px; transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; position: relative; text-align: center; }
 .workspace-tile:hover { transform: translateY(-3px); border-color: #b0ddd0; box-shadow: 0 12px 32px rgba(29,158,117,0.12); }
@@ -47,6 +51,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; m
   <div class="kicker">Platform access</div>
   <div class="title">Select workspace</div>
   <div class="subtitle">Choose the client you are currently working on</div>
+
+  <div class="admin-bar">
+    <a href="/admin-analytics.html" class="admin-link">
+      <span class="admin-link-icon">&#128200;</span>
+      Admin Analytics — all workspaces
+    </a>
+  </div>
+
   <div class="workspace-grid" id="workspace-grid"><div style="color:#aaa;font-size:14px;padding:40px;">Loading workspaces...</div></div>
 </div>
 
@@ -116,9 +128,7 @@ function render() {
     </div>`;
 }
 
-function enterWorkspace(id) {
-  window.location.href = `/workspace.html?id=${id}`;
-}
+function enterWorkspace(id) { window.location.href = `/workspace.html?id=${id}`; }
 
 function openAdd() {
   document.getElementById('new-name').value = '';
@@ -135,8 +145,7 @@ async function saveWorkspace() {
   try {
     const res = await fetch('/api/workspaces', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ name }) });
     if (!res.ok) throw new Error((await res.json()).error);
-    closeAdd();
-    await load();
+    closeAdd(); await load();
   } catch (err) {
     const errEl = document.getElementById('add-error');
     errEl.textContent = err.message;
@@ -155,8 +164,7 @@ function closeDelete() { document.getElementById('del-modal').style.display = 'n
 async function confirmDelete() {
   if (!pendingDeleteId) return;
   await fetch(`/api/workspaces/${pendingDeleteId}`, { method: 'DELETE' });
-  closeDelete();
-  await load();
+  closeDelete(); await load();
 }
 
 load();
