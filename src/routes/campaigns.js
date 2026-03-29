@@ -9,28 +9,19 @@ const likeSender             = require('../likeSender');
 const withdrawSender         = require('../withdrawSender');
 
 const MAX_MSG_SLOTS = 20;
+// How many contacts to find before stopping the preview search
+const PREVIEW_EARLY_STOP = 20;
 
-// ── Workspace isolation helper ────────────────────────────────────────────────
-// Every route that touches a specific campaign MUST call this first.
-// Returns the campaign row, or sends 403/404 and returns null.
+// ── Workspace isolation helper ───────────────────────────────────────────────
 async function requireCampaign(req, res, workspaceId) {
-  if (!workspaceId) {
-    res.status(400).json({ error: 'workspace_id required' });
-    return null;
-  }
+  if (!workspaceId) { res.status(400).json({ error: 'workspace_id required' }); return null; }
   const campaignId = parseInt(req.params.id, 10);
-  if (isNaN(campaignId)) {
-    res.status(400).json({ error: 'Invalid campaign ID' });
-    return null;
-  }
+  if (isNaN(campaignId)) { res.status(400).json({ error: 'Invalid campaign ID' }); return null; }
   const { rows } = await db.query(
     'SELECT * FROM campaigns WHERE id = $1 AND workspace_id = $2',
     [campaignId, workspaceId]
   );
-  if (!rows.length) {
-    res.status(404).json({ error: 'Campaign not found or access denied' });
-    return null;
-  }
+  if (!rows.length) { res.status(404).json({ error: 'Campaign not found or access denied' }); return null; }
   return rows[0];
 }
 
@@ -41,7 +32,7 @@ function extractCompanySlug(url) {
 
 function validateCompanyResults(people, companyId, companyName) {
   if (!people.length) return [];
-  if (!companyId) { return people; }
+  if (!companyId) return people;
   const nameParts = companyName.toLowerCase().split(/[\s\-_,&.]+/).filter(p => p.length > 2);
   const kept = [], dropped = [];
   for (const p of people) {
@@ -83,10 +74,8 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/enrichment-status
 router.get('/enrichment-status', (_req, res) => res.json(getStatus()));
 
-// GET /api/campaigns/company-follow-status?account_id=
 router.get('/company-follow-status', async (req, res) => {
   try {
     const { account_id } = req.query;
@@ -96,16 +85,13 @@ router.get('/company-follow-status', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/ab-analytics?workspace_id=
 router.get('/:id/ab-analytics', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
-    const campaignId = camp.id;
     const { rows: overallRows } = await db.query(`
-      SELECT
-        COUNT(*)                                           AS total_contacts,
+      SELECT COUNT(*) AS total_contacts,
         COUNT(*) FILTER (WHERE already_connected = true)  AS already_connected,
         COUNT(*) FILTER (WHERE invite_sent = true)        AS invites_sent,
         COUNT(*) FILTER (WHERE invite_approved = true)    AS invites_approved,
@@ -114,7 +100,7 @@ router.get('/:id/ab-analytics', async (req, res) => {
         COUNT(*) FILTER (WHERE positive_reply = true)     AS positive_replies,
         COALESCE(SUM(msgs_sent_count), 0)                 AS total_msgs_sent
       FROM contacts WHERE campaign_id = $1 AND workspace_id = $2
-    `, [campaignId, wsId]);
+    `, [camp.id, wsId]);
     const rawSettings = camp.settings || {};
     const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
     const messages = settings.messages || {};
@@ -125,7 +111,7 @@ router.get('/:id/ab-analytics', async (req, res) => {
           COUNT(*) FILTER (WHERE msg_replied = true) AS replied
         FROM contacts WHERE campaign_id = $1 AND workspace_id = $2 AND msg_${i}_text IS NOT NULL
         GROUP BY COALESCE(msg_${i}_variant, 'A') ORDER BY COALESCE(msg_${i}_variant, 'A')
-      `, [campaignId, wsId]);
+      `, [camp.id, wsId]);
       if (rows.length > 0) {
         const allSeqs = [...(messages.new||[]),...(messages.existing_no_history||[]),...(messages.existing_with_history||[])];
         const stepCfg = allSeqs[i-1];
@@ -138,7 +124,6 @@ router.get('/:id/ab-analytics', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/engagement-stats?workspace_id=
 router.get('/:id/engagement-stats', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -146,16 +131,16 @@ router.get('/:id/engagement-stats', async (req, res) => {
     if (!camp) return;
     const { rows } = await db.query(
       `SELECT
-         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')     AS un_engaged,
-         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged') AS average_engaged,
-         COUNT(*) FILTER (WHERE engagement_level = 'engaged')         AS engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')      AS un_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged')  AS average_engaged,
+         COUNT(*) FILTER (WHERE engagement_level = 'engaged')          AS engaged,
          COUNT(*) FILTER (WHERE engagement_level IN ('average_engaged','engaged')) AS with_content,
          COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS not_yet_scraped,
-         COUNT(*) FILTER (WHERE provider_id IS NULL)                  AS not_enriched,
-         COALESCE(SUM(post_likes_sent),0)                             AS total_post_likes,
-         COALESCE(SUM(comment_likes_sent),0)                          AS total_comment_likes,
+         COUNT(*) FILTER (WHERE provider_id IS NULL)                   AS not_enriched,
+         COALESCE(SUM(post_likes_sent),0)                              AS total_post_likes,
+         COALESCE(SUM(comment_likes_sent),0)                           AS total_comment_likes,
          COUNT(*) FILTER (WHERE post_likes_sent > 0 OR comment_likes_sent > 0) AS contacts_liked,
-         COUNT(*)                                                      AS total
+         COUNT(*)                                                       AS total
        FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`,
       [camp.id, wsId]
     );
@@ -163,7 +148,6 @@ router.get('/:id/engagement-stats', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns
 router.post('/', async (req, res) => {
   try {
     const { workspace_id, account_id, name, audience_type, contacts, settings } = req.body;
@@ -195,7 +179,6 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/:id/scrape-engagement  (workspace_id in body or query)
 router.post('/:id/scrape-engagement', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -210,7 +193,6 @@ router.post('/:id/scrape-engagement', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/:id/reclassify
 router.post('/:id/reclassify', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -222,7 +204,6 @@ router.post('/:id/reclassify', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/:id/send-likes
 router.post('/:id/send-likes', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -233,7 +214,6 @@ router.post('/:id/send-likes', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/:id/run-withdraw
 router.post('/:id/run-withdraw', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -244,7 +224,6 @@ router.post('/:id/run-withdraw', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PATCH /api/campaigns/:id/status
 router.patch('/:id/status', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -260,7 +239,6 @@ router.patch('/:id/status', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// PATCH /api/campaigns/:id/settings
 router.patch('/:id/settings', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -276,7 +254,6 @@ router.patch('/:id/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/campaigns/:id
 router.delete('/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -288,12 +265,19 @@ router.delete('/:id', async (req, res) => {
 });
 
 // POST /api/campaigns/search-people
+// earlyStop: stop scanning companies once we have enough preview contacts
 router.post('/search-people', async (req, res) => {
   try {
     const { account_id, company_urls, titles } = req.body;
-    const limit = Math.min(parseInt(req.body.limit, 10) || 10, 50);
-    if (!account_id || !company_urls?.length) return res.status(400).json({ error: 'account_id and company_urls required' });
+    const limit    = Math.min(parseInt(req.body.limit, 10) || 10, 50);
+    const earlyStop = parseInt(req.body.early_stop, 10) || PREVIEW_EARLY_STOP;
+
+    if (!account_id || !company_urls?.length)
+      return res.status(400).json({ error: 'account_id and company_urls required' });
+
     const results = [], companiesMeta = [];
+    let earlyStopTriggered = false;
+
     for (const url of company_urls) {
       const slug = extractCompanySlug(url);
       if (!slug) { companiesMeta.push({ url, status: 'invalid_url', found: 0, kept: 0 }); continue; }
@@ -308,21 +292,33 @@ router.post('/search-people', async (req, res) => {
       } catch (err) {
         companiesMeta.push({ url, status: 'error', error: err.message, found: 0, kept: 0 });
       }
+
+      // Early stop: enough contacts found for a meaningful preview
+      if (results.length >= earlyStop) {
+        earlyStopTriggered = true;
+        console.log(`[Search] Early stop after ${companiesMeta.length} companies — ${results.length} contacts found`);
+        break;
+      }
+
       await new Promise(r => setTimeout(r, 5000 + Math.random() * 5000));
     }
-    res.json({ items: results, companies: companiesMeta });
+
+    res.json({
+      items:               results,
+      companies:           companiesMeta,
+      previewed_count:     companiesMeta.length,
+      early_stop_triggered: earlyStopTriggered,
+    });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Campaign detail / edit endpoints ─────────────────────────────────────────
 
-// GET /api/campaigns/:id?workspace_id=
 router.get('/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
-    // Augment with counts
     const { rows: cnt } = await db.query(
       `SELECT
          (SELECT COUNT(*) FROM contacts           WHERE campaign_id=$1 AND workspace_id=$2) AS contact_count,
@@ -334,7 +330,6 @@ router.get('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/companies?workspace_id=
 router.get('/:id/companies', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -348,7 +343,6 @@ router.get('/:id/companies', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/campaigns/:id/contacts?workspace_id=&page=&limit=
 router.get('/:id/contacts', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -358,8 +352,7 @@ router.get('/:id/contacts', async (req, res) => {
     const limit  = Math.min(100, parseInt(req.query.limit) || 50);
     const offset = (page - 1) * limit;
     const { rows: cnt } = await db.query(
-      'SELECT COUNT(*) FROM contacts WHERE campaign_id=$1 AND workspace_id=$2',
-      [camp.id, wsId]);
+      'SELECT COUNT(*) FROM contacts WHERE campaign_id=$1 AND workspace_id=$2', [camp.id, wsId]);
     const total = parseInt(cnt[0].count);
     const { rows } = await db.query(
       `SELECT id, first_name, last_name, company, title, li_profile_url,
@@ -372,7 +365,6 @@ router.get('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/:id/contacts
 router.post('/:id/contacts', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -401,7 +393,6 @@ router.post('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/campaigns/:id/contacts/:contactId?workspace_id=
 router.delete('/:id/contacts/:contactId', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -415,7 +406,7 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── Background company fetch ──────────────────────────────────────────────────
+// ── Background company fetch ────────────────────────────────────────────────
 async function runCompanyFetch(campaignId, workspaceId, accountId, companyUrls, titles, limit) {
   console.log(`[CompanyFetch] Campaign ${campaignId}: fetching ${companyUrls.length} companies`);
   let totalAdded = 0;
@@ -451,7 +442,6 @@ async function runCompanyFetch(campaignId, workspaceId, accountId, companyUrls, 
   console.log(`[CompanyFetch] Campaign ${campaignId}: complete \u2014 ${totalAdded} contacts added`);
 }
 
-// POST /api/campaigns/:id/fetch-all-companies
 router.post('/:id/fetch-all-companies', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;

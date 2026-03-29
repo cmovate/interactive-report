@@ -1,7 +1,10 @@
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
 
-async function request(endpoint, options = {}) {
+// Retry delays (ms) for 503 / 429 responses: 3s, 10s, 20s
+const RETRY_DELAYS = [3000, 10000, 20000];
+
+async function request(endpoint, options = {}, _attempt = 0) {
   if (!UNIPILE_DSN || !UNIPILE_API_KEY) {
     throw new Error('UNIPILE_DSN and UNIPILE_API_KEY must be set in .env');
   }
@@ -15,6 +18,15 @@ async function request(endpoint, options = {}) {
       ...options.headers,
     },
   });
+
+  // Retry on 503 (service unavailable) or 429 (rate limit)
+  if ((res.status === 503 || res.status === 429) && _attempt < RETRY_DELAYS.length) {
+    const delay = RETRY_DELAYS[_attempt];
+    console.warn(`[Unipile] ${res.status} on ${endpoint} — retry ${_attempt + 1}/${RETRY_DELAYS.length} in ${delay}ms`);
+    await new Promise(r => setTimeout(r, delay));
+    return request(endpoint, options, _attempt + 1);
+  }
+
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Unipile ${res.status}: ${text}`);
@@ -31,9 +43,6 @@ async function getAccounts() {
   });
 }
 
-/**
- * [LEGACY] Keyword-based people search.
- */
 async function searchPeople(accountId, companyName, titles = []) {
   const keywords = titles.length
     ? `${titles.join(' OR ')} "${companyName}"`
@@ -45,9 +54,6 @@ async function searchPeople(accountId, companyName, titles = []) {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-/**
- * Resolve a LinkedIn company slug or numeric ID to { id, name }.
- */
 async function lookupCompany(accountId, slugOrId) {
   if (/^\d+$/.test(slugOrId)) {
     return { id: slugOrId, name: slugOrId };
@@ -77,13 +83,10 @@ async function lookupCompany(accountId, slugOrId) {
     company.urn?.match(/(\d+)$/)?.[1] ||
     null;
   const name = company.name || company.company_name || keywords;
-  console.log(`[Unipile] lookupCompany: "${slugOrId}" → id=${id} name="${name}"`);
+  console.log(`[Unipile] lookupCompany: "${slugOrId}" \u2192 id=${id} name="${name}"`);
   return id ? { id: String(id), name } : { id: null, name };
 }
 
-/**
- * Search for people scoped to a specific company.
- */
 async function searchPeopleByCompany(accountId, companyId, companyName, titles = [], limit = 10) {
   const body = { api: 'classic', category: 'people', limit };
   if (companyId) {
@@ -101,17 +104,6 @@ async function searchPeopleByCompany(accountId, companyId, companyName, titles =
   return Array.isArray(data?.items) ? data.items : [];
 }
 
-/**
- * Fetch all messages from a LinkedIn chat thread.
- * Used by conversationAnalyzer to build the full transcript.
- *
- * Paginates automatically — fetches up to 200 messages (sufficient for
- * any realistic LinkedIn outreach conversation).
- *
- * @param {string} accountId  Unipile account ID
- * @param {string} chatId     Unipile chat ID
- * @returns {Promise<object[]>} Array of message objects, oldest first
- */
 async function getChatMessages(accountId, chatId, limit = 200) {
   const params = new URLSearchParams({
     account_id: accountId,
@@ -119,7 +111,6 @@ async function getChatMessages(accountId, chatId, limit = 200) {
   });
   const data  = await request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages?${params}`);
   const items = Array.isArray(data?.items) ? data.items : [];
-  // Unipile returns newest-first; reverse so transcript is chronological
   return items.reverse();
 }
 
