@@ -57,17 +57,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .audience-option-sub { font-size: 12px; color: #888; margin-top: 4px; }
 textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; background: #fafafa; }
 textarea:focus { outline: none; border-color: #1D9E75; }
-.search-progress { border: 1px solid #e5e5e5; border-radius: 10px; padding: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.progress-pct { font-size: 28px; font-weight: 600; color: #1D9E75; }
-.progress-bar-wrap { width: 100%; height: 6px; background: #f0f0f0; border-radius: 999px; overflow: hidden; }
-.progress-bar-fill { height: 100%; background: #1D9E75; border-radius: 999px; transition: width 0.3s; }
-.company-meta-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
-.company-meta-table th { background: #f9fafb; padding: 8px 12px; text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #888; border-bottom: 1px solid #e5e5e5; }
-.company-meta-table td { padding: 8px 12px; border-bottom: 1px solid #f5f5f5; color: #444; }
-.company-meta-table tr:last-child td { border-bottom: none; }
-.meta-ok { color: #0F6E56; font-weight: 600; }
-.meta-warn { color: #B45309; }
-.meta-err { color: #DC2626; }
+.search-progress { border: 1px solid #e5e5e5; border-radius: 10px; padding: 32px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .contacts-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
 .contact-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #fafafa; border: 1px solid #f0f0f0; border-radius: 8px; }
 .contact-name { font-size: 13px; font-weight: 500; }
@@ -218,6 +208,7 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .rm-btn { background:none;border:none;font-size:16px;color:#ccc;cursor:pointer;padding:2px 6px; }
 .rm-btn:hover { color:#DC2626; }
 .fsl { display:block;font-size:11px;font-weight:600;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em; }
+@keyframes spin { to { transform: rotate(360deg); } }
 /* Preview notice */
 .preview-notice { background:#F0FBF7;border:1px solid #A7F3D0;border-radius:8px;padding:12px 14px;font-size:12px;color:#0F6E56;margin-bottom:12px;line-height:1.7; }
 .preview-notice strong { color:#0a5c44; }
@@ -324,7 +315,6 @@ function defaultHours() {
 let campaigns = [], workspaceAccounts = [], currentStep = 0;
 let wizard = resetWizard(), activeMsgCanvas = null, dlgVariants = [];
 
-// Globals shared with campaign-modal.js
 var msgEditCanvas = null;
 var CKEY = { new:'new', existingNo:'existing_no_history', existingYes:'existing_with_history' };
 var cmId=null, cmData=null, cmTab=null, cmLoaded={}, cmSettings=null, cmCtPage=1;
@@ -333,8 +323,9 @@ function resetWizard() {
   return {
     selectedAccount: null, audienceType: null,
     urlsPasted: '', companyUrls: '', searchTitles: '', maxPerCompany: 10,
-    searchStatus: null, searchPct: 0, contacts: [], companiesMeta: [],
-    allCompanyUrls: [], isPreview: false, totalCompanies: 0, previewedCount: 0,
+    searchStatus: null, contacts: [], companiesMeta: [],
+    allCompanyUrls: [], isPreview: false, totalCompanies: 0,
+    keywordsQuery: '', nextCursor: null,
     connectionEnabled: true, withdrawEnabled: false, withdrawDays: 14, resendEnabled: false,
     newMessages: [], existingNoHistoryMessages: [], existingWithHistoryMessages: [],
     engagement: {}, campaignName: '', hours: defaultHours()
@@ -383,7 +374,7 @@ function renderCampaigns() {
 
 async function deleteCampaign(id) {
   if (!confirm('Delete this campaign?')) return;
-  await fetch(`/api/campaigns/${id}`, { method: 'DELETE' });
+  await fetch(`/api/campaigns/${id}?workspace_id=${workspaceId}`, { method: 'DELETE' });
   await load();
 }
 
@@ -406,8 +397,8 @@ async function nextStep() {
       if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
       if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
       if (wizard.searchStatus !== 'done') {
-        startSearch(true); // preview mode — first 10 companies
-        return; // wait for search to complete before advancing
+        startSearch(); // keywords search — all companies in one call
+        return;
       }
     }
   }
@@ -445,46 +436,43 @@ function renderAudienceDetail() {
     el.querySelector('textarea').addEventListener('input',function(){document.getElementById('url-count').textContent=countUrls(this.value)+' URLs detected';});
   } else if (wizard.audienceType==='company') {
     if (!wizard.searchStatus) {
-      el.innerHTML=`<div class="field-label">Paste LinkedIn company URLs (one per line)</div><textarea rows="4" placeholder="https://www.linkedin.com/company/bezeq\nhttps://www.linkedin.com/company/partner-communications" style="margin-bottom:12px;" oninput="wizard.companyUrls=this.value">${esc(wizard.companyUrls)}</textarea><div class="field-label">Job titles to search for</div><textarea rows="2" placeholder="VP R&D, Head of Engineering, CTO" oninput="wizard.searchTitles=this.value">${esc(wizard.searchTitles)}</textarea><div class="conn-opt-row" style="margin-top:14px;"><div class="conn-opt-label">Max people per company</div><input class="num-input" type="number" min="1" max="500" value="${wizard.maxPerCompany}" oninput="wizard.maxPerCompany=Math.max(1,parseInt(this.value)||1)"></div><p style="font-size:12px;color:#1D9E75;margin-top:12px;">&#9654; Click <strong>Continue</strong> to preview results from the first 10 companies. The rest will be fetched automatically after creating the campaign.</p>`;
+      el.innerHTML=`<div class="field-label">Paste LinkedIn company URLs (one per line)</div><textarea rows="4" placeholder="https://www.linkedin.com/company/bezeq\nhttps://www.linkedin.com/company/partner-communications" style="margin-bottom:12px;" oninput="wizard.companyUrls=this.value">${esc(wizard.companyUrls)}</textarea><div class="field-label">Job titles to search for</div><textarea rows="2" placeholder="VP R&D, Head of Engineering, CTO" oninput="wizard.searchTitles=this.value">${esc(wizard.searchTitles)}</textarea><p style="font-size:12px;color:#1D9E75;margin-top:12px;">&#9654; Click <strong>Continue</strong> to search across all companies at once.</p>`;
     } else if (wizard.searchStatus==='loading') {
-      el.innerHTML=`<div class="search-progress"><div class="progress-pct" id="search-pct">${wizard.searchPct}%</div><div class="progress-bar-wrap" style="width:100%;"><div class="progress-bar-fill" id="search-bar" style="width:${wizard.searchPct}%;"></div></div><div style="font-size:13px;color:#888;">Searching LinkedIn \u2014 fetching first 10 companies as preview...</div></div>`;
+      el.innerHTML=`<div class="search-progress"><div style="font-size:40px;color:#1D9E75;display:inline-block;animation:spin 0.8s linear infinite;">&#8635;</div><div style="font-size:13px;color:#888;margin-top:8px;">Searching LinkedIn&hellip; this takes a few seconds.</div></div>`;
     } else {
-      const metaHtml = buildCompaniesMetaHtml(wizard.companiesMeta);
-      const remN = wizard.totalCompanies - wizard.previewedCount;
-      const estMin = Math.max(5, Math.ceil(remN * 1.0));
-      const previewBanner = wizard.isPreview ? `<div class="preview-notice">&#128203; <strong>Preview mode</strong> \u2014 showing results from the first ${wizard.previewedCount} of ${wizard.totalCompanies} companies.<br>After creating the campaign, the remaining <strong>${remN} companies</strong> will be fetched automatically in the background (estimated ~${estMin} min).</div>` : '';
-      el.innerHTML=`${previewBanner}<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:14px;font-weight:500;">${wizard.contacts.length} contacts found in preview</div><button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Reset</button></div>${metaHtml}<div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeWizContact(${i})">&times;</button></div>`).join('')}</div>`;
+      const previewBanner = wizard.isPreview
+        ? `<div class="preview-notice">&#128203; <strong>First 50 results shown</strong> \u2014 ${wizard.contacts.length} contacts found across ${wizard.totalCompanies} companies.<br>More results will be fetched automatically in the background after campaign creation.</div>`
+        : '';
+      el.innerHTML=`${previewBanner}<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><div style="font-size:14px;font-weight:500;">&#10003; ${wizard.contacts.length} contacts found</div><button class="ghost-btn" style="font-size:12px;" onclick="resetSearch()">Reset</button></div><div class="contacts-list">${wizard.contacts.map((c,i)=>`<div class="contact-row"><div><div class="contact-name">${esc(c.name||[c.first_name,c.last_name].filter(Boolean).join(' '))}</div><div class="contact-title">${esc(c.headline||c.title||'')}${c.company?' \u00b7 '+c.company:''}</div></div><button class="contact-remove" onclick="removeWizContact(${i})">&times;</button></div>`).join('')}</div>`;
     }
   }
 }
-function buildCompaniesMetaHtml(meta) {
-  if (!meta||!meta.length) return '';
-  const rows=meta.map(m=>{const sc=m.status==='ok'?'meta-ok':m.status==='error'?'meta-err':'meta-warn';const sl=m.status==='ok'?`&#10003; ${esc(m.company_name||'')}`:m.status==='error'?'&#10007; Error':'Invalid URL';const fk=m.status==='ok'?`${m.found} found &rarr; <strong>${m.kept} kept</strong>${m.found>m.kept?` <span class="meta-warn">(${m.found-m.kept} filtered)</span>`:''}`:(m.error?`<span class="meta-err">${esc(m.error)}</span>`:'\u2014');return `<tr><td class="${sc}">${sl}</td><td style="color:#666;font-size:11px;">${esc(m.company_id||'\u2014')}</td><td>${fk}</td></tr>`;}).join('');
-  return `<table class="company-meta-table"><thead><tr><th>Company</th><th>LinkedIn ID</th><th>Results</th></tr></thead><tbody>${rows}</tbody></table>`;
-}
-async function startSearch(previewMode = false) {
+
+async function startSearch() {
   if (!wizard.companyUrls.trim()) return;
   if (!wizard.searchTitles.trim()) return;
-  const limit=Math.max(1,parseInt(wizard.maxPerCompany)||10); wizard.maxPerCompany=limit;
   const allUrls=wizard.companyUrls.split('\n').map(s=>s.trim()).filter(s=>s.includes('linkedin.com/company/'));
+  if (!allUrls.length) return;
   wizard.allCompanyUrls = allUrls;
-  const cu = previewMode ? allUrls.slice(0, 10) : allUrls;
-  wizard.searchStatus='loading'; wizard.searchPct=0; renderAudienceDetail();
-  const pi=setInterval(()=>{if(wizard.searchPct<85){wizard.searchPct=Math.min(wizard.searchPct+Math.floor(Math.random()*8)+3,85);const bar=document.getElementById('search-bar'),pctEl=document.getElementById('search-pct');if(bar)bar.style.width=wizard.searchPct+'%';if(pctEl)pctEl.textContent=wizard.searchPct+'%';}},400);
+  wizard.searchStatus='loading'; renderAudienceDetail();
   try {
     const ti=wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean);
-    const res=await fetch('/api/campaigns/search-people',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:wizard.selectedAccount,company_urls:cu,titles:ti,limit})});
+    const res=await fetch('/api/campaigns/search-people',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({account_id:wizard.selectedAccount,company_urls:allUrls,titles:ti})});
     const data=await res.json();
-    clearInterval(pi); wizard.searchPct=100; wizard.searchStatus='done';
+    if(!res.ok) throw new Error(data.error||'Search failed');
+    wizard.searchStatus='done';
     wizard.contacts=Array.isArray(data.items)?data.items:[];
-    wizard.companiesMeta=Array.isArray(data.companies)?data.companies:[];
-    wizard.isPreview = previewMode && allUrls.length > cu.length;
-    wizard.totalCompanies = allUrls.length;
-    wizard.previewedCount = cu.length;
-  } catch(err){clearInterval(pi);wizard.searchStatus=null;alert('Search failed: '+err.message);}
-  renderAudienceDetail();
+    wizard.companiesMeta=[];
+    wizard.keywordsQuery=data.keywords_query||'';
+    wizard.nextCursor=data.next_cursor||null;
+    wizard.totalCompanies=allUrls.length;
+    wizard.isPreview=!!data.next_cursor;
+    // Auto-advance to next step after successful search
+    currentStep++; renderStep();
+  } catch(err){wizard.searchStatus=null;alert('Search failed: '+err.message);}
+  if (wizard.searchStatus==='loading') renderAudienceDetail();
 }
-function resetSearch()       { wizard.searchStatus=null;wizard.contacts=[];wizard.companiesMeta=[];wizard.isPreview=false;renderAudienceDetail(); }
+function resetSearch() { wizard.searchStatus=null;wizard.contacts=[];wizard.companiesMeta=[];wizard.isPreview=false;wizard.keywordsQuery='';wizard.nextCursor=null;renderAudienceDetail(); }
 function removeWizContact(i) { wizard.contacts.splice(i,1);renderAudienceDetail(); }
 
 function renderStepSequence(body) {
@@ -519,11 +507,11 @@ function removeMsg(canvas,i) { if(canvas==='new')wizard.newMessages.splice(i,1);
 
 function renderStepName(body) {
   const acc=workspaceAccounts.find(a=>a.account_id===wizard.selectedAccount);
-  const remN = wizard.isPreview ? wizard.totalCompanies - wizard.previewedCount : 0;
-  const estMin = Math.max(5, Math.ceil(remN * 1.0));
-  const fetchNotice = wizard.isPreview ? `<div class="preview-notice" style="margin-top:12px;">&#9200; Background fetch of <strong>${remN}</strong> remaining companies will start automatically after creation (~${estMin} min).</div>` : '';
+  const fetchNotice = wizard.isPreview
+    ? `<div class="preview-notice" style="margin-top:12px;">&#9200; More contacts will be fetched automatically in the background after campaign creation.</div>`
+    : '';
   const as = wizard.isPreview
-    ? `${wizard.contacts.length} contacts (preview from ${wizard.previewedCount}/${wizard.totalCompanies} companies)`
+    ? `${wizard.contacts.length} contacts preview (${wizard.totalCompanies} companies searched)`
     : wizard.audienceType==='people' ? countUrls(wizard.urlsPasted)+' profile URLs' : wizard.contacts.length+' contacts from search';
   const daysHtml=DAYS.map(d=>{const h=wizard.hours[d.key];return `<div class="day-card${h.on?'':' off'}" id="wdc-${d.key}"><div class="day-head"><span class="day-name">${d.label}</span><button class="day-toggle${h.on?' on':''}" id="wdt-${d.key}" onclick="wizToggleDay('${d.key}')"></button></div><div id="wdts-${d.key}" style="display:${h.on?'':'none'}"><div class="time-inputs"><div class="time-row"><span class="time-lbl">from</span><input class="time-input" type="time" value="${h.from}" onchange="wizUpdateHour('${d.key}','from',this.value)"></div><div class="time-row"><span class="time-lbl">to</span><input class="time-input" type="time" value="${h.to}" onchange="wizUpdateHour('${d.key}','to',this.value)"></div></div></div><div id="wdof-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div></div>`;}).join('');
   const ad=DAYS.filter(d=>wizard.hours[d.key].on).map(d=>d.label);
@@ -551,12 +539,12 @@ async function createCampaign() {
     contacts=wizard.contacts.map(c=>({first_name:c.first_name||c.name?.split(' ')[0]||'',last_name:c.last_name||c.name?.split(' ').slice(1).join(' ')||'',company:c.company||'',title:c.headline||c.title||'',li_profile_url:c.public_profile_url||c.li_profile_url||''}));
   }
   try {
-    const res=await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,account_id:wizard.selectedAccount,name:wizard.campaignName,audience_type:wizard.audienceType,contacts,settings:{connection:{enabled:wizard.connectionEnabled,withdraw_after_days:wizard.withdrawEnabled?parseInt(wizard.withdrawDays)||14:0,resend:wizard.resendEnabled},engagement:wizard.engagement,messages:{new:wizard.newMessages,existing_no_history:wizard.existingNoHistoryMessages,existing_with_history:wizard.existingWithHistoryMessages},hours:wizard.hours,searchConfig:wizard.audienceType==='company'?{titles:wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean),maxPerCompany:parseInt(wizard.maxPerCompany)||10,companyUrls:wizard.allCompanyUrls||[],previewedCount:wizard.previewedCount||0}:null}})}); 
+    const res=await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,account_id:wizard.selectedAccount,name:wizard.campaignName,audience_type:wizard.audienceType,contacts,settings:{connection:{enabled:wizard.connectionEnabled,withdraw_after_days:wizard.withdrawEnabled?parseInt(wizard.withdrawDays)||14:0,resend:wizard.resendEnabled},engagement:wizard.engagement,messages:{new:wizard.newMessages,existing_no_history:wizard.existingNoHistoryMessages,existing_with_history:wizard.existingWithHistoryMessages},hours:wizard.hours,searchConfig:wizard.audienceType==='company'?{titles:wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean),companyUrls:wizard.allCompanyUrls||[],keywordsQuery:wizard.keywordsQuery||'',nextCursor:wizard.nextCursor||null}:null}})});
     const newCamp = await res.json();
     if (!res.ok) throw new Error(newCamp.error);
-    // Trigger background fetch for remaining companies (fire-and-forget)
-    if (wizard.audienceType==='company' && (wizard.allCompanyUrls||[]).length > (wizard.previewedCount||0)) {
-      fetch(`/api/campaigns/${newCamp.id}/fetch-all-companies`, {method:'POST'}).catch(()=>{});
+    // Trigger background fetch for more pages if cursor available
+    if (wizard.audienceType==='company' && wizard.nextCursor) {
+      fetch(`/api/campaigns/${newCamp.id}/fetch-all-companies?workspace_id=${workspaceId}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId})}).catch(()=>{});
     }
     closeModal(); await load();
   } catch(err){alert('Failed: '+err.message);btn.disabled=false;btn.textContent='Create campaign';}
