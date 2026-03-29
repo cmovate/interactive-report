@@ -100,8 +100,7 @@ function msgColsCreate() {
       account_id VARCHAR(255) NOT NULL, display_name VARCHAR(255),
       provider VARCHAR(50) DEFAULT 'linkedin', status VARCHAR(50),
       webhook_id VARCHAR(255), settings JSONB DEFAULT '{}',
-      created_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(workspace_id, account_id)
+      created_at TIMESTAMP DEFAULT NOW()
     )
   `));
 
@@ -561,6 +560,9 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
 
   await s('migrate.ua_unique', async () => {
     await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key');
+    try {
+      await db.query('ALTER TABLE unipile_accounts ADD CONSTRAINT ua_ws_acc_unique UNIQUE(workspace_id, account_id)');
+    } catch(e) { /* already exists */ }
   });
 
   await s('backfill.account_profiles', async () => {
