@@ -13,6 +13,7 @@ const webhooksRouter           = require('./src/routes/webhooks');
 const followersRouter          = require('./src/routes/followers');
 const statsRouter              = require('./src/routes/stats');
 const opportunitiesRouter      = require('./src/routes/opportunities');
+const adminRouter              = require('./src/routes/admin');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -41,6 +42,7 @@ app.use('/api/webhooks',      webhooksRouter);
 app.use('/api/followers',     followersRouter);
 app.use('/api/stats',         statsRouter);
 app.use('/api/opportunities', opportunitiesRouter);
+app.use('/api/admin',         adminRouter);
 
 async function s(label, fn) {
   try { await fn(); }
@@ -174,7 +176,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // Named views (labels/folders) for grouping manually-added companies in Opportunities
   await s('opportunity_views', () => db.query(`
     CREATE TABLE IF NOT EXISTS opportunity_views (
       id           SERIAL PRIMARY KEY,
@@ -184,7 +185,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // Manually-added companies for Opportunities (no campaign required)
   await s('opportunity_companies', () => db.query(`
     CREATE TABLE IF NOT EXISTS opportunity_companies (
       id                  SERIAL PRIMARY KEY,
@@ -192,7 +192,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
       company_name        VARCHAR(255) NOT NULL,
       li_company_url      TEXT,
       company_linkedin_id VARCHAR(50),
-      view_id             INTEGER,  -- FK to opportunity_views
+      view_id             INTEGER,
       added_at            TIMESTAMP DEFAULT NOW()
     )
   `));
@@ -329,7 +329,6 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['ct.conv_signals',            'contacts',            'conversation_signals',        'JSONB'],
     ['ct.conv_analyzed_at',        'contacts',            'conversation_analyzed_at',    'TIMESTAMP'],
     ['ct.reply_count',             'contacts',            'reply_count',                 'INTEGER DEFAULT 0'],
-    // opportunity_companies: view_id column (existing DBs need this added)
     ['oc.view_id',                 'opportunity_companies', 'view_id',                   'INTEGER'],
   ];
   for (const [label, table, col, type] of fixedCols) {
