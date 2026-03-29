@@ -51,16 +51,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .add-section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; margin-bottom: 10px; }
 
 /* No-accounts notice inside the add panel */
-.panel-notice { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; color: #5D4037; line-height: 1.6; font-size: 13px; }
+.panel-notice { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; color: #5D4037; line-height: 1.7; font-size: 13px; }
 .panel-notice .panel-notice-title { font-size: 14px; font-weight: 600; color: #4E342E; margin-bottom: 8px; }
-.panel-notice a.settings-link {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-top: 14px;
-  background: #1D9E75; color: white; text-decoration: none;
-  border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 500;
-  transition: background 0.15s;
-}
-.panel-notice a.settings-link:hover { background: #178f68; }
+.panel-notice a.inline-link { color: #1D9E75; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.panel-notice a.inline-link:hover { color: #178f68; }
 
 /* View selector */
 .view-radio-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
@@ -211,12 +205,11 @@ tbody tr:last-child > td { border-bottom: none; }
 
       <!-- No-accounts notice (shown only when workspace has no LinkedIn accounts) -->
       <div id="no-accounts-notice" class="panel-notice" style="display:none;">
-        <div class="panel-notice-title">&#128273; Before you start, add at least one LinkedIn account.</div>
+        <div class="panel-notice-title">&#128273; Before you start, add at least one user.</div>
         No LinkedIn accounts have been connected to this workspace yet. You need at least one
-        account to search LinkedIn and attach contacts to campaigns.
-        Go to Settings and click <strong>+ Add account</strong> to connect your first LinkedIn account.
-        <br>
-        <a class="settings-link" id="no-accounts-settings-link" href="#">&#9881;&#65039; Go to Settings &rarr; Add account</a>
+        account to search LinkedIn and attach contacts to campaigns. Please
+        <a class="inline-link" id="no-accounts-settings-link" href="#">Add Users</a>
+        in Settings, then come back here to add companies.
       </div>
 
       <!-- Section 1: View -->
@@ -334,9 +327,9 @@ tbody tr:last-child > td { border-bottom: none; }
     </div>
     <div id="msg-status-area"></div>
     <div class="tokens-row">
-      <button class="token-btn" onclick="insertToken('{{first_name}}')">{&#123;first_name}}</button>
-      <button class="token-btn" onclick="insertToken('{{last_name}}')">{&#123;last_name}}</button>
-      <button class="token-btn" onclick="insertToken('{{company}}')">{&#123;company}}</button>
+      <button class="token-btn" onclick="insertToken('{{first_name}}')">&#123;&#123;first_name&#125;&#125;</button>
+      <button class="token-btn" onclick="insertToken('{{last_name}}')">&#123;&#123;last_name&#125;&#125;</button>
+      <button class="token-btn" onclick="insertToken('{{company}}')">&#123;&#123;company&#125;&#125;</button>
     </div>
     <textarea class="msg-textarea" id="msg-textarea"
       placeholder="Hi {{first_name}}, I noticed we're connected..." oninput="updateCharCount()"></textarea>
@@ -608,12 +601,11 @@ function toggleAddPanel() {
   document.getElementById('attach-manual-config').style.display = 'none';
   document.querySelector('input[name="view-mode"][value="new"]').checked = true;
 
-  // Show or hide the no-accounts notice
+  // Show/hide the no-accounts notice and set the link href
   const noAccountsEl   = document.getElementById('no-accounts-notice');
   const settingsLinkEl = document.getElementById('no-accounts-settings-link');
-  const hasAccounts    = allData.accounts.length > 0;
-  noAccountsEl.style.display   = hasAccounts ? 'none' : 'block';
-  settingsLinkEl.href           = settingsUrl;
+  noAccountsEl.style.display = allData.accounts.length > 0 ? 'none' : 'block';
+  settingsLinkEl.href        = settingsUrl;
 
   renderPanelViewSection();
   if (currentFilter.startsWith('view:')) {
