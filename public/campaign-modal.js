@@ -1,3 +1,5 @@
+(function(){const s=document.createElement('style');s.textContent="/* === KPI tiles interactive === */\n.kpi-btn { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s; }\n.kpi-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.10); border-color: #1D9E75 !important; }\n.kpi-btn.kpi-active { background: #F0FBF7 !important; border-color: #1D9E75 !important; box-shadow: 0 0 0 2px rgba(29,158,117,.25); }\n.kpi-btn.kpi-active .overview-card-num { color: #0F6E56; }\n/* KPI drill panel */\n#cm-kpi-drill { background: white; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }\n.kpi-drill-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #F8FFFE; border-bottom: 1px solid #e5e5e5; }\n.kpi-drill-title { font-size: 13px; font-weight: 600; color: #0F6E56; }\n.kpi-drill-count { font-size: 12px; color: #888; background: #f0f0f0; border-radius: 10px; padding: 1px 8px; }\n.kpi-drill-close { margin-left: auto; font-size: 18px; cursor: pointer; color: #999; line-height: 1; }\n.kpi-drill-close:hover { color: #333; }\n.kpi-drill-table-wrap { overflow-x: auto; max-height: 280px; overflow-y: auto; }\n.kpi-drill-table { width: 100%; border-collapse: collapse; font-size: 13px; }\n.kpi-drill-table th { background: #fafafa; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #888; border-bottom: 1px solid #f0f0f0; position: sticky; top: 0; }\n.kpi-drill-table td { padding: 9px 12px; border-bottom: 1px solid #f5f5f5; color: #333; }\n.kpi-drill-table tr:last-child td { border-bottom: none; }\n.kpi-drill-table tr:hover td { background: #F8FFFE; }\n.kpi-drill-empty { padding: 24px; text-align: center; color: #aaa; font-size: 13px; }\n/* Smart column filters */\n.cm-th-sort { cursor: pointer; user-select: none; white-space: nowrap; }\n.cm-th-sort:hover { color: #1D9E75; }\n.cm-sort-icon { font-size: 10px; opacity: .5; margin-left: 3px; }\n.cm-filter-row td { padding: 4px 6px !important; background: #fafafa; }\n.cm-fi { width: 100%; border: 1px solid #e0e0e0; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-family: inherit; color: #333; background: white; outline: none; }\n.cm-fi:focus { border-color: #1D9E75; box-shadow: 0 0 0 2px rgba(29,158,117,.12); }\n";document.head.appendChild(s);})();
+
 // Campaign Edit Modal — loaded by campaigns.html
 // ══════════════════════════════════════════════════════════════════
 // CAMPAIGN EDIT MODAL
@@ -71,14 +73,38 @@ function buildAnalyticsHTML(data) {
   const rr  = parseInt(o.messages_sent)>0? Math.round(parseInt(o.messages_replied)/parseInt(o.messages_sent)*100): 0;
   let html = `<div class="analytics-section-label">Overview</div>
     <div class="overview-grid">
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.total_contacts)||0}</div><div class="overview-card-label">Contacts</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.invites_sent)||0}</div><div class="overview-card-label">Invites sent</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.invites_approved)||0}</div><div class="overview-card-rate">${iap}%</div><div class="overview-card-label">Approved</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.messages_sent)||0}</div><div class="overview-card-label">Msgs sent</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.messages_replied)||0}</div><div class="overview-card-rate">${rr}%</div><div class="overview-card-label">Replied</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.positive_replies)||0}</div><div class="overview-card-label">Positive</div></div>
-      <div class="overview-card"><div class="overview-card-num">${parseInt(o.total_msgs_sent)||0}</div><div class="overview-card-label">Total msgs</div></div>
-    </div><div class="analytics-section-label">A/B/C message performance</div>`;
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'all')" title="Show all contacts">
+        <div class="overview-card-num">${parseInt(o.total_contacts)||0}</div>
+        <div class="overview-card-label">Contacts</div>
+      </div>
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'invite_sent')" title="Contacts with invite sent">
+        <div class="overview-card-num">${parseInt(o.invites_sent)||0}</div>
+        <div class="overview-card-label">Invites sent</div>
+      </div>
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'invite_approved')" title="Contacts who approved">
+        <div class="overview-card-num">${parseInt(o.invites_approved)||0}</div>
+        <div class="overview-card-rate">${iap}%</div>
+        <div class="overview-card-label">Approved</div>
+      </div>
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'msg_sent')" title="Contacts messaged">
+        <div class="overview-card-num">${parseInt(o.messages_sent)||0}</div>
+        <div class="overview-card-label">Msgs sent</div>
+      </div>
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'msg_replied')" title="Contacts who replied">
+        <div class="overview-card-num">${parseInt(o.messages_replied)||0}</div>
+        <div class="overview-card-rate">${rr}%</div>
+        <div class="overview-card-label">Replied</div>
+      </div>
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'positive_reply')" title="Positive replies">
+        <div class="overview-card-num">${parseInt(o.positive_replies)||0}</div>
+        <div class="overview-card-label">Positive</div>
+      </div>
+      <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'total_msgs')" title="Total messages sent">
+        <div class="overview-card-num">${parseInt(o.total_msgs_sent)||0}</div>
+        <div class="overview-card-label">Total msgs</div>
+      </div>
+    </div>
+    <div id="cm-kpi-drill" style="display:none;margin-top:14px;"></div>    </div><div class="analytics-section-label">A/B/C message performance</div>`;
   const steps = data.steps||[];
   if (!steps.length) return html+'<div class="no-ab-msg">No messages sent yet.</div>';
   const VC={A:'variant-a',B:'variant-b',C:'variant-c'};
@@ -106,7 +132,18 @@ function buildCompaniesHTML(companies) {
       const dt = co.created_at ? new Date(co.created_at).toLocaleDateString() : '\u2014';
       return `<tr><td style="font-weight:500;">${esc(co.company_name||'\u2014')}</td><td>${li}</td><td style="text-align:center;color:#888;">${co.contact_count||0}</td><td style="color:#aaa;font-size:12px;">${dt}</td></tr>`;
     }).join('');
-    tbl = `<div class="tbl-wrap"><table class="cm-table"><thead><tr><th>Company</th><th>LinkedIn</th><th style="text-align:center;">Contacts</th><th>Added</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    tbl = `<div class="tbl-wrap"><table class="cm-table"><thead>
+  <tr class="cm-th-row">
+    <th class="cm-th-sort" onclick="cmSortComp('company_name')">Company <span class="cm-sort-icon" id="comp-sort-name">↕</span></th>
+    <th>LinkedIn</th>
+    <th class="cm-th-sort" onclick="cmSortComp('contact_count')">Contacts <span class="cm-sort-icon" id="comp-sort-count">↕</span></th>
+    <th class="cm-th-sort" onclick="cmSortComp('created_at')">Added <span class="cm-sort-icon" id="comp-sort-added">↕</span></th>
+  </tr>
+  <tr class="cm-filter-row">
+    <td><select class="cm-fi" id="comp-fi-name" onchange="cmFilterComp()"><option value="">All companies</option></select></td>
+    <td></td><td></td><td></td>
+  </tr>
+</thead><tbody>${rows}</tbody></table></div>`;
   }
   const autoInfo = auto
     ? `<div class="auto-box">&#10003; Auto-search: will find <strong>${esc(sc.titles.join(', '))}</strong> &middot; Max <strong>${sc.maxPerCompany||10}</strong> per company</div>`
@@ -157,7 +194,32 @@ function buildAudienceHTML(data){
   if(!items.length){tbl='<div style="text-align:center;color:#aaa;padding:40px;background:#fafafa;border-radius:10px;">No contacts yet.</div>';}
   else{
     const rows=items.map(c=>{const name=[c.first_name,c.last_name].filter(Boolean).join(' ')||'(unknown)';const nameEl=c.li_profile_url?`<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener" style="font-weight:500;">${esc(name)}</a>`:`<span style="font-weight:500;">${esc(name)}</span>`;return`<tr><td>${nameEl}</td><td style="font-size:12px;color:#666;">${esc(c.title||'\u2014')}</td><td style="font-size:12px;color:#888;">${esc(c.company||'\u2014')}</td><td>${buildChips(c)}</td><td><button class="rm-btn" onclick="removeCMContact(${c.id})" title="Remove">&times;</button></td></tr>`;}).join('');
-    tbl=`<div class="tbl-wrap"><table class="cm-table"><thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    tbl=`<div class="tbl-wrap"><table class="cm-table"><thead>
+  <tr class="cm-th-row">
+    <th class="cm-th-sort" onclick="cmSortAud('name')">Name <span class="cm-sort-icon" id="aud-sort-name">↕</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('title')">Title <span class="cm-sort-icon" id="aud-sort-title">↕</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('company')">Company <span class="cm-sort-icon" id="aud-sort-company">↕</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('status')">Status <span class="cm-sort-icon" id="aud-sort-status">↕</span></th>
+    <th></th>
+  </tr>
+  <tr class="cm-filter-row">
+    <td><input class="cm-fi" id="aud-fi-name" placeholder="Search name…" oninput="cmFilterAud()"></td>
+    <td><input class="cm-fi" id="aud-fi-title" placeholder="Search title…" oninput="cmFilterAud()"></td>
+    <td><select class="cm-fi" id="aud-fi-company" onchange="cmFilterAud()"><option value="">All companies</option></select></td>
+    <td>
+      <select class="cm-fi" id="aud-fi-status" onchange="cmFilterAud()">
+        <option value="">All</option>
+        <option value="new">New</option>
+        <option value="invite_sent">Invite sent</option>
+        <option value="invite_approved">Approved</option>
+        <option value="msg_sent">Msg sent</option>
+        <option value="msg_replied">Replied</option>
+        <option value="positive_reply">Positive</option>
+      </select>
+    </td>
+    <td></td>
+  </tr>
+</thead><tbody>${rows}</tbody></table></div>`;
   }
   let pager='';
   if(pages>1){const b=[`<button class="pg" onclick="loadCMContacts(${page-1})" ${page<=1?'disabled':''}>&#8249; Prev</button>`];for(let p=Math.max(1,page-2);p<=Math.min(pages,page+2);p++)b.push(`<button class="pg${p===page?' on':''}" onclick="loadCMContacts(${p})">${p}</button>`);b.push(`<button class="pg" onclick="loadCMContacts(${page+1})" ${page>=pages?'disabled':''}>Next &#8250;</button>`);pager=`<div class="pager">${b.join('')}</div>`;}
@@ -270,3 +332,232 @@ async function saveCMSettings(){
 }
 
 function safeUrl(u){u=(u||'').trim();return /^https?:\/\//i.test(u)?u:'https://'+u;}
+
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KPI DRILL-DOWN — click a KPI tile to see matching contacts below
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+window._cmKpiState = { key: null, contacts: [] };
+window._cmAudSort  = { col: null, dir: 1 };
+window._cmCompSort = { col: null, dir: 1 };
+
+function cmKpiClick(el, key) {
+  const drill = document.getElementById('cm-kpi-drill');
+  if (!drill) return;
+
+  // toggle off if same tile clicked twice
+  if (window._cmKpiState.key === key) {
+    window._cmKpiState.key = null;
+    drill.style.display = 'none';
+    document.querySelectorAll('.kpi-btn').forEach(b => b.classList.remove('kpi-active'));
+    return;
+  }
+
+  // highlight selected tile
+  document.querySelectorAll('.kpi-btn').forEach(b => b.classList.remove('kpi-active'));
+  el.classList.add('kpi-active');
+  window._cmKpiState.key = key;
+
+  // get contacts from the audience body table rows
+  const tbody = document.querySelector('#cmb-audience tbody');
+  const allRows = tbody ? [...tbody.querySelectorAll('tr')] : [];
+  if (!allRows.length) {
+    drill.innerHTML = '<div class="kpi-drill-empty">Open the Audience tab first, then click a KPI tile.</div>';
+    drill.style.display = 'block';
+    return;
+  }
+
+  // filter rows by KPI key — uses data attributes on each row
+  const filtered = key === 'all' ? allRows : allRows.filter(row => {
+    const flags = {
+      invite_sent:     row.dataset.inviteSent     === '1',
+      invite_approved: row.dataset.inviteApproved === '1',
+      msg_sent:        row.dataset.msgSent        === '1',
+      msg_replied:     row.dataset.msgReplied     === '1',
+      positive_reply:  row.dataset.positiveReply  === '1',
+      total_msgs:      (parseInt(row.dataset.msgsCount)||0) > 0,
+    };
+    return flags[key];
+  });
+
+  const label = el.querySelector('.overview-card-label')?.textContent || key;
+  const count = filtered.length;
+
+  if (!count) {
+    drill.innerHTML = `<div class="kpi-drill-empty">No contacts match "${label}" yet.</div>`;
+    drill.style.display = 'block';
+    return;
+  }
+
+  // build mini-table
+  const rows = filtered.map(row => {
+    const tds = [...row.querySelectorAll('td')];
+    const name    = tds[0]?.textContent.trim() || '—';
+    const title   = tds[1]?.textContent.trim() || '—';
+    const company = tds[2]?.textContent.trim() || '—';
+    const status  = tds[3]?.textContent.trim() || '—';
+    const href    = row.querySelector('a')?.href || '#';
+    return `<tr>
+      <td><a href="${href}" target="_blank" rel="noopener" style="color:#0A66C2;text-decoration:none">${esc(name)}</a></td>
+      <td>${esc(title)}</td>
+      <td>${esc(company)}</td>
+      <td><span class="status-pill status-${esc(status.toLowerCase().replace(' ','_'))}">${esc(status)}</span></td>
+    </tr>`;
+  }).join('');
+
+  drill.innerHTML = `
+    <div class="kpi-drill-header">
+      <span class="kpi-drill-title">${esc(label)}</span>
+      <span class="kpi-drill-count">${count} contact${count!==1?'s':''}</span>
+      <span class="kpi-drill-close" onclick="cmKpiClick(document.querySelector('.kpi-btn.kpi-active'),window._cmKpiState.key)" title="Close">&times;</span>
+    </div>
+    <div class="kpi-drill-table-wrap">
+      <table class="kpi-drill-table">
+        <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  drill.style.display = 'block';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUDIENCE TABLE — sort + filter
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function cmSortAud(col) {
+  const s = window._cmAudSort;
+  s.dir = (s.col === col) ? -s.dir : 1;
+  s.col = col;
+  // update sort icons
+  document.querySelectorAll('[id^="aud-sort-"]').forEach(el => el.textContent = '↕');
+  const icon = document.getElementById('aud-sort-' + col);
+  if (icon) icon.textContent = s.dir === 1 ? '↑' : '↓';
+  _cmSortTable('cmb-audience', col, s.dir);
+}
+
+function cmFilterAud() {
+  const name    = (document.getElementById('aud-fi-name')?.value    || '').toLowerCase();
+  const title   = (document.getElementById('aud-fi-title')?.value   || '').toLowerCase();
+  const company = (document.getElementById('aud-fi-company')?.value || '').toLowerCase();
+  const status  = (document.getElementById('aud-fi-status')?.value  || '').toLowerCase();
+  const tbody   = document.querySelector('#cmb-audience tbody');
+  if (!tbody) return;
+  [...tbody.querySelectorAll('tr')].forEach(row => {
+    const tds  = [...row.querySelectorAll('td')];
+    const rName    = (tds[0]?.textContent||'').toLowerCase();
+    const rTitle   = (tds[1]?.textContent||'').toLowerCase();
+    const rCompany = (tds[2]?.textContent||'').toLowerCase();
+    const rStatus  = (tds[3]?.textContent||'').toLowerCase();
+    const visible  =
+      (!name    || rName.includes(name))    &&
+      (!title   || rTitle.includes(title))  &&
+      (!company || rCompany === company)    &&
+      (!status  || rStatus.includes(status) || row.dataset[status.replace('_','')]?.toString() === '1');
+    row.style.display = visible ? '' : 'none';
+  });
+  _cmPopulateCompanyDropdown('aud-fi-company', 'cmb-audience', 2);
+}
+
+// Populate company dropdown from table rows (col index)
+function _cmPopulateCompanyDropdown(selectId, tbodyId, colIdx) {
+  const sel = document.getElementById(selectId);
+  if (!sel || sel.dataset.populated) return;
+  sel.dataset.populated = '1';
+  const tbody = document.querySelector('#' + tbodyId + ' tbody');
+  if (!tbody) return;
+  const companies = [...new Set(
+    [...tbody.querySelectorAll('tr')].map(r => r.querySelectorAll('td')[colIdx]?.textContent.trim()).filter(Boolean)
+  )].sort();
+  companies.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.toLowerCase(); o.textContent = c;
+    sel.appendChild(o);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPANIES TABLE — sort + filter
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function cmSortComp(col) {
+  const s = window._cmCompSort;
+  s.dir = (s.col === col) ? -s.dir : 1;
+  s.col = col;
+  document.querySelectorAll('[id^="comp-sort-"]').forEach(el => el.textContent = '↕');
+  const icons = { company_name: 'comp-sort-name', contact_count: 'comp-sort-count', created_at: 'comp-sort-added' };
+  const icon = document.getElementById(icons[col]);
+  if (icon) icon.textContent = s.dir === 1 ? '↑' : '↓';
+  _cmSortTable('cmb-companies', col, s.dir, col === 'contact_count');
+}
+
+function cmFilterComp() {
+  const name  = (document.getElementById('comp-fi-name')?.value || '').toLowerCase();
+  const tbody = document.querySelector('#cmb-companies tbody');
+  if (!tbody) return;
+  [...tbody.querySelectorAll('tr')].forEach(row => {
+    const rName = (row.querySelectorAll('td')[0]?.textContent||'').toLowerCase();
+    row.style.display = (!name || rName.includes(name)) ? '' : 'none';
+  });
+}
+
+// Populate companies dropdown on tab open
+function _cmPopulateCompDropdown() {
+  const sel = document.getElementById('comp-fi-name');
+  if (!sel || sel.dataset.populated) return;
+  sel.dataset.populated = '1';
+  const tbody = document.querySelector('#cmb-companies tbody');
+  if (!tbody) return;
+  const companies = [...new Set(
+    [...tbody.querySelectorAll('tr')].map(r => r.querySelectorAll('td')[0]?.textContent.trim()).filter(Boolean)
+  )].sort();
+  companies.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.toLowerCase(); o.textContent = c;
+    sel.appendChild(o);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHARED SORT UTILITY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function _cmSortTable(bodyId, col, dir, numeric) {
+  const tbody  = document.querySelector('#' + bodyId + ' tbody');
+  if (!tbody) return;
+  const rows   = [...tbody.querySelectorAll('tr')];
+  const colMap = {
+    // audience
+    name: 0, title: 1, company: 2, status: 3,
+    // companies
+    company_name: 0, contact_count: 2, created_at: 3
+  };
+  const idx = colMap[col] ?? 0;
+  rows.sort((a, b) => {
+    const av = a.querySelectorAll('td')[idx]?.textContent.trim() || '';
+    const bv = b.querySelectorAll('td')[idx]?.textContent.trim() || '';
+    if (numeric) return (parseFloat(av)||0) > (parseFloat(bv)||0) ? dir : -dir;
+    return av.localeCompare(bv) * dir;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AUTO-INIT: populate dropdowns when tabs load
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+(function patchSwitchCMTab() {
+  const orig = window.switchCMTab;
+  if (!orig) return;
+  window.switchCMTab = function(tab) {
+    orig(tab);
+    setTimeout(() => {
+      if (tab === 'audience') {
+        _cmPopulateCompanyDropdown('aud-fi-company', 'cmb-audience', 2);
+      } else if (tab === 'companies') {
+        _cmPopulateCompDropdown();
+      }
+    }, 400);
+  };
+})();
