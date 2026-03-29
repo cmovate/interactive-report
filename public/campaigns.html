@@ -179,7 +179,17 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .ghost-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 9px 16px; font-size: 14px; color: #555; cursor: pointer; }
 .ghost-btn:hover { background: #f5f5f5; }
-.notice-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 14px 16px; font-size: 13px; color: #795548; }
+/* No-accounts notice box */
+.notice-box { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 20px 22px; font-size: 13px; color: #5D4037; line-height: 1.6; }
+.notice-box .notice-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: #4E342E; }
+.notice-box a.settings-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 14px;
+  background: #1D9E75; color: white; text-decoration: none;
+  border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 500;
+  transition: background 0.15s;
+}
+.notice-box a.settings-link:hover { background: #178f68; }
 </style>
 </head>
 <body>
@@ -246,6 +256,8 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 <script>
 const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
+const settingsUrl = `settings.html?workspace_id=${workspaceId}`;
+
 const STEPS = ['Account','Audience','Sequence','Name & Hours'];
 const DAYS  = [
   {key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},
@@ -280,7 +292,7 @@ function resetWizard() {
 }
 
 function initials(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
-function pct(a, b) { const bn = parseInt(b) || 0; return bn > 0 ? Math.round((parseInt(a)||0) / bn * 100) + '%' : '—'; }
+function pct(a, b) { const bn = parseInt(b) || 0; return bn > 0 ? Math.round((parseInt(a)||0) / bn * 100) + '%' : '\u2014'; }
 function countUrls(t){ return (t.match(/linkedin\.com\/in\//g)||[]).length; }
 function esc(s)      { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
@@ -314,7 +326,7 @@ function renderCampaigns() {
         <strong>${esc(c.name)}</strong>
         <div class="analytics-hint">&#128200; Click to view analytics &amp; A/B results</div>
       </td>
-      <td style="color:#888;">${esc(c.account_id||'—')}</td>
+      <td style="color:#888;">${esc(c.account_id||'\u2014')}</td>
       <td><div class="stat-num">${parseInt(c.invites_sent)||0}</div></td>
       <td><div class="stat-num">${parseInt(c.invites_approved)||0}</div><div class="stat-rate">${pct(c.invites_approved,c.invites_sent)}</div></td>
       <td><div class="stat-num">${parseInt(c.messages_sent)||0}</div></td>
@@ -380,7 +392,7 @@ function renderAnalytics(data) {
           <td><div class="rate-bar-wrap"><div class="rate-bar" style="width:${barWidth}px;"></div><span class="rate-text">${v.rate}%</span></div></td>
         </tr>`;
       }).join('');
-      const delayInfo = step.delay ? ` — wait ${step.delay} ${step.unit}` : '';
+      const delayInfo = step.delay ? ` \u2014 wait ${step.delay} ${step.unit}` : '';
       return `<div class="ab-step-block">
         <div class="ab-step-title">Message ${step.step}${delayInfo}</div>
         <table class="ab-table">
@@ -398,7 +410,10 @@ function closeModal() { document.getElementById('modal').style.display='none'; }
 function renderStep() {
   document.getElementById('modal-steps').innerHTML = STEPS.map((s,i)=>`<div class="modal-step ${i===currentStep?'active':i<currentStep?'done':''}">${i<currentStep?'\u2713 ':''}${s}</div>`).join('');
   document.getElementById('btn-back').style.visibility = currentStep===0 ? 'hidden' : 'visible';
-  document.getElementById('btn-next').textContent = currentStep===STEPS.length-1 ? 'Create campaign' : 'Continue';
+  const btnNext = document.getElementById('btn-next');
+  btnNext.textContent = currentStep===STEPS.length-1 ? 'Create campaign' : 'Continue';
+  // Disable Continue on step 0 when no accounts are connected
+  btnNext.disabled = (currentStep === 0 && !workspaceAccounts.length);
   [renderStepAccount, renderStepAudience, renderStepSequence, renderStepName][currentStep](document.getElementById('modal-body'));
 }
 async function nextStep() {
@@ -414,7 +429,18 @@ async function nextStep() {
 function prevStep() { if (currentStep>0) { currentStep--; renderStep(); } }
 
 function renderStepAccount(body) {
-  if (!workspaceAccounts.length) { body.innerHTML = `<div class="notice-box">No LinkedIn accounts connected. Go to <strong>Settings</strong> and click <strong>+ Add account</strong>.</div>`; return; }
+  if (!workspaceAccounts.length) {
+    body.innerHTML = `
+      <div class="notice-box">
+        <div class="notice-title">&#128273; Before you start, add at least one LinkedIn account.</div>
+        No LinkedIn accounts have been connected to this workspace yet. You need at least one account
+        to run campaigns. Go to Settings and click <strong>+ Add account</strong> to connect your
+        first LinkedIn account \u2014 then come back here to create a campaign.
+        <br>
+        <a class="settings-link" href="${settingsUrl}">&#9881;&#65039; Go to Settings &rarr; Add account</a>
+      </div>`;
+    return;
+  }
   body.innerHTML = `<div class="section-label">Select LinkedIn account</div><div class="user-grid">${workspaceAccounts.map(a => `<div class="user-card${wizard.selectedAccount===a.account_id?' selected':''}" onclick="selectAccount('${a.account_id}')"><div class="user-avatar">${initials(a.display_name)}</div><div><div class="user-name">${esc(a.display_name)}</div></div></div>`).join('')}</div>`;
 }
 function selectAccount(id) {
@@ -462,8 +488,8 @@ function buildCompaniesMetaHtml(meta) {
     const statusLabel = m.status === 'ok' ? `&#10003; ${esc(m.company_name || '')}` : m.status === 'error' ? `&#10007; Error` : 'Invalid URL';
     const foundKept = m.status === 'ok'
       ? `${m.found} found &rarr; <strong>${m.kept} kept</strong>${m.found > m.kept ? ` <span class="meta-warn">(${m.found - m.kept} filtered)</span>` : ''}`
-      : m.error ? `<span class="meta-err">${esc(m.error)}</span>` : '—';
-    return `<tr><td class="${statusClass}">${statusLabel}</td><td style="color:#666;font-size:11px;">${esc(m.company_id || '—')}</td><td>${foundKept}</td></tr>`;
+      : m.error ? `<span class="meta-err">${esc(m.error)}</span>` : '\u2014';
+    return `<tr><td class="${statusClass}">${statusLabel}</td><td style="color:#666;font-size:11px;">${esc(m.company_id || '\u2014')}</td><td>${foundKept}</td></tr>`;
   }).join('');
   return `<table class="company-meta-table"><thead><tr><th>Company</th><th>LinkedIn ID</th><th>Results</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
@@ -505,8 +531,8 @@ function renderStepSequence(body) {
     <div class="sequence-grid">
       <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">New contacts</div><div class="seq-head-sub">People not yet connected</div></div><div class="seq-body" id="canvas-new">${renderMsgs(wizard.newMessages,'new')}<button class="add-msg-btn" onclick="openMsgDialog('new')">+ Add message</button></div></div>
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing — no chat history</div><div class="seq-head-sub">Connected, never messaged</div></div><div class="seq-body" id="canvas-existingNo">${renderMsgs(wizard.existingNoHistoryMessages,'existingNo')}<button class="add-msg-btn" onclick="openMsgDialog('existingNo')">+ Add message</button></div></div>
-        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing — with chat history</div><div class="seq-head-sub">Connected, previous conversation</div></div><div class="seq-body" id="canvas-existingYes">${renderMsgs(wizard.existingWithHistoryMessages,'existingYes')}<button class="add-msg-btn" onclick="openMsgDialog('existingYes')">+ Add message</button></div></div>
+        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing \u2014 no chat history</div><div class="seq-head-sub">Connected, never messaged</div></div><div class="seq-body" id="canvas-existingNo">${renderMsgs(wizard.existingNoHistoryMessages,'existingNo')}<button class="add-msg-btn" onclick="openMsgDialog('existingNo')">+ Add message</button></div></div>
+        <div class="sequence-canvas"><div class="seq-head"><div class="seq-head-title">Existing \u2014 with chat history</div><div class="seq-head-sub">Connected, previous conversation</div></div><div class="seq-body" id="canvas-existingYes">${renderMsgs(wizard.existingWithHistoryMessages,'existingYes')}<button class="add-msg-btn" onclick="openMsgDialog('existingYes')">+ Add message</button></div></div>
       </div>
     </div>
     <div class="section-label" style="margin-top:20px;">Engagement actions</div>
@@ -594,7 +620,6 @@ async function createCampaign() {
           existing_with_history: wizard.existingWithHistoryMessages,
         },
         hours: wizard.hours,
-        // Saved so Opportunities can auto-fill titles when attaching more companies later
         searchConfig: wizard.audienceType === 'company' ? {
           titles: wizard.searchTitles.split(',').map(s => s.trim()).filter(Boolean),
           maxPerCompany: parseInt(wizard.maxPerCompany) || 10,
