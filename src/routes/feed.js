@@ -1,15 +1,3 @@
-/**
- * Feed Route
- *
- * GET  /api/feed?workspace_id=&campaign_id=&page=&limit=
- *   Returns posts (with nested comments) from linkedin_posts / linkedin_comments.
- *
- * POST /api/feed/fetch?workspace_id=&campaign_id=
- *   Triggers a background scrape: pulls posts + up to 10 comments per post
- *   for all contacts in the campaign using the Unipile engagement data we
- *   already have. Does NOT block — responds immediately with { status: 'started' }.
- */
-
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
@@ -17,48 +5,37 @@ const { getUserPosts, getUserComments } = require('../unipile');
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Pull the best available avatar URL from a Unipile profile/post author object. */
 function extractAvatar(obj) {
-  return (
-    obj?.picture ||
-    obj?.avatar ||
-    obj?.profile_picture_url ||
-    obj?.author?.picture ||
-    obj?.author?.avatar ||
-    null
-  );
+  return obj?.picture || obj?.avatar || obj?.profile_picture_url ||
+         obj?.author?.picture || obj?.author?.avatar || null;
 }
 
-/** Normalise a post item returned by Unipile getUserPosts. */
 function normalisePost(item, contact) {
   const authorName = [
     item.author?.first_name || item.first_name || contact?.first_name || '',
     item.author?.last_name  || item.last_name  || contact?.last_name  || '',
   ].join(' ').trim() || item.author?.name || 'Unknown';
-
   return {
-    post_urn:          item.id || item.social_id || item.urn || item.post_id || null,
-    author_name:       authorName,
-    author_title:      item.author?.headline || item.headline || contact?.title || null,
-    author_profile_url:item.author?.public_identifier
-                        ? `https://www.linkedin.com/in/${item.author.public_identifier}`
-                        : (contact?.li_profile_url || null),
-    author_avatar_url: extractAvatar(item) || contact?.avatar_url || null,
-    content:           item.text || item.commentary || item.content || null,
-    likes_count:       item.likes_count || item.num_likes || item.reaction_count || 0,
-    comments_count:    item.comments_count || item.num_comments || 0,
-    shares_count:      item.shares_count || item.num_shares || 0,
-    posted_at:         item.created_at || item.published_at || item.timestamp || null,
+    post_urn:           item.id || item.social_id || item.urn || item.post_id || null,
+    author_name:        authorName,
+    author_title:       item.author?.headline || item.headline || contact?.title || null,
+    author_profile_url: item.author?.public_identifier
+                          ? 'https://www.linkedin.com/in/' + item.author.public_identifier
+                          : (contact?.li_profile_url || null),
+    author_avatar_url:  extractAvatar(item) || contact?.avatar_url || null,
+    content:            item.text || item.commentary || item.content || null,
+    likes_count:        item.likes_count || item.num_likes || item.reaction_count || 0,
+    comments_count:     item.comments_count || item.num_comments || 0,
+    shares_count:       item.shares_count || item.num_shares || 0,
+    posted_at:          item.created_at || item.published_at || item.timestamp || null,
   };
 }
 
-/** Normalise a comment item returned by Unipile getUserComments. */
 function normaliseComment(item) {
   const authorName = [
     item.author?.first_name || item.first_name || '',
     item.author?.last_name  || item.last_name  || '',
   ].join(' ').trim() || item.author?.name || 'Unknown';
-
   return {
     comment_urn:        item.id || item.comment_id || item.urn || null,
     parent_comment_urn: item.parent_comment_id || item.parent_id || null,
@@ -66,7 +43,7 @@ function normaliseComment(item) {
     author_name:        authorName,
     author_title:       item.author?.headline || null,
     author_profile_url: item.author?.public_identifier
-                          ? `https://www.linkedin.com/in/${item.author.public_identifier}`
+                          ? 'https://www.linkedin.com/in/' + item.author.public_identifier
                           : null,
     author_avatar_url:  extractAvatar(item),
     content:            item.text || item.commentary || item.content || null,
@@ -76,11 +53,17 @@ function normaliseComment(item) {
 }
 
 // ── Background scrape ─────────────────────────────────────────────────────────
+// Only fetches posts from the last 14 days
+
+const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 
 async function scrapeContactFeed(campaignId, workspaceId, accountId) {
-  console.log(`[Feed] Starting scrape for campaign ${campaignId}`);
+  console.log('[Feed] Starting scrape for campaign ' + campaignId);
+  const cutoff = new Date(Date.now() - FOURTEEN_DAYS_MS);
+
   const { rows: contacts } = await db.query(
-    `SELECT id, provider_id, first_name, last_name, title, li_profile_url
+    `SELECT id, provider_id, first_name, last_name, title, li_profile_url,
+            profile_data->>'picture' AS avatar_url
      FROM contacts
      WHERE campaign_id = $1 AND workspace_id = $2
        AND provider_id IS NOT NULL AND provider_id != ''
@@ -92,14 +75,18 @@ async function scrapeContactFeed(campaignId, workspaceId, accountId) {
 
   for (const contact of contacts) {
     try {
-      // 1. Fetch posts
       const rawPosts = await getUserPosts(accountId, contact.provider_id, 20);
 
       for (const raw of rawPosts.slice(0, 20)) {
         const p = normalisePost(raw, contact);
         if (!p.post_urn) continue;
 
-        // Upsert post
+        // Skip posts older than 14 days
+        if (p.posted_at) {
+          const postDate = new Date(p.posted_at);
+          if (!isNaN(postDate) && postDate < cutoff) continue;
+        }
+
         const { rows: postRows } = await db.query(
           `INSERT INTO linkedin_posts
              (campaign_id, workspace_id, contact_id, post_urn,
@@ -120,14 +107,13 @@ async function scrapeContactFeed(campaignId, workspaceId, accountId) {
         const postDbId = postRows[0]?.id;
         if (!postDbId) continue;
 
-        // 2. Fetch up to 10 comments for this post
         try {
           const rawComments = await getUserComments(accountId, p.post_urn, 10);
           for (const rc of rawComments.slice(0, 10)) {
             const c = normaliseComment(rc);
             if (!c.comment_urn) continue;
 
-            // Resolve parent_comment_id (DB id) if this is a reply
+            // Resolve parent_comment_id
             let parentDbId = null;
             if (c.parent_comment_urn) {
               const { rows: par } = await db.query(
@@ -144,8 +130,8 @@ async function scrapeContactFeed(campaignId, workspaceId, accountId) {
                   content, likes_count, commented_at)
                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
                ON CONFLICT (comment_urn) DO UPDATE SET
-                 likes_count  = EXCLUDED.likes_count,
-                 fetched_at   = NOW()`,
+                 likes_count = EXCLUDED.likes_count,
+                 fetched_at  = NOW()`,
               [postDbId, parentDbId, c.comment_urn,
                c.author_name, c.author_title, c.author_profile_url, c.author_avatar_url,
                c.content, c.likes_count, c.commented_at]
@@ -153,59 +139,53 @@ async function scrapeContactFeed(campaignId, workspaceId, accountId) {
             commentsUpserted++;
           }
         } catch (ce) {
-          console.warn(`[Feed] Comments fetch failed for post ${p.post_urn}: ${ce.message}`);
+          console.warn('[Feed] Comments failed for post ' + p.post_urn + ': ' + ce.message);
         }
-
-        // Small delay to avoid hammering the API
         await new Promise(r => setTimeout(r, 1200));
       }
     } catch (err) {
-      console.warn(`[Feed] Posts fetch failed for contact ${contact.id}: ${err.message}`);
+      console.warn('[Feed] Posts failed for contact ' + contact.id + ': ' + err.message);
     }
-
     await new Promise(r => setTimeout(r, 2000));
   }
-
-  console.log(`[Feed] Campaign ${campaignId} done: ${postsUpserted} posts, ${commentsUpserted} comments`);
+  console.log('[Feed] Campaign ' + campaignId + ' done: ' + postsUpserted + ' posts, ' + commentsUpserted + ' comments');
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 /**
- * GET /api/feed?workspace_id=&campaign_id=&page=1&limit=20
- *
- * Returns paginated posts with their nested comments (threads).
- * Comments are structured as:
- *   post.comments = [
- *     { ...topLevelComment, replies: [ ...replyComments ] }
- *   ]
+ * GET /api/feed?workspace_id=&campaign_id=&page=&limit=
+ * Returns posts from the last 14 days with nested comments.
  */
 router.get('/', async (req, res) => {
   try {
     const { workspace_id, campaign_id } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
-    const page  = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(50, parseInt(req.query.limit) || 20);
     const offset = (page - 1) * limit;
+    const cutoff = new Date(Date.now() - FOURTEEN_DAYS_MS).toISOString();
 
-    const conditions = ['p.workspace_id = $1'];
-    const params     = [workspace_id];
-    if (campaign_id) { conditions.push(`p.campaign_id = $${params.length + 1}`); params.push(campaign_id); }
+    const conditions = ['p.workspace_id = $1', "p.posted_at >= $2"];
+    const params     = [workspace_id, cutoff];
+    if (campaign_id) { conditions.push('p.campaign_id = $' + (params.length + 1)); params.push(campaign_id); }
 
     const where = conditions.join(' AND ');
 
     const { rows: totalRows } = await db.query(
-      `SELECT COUNT(*) FROM linkedin_posts p WHERE ${where}`, params
+      'SELECT COUNT(*) FROM linkedin_posts p WHERE ' + where, params
     );
     const total = parseInt(totalRows[0].count);
 
     const { rows: posts } = await db.query(
-      `SELECT p.*, c.li_profile_url AS contact_li_url
+      `SELECT p.*,
+              c.li_profile_url AS contact_li_url,
+              c.first_name || ' ' || COALESCE(c.last_name,'') AS contact_full_name
        FROM linkedin_posts p
        LEFT JOIN contacts c ON c.id = p.contact_id
        WHERE ${where}
-       ORDER BY p.posted_at DESC NULLS LAST, p.fetched_at DESC
+       ORDER BY p.posted_at DESC NULLS LAST
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
       [...params, limit, offset]
     );
@@ -215,8 +195,6 @@ router.get('/', async (req, res) => {
     }
 
     const postIds = posts.map(p => p.id);
-
-    // Fetch all comments for these posts in one query
     const { rows: allComments } = await db.query(
       `SELECT * FROM linkedin_comments
        WHERE post_id = ANY($1::int[])
@@ -224,24 +202,19 @@ router.get('/', async (req, res) => {
       [postIds]
     );
 
-    // Build nested comment structure per post
     const commentsByPost = {};
     const commentById    = {};
+    for (const c of allComments) commentById[c.id] = { ...c, replies: [] };
     for (const c of allComments) {
-      commentById[c.id] = { ...c, replies: [] };
-    }
-    for (const c of allComments) {
-      const post = c.post_id;
-      if (!commentsByPost[post]) commentsByPost[post] = [];
+      if (!commentsByPost[c.post_id]) commentsByPost[c.post_id] = [];
       if (c.parent_comment_id && commentById[c.parent_comment_id]) {
         commentById[c.parent_comment_id].replies.push(commentById[c.id]);
       } else {
-        commentsByPost[post].push(commentById[c.id]);
+        commentsByPost[c.post_id].push(commentById[c.id]);
       }
     }
 
     const items = posts.map(p => ({ ...p, comments: commentsByPost[p.id] || [] }));
-
     res.json({ items, total, page, limit, pages: Math.ceil(total / limit) || 1 });
   } catch (err) {
     console.error('[Feed] GET error:', err.message);
@@ -250,19 +223,14 @@ router.get('/', async (req, res) => {
 });
 
 /**
- * POST /api/feed/fetch?workspace_id=&campaign_id=
- *
- * Kicks off a background scrape for the campaign's contacts.
- * Requires the campaign to have an account_id (fetched from DB).
- * Returns immediately with { status: 'started' }.
+ * POST /api/feed/fetch
  */
 router.post('/fetch', async (req, res) => {
   try {
     const workspace_id = req.body?.workspace_id || req.query.workspace_id;
     const campaign_id  = req.body?.campaign_id  || req.query.campaign_id;
-    if (!workspace_id || !campaign_id) {
+    if (!workspace_id || !campaign_id)
       return res.status(400).json({ error: 'workspace_id and campaign_id required' });
-    }
 
     const { rows } = await db.query(
       'SELECT account_id FROM campaigns WHERE id = $1 AND workspace_id = $2',
@@ -272,9 +240,8 @@ router.post('/fetch', async (req, res) => {
     const { account_id } = rows[0];
     if (!account_id) return res.status(400).json({ error: 'Campaign has no account_id' });
 
-    // Fire and forget
     scrapeContactFeed(campaign_id, workspace_id, account_id)
-      .catch(err => console.error(`[Feed] scrape error campaign ${campaign_id}:`, err.message));
+      .catch(err => console.error('[Feed] scrape error:', err.message));
 
     res.json({ status: 'started', campaign_id, account_id });
   } catch (err) {
