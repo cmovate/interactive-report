@@ -63,19 +63,14 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
   const { rows } = await db.query(`
     SELECT DISTINCT ON (COALESCE(NULLIF(c.li_profile_url, ''), c.id::text))
       c.id, c.first_name, c.last_name, c.company, c.title,
-      c.li_profile_url, c.li_company_url, c.email, c.chat_id, c.provider_id,
+      c.li_profile_url, c.email, c.chat_id, c.provider_id,
       c.campaign_id, c.msg_replied, c.invite_approved,
-      c.invite_sent, c.already_connected, c.positive_reply,
-      c.msgs_sent_count, c.engagement_level, c.location,
-      c.profile_data->'work_experience'->0->>'company_id'  AS li_company_id,
-      c.profile_data->'work_experience'->0->>'company'     AS profile_company,
       camp.name   AS campaign_name,
       camp.status AS campaign_status,
       camp.account_id
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE c.workspace_id = $1
-      AND (c.li_profile_url IS NOT NULL AND c.li_profile_url != '')
+    WHERE c.workspace_id = $1 AND c.already_connected = true
       ${filter}
     ORDER BY
       COALESCE(NULLIF(c.li_profile_url, ''), c.id::text),
@@ -191,18 +186,7 @@ router.get('/', async (req, res) => {
       const byAccount = {};
       for (const acc of accounts) byAccount[acc.account_id] = 0;
       for (const c of contacts) {
-        if (c.account_id && // Match contact to company by li_company_id fallback
-    if (c.li_company_id) {
-      for (const [, entry] of companyMap) {
-        if (!entry.contacts?.some(x => x.id === c.id) &&
-            entry.company_linkedin_id && String(entry.company_linkedin_id) === String(c.li_company_id)) {
-          if (!entry.contacts) entry.contacts = [];
-          entry.contacts.push(c);
-          break;
-        }
-      }
-    }
-    byAccount[c.account_id] !== undefined) byAccount[c.account_id]++;
+        if (c.account_id && byAccount[c.account_id] !== undefined) byAccount[c.account_id]++;
       }
       result.push({ ...co, connections_by_account: byAccount, total: contacts.length, contacts });
     }
