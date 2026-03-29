@@ -6,909 +6,271 @@
 <title>Inbox</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #f3f2ef;
-  color: #1a1a1a;
-  font-size: 14px;
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── Top bar ── */
-.topbar {
-  background: white;
-  border-bottom: 1px solid #e5e5e5;
-  padding: 0 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: 52px;
-  flex-shrink: 0;
-  z-index: 10;
-}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.topbar { background: white; border-bottom: 1px solid #e5e5e5; padding: 0 20px; display: flex; align-items: center; gap: 12px; height: 52px; flex-shrink: 0; }
 .topbar-title { font-size: 15px; font-weight: 600; }
 .topbar-spacer { flex: 1; }
-.filter-select {
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-family: inherit;
-  color: #333;
-  background: white;
-  cursor: pointer;
-}
-.filter-select:focus { outline: none; border-color: #0A66C2; }
-.filter-label { font-size: 11px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.06em; }
-.sync-btn {
-  background: #0A66C2;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  font-family: inherit;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
+.filter-tabs { display: flex; gap: 4px; }
+.filter-tab { padding: 5px 12px; border-radius: 16px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid #e0e0e0; background: white; color: #666; transition: all 0.15s; }
+.filter-tab.active { background: #0A66C2; color: white; border-color: #0A66C2; }
+.sync-btn { background: #0A66C2; border: none; border-radius: 6px; padding: 6px 14px; font-size: 12px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; }
 .sync-btn:hover { background: #004182; }
-.sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.filter-group { display: flex; background: #f0f0f0; border-radius: 6px; overflow: hidden; }
-.filter-pill {
-  border: none;
-  background: transparent;
-  padding: 5px 12px;
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  color: #555;
-  transition: all 0.15s;
-}
-.filter-pill.active { background: white; color: #0A66C2; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-
-/* ── Main split layout ── */
-.inbox-layout {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-}
-
-/* ── Thread list ── */
-.thread-list {
-  width: 300px;
-  flex-shrink: 0;
-  background: white;
-  border-right: 1px solid #e5e5e5;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.thread-list-scroll {
-  flex: 1;
-  overflow-y: auto;
-}
-.thread-item {
-  display: flex;
-  gap: 10px;
-  padding: 12px 16px;
-  cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
-  transition: background 0.1s;
-  position: relative;
-}
+.sync-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.campaign-select { border: 1px solid #e0e0e0; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-family: inherit; background: white; }
+.inbox-layout { display: flex; flex: 1; overflow: hidden; }
+.thread-list { width: 300px; flex-shrink: 0; border-right: 1px solid #e5e5e5; background: white; display: flex; flex-direction: column; overflow: hidden; }
+.thread-list-inner { overflow-y: auto; flex: 1; }
+.thread-item { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; gap: 10px; align-items: flex-start; transition: background 0.1s; }
 .thread-item:hover { background: #f9f9f9; }
-.thread-item.active { background: #E8F4FD; border-left: 3px solid #0A66C2; }
-.thread-item.unread .thread-preview { font-weight: 600; color: #111; }
-.thread-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #DBEAFE, #C7F2D8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: #1E5F3E;
-  flex-shrink: 0;
-  overflow: hidden;
-  position: relative;
-}
-.thread-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.thread-item.active { background: #EFF6FF; border-right: 2px solid #0A66C2; }
+.thread-item.unread .thread-name { font-weight: 700; }
+.thread-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg,#DBEAFE,#C7F2D8); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #1E5F3E; flex-shrink: 0; overflow: hidden; }
 .thread-info { flex: 1; min-width: 0; }
-.thread-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #191919;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.thread-company {
-  font-size: 11px;
-  color: #888;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-.thread-preview {
-  font-size: 12px;
-  color: #777;
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.thread-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.thread-time { font-size: 10px; color: #aaa; }
-.unread-badge {
-  background: #0A66C2;
-  color: white;
-  border-radius: 10px;
-  padding: 1px 6px;
-  font-size: 10px;
-  font-weight: 700;
-  min-width: 18px;
-  text-align: center;
-}
-.thread-list-empty {
-  padding: 40px 24px;
-  text-align: center;
-  color: #aaa;
-  font-size: 13px;
-}
-.thread-list-loading {
-  padding: 30px;
-  text-align: center;
-  color: #aaa;
-}
-.thread-pg {
-  padding: 8px 16px;
-  border-top: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-.pg-btn {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 5px;
-  padding: 4px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  font-family: inherit;
-  color: #555;
-}
-.pg-btn:hover:not(:disabled) { background: #f0f8ff; border-color: #0A66C2; }
-.pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.pg-label { font-size: 11px; color: #aaa; line-height: 1; padding-top: 2px; }
-
-/* ── Conversation pane ── */
-.convo-pane {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #f3f2ef;
-}
-.convo-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #ccc;
-  gap: 12px;
-}
-.convo-empty-icon { font-size: 48px; opacity: 0.3; }
-.convo-empty-text { font-size: 14px; color: #aaa; }
-
-/* Contact header */
-.contact-header {
-  background: white;
-  border-bottom: 1px solid #e5e5e5;
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.contact-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #DBEAFE, #C7F2D8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: #1E5F3E;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.contact-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.contact-info { flex: 1; min-width: 0; }
-.contact-name { font-size: 14px; font-weight: 600; color: #191919; }
-.contact-sub { font-size: 12px; color: #888; margin-top: 2px; }
-.contact-actions { display: flex; gap: 8px; }
-.action-link {
-  font-size: 12px;
-  color: #0A66C2;
-  text-decoration: none;
-  background: #E8F4FD;
-  padding: 4px 10px;
-  border-radius: 5px;
-  font-weight: 500;
-}
-.action-link:hover { background: #d0e8f8; }
-.campaign-chip {
-  background: #E1F5EE;
-  color: #0F6E56;
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-/* Messages scroll */
-.messages-scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.messages-loading { text-align: center; color: #aaa; padding: 40px; }
-.msg-row { display: flex; }
-.msg-row.sent { justify-content: flex-end; }
-.msg-row.received { justify-content: flex-start; }
-.msg-bubble {
-  max-width: 68%;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 13px;
-  line-height: 1.55;
-  position: relative;
-}
-.msg-row.sent .msg-bubble {
-  background: #0A66C2;
-  color: white;
-  border-bottom-right-radius: 3px;
-}
-.msg-row.received .msg-bubble {
-  background: white;
-  color: #222;
-  border-bottom-left-radius: 3px;
-  border: 1px solid #e5e5e5;
-}
-.msg-time {
-  font-size: 10px;
-  margin-top: 4px;
-  text-align: right;
-  opacity: 0.7;
-}
-.msg-row.received .msg-time { text-align: left; color: #aaa; }
-.date-divider {
-  text-align: center;
-  font-size: 11px;
-  color: #bbb;
-  padding: 8px 0;
-  font-weight: 500;
-}
-
-/* Reply box */
-.reply-box {
-  background: white;
-  border-top: 1px solid #e5e5e5;
-  padding: 12px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.reply-textarea {
-  width: 100%;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-  font-family: inherit;
-  resize: none;
-  line-height: 1.5;
-  color: #333;
-  outline: none;
-  min-height: 72px;
-  max-height: 160px;
-  transition: border-color 0.15s;
-}
-.reply-textarea:focus { border-color: #0A66C2; }
-.reply-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
-.ai-suggest-btn {
-  background: linear-gradient(135deg, #7C3AED, #4F46E5);
-  border: none;
-  border-radius: 6px;
-  padding: 7px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  font-family: inherit;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: opacity 0.15s;
-}
-.ai-suggest-btn:hover { opacity: 0.9; }
-.ai-suggest-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.send-btn {
-  background: #0A66C2;
-  border: none;
-  border-radius: 6px;
-  padding: 7px 18px;
-  font-size: 13px;
-  font-weight: 600;
-  color: white;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s;
-}
+.thread-name { font-size: 13px; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-company { font-size: 11px; color: #888; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-preview { font-size: 12px; color: #999; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.thread-time { font-size: 10px; color: #bbb; flex-shrink: 0; margin-top: 2px; }
+.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #0A66C2; flex-shrink: 0; margin-top: 4px; }
+.thread-empty { padding: 40px 20px; text-align: center; color: #aaa; font-size: 13px; line-height: 1.6; }
+.conversation { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #f9f9f9; }
+.conv-header { background: white; border-bottom: 1px solid #e5e5e5; padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.conv-avatar { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg,#DBEAFE,#C7F2D8); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #1E5F3E; flex-shrink: 0; }
+.conv-header-info { flex: 1; min-width: 0; }
+.conv-name { font-size: 14px; font-weight: 600; color: #111; }
+.conv-meta { font-size: 11px; color: #888; margin-top: 2px; }
+.conv-campaign-badge { font-size: 10px; font-weight: 600; background: #E1F5EE; color: #0F6E56; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+.li-link { font-size: 11px; color: #0A66C2; text-decoration: none; margin-left: 8px; }
+.li-link:hover { text-decoration: underline; }
+.messages { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.msg { display: flex; flex-direction: column; max-width: 72%; }
+.msg.sent { align-self: flex-end; align-items: flex-end; }
+.msg.received { align-self: flex-start; align-items: flex-start; }
+.msg-bubble { padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.55; word-break: break-word; }
+.msg.sent .msg-bubble { background: #0A66C2; color: white; border-radius: 16px 16px 4px 16px; }
+.msg.received .msg-bubble { background: white; color: #1a1a1a; border: 1px solid #e5e5e5; border-radius: 16px 16px 16px 4px; }
+.msg-time { font-size: 10px; color: #bbb; margin-top: 3px; }
+.reply-area { background: white; border-top: 1px solid #e5e5e5; padding: 12px 16px; flex-shrink: 0; }
+.reply-input { width: 100%; border: 1px solid #e0e0e0; border-radius: 10px; padding: 10px 14px; font-size: 13px; font-family: inherit; resize: none; min-height: 72px; outline: none; line-height: 1.5; }
+.reply-input:focus { border-color: #0A66C2; }
+.reply-actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+.reply-actions-spacer { flex: 1; }
+.ai-btn { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 6px 12px; font-size: 12px; color: #555; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 5px; transition: background 0.1s; }
+.ai-btn:hover { background: #f5f5f5; }
+.ai-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.send-btn { background: #0A66C2; border: none; border-radius: 6px; padding: 7px 18px; font-size: 13px; font-weight: 600; color: white; cursor: pointer; font-family: inherit; }
 .send-btn:hover { background: #004182; }
-.send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.char-count { font-size: 11px; color: #bbb; margin-right: auto; }
-
-/* Spinner */
-.spinner {
-  display: inline-block;
-  width: 16px; height: 16px;
-  border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  vertical-align: middle;
-}
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.conv-empty { flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: #bbb; }
+.conv-empty-icon { font-size: 48px; opacity: 0.25; }
+.spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #e5e5e5; border-top-color: #0A66C2; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.spinner-dark {
-  border: 2px solid #e5e5e5;
-  border-top-color: #0A66C2;
-}
+.msg-loading { text-align: center; padding: 20px; color: #aaa; font-size: 13px; }
 </style>
 </head>
 <body>
-
-<!-- Top bar -->
 <div class="topbar">
-  <div class="topbar-title">&#128233; Inbox</div>
-  <span class="filter-label">Campaign</span>
-  <select class="filter-select" id="campaign-select" onchange="onCampaignChange()">
+  <div class="topbar-title">&#128140; Inbox</div>
+  <select class="campaign-select" id="campaign-select" onchange="onCampaignChange()">
     <option value="">All campaigns</option>
   </select>
-  <div class="filter-group">
-    <button class="filter-pill active" id="f-all"    onclick="setFilter('all')">All</button>
-    <button class="filter-pill"        id="f-unread" onclick="setFilter('unread')">Unread</button>
-    <button class="filter-pill"        id="f-replied" onclick="setFilter('replied')">Replied</button>
+  <div class="filter-tabs">
+    <div class="filter-tab active" onclick="setFilter('all',this)">All</div>
+    <div class="filter-tab" onclick="setFilter('unread',this)">Unread</div>
+    <div class="filter-tab" onclick="setFilter('replied',this)">Replied</div>
   </div>
   <div class="topbar-spacer"></div>
-  <button class="sync-btn" id="sync-btn" onclick="triggerSync()">
-    &#8635; Sync inbox
-  </button>
+  <button class="sync-btn" id="sync-btn" onclick="triggerSync()">&#8635; Sync</button>
 </div>
 
-<!-- Main layout -->
 <div class="inbox-layout">
-
-  <!-- Thread list -->
   <div class="thread-list">
-    <div class="thread-list-scroll" id="thread-list-scroll"></div>
-    <div class="thread-pg" id="thread-pg" style="display:none;">
-      <button class="pg-btn" id="pg-prev" onclick="changePage(-1)" disabled>&#8592;</button>
-      <span class="pg-label" id="pg-label">1 / 1</span>
-      <button class="pg-btn" id="pg-next" onclick="changePage(1)">&#8594;</button>
+    <div class="thread-list-inner" id="thread-list">
+      <div class="thread-empty"><span class="spinner"></span></div>
     </div>
   </div>
-
-  <!-- Conversation pane -->
-  <div class="convo-pane" id="convo-pane">
-    <div class="convo-empty" id="convo-empty">
-      <div class="convo-empty-icon">&#128233;</div>
-      <div class="convo-empty-text">Select a conversation to view messages</div>
-    </div>
-
-    <!-- Hidden until a thread is selected -->
-    <div id="convo-main" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
-      <div class="contact-header" id="contact-header"></div>
-      <div class="messages-scroll" id="messages-scroll"></div>
-      <div class="reply-box" id="reply-box">
-        <textarea class="reply-textarea" id="reply-textarea"
-          placeholder="Type your message…"
-          oninput="onTextareaInput()"
-          onkeydown="onTextareaKeydown(event)"></textarea>
-        <div class="reply-actions">
-          <span class="char-count" id="char-count">0 / 300</span>
-          <button class="ai-suggest-btn" id="ai-btn" onclick="getAiSuggestion()">
-            &#10024; AI Suggest
-          </button>
-          <button class="send-btn" id="send-btn" onclick="sendReply()" disabled>
-            Send &#10148;
-          </button>
-        </div>
-      </div>
+  <div class="conversation" id="conversation">
+    <div class="conv-empty">
+      <div class="conv-empty-icon">&#128140;</div>
+      <div style="font-size:15px;font-weight:500;color:#999;">Select a conversation</div>
+      <div style="font-size:12px;color:#bbb;">Your LinkedIn messages will appear here</div>
     </div>
   </div>
-
 </div>
 
 <script>
 const urlParams   = new URLSearchParams(window.location.search);
 const workspaceId = urlParams.get('workspace_id');
+let campaigns = [], selectedCampaign = null, currentFilter = 'all';
+let currentThread = null, threads = [], sendingAI = false;
 
-let campaigns        = [];
-let selectedCampaign = null;
-let currentFilter    = 'all';
-let currentPage      = 1;
-let totalPages       = 1;
-let activeThreadId   = null;
-let activeThread     = null;
-let messagesHistory  = [];
-let isSending        = false;
-
-const MAX_MSG_LEN = 300;
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function ini(n) { return String(n||'?').split(' ').map(w=>w[0]||'').join('').slice(0,2).toUpperCase(); }
+function ago(d) {
+  if (!d) return '';
+  const s = Math.floor((Date.now()-new Date(d))/1000);
+  if (s < 60)    return 'just now';
+  if (s < 3600)  return Math.floor(s/60)+'m ago';
+  if (s < 86400) return Math.floor(s/3600)+'h ago';
+  if (s < 604800)return Math.floor(s/86400)+'d ago';
+  return new Date(d).toLocaleDateString();
 }
-
-function initials(name) {
-  return String(name || '?').split(' ').map(w => w[0] || '').join('').slice(0, 2).toUpperCase();
-}
-
-function formatTime(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return '';
-  const now  = new Date();
-  const diff = now - d;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1)   return 'just now';
-  if (mins < 60)  return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24)   return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7)   return `${days}d ago`;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
-function fullTime(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return '';
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-function sameDay(a, b) {
-  const da = new Date(a), db = new Date(b);
-  return da.getFullYear() === db.getFullYear() &&
-         da.getMonth()    === db.getMonth() &&
-         da.getDate()     === db.getDate();
-}
-
-function avatarEl(url, name, cls) {
-  const ini = initials(name);
-  if (url) {
-    return `<div class="${cls}">
-      <img src="${esc(url)}" alt="" loading="lazy"
-        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <span style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;">${ini}</span>
-    </div>`;
-  }
-  return `<div class="${cls}" style="position:relative;"><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">${ini}</span></div>`;
-}
-
-// ── Load campaigns ────────────────────────────────────────────────────────────
 
 async function loadCampaigns() {
   try {
-    const res  = await fetch(`/api/campaigns?workspace_id=${workspaceId}`);
-    const data = await res.json();
-    campaigns  = data.items || [];
-    const sel  = document.getElementById('campaign-select');
-    campaigns.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.name;
-      sel.appendChild(opt);
-    });
-    if (campaigns.length === 1) {
-      sel.value = campaigns[0].id;
-      selectedCampaign = String(campaigns[0].id);
-    }
-  } catch(e) { console.error('loadCampaigns:', e); }
+    const r = await fetch('/api/campaigns?workspace_id='+workspaceId);
+    const d = await r.json();
+    campaigns = d.items || [];
+    const sel = document.getElementById('campaign-select');
+    campaigns.forEach(c => { const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o); });
+  } catch(e) {}
 }
 
-// ── Load thread list ──────────────────────────────────────────────────────────
+function onCampaignChange() { selectedCampaign=document.getElementById('campaign-select').value||null; loadThreads(); }
+function setFilter(f,el) { currentFilter=f; document.querySelectorAll('.filter-tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); loadThreads(); }
 
 async function loadThreads() {
-  const scroll = document.getElementById('thread-list-scroll');
-  scroll.innerHTML = `<div class="thread-list-loading"><div class="spinner spinner-dark" style="margin:0 auto 8px;"></div><br>Loading…</div>`;
-
+  const list = document.getElementById('thread-list');
+  list.innerHTML = '<div class="thread-empty"><span class="spinner"></span></div>';
+  const p = new URLSearchParams({workspace_id:workspaceId, filter:currentFilter, limit:100});
+  if (selectedCampaign) p.set('campaign_id', selectedCampaign);
   try {
-    const p = new URLSearchParams({
-      workspace_id: workspaceId,
-      page: currentPage,
-      limit: 30,
-      filter: currentFilter,
-    });
-    if (selectedCampaign) p.set('campaign_id', selectedCampaign);
-
-    const res  = await fetch(`/api/inbox?${p}`);
-    const data = await res.json();
-    const threads = data.items || [];
-    totalPages = data.pages || 1;
-
-    // Pagination controls
-    const pgEl = document.getElementById('thread-pg');
-    if (totalPages > 1) {
-      pgEl.style.display = 'flex';
-      document.getElementById('pg-label').textContent = `${currentPage} / ${totalPages}`;
-      document.getElementById('pg-prev').disabled = currentPage <= 1;
-      document.getElementById('pg-next').disabled = currentPage >= totalPages;
-    } else {
-      pgEl.style.display = 'none';
-    }
-
-    if (!threads.length) {
-      scroll.innerHTML = `<div class="thread-list-empty">
-        <div style="font-size:28px;opacity:0.3;margin-bottom:10px;">&#128233;</div>
-        No conversations found.<br><span style="font-size:11px;margin-top:4px;display:block;">Click "Sync inbox" to import from LinkedIn.</span>
-      </div>`;
-      return;
-    }
-
-    scroll.innerHTML = threads.map(t => renderThread(t)).join('');
-
-    // Re-select active thread if still in list
-    if (activeThreadId) {
-      const el = scroll.querySelector(`[data-tid="${activeThreadId}"]`);
-      if (el) el.classList.add('active');
-    }
-  } catch(err) {
-    scroll.innerHTML = `<div class="thread-list-empty" style="color:#DC2626;">Error: ${esc(err.message)}</div>`;
-  }
+    const r = await fetch('/api/inbox?'+p);
+    const d = await r.json();
+    threads = d.items || [];
+    if (!threads.length) { list.innerHTML='<div class="thread-empty">No conversations yet.<br>Click Sync to import from LinkedIn.</div>'; return; }
+    list.innerHTML = threads.map(renderThread).join('');
+  } catch(e) { list.innerHTML='<div class="thread-empty" style="color:#DC2626;">Failed to load</div>'; }
 }
 
 function renderThread(t) {
-  const name    = [t.first_name, t.last_name].filter(Boolean).join(' ') || 'Unknown';
-  const company = t.contact_company || '';
-  const preview = t.last_message_preview || '—';
-  const time    = formatTime(t.last_message_at);
-  const unread  = t.unread_count > 0;
-
-  const avatarInner = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">${initials(name)}</span>`;
-
-  return `
-    <div class="thread-item ${unread ? 'unread' : ''}" data-tid="${t.id}" onclick="openThread(${t.id})">
-      <div class="thread-avatar" style="position:relative;">${avatarInner}</div>
-      <div class="thread-info">
-        <div class="thread-name">${esc(name)}</div>
-        <div class="thread-company">${esc(company)}</div>
-        <div class="thread-preview">${esc(preview)}</div>
-      </div>
-      <div class="thread-meta">
-        <span class="thread-time">${esc(time)}</span>
-        ${unread ? `<span class="unread-badge">${t.unread_count}</span>` : ''}
-      </div>
-    </div>`;
+  const name = ((t.first_name||'')+' '+(t.last_name||'')).trim() || 'Unknown';
+  const isActive = currentThread && currentThread.id===t.id;
+  return `<div class="thread-item${isActive?' active':''}${t.unread_count>0?' unread':''}" onclick="openThread(${t.id})" id="ti-${t.id}">
+    <div class="thread-avatar">${esc(ini(name))}</div>
+    <div class="thread-info">
+      <div class="thread-name">${esc(name)}</div>
+      <div class="thread-company">${esc(t.contact_title||'')}${t.contact_company?' &middot; '+esc(t.contact_company):''}</div>
+      <div class="thread-preview">${esc((t.last_message_preview||'No messages yet').slice(0,60))}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+      <div class="thread-time">${ago(t.last_message_at)}</div>
+      ${t.unread_count>0?'<div class="unread-dot"></div>':''}
+    </div>
+  </div>`;
 }
-
-// ── Open thread / load messages ───────────────────────────────────────────────
 
 async function openThread(threadId) {
-  activeThreadId = threadId;
-
-  // Mark active in list
-  document.querySelectorAll('.thread-item').forEach(el => {
-    el.classList.toggle('active', String(el.dataset.tid) === String(threadId));
-  });
-
-  // Show convo pane
-  document.getElementById('convo-empty').style.display = 'none';
-  const main = document.getElementById('convo-main');
-  main.style.display = 'flex';
-  main.style.flexDirection = 'column';
-  main.style.flex = '1';
-  main.style.overflow = 'hidden';
-
-  // Clear & show loading
-  document.getElementById('contact-header').innerHTML = '';
-  document.getElementById('messages-scroll').innerHTML =
-    '<div class="messages-loading"><span class="spinner spinner-dark" style="margin:0 auto;"></span></div>';
-  document.getElementById('reply-textarea').value = '';
-  document.getElementById('send-btn').disabled = true;
-  document.getElementById('char-count').textContent = `0 / ${MAX_MSG_LEN}`;
-
-  try {
-    const res  = await fetch(`/api/inbox/${threadId}/messages?workspace_id=${workspaceId}`);
-    const data = await res.json();
-    const msgs   = data.messages || [];
-    const contact = data.contact  || {};
-    activeThread  = data.thread   || {};
-    messagesHistory = msgs;
-
-    renderContactHeader(contact, activeThread);
-    renderMessages(msgs);
-
-    // Remove unread badge from thread list
-    const tEl = document.querySelector(`[data-tid="${threadId}"]`);
-    if (tEl) {
-      tEl.classList.remove('unread');
-      const badge = tEl.querySelector('.unread-badge');
-      if (badge) badge.remove();
-    }
-  } catch(err) {
-    document.getElementById('messages-scroll').innerHTML =
-      `<div class="messages-loading" style="color:#DC2626;">Error: ${esc(err.message)}</div>`;
-  }
-}
-
-function renderContactHeader(contact, thread) {
-  const name = [contact.first_name, contact.last_name].filter(Boolean).join(' ') || 'Unknown';
-  const ini  = initials(name);
-  const sub  = [contact.title, contact.company].filter(Boolean).join(' · ');
-  const liUrl = contact.li_profile_url;
-  const campaignName = thread.campaign_name || '';
-
-  document.getElementById('contact-header').innerHTML = `
-    <div class="contact-avatar" style="position:relative;">
-      <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">${ini}</span>
-    </div>
-    <div class="contact-info">
-      <div class="contact-name">${esc(name)}</div>
-      <div class="contact-sub">
-        ${esc(sub)}
-        ${campaignName ? `<span class="campaign-chip" style="margin-left:6px;">${esc(campaignName)}</span>` : ''}
+  currentThread = threads.find(t=>t.id===threadId);
+  if (!currentThread) return;
+  document.querySelectorAll('.thread-item').forEach(el=>el.classList.remove('active'));
+  const ti = document.getElementById('ti-'+threadId);
+  if (ti) { ti.classList.add('active'); ti.classList.remove('unread'); ti.querySelector('.thread-name').style.fontWeight=''; ti.querySelector('.unread-dot')?.remove(); }
+  const name = ((currentThread.first_name||'')+' '+(currentThread.last_name||'')).trim()||'Unknown';
+  document.getElementById('conversation').innerHTML = `
+    <div class="conv-header">
+      <div class="conv-avatar">${esc(ini(name))}</div>
+      <div class="conv-header-info">
+        <div class="conv-name">${esc(name)}<span class="conv-campaign-badge">${esc(currentThread.campaign_name||'')}</span>
+          ${currentThread.li_profile_url?'<a class="li-link" href="'+esc(currentThread.li_profile_url)+'" target="_blank" rel="noopener">LinkedIn &#8599;</a>':''}
+        </div>
+        <div class="conv-meta">${esc(currentThread.contact_title||'')}${currentThread.contact_company?' &middot; '+esc(currentThread.contact_company):''}</div>
       </div>
     </div>
-    <div class="contact-actions">
-      ${liUrl ? `<a class="action-link" href="${esc(liUrl)}" target="_blank" rel="noopener">&#128279; LinkedIn</a>` : ''}
+    <div class="messages" id="messages"><div class="msg-loading"><span class="spinner"></span> Loading...</div></div>
+    <div class="reply-area">
+      <textarea class="reply-input" id="reply-input" placeholder="Write a message… (Ctrl+Enter to send)" onkeydown="onKey(event)"></textarea>
+      <div class="reply-actions">
+        <button class="ai-btn" id="ai-btn" onclick="aiSuggest()">&#129302; AI Suggest</button>
+        <div class="reply-actions-spacer"></div>
+        <button class="send-btn" id="send-btn" onclick="sendReply()">Send &#10148;</button>
+      </div>
     </div>`;
+  loadMessages(threadId);
 }
 
-function renderMessages(msgs) {
-  const scroll = document.getElementById('messages-scroll');
-  if (!msgs.length) {
-    scroll.innerHTML = `
-      <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:13px;">
-        No messages yet.
-      </div>`;
-    return;
-  }
-
-  let lastDate = null;
-  const html = msgs.map(m => {
-    let divider = '';
-    const msgDate = m.sent_at ? m.sent_at.slice(0, 10) : null;
-    if (msgDate && msgDate !== lastDate) {
-      lastDate = msgDate;
-      const label = new Date(m.sent_at).toLocaleDateString(undefined,
-        { weekday: 'long', month: 'long', day: 'numeric' });
-      divider = `<div class="date-divider">${esc(label)}</div>`;
-    }
-    const dir  = m.direction === 'sent' ? 'sent' : 'received';
-    const time = fullTime(m.sent_at);
-    const text = esc(m.content || '').replace(/\n/g, '<br>');
-    return `${divider}
-      <div class="msg-row ${dir}">
-        <div class="msg-bubble">
-          ${text}
-          <div class="msg-time">${time}</div>
-        </div>
-      </div>`;
-  }).join('');
-
-  scroll.innerHTML = html;
-  scroll.scrollTop = scroll.scrollHeight;
+async function loadMessages(threadId) {
+  const el = document.getElementById('messages');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/inbox/'+threadId+'/messages?workspace_id='+workspaceId);
+    const d = await r.json();
+    const msgs = d.messages || [];
+    if (!msgs.length) { el.innerHTML='<div class="msg-loading">No messages yet.</div>'; return; }
+    el.innerHTML = msgs.map(m=>`
+      <div class="msg ${m.direction==='sent'?'sent':'received'}">
+        <div class="msg-bubble">${esc(m.content||'').replace(/\n/g,'<br>')}</div>
+        <div class="msg-time">${ago(m.sent_at)}</div>
+      </div>`).join('');
+    el.scrollTop = el.scrollHeight;
+  } catch(e) { el.innerHTML='<div class="msg-loading" style="color:#DC2626;">Error loading messages</div>'; }
 }
 
-// ── Reply ─────────────────────────────────────────────────────────────────────
-
-function onTextareaInput() {
-  const ta  = document.getElementById('reply-textarea');
-  const len = ta.value.length;
-  document.getElementById('char-count').textContent = `${len} / ${MAX_MSG_LEN}`;
-  document.getElementById('send-btn').disabled = len === 0 || len > MAX_MSG_LEN || isSending;
-}
-
-function onTextareaKeydown(e) {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    sendReply();
-  }
-}
+function onKey(e) { if (e.key==='Enter'&&(e.ctrlKey||e.metaKey)) { e.preventDefault(); sendReply(); } }
 
 async function sendReply() {
-  if (!activeThreadId) return;
-  const ta      = document.getElementById('reply-textarea');
-  const content = ta.value.trim();
-  if (!content || isSending) return;
-
-  isSending = true;
-  const sendBtn = document.getElementById('send-btn');
-  sendBtn.disabled = true;
-  sendBtn.innerHTML = '<span class="spinner"></span>';
-
+  if (!currentThread) return;
+  const input = document.getElementById('reply-input');
+  const btn   = document.getElementById('send-btn');
+  const text  = (input?.value||'').trim();
+  if (!text) return;
+  btn.disabled=true; btn.textContent='Sending…';
   try {
-    const res  = await fetch(`/api/inbox/${activeThreadId}/reply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId, content }),
+    const r = await fetch('/api/inbox/'+currentThread.id+'/reply', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({workspace_id:workspaceId, content:text})
     });
-    if (!res.ok) throw new Error((await res.json()).error || res.statusText);
-
-    const data = await res.json();
-    ta.value = '';
-    document.getElementById('char-count').textContent = `0 / ${MAX_MSG_LEN}`;
-
-    // Append message optimistically
-    const scroll = document.getElementById('messages-scroll');
-    const now = new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const text = esc(content).replace(/\n/g, '<br>');
-    scroll.insertAdjacentHTML('beforeend', `
-      <div class="msg-row sent">
-        <div class="msg-bubble">${text}<div class="msg-time">${now}</div></div>
-      </div>`);
-    scroll.scrollTop = scroll.scrollHeight;
-
-    // Update thread preview
-    const tEl = document.querySelector(`[data-tid="${activeThreadId}"] .thread-preview`);
-    if (tEl) tEl.textContent = content.slice(0, 80);
-
-    messagesHistory.push({ direction: 'sent', content, sent_at: new Date().toISOString() });
-  } catch(err) {
-    alert('Send failed: ' + err.message);
-  } finally {
-    isSending = false;
-    sendBtn.innerHTML = 'Send &#10148;';
-    onTextareaInput();
-  }
+    if (!r.ok) throw new Error(await r.text());
+    input.value = '';
+    await loadMessages(currentThread.id);
+    const ti = document.getElementById('ti-'+currentThread.id);
+    if (ti) ti.querySelector('.thread-preview').textContent = text.slice(0,60);
+  } catch(e) { alert('Send failed: '+e.message); }
+  finally { btn.disabled=false; btn.textContent='Send ➤'; }
 }
 
-// ── AI Suggest ────────────────────────────────────────────────────────────────
-
-async function getAiSuggestion() {
-  if (!activeThread) return;
-  const btn = document.getElementById('ai-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Thinking…';
-
+async function aiSuggest() {
+  if (!currentThread||sendingAI) return;
+  const btn   = document.getElementById('ai-btn');
+  const input = document.getElementById('reply-input');
+  sendingAI=true; btn.disabled=true; btn.textContent='⏳ Thinking…';
   try {
-    // Build context from last 10 messages
-    const last10 = messagesHistory.slice(-10);
-    const convoText = last10.map(m =>
-      `${m.direction === 'sent' ? 'Me' : 'Them'}: ${m.content}`
-    ).join('\n');
-
-    const contactName  = document.getElementById('contact-header')?.querySelector('.contact-name')?.textContent || 'the contact';
-    const campaignName = activeThread.campaign_name || '';
-
-    const systemPrompt = `You are an expert B2B sales and LinkedIn outreach assistant. 
-Your task is to write a short, natural reply message for a LinkedIn conversation.
-Keep it concise (2-4 sentences, under 250 characters), professional but warm.
-Do NOT start with "Hi" or their name if the conversation is already ongoing.
-Do NOT use generic phrases like "I hope this message finds you well".
-Return ONLY the message text, no explanation, no quotes.`;
-
-    const userPrompt = `I'm writing a LinkedIn message to ${contactName}${
-      campaignName ? ` (campaign: ${campaignName})` : ''}.
-
-Conversation so far:
-${convoText || '(No messages yet — this would be the first message.)'}
-
-Write a natural, engaging reply that continues the conversation.`;
-
-    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const r = await fetch('/api/inbox/'+currentThread.id+'/messages?workspace_id='+workspaceId);
+    const d = await r.json();
+    const hist = (d.messages||[]).slice(-8).map(m=>(m.direction==='sent'?'Me':'Them')+': '+m.content).join('\n');
+    const name = ((currentThread.first_name||'')+' '+(currentThread.last_name||'')).trim()||'this person';
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userPrompt }],
-      }),
+        model:'claude-sonnet-4-20250514', max_tokens:600,
+        messages:[{role:'user', content:
+          'Write a short, warm, professional LinkedIn reply to '+name+
+          ' ('+( currentThread.contact_title||'')+' at '+(currentThread.contact_company||'')+').\n'+
+          'Conversation so far:\n'+hist+'\n\n'+
+          '2-4 sentences. Natural tone. No subject line or greeting needed. Just the message body.'
+        }]
+      })
     });
-
-    const aiData = await apiRes.json();
-    const suggestion = aiData?.content?.[0]?.text?.trim();
-    if (suggestion) {
-      document.getElementById('reply-textarea').value = suggestion;
-      onTextareaInput();
-      document.getElementById('reply-textarea').focus();
-    } else {
-      throw new Error('No suggestion returned');
-    }
-  } catch(err) {
-    alert('AI suggestion failed: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '&#10024; AI Suggest';
-  }
+    const j = await aiRes.json();
+    const s = j?.content?.[0]?.text||'';
+    if (s && input) input.value = s;
+  } catch(e) { alert('AI Suggest failed: '+e.message); }
+  finally { sendingAI=false; btn.disabled=false; btn.textContent='🤖 AI Suggest'; }
 }
-
-// ── Sync ──────────────────────────────────────────────────────────────────────
 
 async function triggerSync() {
   const btn = document.getElementById('sync-btn');
-  btn.disabled = true;
-  btn.innerHTML = '&#8635; Syncing…';
+  btn.disabled=true; btn.textContent='⏳ Syncing…';
   try {
     await fetch('/api/inbox/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspace_id: workspaceId }),
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({workspace_id:workspaceId})
     });
-    btn.innerHTML = '&#10003; Sync started';
-    setTimeout(() => {
-      btn.disabled = false;
-      btn.innerHTML = '&#8635; Sync inbox';
-      currentPage = 1;
-      loadThreads();
-    }, 4000);
-  } catch(err) {
-    alert('Sync error: ' + err.message);
-    btn.disabled = false;
-    btn.innerHTML = '&#8635; Sync inbox';
-  }
+    btn.textContent='✓ Sync started';
+    setTimeout(()=>{ btn.disabled=false; btn.textContent='↻ Sync'; loadThreads(); }, 6000);
+  } catch(e) { btn.disabled=false; btn.textContent='↻ Sync'; }
 }
 
-// ── Filter & pagination ───────────────────────────────────────────────────────
-
-function setFilter(f) {
-  currentFilter = f;
-  currentPage   = 1;
-  document.querySelectorAll('.filter-pill').forEach(el => el.classList.remove('active'));
-  document.getElementById(`f-${f}`).classList.add('active');
-  loadThreads();
-}
-
-function onCampaignChange() {
-  selectedCampaign = document.getElementById('campaign-select').value || null;
-  currentPage = 1;
-  loadThreads();
-}
-
-function changePage(delta) {
-  currentPage = Math.max(1, Math.min(totalPages, currentPage + delta));
-  loadThreads();
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-
-async function init() {
-  if (!workspaceId) {
-    document.body.innerHTML = '<p style="padding:40px;color:#aaa;">No workspace selected.</p>';
-    return;
-  }
-  await loadCampaigns();
-  loadThreads();
-}
-
-init();
+loadCampaigns().then(loadThreads);
 </script>
 </body>
 </html>
