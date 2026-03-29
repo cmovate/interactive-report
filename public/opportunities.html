@@ -50,6 +50,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .add-section { border: 1px solid #eee; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
 .add-section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; margin-bottom: 10px; }
 
+/* No-accounts notice inside the add panel */
+.panel-notice { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; color: #5D4037; line-height: 1.6; font-size: 13px; }
+.panel-notice .panel-notice-title { font-size: 14px; font-weight: 600; color: #4E342E; margin-bottom: 8px; }
+.panel-notice a.settings-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 14px;
+  background: #1D9E75; color: white; text-decoration: none;
+  border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 500;
+  transition: background 0.15s;
+}
+.panel-notice a.settings-link:hover { background: #178f68; }
+
 /* View selector */
 .view-radio-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
 .text-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; }
@@ -197,6 +209,16 @@ tbody tr:last-child > td { border-bottom: none; }
         <button class="add-close-btn" onclick="closeAddPanel()">&times;</button>
       </div>
 
+      <!-- No-accounts notice (shown only when workspace has no LinkedIn accounts) -->
+      <div id="no-accounts-notice" class="panel-notice" style="display:none;">
+        <div class="panel-notice-title">&#128273; Before you start, add at least one LinkedIn account.</div>
+        No LinkedIn accounts have been connected to this workspace yet. You need at least one
+        account to search LinkedIn and attach contacts to campaigns.
+        Go to Settings and click <strong>+ Add account</strong> to connect your first LinkedIn account.
+        <br>
+        <a class="settings-link" id="no-accounts-settings-link" href="#">&#9881;&#65039; Go to Settings &rarr; Add account</a>
+      </div>
+
       <!-- Section 1: View -->
       <div class="add-section">
         <div class="add-section-title">1. Save to view (list)</div>
@@ -329,6 +351,7 @@ tbody tr:last-child > td { border-bottom: none; }
 <script>
 const urlParams   = new URLSearchParams(window.location.search);
 const workspaceId = urlParams.get('workspace_id');
+const settingsUrl = `settings.html?workspace_id=${workspaceId}`;
 
 let allData       = { accounts: [], views: [], campaigns: [], companies: [] };
 let filtered      = [];
@@ -372,7 +395,6 @@ async function load() {
 
 function renderFilterBar() {
   const { views, campaigns, companies } = allData;
-  // Show total count on the "All" pill so users can see at a glance how many companies exist
   let html = `<button class="filter-pill${currentFilter==='all'?' active':''}" onclick="setFilter('all')">
     All companies <span class="pill-count">${companies.length}</span>
   </button>`;
@@ -402,7 +424,7 @@ function renderFilterBar() {
 
 function setFilter(f) {
   currentFilter = f;
-  expandedIds.clear();  // reset expand state when switching filters
+  expandedIds.clear();
   renderFilterBar();
   if (f.startsWith('view:') && addPanelOpen) {
     panelViewMode = 'existing';
@@ -457,16 +479,9 @@ function renderStats() {
 
 // ── Table ─────────────────────────────────────────────────────────────────────
 
-// Contacts grid: Name+reply badge | Title | Campaign | Profile | Message
-// The "Company" column was removed — it was redundant inside an already expanded company row.
 const CONTACT_GRID = '200px 1fr 150px 110px 110px';
-
 function cc(n) { return n >= 5 ? 'count-high' : n >= 2 ? 'count-medium' : n > 0 ? 'count-low' : 'count-zero'; }
 
-// Safely serialise a contact object for use inside an onclick="..." attribute.
-// JSON.stringify produces "-delimited strings; &quot; prevents them from
-// terminating the surrounding HTML attribute. The HTML parser decodes &quot; -> "
-// before the JS engine sees it.
 function contactJson(c) {
   return JSON.stringify(c).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
@@ -474,7 +489,6 @@ function contactJson(c) {
 function renderTable(searchQuery) {
   const area = document.getElementById('main-area');
   if (!filtered.length) {
-    // Context-aware empty states
     let icon  = '&#128161;';
     let title = 'No opportunities found';
     let msg   = 'Run campaigns with company targeting, or click <strong>+ Add companies</strong>';
@@ -502,12 +516,10 @@ function renderTable(searchQuery) {
     </div>`;
     return;
   }
-
   const accounts   = allData.accounts;
   const accHeaders = accounts.map(a =>
     `<th style="text-align:center;">${esc(a.display_name || a.account_id)}</th>`
   ).join('');
-
   let rows = '';
   for (const co of filtered) {
     const rowId  = encodeId(co.company_name, co.company_linkedin_id);
@@ -524,7 +536,6 @@ function renderTable(searchQuery) {
     const liLink   = co.li_company_url
       ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View &#8599;</a>`
       : '<span class="cell-muted">\u2014</span>';
-
     rows += `<tr class="company-row${isOpen?' expanded':''}" onclick="toggleCompany('${rowId}')">
       <td><div class="company-name-cell"><span class="expand-icon">&#9654;</span><span>${esc(co.company_name)}</span>${badge}${viewTag}${rmBtn}</div></td>
       <td>${liLink}</td>
@@ -536,7 +547,6 @@ function renderTable(searchQuery) {
       rows += `<tr class="contacts-row"><td colspan="${2 + accounts.length + 2}">${renderContactsBlock(co)}</td></tr>`;
     }
   }
-
   area.innerHTML = `<div class="table-outer"><table>
     <thead><tr>
       <th style="min-width:200px;">Company</th><th>LinkedIn</th>
@@ -597,6 +607,14 @@ function toggleAddPanel() {
   document.getElementById('attach-auto-config').style.display   = 'none';
   document.getElementById('attach-manual-config').style.display = 'none';
   document.querySelector('input[name="view-mode"][value="new"]').checked = true;
+
+  // Show or hide the no-accounts notice
+  const noAccountsEl   = document.getElementById('no-accounts-notice');
+  const settingsLinkEl = document.getElementById('no-accounts-settings-link');
+  const hasAccounts    = allData.accounts.length > 0;
+  noAccountsEl.style.display   = hasAccounts ? 'none' : 'block';
+  settingsLinkEl.href           = settingsUrl;
+
   renderPanelViewSection();
   if (currentFilter.startsWith('view:')) {
     panelViewMode = 'existing';
@@ -625,8 +643,6 @@ function populatePanelDropdowns() {
     cSel.innerHTML = `<option value="">Select campaign...</option>` +
       allData.campaigns.filter(c => c.status === 'active')
         .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-    // If rebuilding the list clears the selection, also hide the auto/manual config blocks
-    // so they don't show stale data from a previously selected campaign.
     if (!cSel.value) {
       document.getElementById('attach-auto-config').style.display   = 'none';
       document.getElementById('attach-manual-config').style.display = 'none';
@@ -873,7 +889,7 @@ async function sendMessage() {
   }
 }
 
-// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+// ── Keyboard shortcuts ───────────────────────────────────────────────────────
 
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
