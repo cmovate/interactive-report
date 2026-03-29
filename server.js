@@ -97,7 +97,7 @@ function msgColsCreate() {
   await s('unipile_accounts', () => db.query(`
     CREATE TABLE IF NOT EXISTS unipile_accounts (
       id SERIAL PRIMARY KEY, workspace_id INTEGER,
-      account_id VARCHAR(255) NOT NULL UNIQUE, display_name VARCHAR(255),
+      account_id VARCHAR(255) NOT NULL, display_name VARCHAR(255),
       provider VARCHAR(50) DEFAULT 'linkedin', status VARCHAR(50),
       webhook_id VARCHAR(255), settings JSONB DEFAULT '{}',
       created_at TIMESTAMP DEFAULT NOW()
@@ -559,9 +559,22 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   });
 
   await s('migrate.ua_unique', async () => {
-      await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key');
-      try { await db.query('ALTER TABLE unipile_accounts ADD CONSTRAINT ua_ws_acc_unique UNIQUE(workspace_id,account_id)'); } catch(e) {}
-    });
+    // Drop old single-column unique constraint if it exists
+    await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key');
+    // Add composite unique (workspace_id, account_id) if it doesn't already exist
+    await db.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint
+          WHERE conname = 'unipile_accounts_workspace_id_account_id_key'
+        ) THEN
+          ALTER TABLE unipile_accounts
+          ADD CONSTRAINT unipile_accounts_workspace_id_account_id_key
+          UNIQUE (workspace_id, account_id);
+        END IF;
+      END $$
+    `);
+  });
 
   await s('backfill.account_profiles', async () => {
     const { getAccountInfo } = require('./src/unipile');
