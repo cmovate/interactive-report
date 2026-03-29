@@ -12,8 +12,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .page-title { font-size: 22px; font-weight: 600; }
 .page-sub { font-size: 13px; color: #666; margin-top: 4px; line-height: 1.4; }
 .header-btns { display: flex; gap: 8px; }
-
-/* Filter bar */
 .filter-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid #efefef; }
 .filter-sep { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #bbb; padding: 0 4px; }
 .filter-pill { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #e0e0e0; border-radius: 999px; padding: 5px 12px; font-size: 12px; font-weight: 500; color: #555; background: white; cursor: pointer; transition: all 0.1s; font-family: inherit; white-space: nowrap; }
@@ -23,7 +21,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .pill-count { opacity: 0.7; font-size: 10px; }
 .pill-del { margin-left: 2px; font-size: 14px; line-height: 1; opacity: 0.6; cursor: pointer; }
 .pill-del:hover { opacity: 1 !important; }
-
 .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .search-input { padding: 8px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; width: 260px; font-family: inherit; background: white; }
 .search-input:focus { outline: none; border-color: #1D9E75; }
@@ -34,13 +31,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .ghost-btn:hover { background: #f5f5f5; }
 .spin { display: inline-block; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* Stats */
 .stats-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 .stat-chip { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 7px 12px; font-size: 12px; color: #555; white-space: nowrap; }
 .stat-chip strong { color: #1a1a1a; font-size: 14px; margin-right: 3px; }
-
-/* Add panel */
 .add-panel { background: white; border: 1.5px solid #1D9E75; border-radius: 12px; padding: 20px; margin-bottom: 14px; }
 .add-panel-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
 .add-panel-title { font-size: 15px; font-weight: 600; }
@@ -49,21 +42,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .add-close-btn:hover { color: #555; }
 .add-section { border: 1px solid #eee; border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
 .add-section-title { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; margin-bottom: 10px; }
-
-/* No-accounts notice inside the add panel */
 .panel-notice { background: #FFF8E1; border: 1px solid #FFE082; border-radius: 10px; padding: 18px 20px; margin-bottom: 16px; color: #5D4037; line-height: 1.7; font-size: 13px; }
 .panel-notice .panel-notice-title { font-size: 14px; font-weight: 600; color: #4E342E; margin-bottom: 8px; }
 .panel-notice a.inline-link { color: #1D9E75; font-weight: 600; text-decoration: underline; cursor: pointer; }
 .panel-notice a.inline-link:hover { color: #178f68; }
-
-/* View selector */
 .view-radio-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
 .text-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; }
 .text-input:focus { outline: none; border-color: #1D9E75; }
 .select-input { width: 100%; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; background: white; }
 .select-input:focus { outline: none; border-color: #1D9E75; }
-
-/* Companies textarea */
 .add-textarea { width: 100%; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 90px; background: #fafafa; line-height: 1.6; }
 .add-textarea:focus { outline: none; border-color: #1D9E75; background: white; }
 .preview-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; margin: 10px 0 6px; }
@@ -72,8 +59,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .preview-name { flex: 1; font-weight: 500; }
 .preview-remove { background: none; border: none; font-size: 15px; color: #ccc; cursor: pointer; }
 .preview-remove:hover { color: #DC2626; }
-
-/* Campaign attach section */
 .attach-head { display: flex; align-items: center; justify-content: space-between; }
 .attach-head-text .sub { font-size: 11px; color: #888; margin-top: 2px; }
 .toggle-btn { width: 38px; height: 22px; border-radius: 11px; background: #ddd; border: none; cursor: pointer; position: relative; transition: background 0.15s; flex-shrink: 0; }
@@ -84,26 +69,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .field-group label { display: block; font-size: 11px; font-weight: 600; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
 .field-row { display: flex; gap: 10px; align-items: flex-start; }
 .num-input { width: 70px; padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: inherit; text-align: center; }
-
-/* Auto config (company campaigns with saved searchConfig) */
 .attach-auto-box { background: #F0FBF7; border: 1px solid #A7F3D0; border-radius: 8px; padding: 12px 14px; display: flex; align-items: flex-start; gap: 10px; }
 .attach-auto-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
 .attach-auto-label { font-size: 12px; font-weight: 600; color: #0F6E56; margin-bottom: 4px; }
 .attach-auto-values { font-size: 12px; color: #065f46; line-height: 1.5; }
-
-/* Manual config (people campaigns — user must enter titles) */
 .attach-manual-note { font-size: 12px; color: #666; background: #FFF8E1; border: 1px solid #FFE082; border-radius: 6px; padding: 9px 12px; margin-bottom: 8px; line-height: 1.4; }
-
 .attach-note { font-size: 11px; color: #888; background: #fffbea; border: 1px solid #fde68a; border-radius: 6px; padding: 8px 10px; line-height: 1.4; }
-
 .add-panel-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; flex-wrap: wrap; gap: 10px; }
 .add-feedback { font-size: 13px; }
 .add-feedback.ok  { color: #0F6E56; }
 .add-feedback.err { color: #DC2626; }
 .cancel-btn { background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 8px 16px; font-size: 13px; color: #555; cursor: pointer; font-family: inherit; }
 .cancel-btn:hover { background: #f5f5f5; }
-
-/* Main table */
 .table-outer { background: white; border: 1px solid #e5e5e5; border-radius: 12px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
 thead th { background: #fafafa; border-bottom: 1px solid #e5e5e5; padding: 10px 14px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #888; text-align: left; white-space: nowrap; }
@@ -129,8 +106,6 @@ tbody tr:last-child > td { border-bottom: none; }
 .cell-link:hover { text-decoration: underline; }
 .cell-muted { color: #ccc; font-size: 12px; }
 .view-badge { font-size: 10px; background: #EDE9FE; color: #5B21B6; border-radius: 4px; padding: 2px 6px; }
-
-/* Contacts sub-rows */
 .contacts-row td { padding: 0; background: #f8fffb; border-bottom: 1px solid #e5e5e5; }
 .contacts-inner { padding: 0 14px 14px 36px; }
 .contacts-grid-head { display: grid; gap: 12px; padding: 10px 0 7px; border-bottom: 1px solid #efefef; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: #aaa; }
@@ -138,7 +113,6 @@ tbody tr:last-child > td { border-bottom: none; }
 .contacts-grid-row:last-child { border-bottom: none; }
 .no-contacts { padding: 16px 0; text-align: center; color: #aaa; font-size: 13px; }
 .contact-name-cell { display: flex; align-items: center; gap: 6px; font-weight: 500; }
-/* Reply status badge — shown when the contact has replied to a message */
 .replied-badge { font-size: 9px; font-weight: 700; border-radius: 3px; padding: 1px 5px; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
 .replied-badge.positive { background: #DCFCE7; color: #166534; }
 .replied-badge.replied  { background: #E1F5EE; color: #0F6E56; }
@@ -148,8 +122,6 @@ tbody tr:last-child > td { border-bottom: none; }
 .campaign-pill { display: inline-block; background: #f0f0f0; color: #666; border-radius: 4px; padding: 2px 6px; font-size: 10px; white-space: nowrap; }
 .campaign-pill.active { background: #E1F5EE; color: #0F6E56; }
 .empty-state { background: white; border: 1px dashed #e0e0e0; border-radius: 12px; padding: 60px 24px; text-align: center; }
-
-/* Message dialog */
 .msg-backdrop { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .msg-modal { background: white; border-radius: 14px; width: min(560px, 100%); padding: 24px; box-shadow: 0 24px 80px rgba(0,0,0,0.22); }
 .msg-modal-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
@@ -172,7 +144,6 @@ tbody tr:last-child > td { border-bottom: none; }
 </head>
 <body>
 <div class="page">
-
   <div class="page-header">
     <div>
       <div class="page-title">&#128161; Opportunities</div>
@@ -181,166 +152,67 @@ tbody tr:last-child > td { border-bottom: none; }
     </div>
     <div class="header-btns">
       <button class="primary-btn" onclick="toggleAddPanel()">&#43; Add companies</button>
-      <button class="ghost-btn" id="refresh-btn" onclick="load()">
-        <span id="refresh-icon">&#x21BB;</span> Refresh
-      </button>
+      <button class="ghost-btn" id="refresh-btn" onclick="load()"><span id="refresh-icon">&#x21BB;</span> Refresh</button>
     </div>
   </div>
-
-  <!-- Filter bar -->
-  <div class="filter-bar" id="filter-bar">
-    <button class="filter-pill active" onclick="setFilter('all')">All companies</button>
-  </div>
-
-  <!-- Add companies panel -->
+  <div class="filter-bar" id="filter-bar"><button class="filter-pill active" onclick="setFilter('all')">All companies</button></div>
   <div id="add-panel" style="display:none;">
     <div class="add-panel">
       <div class="add-panel-head">
-        <div>
-          <div class="add-panel-title">Add companies</div>
-          <div class="add-panel-sub">Paste company names or LinkedIn URLs.</div>
-        </div>
+        <div><div class="add-panel-title">Add companies</div><div class="add-panel-sub">Paste company names or LinkedIn URLs.</div></div>
         <button class="add-close-btn" onclick="closeAddPanel()">&times;</button>
       </div>
-
-      <!-- No-accounts notice (shown only when workspace has no LinkedIn accounts) -->
       <div id="no-accounts-notice" class="panel-notice" style="display:none;">
         <div class="panel-notice-title">&#128273; Before you start, add at least one user.</div>
-        No LinkedIn accounts have been connected to this workspace yet. You need at least one
-        account to search LinkedIn and attach contacts to campaigns. Please
-        <a class="inline-link" id="no-accounts-settings-link" href="#">Add Users</a>
-        in Settings, then come back here to add companies.
+        No LinkedIn accounts have been connected to this workspace yet. Please
+        <a class="inline-link" id="no-accounts-settings-link" href="#">Add Users</a> in Settings, then come back here.
       </div>
-
-      <!-- Section 1: View -->
       <div class="add-section">
         <div class="add-section-title">1. Save to view (list)</div>
-        <label class="view-radio-row">
-          <input type="radio" name="view-mode" value="new" checked onchange="setViewMode('new')">
-          New view: &nbsp;<input type="text" id="view-name-input" class="text-input" style="flex:1;"
-            placeholder="e.g. Israeli HealthTech Q3">
-        </label>
-        <label class="view-radio-row" id="existing-view-row">
-          <input type="radio" name="view-mode" value="existing" onchange="setViewMode('existing')">
-          Existing view: &nbsp;
-          <select id="view-select" class="select-input" style="flex:1;">
-            <option value="">Select view...</option>
-          </select>
-        </label>
+        <label class="view-radio-row"><input type="radio" name="view-mode" value="new" checked onchange="setViewMode('new')">New view: &nbsp;<input type="text" id="view-name-input" class="text-input" style="flex:1;" placeholder="e.g. Israeli HealthTech Q3"></label>
+        <label class="view-radio-row" id="existing-view-row"><input type="radio" name="view-mode" value="existing" onchange="setViewMode('existing')">Existing view: &nbsp;<select id="view-select" class="select-input" style="flex:1;"><option value="">Select view...</option></select></label>
       </div>
-
-      <!-- Section 2: Companies -->
       <div class="add-section">
         <div class="add-section-title">2. Companies</div>
-        <textarea id="add-textarea" class="add-textarea"
-          placeholder="Microsoft&#10;Apple&#10;https://www.linkedin.com/company/google&#10;Meta"
-          oninput="onAddInput()"></textarea>
+        <textarea id="add-textarea" class="add-textarea" placeholder="Microsoft&#10;Apple&#10;https://www.linkedin.com/company/google&#10;Meta" oninput="onAddInput()"></textarea>
         <div id="add-preview"></div>
       </div>
-
-      <!-- Section 3: Also attach to campaign (optional) -->
       <div class="add-section">
         <div class="attach-head">
-          <div class="attach-head-text">
-            <div style="font-size:13px;font-weight:500;">3. Also search LinkedIn &amp; add to campaign
-              <span style="font-size:11px;font-weight:400;color:#aaa;">(optional)</span>
-            </div>
-            <div class="sub">Searches for people with the selected titles at each company, adds them as campaign contacts</div>
-          </div>
+          <div class="attach-head-text"><div style="font-size:13px;font-weight:500;">3. Also search LinkedIn &amp; add to campaign <span style="font-size:11px;font-weight:400;color:#aaa;">(optional)</span></div><div class="sub">Searches for people with the selected titles at each company</div></div>
           <button class="toggle-btn" id="attach-toggle" onclick="toggleCampaignAttach()"></button>
         </div>
-
         <div id="attach-fields" class="attach-fields" style="display:none;">
-
-          <div class="field-group">
-            <label>Campaign</label>
-            <select id="attach-campaign-select" class="select-input" onchange="onCampaignSelect()">
-              <option value="">Select campaign...</option>
-            </select>
-          </div>
-
-          <!-- AUTO: company campaign with saved searchConfig -->
-          <div id="attach-auto-config" style="display:none;">
-            <div class="attach-auto-box">
-              <div class="attach-auto-icon">&#10003;</div>
-              <div>
-                <div class="attach-auto-label">Using campaign&#x2019;s saved search settings</div>
-                <div class="attach-auto-values" id="attach-auto-values"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- MANUAL: people campaign — user enters titles -->
-          <div id="attach-manual-config" style="display:none;">
-            <div class="attach-manual-note">&#128100; This campaign targets individual profile URLs, not
-              companies. Enter the job titles you want to find at the added companies.</div>
-            <div class="field-row">
-              <div class="field-group" style="flex:1;">
-                <label>Job titles to search for</label>
-                <input type="text" id="attach-titles" class="text-input"
-                  placeholder="VP R&amp;D, CTO, Head of Engineering">
-              </div>
-              <div class="field-group">
-                <label>Max / company</label>
-                <input type="number" id="attach-limit" class="num-input" value="10" min="1" max="50">
-              </div>
-            </div>
-          </div>
-
-          <div class="attach-note">&#128161; Only companies with a LinkedIn URL will be searched.
-            Companies added by name only are saved to the view but not searched.</div>
+          <div class="field-group"><label>Campaign</label><select id="attach-campaign-select" class="select-input" onchange="onCampaignSelect()"><option value="">Select campaign...</option></select></div>
+          <div id="attach-auto-config" style="display:none;"><div class="attach-auto-box"><div class="attach-auto-icon">&#10003;</div><div><div class="attach-auto-label">Using campaign&#x2019;s saved search settings</div><div class="attach-auto-values" id="attach-auto-values"></div></div></div></div>
+          <div id="attach-manual-config" style="display:none;"><div class="attach-manual-note">&#128100; Enter the job titles you want to find at the added companies.</div><div class="field-row"><div class="field-group" style="flex:1;"><label>Job titles</label><input type="text" id="attach-titles" class="text-input" placeholder="VP R&amp;D, CTO"></div><div class="field-group"><label>Max / co.</label><input type="number" id="attach-limit" class="num-input" value="10" min="1" max="50"></div></div></div>
+          <div class="attach-note">&#128161; Only companies with a LinkedIn URL will be searched.</div>
         </div>
       </div>
-
       <div class="add-panel-footer">
         <div id="add-feedback" class="add-feedback"></div>
-        <div style="display:flex;gap:8px;">
-          <button class="cancel-btn" onclick="closeAddPanel()">Cancel</button>
-          <button class="primary-btn" id="add-save-btn" onclick="saveCompanies()">
-            &#128161; Add to Opportunities
-          </button>
-        </div>
+        <div style="display:flex;gap:8px;"><button class="cancel-btn" onclick="closeAddPanel()">Cancel</button><button class="primary-btn" id="add-save-btn" onclick="saveCompanies()">&#128161; Add to Opportunities</button></div>
       </div>
     </div>
   </div>
-
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <input class="search-input" type="search" id="search-input"
-      placeholder="Search companies or contacts..." oninput="applyFilter()">
-  </div>
-
+  <div class="toolbar"><input class="search-input" type="search" id="search-input" placeholder="Search companies or contacts..." oninput="applyFilter()"></div>
   <div class="stats-row" id="stats-row"></div>
   <div id="main-area"><div style="text-align:center;padding:60px;color:#aaa;">Loading...</div></div>
 </div>
-
-<!-- Message dialog -->
-<div id="msg-backdrop" class="msg-backdrop" style="display:none;"
-     onclick="if(event.target===this)closeMsgDialog()">
+<div id="msg-backdrop" class="msg-backdrop" style="display:none;" onclick="if(event.target===this)closeMsgDialog()">
   <div class="msg-modal">
-    <div class="msg-modal-head">
-      <div>
-        <div class="msg-modal-title" id="msg-title">Send message</div>
-        <div class="msg-modal-sub" id="msg-sub"></div>
-      </div>
-      <button class="msg-close-btn" onclick="closeMsgDialog()">&times;</button>
-    </div>
+    <div class="msg-modal-head"><div><div class="msg-modal-title" id="msg-title">Send message</div><div class="msg-modal-sub" id="msg-sub"></div></div><button class="msg-close-btn" onclick="closeMsgDialog()">&times;</button></div>
     <div id="msg-status-area"></div>
     <div class="tokens-row">
       <button class="token-btn" onclick="insertToken('{{first_name}}')">&#123;&#123;first_name&#125;&#125;</button>
       <button class="token-btn" onclick="insertToken('{{last_name}}')">&#123;&#123;last_name&#125;&#125;</button>
       <button class="token-btn" onclick="insertToken('{{company}}')">&#123;&#123;company&#125;&#125;</button>
     </div>
-    <textarea class="msg-textarea" id="msg-textarea"
-      placeholder="Hi {{first_name}}, I noticed we're connected..." oninput="updateCharCount()"></textarea>
+    <textarea class="msg-textarea" id="msg-textarea" placeholder="Hi {{first_name}}, I noticed we're connected..." oninput="updateCharCount()"></textarea>
     <div class="char-count" id="char-count">0 characters</div>
-    <div class="msg-footer">
-      <button class="cancel-btn" onclick="closeMsgDialog()">Cancel</button>
-      <button class="send-btn" id="send-btn" onclick="sendMessage()">&#128172; Send message</button>
-    </div>
+    <div class="msg-footer"><button class="cancel-btn" onclick="closeMsgDialog()">Cancel</button><button class="send-btn" id="send-btn" onclick="sendMessage()">&#128172; Send message</button></div>
   </div>
 </div>
-
 <script>
 const urlParams   = new URLSearchParams(window.location.search);
 const workspaceId = urlParams.get('workspace_id');
@@ -351,551 +223,302 @@ let filtered      = [];
 let expandedIds   = new Set();
 let currentFilter = 'all';
 let activeContact = null;
-
 let addPanelOpen    = false;
 let parsedList      = [];
 let panelViewMode   = 'new';
 let panelViewId     = null;
 let panelAttachCamp = false;
 
-// ── Load ──────────────────────────────────────────────────────────────────────
-
 async function load() {
-  const btn  = document.getElementById('refresh-btn');
-  const icon = document.getElementById('refresh-icon');
-  if (btn) { btn.disabled = true; icon.innerHTML = '<span class="spin">&#x21BB;</span>'; }
-  try {
-    const data = await fetch(`/api/opportunities?workspace_id=${workspaceId}`).then(r => r.json());
-    if (data.error) throw new Error(data.error);
-    allData = {
-      accounts:  data.accounts  || [],
-      views:     data.views     || [],
-      campaigns: data.campaigns || [],
-      companies: data.companies || [],
-    };
-    renderFilterBar();
-    populatePanelDropdowns();
-    applyFilter();
-  } catch (err) {
-    document.getElementById('main-area').innerHTML =
-      `<div style="color:#DC2626;padding:40px;text-align:center;">Failed to load: ${esc(err.message)}</div>`;
-  } finally {
-    if (btn) { btn.disabled = false; icon.innerHTML = '&#x21BB;'; }
-  }
+  const btn=document.getElementById('refresh-btn'),icon=document.getElementById('refresh-icon');
+  if(btn){btn.disabled=true;icon.innerHTML='<span class="spin">&#x21BB;</span>';}
+  try{
+    const data=await fetch(`/api/opportunities?workspace_id=${workspaceId}`).then(r=>r.json());
+    if(data.error)throw new Error(data.error);
+    allData={accounts:data.accounts||[],views:data.views||[],campaigns:data.campaigns||[],companies:data.companies||[]};
+    renderFilterBar();populatePanelDropdowns();applyFilter();
+  }catch(err){document.getElementById('main-area').innerHTML=`<div style="color:#DC2626;padding:40px;text-align:center;">Failed to load: ${esc(err.message)}</div>`;}
+  finally{if(btn){btn.disabled=false;icon.innerHTML='&#x21BB;';}}
 }
 
-// ── Filter bar ────────────────────────────────────────────────────────────────
-
-function renderFilterBar() {
-  const { views, campaigns, companies } = allData;
-  let html = `<button class="filter-pill${currentFilter==='all'?' active':''}" onclick="setFilter('all')">
-    All companies <span class="pill-count">${companies.length}</span>
-  </button>`;
-  if (views.length) {
-    html += `<span class="filter-sep">Views:</span>`;
-    views.forEach(v => {
-      const a = currentFilter === `view:${v.id}`;
-      html += `<button class="filter-pill${a?' active':''}" onclick="setFilter('view:${v.id}')">
-        &#128193; ${esc(v.name)}
-        <span class="pill-count">${v.company_count || 0}</span>
-        <span class="pill-del" onclick="event.stopPropagation();deleteView(${v.id})"
-              title="Delete view">&times;</span>
-      </button>`;
-    });
-  }
-  if (campaigns.length) {
-    html += `<span class="filter-sep">Campaigns:</span>`;
-    campaigns.forEach(c => {
-      const a = currentFilter === `campaign:${c.id}`;
-      html += `<button class="filter-pill${a?' active':''}" onclick="setFilter('campaign:${c.id}')">
-        &#128203; ${esc(c.name)}
-      </button>`;
-    });
-  }
-  document.getElementById('filter-bar').innerHTML = html;
+function renderFilterBar(){
+  const{views,campaigns,companies}=allData;
+  let html=`<button class="filter-pill${currentFilter==='all'?' active':''}" onclick="setFilter('all')">All companies <span class="pill-count">${companies.length}</span></button>`;
+  if(views.length){html+=`<span class="filter-sep">Views:</span>`;views.forEach(v=>{const a=currentFilter===`view:${v.id}`;html+=`<button class="filter-pill${a?' active':''}" onclick="setFilter('view:${v.id}')">&#128193; ${esc(v.name)}<span class="pill-count">${v.company_count||0}</span><span class="pill-del" onclick="event.stopPropagation();deleteView(${v.id})" title="Delete view">&times;</span></button>`;});}
+  if(campaigns.length){html+=`<span class="filter-sep">Campaigns:</span>`;campaigns.forEach(c=>{const a=currentFilter===`campaign:${c.id}`;html+=`<button class="filter-pill${a?' active':''}" onclick="setFilter('campaign:${c.id}')">&#128203; ${esc(c.name)}</button>`;});}
+  document.getElementById('filter-bar').innerHTML=html;
 }
 
-function setFilter(f) {
-  currentFilter = f;
-  expandedIds.clear();
-  renderFilterBar();
-  if (f.startsWith('view:') && addPanelOpen) {
-    panelViewMode = 'existing';
-    panelViewId   = parseInt(f.split(':')[1]);
-    document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
-    renderPanelViewSection();
-  }
+function setFilter(f){
+  currentFilter=f;expandedIds.clear();renderFilterBar();
+  if(f.startsWith('view:')&&addPanelOpen){panelViewMode='existing';panelViewId=parseInt(f.split(':')[1]);document.querySelector('input[name="view-mode"][value="existing"]').checked=true;renderPanelViewSection();}
   applyFilter();
 }
 
-function applyFilter() {
-  const q = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+function applyFilter(){
+  const q=(document.getElementById('search-input')?.value||'').toLowerCase().trim();
   let base;
-  if (currentFilter === 'all') {
-    base = allData.companies;
-  } else if (currentFilter.startsWith('view:')) {
-    const vid = parseInt(currentFilter.split(':')[1]);
-    base = allData.companies.filter(co => co.view_id === vid);
-  } else if (currentFilter.startsWith('campaign:')) {
-    const cid = parseInt(currentFilter.split(':')[1]);
-    base = allData.companies.filter(co => co.campaign_ids?.includes(cid));
-  } else {
-    base = allData.companies;
-  }
-  filtered = q ? base.filter(co => {
-    if (co.company_name.toLowerCase().includes(q)) return true;
-    return co.contacts.some(c =>
-      `${c.first_name||''} ${c.last_name||''} ${c.title||''}`.toLowerCase().includes(q)
-    );
-  }) : base;
-  renderStats();
-  renderTable(q);
+  if(currentFilter==='all')base=allData.companies;
+  else if(currentFilter.startsWith('view:'))base=allData.companies.filter(co=>co.view_id===parseInt(currentFilter.split(':')[1]));
+  else if(currentFilter.startsWith('campaign:'))base=allData.companies.filter(co=>co.campaign_ids?.includes(parseInt(currentFilter.split(':')[1])));
+  else base=allData.companies;
+  filtered=q?base.filter(co=>co.company_name.toLowerCase().includes(q)||co.contacts.some(c=>`${c.first_name||''} ${c.last_name||''} ${c.title||''}`.toLowerCase().includes(q))):base;
+  renderStats();renderTable(q);
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-
-function renderStats() {
-  const withConn = filtered.filter(c => c.total > 0).length;
-  const total    = filtered.reduce((s, c) => s + c.total, 0);
-  const custom   = filtered.filter(c => c.source === 'custom' || c.source === 'both').length;
-  let html = `
-    <div class="stat-chip"><strong>${filtered.length}</strong> Companies</div>
-    <div class="stat-chip"><strong>${withConn}</strong> With connections</div>
-    <div class="stat-chip"><strong>${total}</strong> Warm leads</div>
-    ${custom ? `<div class="stat-chip"><strong>${custom}</strong> Custom</div>` : ''}`;
-  allData.accounts.forEach(a => {
-    const cnt = filtered.reduce((s, co) => s + (co.connections_by_account?.[a.account_id] || 0), 0);
-    html += `<div class="stat-chip"><strong>${cnt}</strong> ${esc(a.display_name || a.account_id)}</div>`;
-  });
-  document.getElementById('stats-row').innerHTML = html;
+function renderStats(){
+  const withConn=filtered.filter(c=>c.total>0).length;
+  const total=filtered.reduce((s,c)=>s+c.total,0);
+  const custom=filtered.filter(c=>c.source==='custom'||c.source==='both').length;
+  let html=`<div class="stat-chip"><strong>${filtered.length}</strong> Companies</div><div class="stat-chip"><strong>${withConn}</strong> With connections</div><div class="stat-chip"><strong>${total}</strong> Warm leads</div>${custom?`<div class="stat-chip"><strong>${custom}</strong> Custom</div>`:''}` ;
+  allData.accounts.forEach(a=>{const cnt=filtered.reduce((s,co)=>s+(co.connections_by_account?.[a.account_id]||0),0);html+=`<div class="stat-chip"><strong>${cnt}</strong> ${esc(a.display_name||a.account_id)}</div>`;});
+  document.getElementById('stats-row').innerHTML=html;
 }
 
-// ── Table ─────────────────────────────────────────────────────────────────────
+const CONTACT_GRID='200px 1fr 150px 110px 110px';
+function cc(n){return n>=5?'count-high':n>=2?'count-medium':n>0?'count-low':'count-zero';}
+function contactJson(c){return JSON.stringify(c).replace(/&/g,'&amp;').replace(/"/g,'&quot;');}
 
-const CONTACT_GRID = '200px 1fr 150px 110px 110px';
-function cc(n) { return n >= 5 ? 'count-high' : n >= 2 ? 'count-medium' : n > 0 ? 'count-low' : 'count-zero'; }
-
-function contactJson(c) {
-  return JSON.stringify(c).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-}
-
-function renderTable(searchQuery) {
-  const area = document.getElementById('main-area');
-  if (!filtered.length) {
-    let icon  = '&#128161;';
-    let title = 'No opportunities found';
-    let msg   = 'Run campaigns with company targeting, or click <strong>+ Add companies</strong>';
-    if (searchQuery) {
-      icon  = '&#128269;';
-      title = 'No results';
-      msg   = `No companies or contacts match &ldquo;<strong>${esc(searchQuery)}</strong>&rdquo;`;
-    } else if (currentFilter.startsWith('view:')) {
-      const vid  = parseInt(currentFilter.split(':')[1]);
-      const view = allData.views.find(v => v.id === vid);
-      icon  = '&#128193;';
-      title = `&ldquo;${esc(view?.name || 'View')}&rdquo; is empty`;
-      msg   = 'No companies in this view yet. Click <strong>+ Add companies</strong> above.';
-    } else if (currentFilter.startsWith('campaign:')) {
-      const cid  = parseInt(currentFilter.split(':')[1]);
-      const camp = allData.campaigns.find(c => c.id === cid);
-      icon  = '&#128203;';
-      title = 'No companies for this campaign';
-      msg   = `No campaign companies found yet for <strong>${esc(camp?.name || 'this campaign')}</strong>.`;
-    }
-    area.innerHTML = `<div class="empty-state">
-      <div style="font-size:32px;margin-bottom:12px;opacity:0.3;">${icon}</div>
-      <div style="font-size:16px;font-weight:500;margin-bottom:6px;">${title}</div>
-      <div style="font-size:13px;color:#888;">${msg}</div>
-    </div>`;
+function renderTable(searchQuery){
+  const area=document.getElementById('main-area');
+  if(!filtered.length){
+    let icon='&#128161;',title='No opportunities found',msg='Run campaigns with company targeting, or click <strong>+ Add companies</strong>';
+    if(searchQuery){icon='&#128269;';title='No results';msg=`No companies or contacts match &ldquo;<strong>${esc(searchQuery)}</strong>&rdquo;`;}
+    else if(currentFilter.startsWith('view:')){const vid=parseInt(currentFilter.split(':')[1]);const view=allData.views.find(v=>v.id===vid);icon='&#128193;';title=`&ldquo;${esc(view?.name||'View')}&rdquo; is empty`;msg='No companies in this view yet. Click <strong>+ Add companies</strong> above.';}
+    else if(currentFilter.startsWith('campaign:')){const cid=parseInt(currentFilter.split(':')[1]);const camp=allData.campaigns.find(c=>c.id===cid);icon='&#128203;';title='No companies for this campaign';msg=`No campaign companies found yet for <strong>${esc(camp?.name||'this campaign')}</strong>.`;}
+    area.innerHTML=`<div class="empty-state"><div style="font-size:32px;margin-bottom:12px;opacity:0.3;">${icon}</div><div style="font-size:16px;font-weight:500;margin-bottom:6px;">${title}</div><div style="font-size:13px;color:#888;">${msg}</div></div>`;
     return;
   }
-  const accounts   = allData.accounts;
-  const accHeaders = accounts.map(a =>
-    `<th style="text-align:center;">${esc(a.display_name || a.account_id)}</th>`
-  ).join('');
-  let rows = '';
-  for (const co of filtered) {
-    const rowId  = encodeId(co.company_name, co.company_linkedin_id);
-    const isOpen = expandedIds.has(rowId);
-    const accCells = accounts.map(a => {
-      const n = co.connections_by_account?.[a.account_id] || 0;
-      return `<td style="text-align:center;"><span class="count-badge ${cc(n)}">${n || '\u2014'}</span></td>`;
-    }).join('');
-    const badge    = co.source === 'custom' ? '<span class="source-badge badge-custom">Custom</span>'
-                   : co.source === 'both'   ? '<span class="source-badge badge-both">+Custom</span>' : '';
-    const viewTag  = co.view_name ? `<span class="view-badge">&#128193; ${esc(co.view_name)}</span>` : '';
-    const rmBtn    = (co.source === 'custom' || co.source === 'both') && co.custom_id
-      ? `<button class="remove-co-btn" onclick="event.stopPropagation();removeCompany(${co.custom_id})" title="Remove">&times;</button>` : '';
-    const liLink   = co.li_company_url
-      ? `<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View &#8599;</a>`
-      : '<span class="cell-muted">\u2014</span>';
-    rows += `<tr class="company-row${isOpen?' expanded':''}" onclick="toggleCompany('${rowId}')">
+  const accounts=allData.accounts;
+  const accHeaders=accounts.map(a=>`<th style="text-align:center;">${esc(a.display_name||a.account_id)}</th>`).join('');
+  let rows='';
+  for(const co of filtered){
+    const rowId=encodeId(co.company_name,co.company_linkedin_id);
+    const isOpen=expandedIds.has(rowId);
+    const accCells=accounts.map(a=>{const n=co.connections_by_account?.[a.account_id]||0;return`<td style="text-align:center;"><span class="count-badge ${cc(n)}">${n||'\u2014'}</span></td>`;}).join('');
+    const badge=co.source==='custom'?'<span class="source-badge badge-custom">Custom</span>':co.source==='both'?'<span class="source-badge badge-both">+Custom</span>':'';
+    const viewTag=co.view_name?`<span class="view-badge">&#128193; ${esc(co.view_name)}</span>`:'';
+    const rmBtn=(co.source==='custom'||co.source==='both')&&co.custom_id?`<button class="remove-co-btn" onclick="event.stopPropagation();removeCompany(${co.custom_id})" title="Remove">&times;</button>`:'';
+    const liLink=co.li_company_url?`<a class="cell-link" href="${esc(safeUrl(co.li_company_url))}" target="_blank" rel="noopener">View &#8599;</a>`:'<span class="cell-muted">\u2014</span>';
+    rows+=`<tr class="company-row${isOpen?' expanded':''}" onclick="toggleCompany('${rowId}')">
       <td><div class="company-name-cell"><span class="expand-icon">&#9654;</span><span>${esc(co.company_name)}</span>${badge}${viewTag}${rmBtn}</div></td>
-      <td>${liLink}</td>
-      ${accCells}
-      <td style="text-align:center;"><span class="count-badge ${cc(co.total)}">${co.total || '\u2014'}</span></td>
-      <td style="text-align:right;padding-right:12px;"><span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span></td>
-    </tr>`;
-    if (isOpen) {
-      rows += `<tr class="contacts-row"><td colspan="${2 + accounts.length + 2}">${renderContactsBlock(co)}</td></tr>`;
-    }
+      <td>${liLink}</td>${accCells}
+      <td style="text-align:center;"><span class="count-badge ${cc(co.total)}">${co.total||'\u2014'}</span></td>
+      <td style="text-align:right;padding-right:12px;"><span class="cell-muted">${co.contacts.length} contact${co.contacts.length!==1?'s':''}</span></td></tr>`;
+    if(isOpen)rows+=`<tr class="contacts-row"><td colspan="${2+accounts.length+2}">${renderContactsBlock(co)}</td></tr>`;
   }
-  area.innerHTML = `<div class="table-outer"><table>
-    <thead><tr>
-      <th style="min-width:200px;">Company</th><th>LinkedIn</th>
-      ${accHeaders}
-      <th style="text-align:center;">Total</th><th></th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`;
+  area.innerHTML=`<div class="table-outer"><table><thead><tr><th style="min-width:200px;">Company</th><th>LinkedIn</th>${accHeaders}<th style="text-align:center;">Total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function renderContactsBlock(co) {
-  if (!co.contacts.length) {
-    return `<div class="contacts-inner"><div class="no-contacts">No connected contacts found at this company.</div></div>`;
-  }
-  const items = co.contacts.map(c => {
-    const canMsg    = !!(c.provider_id || c.chat_id);
-    const campClass = c.campaign_status === 'active' ? 'active' : '';
-    const replyBadge = c.positive_reply
-      ? '<span class="replied-badge positive">&#10003; Replied</span>'
-      : c.msg_replied
-      ? '<span class="replied-badge replied">Replied</span>'
-      : '';
-    return `<div class="contacts-grid-row" style="grid-template-columns:${CONTACT_GRID};">
+function renderContactsBlock(co){
+  if(!co.contacts.length)return`<div class="contacts-inner"><div class="no-contacts">No connected contacts found at this company.</div></div>`;
+  const items=co.contacts.map(c=>{
+    const canMsg=!!(c.provider_id||c.chat_id);
+    const campClass=c.campaign_status==='active'?'active':'';
+    const replyBadge=c.positive_reply?'<span class="replied-badge positive">&#10003; Replied</span>':c.msg_replied?'<span class="replied-badge replied">Replied</span>':'';
+    return`<div class="contacts-grid-row" style="grid-template-columns:${CONTACT_GRID};">
       <div><div class="contact-name-cell">${esc(c.first_name||'')} ${esc(c.last_name||'')}${replyBadge}</div></div>
       <div style="font-size:12px;color:#666;">${esc(c.title||'\u2014')}</div>
-      <div>${c.campaign_name ? `<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>` : '<span class="cell-muted">\u2014</span>'}</div>
-      <div>${c.li_profile_url ? `<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener">Profile &#8599;</a>` : '<span class="cell-muted">\u2014</span>'}</div>
-      <div><button class="msg-btn" ${canMsg ? '' : 'disabled title="Not enriched"'} onclick="openMsgDialog(${contactJson(c)})">&#128172; Message</button></div>
+      <div>${c.campaign_name?`<span class="campaign-pill ${campClass}">${esc(c.campaign_name)}</span>`:'<span class="cell-muted">\u2014</span>'}</div>
+      <div>${c.li_profile_url?`<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener">Profile &#8599;</a>`:'<span class="cell-muted">\u2014</span>'}</div>
+      <div><button class="msg-btn" ${canMsg?'':'disabled title="Not enriched"'} onclick="openMsgDialog(${contactJson(c)})">&#128172; Message</button></div>
     </div>`;
   }).join('');
-  return `<div class="contacts-inner">
-    <div class="contacts-grid-head" style="grid-template-columns:${CONTACT_GRID};">
-      <span>Name</span><span>Title</span><span>Campaign</span><span>Profile</span><span></span>
-    </div>${items}</div>`;
+  return`<div class="contacts-inner"><div class="contacts-grid-head" style="grid-template-columns:${CONTACT_GRID};"><span>Name</span><span>Title</span><span>Campaign</span><span>Profile</span><span></span></div>${items}</div>`;
 }
 
-function toggleCompany(id) {
-  expandedIds.has(id) ? expandedIds.delete(id) : expandedIds.add(id);
-  renderTable((document.getElementById('search-input')?.value || '').toLowerCase().trim());
-}
+function toggleCompany(id){expandedIds.has(id)?expandedIds.delete(id):expandedIds.add(id);renderTable((document.getElementById('search-input')?.value||'').toLowerCase().trim());}
 
-// ── Add panel ─────────────────────────────────────────────────────────────────
-
-function toggleAddPanel() {
-  if (addPanelOpen) { closeAddPanel(); return; }
-  addPanelOpen = true;
-  document.getElementById('add-panel').style.display = 'block';
-  parsedList      = [];
-  panelViewMode   = 'new';
-  panelViewId     = null;
-  panelAttachCamp = false;
-  document.getElementById('view-name-input').value       = '';
-  document.getElementById('add-textarea').value          = '';
-  document.getElementById('add-preview').innerHTML       = '';
-  document.getElementById('add-feedback').innerHTML      = '';
-  document.getElementById('attach-toggle').className     = 'toggle-btn';
-  document.getElementById('attach-fields').style.display = 'none';
-  document.getElementById('attach-auto-config').style.display   = 'none';
-  document.getElementById('attach-manual-config').style.display = 'none';
-  document.querySelector('input[name="view-mode"][value="new"]').checked = true;
-
-  // Show/hide the no-accounts notice and set the link href
-  const noAccountsEl   = document.getElementById('no-accounts-notice');
-  const settingsLinkEl = document.getElementById('no-accounts-settings-link');
-  noAccountsEl.style.display = allData.accounts.length > 0 ? 'none' : 'block';
-  settingsLinkEl.href        = settingsUrl;
-
+function toggleAddPanel(){
+  if(addPanelOpen){closeAddPanel();return;}
+  addPanelOpen=true;
+  document.getElementById('add-panel').style.display='block';
+  parsedList=[];panelViewMode='new';panelViewId=null;panelAttachCamp=false;
+  document.getElementById('view-name-input').value='';
+  document.getElementById('add-textarea').value='';
+  document.getElementById('add-preview').innerHTML='';
+  document.getElementById('add-feedback').innerHTML='';
+  document.getElementById('attach-toggle').className='toggle-btn';
+  document.getElementById('attach-fields').style.display='none';
+  document.getElementById('attach-auto-config').style.display='none';
+  document.getElementById('attach-manual-config').style.display='none';
+  document.querySelector('input[name="view-mode"][value="new"]').checked=true;
+  const noAccountsEl=document.getElementById('no-accounts-notice'),settingsLinkEl=document.getElementById('no-accounts-settings-link');
+  noAccountsEl.style.display=allData.accounts.length>0?'none':'block';
+  settingsLinkEl.href=settingsUrl;
   renderPanelViewSection();
-  if (currentFilter.startsWith('view:')) {
-    panelViewMode = 'existing';
-    panelViewId   = parseInt(currentFilter.split(':')[1]);
-    document.querySelector('input[name="view-mode"][value="existing"]').checked = true;
-    renderPanelViewSection();
-  }
-  setTimeout(() =>
-    document.getElementById(panelViewMode === 'new' ? 'view-name-input' : 'add-textarea')?.focus(), 50);
+  if(currentFilter.startsWith('view:')){panelViewMode='existing';panelViewId=parseInt(currentFilter.split(':')[1]);document.querySelector('input[name="view-mode"][value="existing"]').checked=true;renderPanelViewSection();}
+  setTimeout(()=>document.getElementById(panelViewMode==='new'?'view-name-input':'add-textarea')?.focus(),50);
 }
 
-function closeAddPanel() {
-  addPanelOpen = false;
-  document.getElementById('add-panel').style.display = 'none';
+function closeAddPanel(){addPanelOpen=false;document.getElementById('add-panel').style.display='none';}
+
+function populatePanelDropdowns(){
+  const vSel=document.getElementById('view-select');
+  if(vSel){vSel.innerHTML=`<option value="">Select view...</option>`+allData.views.map(v=>`<option value="${v.id}">${esc(v.name)}</option>`).join('');if(panelViewId)vSel.value=panelViewId;}
+  const cSel=document.getElementById('attach-campaign-select');
+  if(cSel){cSel.innerHTML=`<option value="">Select campaign...</option>`+allData.campaigns.filter(c=>c.status==='active').map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');if(!cSel.value){document.getElementById('attach-auto-config').style.display='none';document.getElementById('attach-manual-config').style.display='none';}}
 }
 
-function populatePanelDropdowns() {
-  const vSel = document.getElementById('view-select');
-  if (vSel) {
-    vSel.innerHTML = `<option value="">Select view...</option>` +
-      allData.views.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join('');
-    if (panelViewId) vSel.value = panelViewId;
-  }
-  const cSel = document.getElementById('attach-campaign-select');
-  if (cSel) {
-    cSel.innerHTML = `<option value="">Select campaign...</option>` +
-      allData.campaigns.filter(c => c.status === 'active')
-        .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-    if (!cSel.value) {
-      document.getElementById('attach-auto-config').style.display   = 'none';
-      document.getElementById('attach-manual-config').style.display = 'none';
-    }
-  }
-}
-
-function renderPanelViewSection() {
-  const isNew    = panelViewMode === 'new';
-  const nameRow  = document.getElementById('view-name-input')?.closest('label');
-  const existRow = document.getElementById('existing-view-row');
-  if (nameRow)  nameRow.style.opacity  = isNew ? '1' : '0.5';
-  if (existRow) existRow.style.opacity = isNew ? '0.5' : '1';
+function renderPanelViewSection(){
+  const isNew=panelViewMode==='new';
+  const nameRow=document.getElementById('view-name-input')?.closest('label');
+  const existRow=document.getElementById('existing-view-row');
+  if(nameRow)nameRow.style.opacity=isNew?'1':'0.5';
+  if(existRow)existRow.style.opacity=isNew?'0.5':'1';
   populatePanelDropdowns();
 }
 
-function setViewMode(mode) {
-  panelViewMode = mode;
-  renderPanelViewSection();
+function setViewMode(mode){panelViewMode=mode;renderPanelViewSection();}
+
+function toggleCampaignAttach(){
+  panelAttachCamp=!panelAttachCamp;
+  document.getElementById('attach-toggle').className=`toggle-btn${panelAttachCamp?' on':''}`;
+  document.getElementById('attach-fields').style.display=panelAttachCamp?'flex':'none';
+  if(!panelAttachCamp){document.getElementById('attach-auto-config').style.display='none';document.getElementById('attach-manual-config').style.display='none';}
 }
 
-function toggleCampaignAttach() {
-  panelAttachCamp = !panelAttachCamp;
-  document.getElementById('attach-toggle').className = `toggle-btn${panelAttachCamp ? ' on' : ''}`;
-  document.getElementById('attach-fields').style.display = panelAttachCamp ? 'flex' : 'none';
-  if (!panelAttachCamp) {
-    document.getElementById('attach-auto-config').style.display   = 'none';
-    document.getElementById('attach-manual-config').style.display = 'none';
-  }
+function onCampaignSelect(){
+  const cid=parseInt(document.getElementById('attach-campaign-select')?.value);
+  const auto=document.getElementById('attach-auto-config'),man=document.getElementById('attach-manual-config');
+  auto.style.display='none';man.style.display='none';
+  if(!cid||isNaN(cid))return;
+  const camp=allData.campaigns.find(c=>c.id===cid),sc=camp?.settings?.searchConfig;
+  if(camp?.audience_type==='company'&&sc?.titles?.length){document.getElementById('attach-auto-values').innerHTML=`Titles: <strong>${esc(sc.titles.join(', '))}</strong> &middot; Max: <strong>${sc.maxPerCompany||10}</strong> per company`;auto.style.display='block';}
+  else{document.getElementById('attach-titles').value='';document.getElementById('attach-limit').value='10';man.style.display='block';}
 }
 
-function onCampaignSelect() {
-  const cid  = parseInt(document.getElementById('attach-campaign-select')?.value);
-  const auto = document.getElementById('attach-auto-config');
-  const man  = document.getElementById('attach-manual-config');
-  auto.style.display = 'none';
-  man.style.display  = 'none';
-  if (!cid || isNaN(cid)) return;
-  const camp = allData.campaigns.find(c => c.id === cid);
-  const sc   = camp?.settings?.searchConfig;
-  if (camp?.audience_type === 'company' && sc?.titles?.length) {
-    document.getElementById('attach-auto-values').innerHTML =
-      `Titles: <strong>${esc(sc.titles.join(', '))}</strong> &middot; Max: <strong>${sc.maxPerCompany || 10}</strong> per company`;
-    auto.style.display = 'block';
-  } else {
-    document.getElementById('attach-titles').value = '';
-    document.getElementById('attach-limit').value  = '10';
-    man.style.display = 'block';
-  }
-}
+function onAddInput(){parsedList=parseCompanies(document.getElementById('add-textarea').value);renderPreview();}
 
-function onAddInput() {
-  parsedList = parseCompanies(document.getElementById('add-textarea').value);
-  renderPreview();
-}
-
-function parseCompanies(text) {
-  const lines  = text.split(/\n/).map(l => l.trim()).filter(Boolean);
-  const result = [], seen = new Set();
-  for (const line of lines) {
-    const urlMatch = line.match(/linkedin\.com\/company\/([^/?&#\s]+)/i);
-    let name, url;
-    if (urlMatch) {
-      const slug = urlMatch[1];
-      name = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      url  = `https://www.linkedin.com/company/${slug}`;
-    } else { name = line; url = null; }
-    const key = name.toLowerCase().trim();
-    if (name && !seen.has(key)) { seen.add(key); result.push({ name, url, linkedin_id: null }); }
+function parseCompanies(text){
+  const lines=text.split(/\n/).map(l=>l.trim()).filter(Boolean);
+  const result=[],seen=new Set();
+  for(const line of lines){
+    const urlMatch=line.match(/linkedin\.com\/company\/([^/?&#\s]+)/i);
+    let name,url;
+    if(urlMatch){const slug=urlMatch[1];name=slug.split('-').map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(' ');url=`https://www.linkedin.com/company/${slug}`;}
+    else{name=line;url=null;}
+    const key=name.toLowerCase().trim();
+    if(name&&!seen.has(key)){seen.add(key);result.push({name,url,linkedin_id:null});}
   }
   return result;
 }
 
-function renderPreview() {
-  const el = document.getElementById('add-preview');
-  if (!parsedList.length) { el.innerHTML = ''; return; }
-  el.innerHTML =
-    `<div class="preview-label">${parsedList.length} compan${parsedList.length===1?'y':'ies'} detected</div>
-    <div class="preview-list">${parsedList.map((co, i) => `
-      <div class="preview-item">
-        <span class="preview-name">${esc(co.name)}</span>
-        ${co.url ? `<a class="cell-link" href="${esc(co.url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>` : ''}
-        <button class="preview-remove" onclick="removeFromPreview(${i})">&times;</button>
-      </div>`).join('')}</div>`;
+function renderPreview(){
+  const el=document.getElementById('add-preview');
+  if(!parsedList.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="preview-label">${parsedList.length} compan${parsedList.length===1?'y':'ies'} detected</div><div class="preview-list">${parsedList.map((co,i)=>`<div class="preview-item"><span class="preview-name">${esc(co.name)}</span>${co.url?`<a class="cell-link" href="${esc(co.url)}" target="_blank" rel="noopener">LinkedIn &#8599;</a>`:''}<button class="preview-remove" onclick="removeFromPreview(${i})">&times;</button></div>`).join('')}</div>`;
 }
 
-function removeFromPreview(i) {
-  parsedList.splice(i, 1);
-  document.getElementById('add-textarea').value = parsedList.map(co => co.url || co.name).join('\n');
-  renderPreview();
-}
+function removeFromPreview(i){parsedList.splice(i,1);document.getElementById('add-textarea').value=parsedList.map(co=>co.url||co.name).join('\n');renderPreview();}
 
-async function saveCompanies() {
-  if (!parsedList.length) { document.getElementById('add-textarea')?.focus(); return; }
-  const viewName = document.getElementById('view-name-input')?.value.trim();
-  const viewSel  = parseInt(document.getElementById('view-select')?.value);
-  if (panelViewMode === 'new'      && !viewName)         { alert('Please enter a view name.'); return; }
-  if (panelViewMode === 'existing' && (!viewSel || isNaN(viewSel))) { alert('Please select an existing view.'); return; }
-
-  let titles = [], limit = 10;
-  const campaignId = panelAttachCamp ? parseInt(document.getElementById('attach-campaign-select')?.value) : null;
-  if (panelAttachCamp) {
-    if (!campaignId || isNaN(campaignId)) { alert('Please select a campaign.'); return; }
-    const camp = allData.campaigns.find(c => c.id === campaignId);
-    const sc   = camp?.settings?.searchConfig;
-    if (camp?.audience_type === 'company' && sc?.titles?.length) {
-      titles = sc.titles; limit = sc.maxPerCompany || 10;
-    } else {
-      titles = (document.getElementById('attach-titles')?.value.trim().split(',').map(s=>s.trim()).filter(Boolean) || []);
-      limit  = parseInt(document.getElementById('attach-limit')?.value) || 10;
-      if (!titles.length) { alert('Please enter job titles to search for.'); return; }
-    }
+async function saveCompanies(){
+  if(!parsedList.length){document.getElementById('add-textarea')?.focus();return;}
+  const viewName=document.getElementById('view-name-input')?.value.trim();
+  const viewSel=parseInt(document.getElementById('view-select')?.value);
+  if(panelViewMode==='new'&&!viewName){alert('Please enter a view name.');return;}
+  if(panelViewMode==='existing'&&(!viewSel||isNaN(viewSel))){alert('Please select an existing view.');return;}
+  let titles=[],limit=10;
+  const campaignId=panelAttachCamp?parseInt(document.getElementById('attach-campaign-select')?.value):null;
+  if(panelAttachCamp){
+    if(!campaignId||isNaN(campaignId)){alert('Please select a campaign.');return;}
+    const camp=allData.campaigns.find(c=>c.id===campaignId),sc=camp?.settings?.searchConfig;
+    if(camp?.audience_type==='company'&&sc?.titles?.length){titles=sc.titles;limit=sc.maxPerCompany||10;}
+    else{titles=(document.getElementById('attach-titles')?.value.trim().split(',').map(s=>s.trim()).filter(Boolean)||[]);limit=parseInt(document.getElementById('attach-limit')?.value)||10;if(!titles.length){alert('Please enter job titles to search for.');return;}}
   }
-
-  const btn = document.getElementById('add-save-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin">&#x21BB;</span> Saving...';
-  document.getElementById('add-feedback').innerHTML = '';
-  const msgs = [];
-  try {
-    const res = await fetch('/api/opportunities/companies', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workspace_id: workspaceId, companies: parsedList,
-        view_id:   panelViewMode === 'existing' ? viewSel  : null,
-        view_name: panelViewMode === 'new'      ? viewName : null,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    if (data.added > 0)   msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to \u201c${esc(data.view_name || viewName)}\u201d`);
-    if (data.skipped > 0) msgs.push(`${data.skipped} already existed`);
-    if (!data.added && !data.skipped) msgs.push('No companies were saved');
-
-    if (panelAttachCamp) {
-      const withUrls = parsedList.filter(co => co.url);
-      if (!withUrls.length) {
-        msgs.push('No LinkedIn URLs \u2014 companies saved to view, not searched on LinkedIn');
-      } else {
-        btn.innerHTML = '<span class="spin">&#x21BB;</span> Searching LinkedIn...';
-        const ar = await fetch('/api/opportunities/attach-to-campaign', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspace_id: workspaceId, campaign_id: campaignId, companies: withUrls, titles, limit }),
-        });
-        const ad = await ar.json();
-        if (ar.ok) {
-          const cname = allData.campaigns.find(c => c.id === campaignId)?.name || 'campaign';
-          msgs.push(`${ad.contacts_added} new contacts added to \u201c${esc(cname)}\u201d (${ad.companies_searched} companies, ${ad.contacts_found} found)`);
-        } else {
-          msgs.push(`Campaign search failed: ${esc(ad.error)}`);
-        }
+  const btn=document.getElementById('add-save-btn');btn.disabled=true;btn.innerHTML='<span class="spin">&#x21BB;</span> Saving...';
+  document.getElementById('add-feedback').innerHTML='';
+  const msgs=[];
+  try{
+    const res=await fetch('/api/opportunities/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,companies:parsedList,view_id:panelViewMode==='existing'?viewSel:null,view_name:panelViewMode==='new'?viewName:null})});
+    const data=await res.json();if(!res.ok)throw new Error(data.error);
+    if(data.added>0)msgs.push(`${data.added} compan${data.added!==1?'ies':'y'} saved to \u201c${esc(data.view_name||viewName)}\u201d`);
+    if(data.skipped>0)msgs.push(`${data.skipped} already existed`);
+    if(!data.added&&!data.skipped)msgs.push('No companies were saved');
+    if(panelAttachCamp){
+      const withUrls=parsedList.filter(co=>co.url);
+      if(!withUrls.length){msgs.push('No LinkedIn URLs \u2014 companies saved to view, not searched on LinkedIn');}
+      else{
+        btn.innerHTML='<span class="spin">&#x21BB;</span> Searching LinkedIn...';
+        const ar=await fetch('/api/opportunities/attach-to-campaign',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,campaign_id:campaignId,companies:withUrls,titles,limit})});
+        const ad=await ar.json();
+        if(ar.ok){const cname=allData.campaigns.find(c=>c.id===campaignId)?.name||'campaign';msgs.push(`${ad.contacts_added} new contacts added to \u201c${esc(cname)}\u201d (${ad.companies_searched} companies, ${ad.contacts_found} found)`);}
+        else{msgs.push(`Campaign search failed: ${esc(ad.error)}`);}
       }
     }
-
-    document.getElementById('add-feedback').className  = 'add-feedback ok';
-    document.getElementById('add-feedback').innerHTML = '&#10003; ' + msgs.join(' \u00b7 ');
-    setTimeout(() => { closeAddPanel(); load(); }, 1400);
-  } catch (err) {
-    document.getElementById('add-feedback').className  = 'add-feedback err';
-    document.getElementById('add-feedback').innerHTML = '&#10007; ' + esc(err.message);
-    btn.disabled = false; btn.innerHTML = '&#128161; Add to Opportunities';
-  }
+    document.getElementById('add-feedback').className='add-feedback ok';
+    document.getElementById('add-feedback').innerHTML='&#10003; '+msgs.join(' \u00b7 ');
+    setTimeout(()=>{closeAddPanel();load();},1400);
+  }catch(err){document.getElementById('add-feedback').className='add-feedback err';document.getElementById('add-feedback').innerHTML='&#10007; '+esc(err.message);btn.disabled=false;btn.innerHTML='&#128161; Add to Opportunities';}
 }
 
-async function removeCompany(customId) {
-  if (!confirm('Remove this company from Opportunities?')) return;
-  try { await fetch(`/api/opportunities/companies/${customId}`, { method: 'DELETE' }); await load(); }
-  catch (err) { alert('Failed: ' + err.message); }
+async function removeCompany(customId){
+  if(!confirm('Remove this company from Opportunities?'))return;
+  try{await fetch(`/api/opportunities/companies/${customId}?workspace_id=${workspaceId}`,{method:'DELETE'});await load();}
+  catch(err){alert('Failed: '+err.message);}
 }
 
-async function deleteView(viewId) {
-  if (!confirm('Delete this view? Companies will be unlinked but not removed.')) return;
-  try {
-    await fetch(`/api/opportunities/views/${viewId}`, { method: 'DELETE' });
-    if (currentFilter === `view:${viewId}`) setFilter('all');
+async function deleteView(viewId){
+  if(!confirm('Delete this view? Companies will be unlinked but not removed.'))return;
+  try{
+    await fetch(`/api/opportunities/views/${viewId}?workspace_id=${workspaceId}`,{method:'DELETE'});
+    if(currentFilter===`view:${viewId}`)setFilter('all');
     await load();
-  } catch (err) { alert('Failed: ' + err.message); }
+  }catch(err){alert('Failed: '+err.message);}
 }
 
-// ── Message dialog ────────────────────────────────────────────────────────────
-
-function openMsgDialog(contact) {
-  activeContact = contact;
-  document.getElementById('msg-title').textContent =
-    `Message ${contact.first_name||''} ${contact.last_name||''}`.trim();
-  document.getElementById('msg-sub').textContent =
-    [contact.title, contact.company].filter(Boolean).join(' \u00b7 ');
-  document.getElementById('msg-textarea').value        = '';
-  document.getElementById('msg-status-area').innerHTML = '';
-  document.getElementById('send-btn').disabled          = false;
-  document.getElementById('send-btn').innerHTML         = '&#128172; Send message';
+function openMsgDialog(contact){
+  activeContact=contact;
+  document.getElementById('msg-title').textContent=`Message ${contact.first_name||''} ${contact.last_name||''}`.trim();
+  document.getElementById('msg-sub').textContent=[contact.title,contact.company].filter(Boolean).join(' \u00b7 ');
+  document.getElementById('msg-textarea').value='';
+  document.getElementById('msg-status-area').innerHTML='';
+  document.getElementById('send-btn').disabled=false;
+  document.getElementById('send-btn').innerHTML='&#128172; Send message';
   updateCharCount();
-  document.getElementById('msg-backdrop').style.display = 'flex';
-  setTimeout(() => document.getElementById('msg-textarea').focus(), 50);
+  document.getElementById('msg-backdrop').style.display='flex';
+  setTimeout(()=>document.getElementById('msg-textarea').focus(),50);
 }
 
-function closeMsgDialog() {
-  document.getElementById('msg-backdrop').style.display = 'none';
-  activeContact = null;
-}
+function closeMsgDialog(){document.getElementById('msg-backdrop').style.display='none';activeContact=null;}
 
-function insertToken(token) {
-  const ta = document.getElementById('msg-textarea'), p = ta.selectionStart;
-  ta.value = ta.value.slice(0,p) + token + ta.value.slice(p);
-  ta.selectionStart = ta.selectionEnd = p + token.length;
-  ta.focus(); updateCharCount();
-}
+function insertToken(token){const ta=document.getElementById('msg-textarea'),p=ta.selectionStart;ta.value=ta.value.slice(0,p)+token+ta.value.slice(p);ta.selectionStart=ta.selectionEnd=p+token.length;ta.focus();updateCharCount();}
 
-function updateCharCount() {
-  document.getElementById('char-count').textContent =
-    `${document.getElementById('msg-textarea').value.length} characters`;
-}
+function updateCharCount(){document.getElementById('char-count').textContent=`${document.getElementById('msg-textarea').value.length} characters`;}
 
-function subTokens(t, c) {
-  return t.replace(/\{\{first_name\}\}/g, c.first_name||'')
-          .replace(/\{\{last_name\}\}/g,  c.last_name ||'')
-          .replace(/\{\{company\}\}/g,    c.company   ||'');
-}
+function subTokens(t,c){return t.replace(/\{\{first_name\}\}/g,c.first_name||'').replace(/\{\{last_name\}\}/g,c.last_name||'').replace(/\{\{company\}\}/g,c.company||'');}
 
-async function sendMessage() {
-  if (!activeContact) return;
-  const rawText = document.getElementById('msg-textarea').value.trim();
-  if (!rawText) { document.getElementById('msg-textarea').focus(); return; }
-  const text = subTokens(rawText, activeContact);
-  const btn  = document.getElementById('send-btn');
-  btn.disabled = true; btn.innerHTML = '<span class="spin">&#x21BB;</span> Sending\u2026';
-  document.getElementById('msg-status-area').innerHTML = '';
-  try {
-    const res  = await fetch('/api/opportunities/send-message', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contact_id: activeContact.id, text }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Send failed');
-    document.getElementById('msg-status-area').innerHTML =
-      `<div class="msg-status-ok">&#10003; Message sent to ${esc(activeContact.first_name||'contact')}!</div>`;
-    document.getElementById('msg-textarea').value = ''; updateCharCount();
-    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
-    setTimeout(closeMsgDialog, 1500);
-  } catch (err) {
-    document.getElementById('msg-status-area').innerHTML =
-      `<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
-    btn.disabled = false; btn.innerHTML = '&#128172; Send message';
+async function sendMessage(){
+  if(!activeContact)return;
+  const rawText=document.getElementById('msg-textarea').value.trim();
+  if(!rawText){document.getElementById('msg-textarea').focus();return;}
+  const text=subTokens(rawText,activeContact);
+  const btn=document.getElementById('send-btn');
+  btn.disabled=true;btn.innerHTML='<span class="spin">&#x21BB;</span> Sending\u2026';
+  document.getElementById('msg-status-area').innerHTML='';
+  try{
+    const res=await fetch('/api/opportunities/send-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contact_id:activeContact.id,text,workspace_id:workspaceId})});
+    const data=await res.json();
+    if(!res.ok)throw new Error(data.error||'Send failed');
+    document.getElementById('msg-status-area').innerHTML=`<div class="msg-status-ok">&#10003; Message sent to ${esc(activeContact.first_name||'contact')}!</div>`;
+    document.getElementById('msg-textarea').value='';updateCharCount();
+    btn.disabled=false;btn.innerHTML='&#128172; Send message';
+    setTimeout(closeMsgDialog,1500);
+  }catch(err){
+    document.getElementById('msg-status-area').innerHTML=`<div class="msg-status-err">&#10007; ${esc(err.message)}</div>`;
+    btn.disabled=false;btn.innerHTML='&#128172; Send message';
   }
 }
 
-// ── Keyboard shortcuts ───────────────────────────────────────────────────────
-
-document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  if (document.getElementById('msg-backdrop').style.display !== 'none') {
-    closeMsgDialog();
-  } else if (addPanelOpen) {
-    closeAddPanel();
-  }
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  if(document.getElementById('msg-backdrop').style.display!=='none')closeMsgDialog();
+  else if(addPanelOpen)closeAddPanel();
 });
 
-// ── Utils ─────────────────────────────────────────────────────────────────────
-function esc(s)        { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function safeUrl(u)   { u=(u||'').trim(); return /^https?:\/\//i.test(u)?u:'https://'+u; }
-function encodeId(n,l) { return (l||n||'').replace(/[^a-z0-9]/gi,'_'); }
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function safeUrl(u){u=(u||'').trim();return /^https?:\/\//i.test(u)?u:'https://'+u;}
+function encodeId(n,l){return(l||n||'').replace(/[^a-z0-9]/gi,'_');}
 
 load();
 </script>
