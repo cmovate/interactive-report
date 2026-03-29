@@ -240,7 +240,22 @@ function renderDetail() {
           <div style="font-size:12px;color:#888;margin-bottom:14px;">Working hours are configured per campaign in the campaign wizard.</div>
           <div class="limits-grid">${limitsHtml}</div>
         </div>
-        <div class="save-row">
+        <div class="settings-section-label" style="margin-top:20px;margin-bottom:8px;">LINKEDIN COMPANY PAGE</div>
+        <div class="settings-field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:#666;display:block;margin-bottom:5px;">Company Page URL</label>
+          <input
+            type="url"
+            id="company-page-url-${acc.account_id}"
+            class="settings-input"
+            style="width:100%;border:1px solid #e0e0e0;border-radius:8px;padding:8px 12px;font-size:13px;font-family:inherit;outline:none;"
+            placeholder="https://www.linkedin.com/company/your-company"
+            value="${acc.settings?.company_page_url || ''}"
+            onfocus="this.style.borderColor='#1D9E75'"
+            onblur="this.style.borderColor='#e0e0e0'"
+          />
+          <div style="font-size:11px;color:#aaa;margin-top:4px;">Used for company follow invites and engagement tracking</div>
+        </div>
+                <div class="save-row">
           <span class="save-feedback" id="save-feedback-${acc.account_id}">&#10003; Saved</span>
           <button class="save-btn" id="save-btn-${acc.account_id}" onclick="saveSettings('${acc.account_id}')">Save settings</button>
         </div>
@@ -282,7 +297,7 @@ async function saveSettings(accountId) {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limits })
+        body: JSON.stringify({ limits, company_page_url: (document.getElementById('company-page-url-' + accountId)?.value || '').trim() })
       }
     );
     if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
