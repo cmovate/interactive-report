@@ -20,7 +20,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .nav-new-badge { font-size: 9px; font-weight: 700; background: #1D9E75; color: white; border-radius: 3px; padding: 1px 4px; margin-left: 4px; }
 /* Account footer in sidebar */
 .sidebar-footer { margin-top: auto; border-top: 1px solid #f0f0f0; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-.sidebar-account { display: flex; align-items: center; gap: 10px; padding: 6px 2px; cursor: default; }
+.sidebar-account { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
 .sidebar-avatar-wrap { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#DBEAFE,#C7F2D8); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #1E5F3E; flex-shrink: 0; overflow: hidden; border: 2px solid #e5e5e5; position: relative; }
 .sidebar-avatar-wrap img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 .sidebar-avatar-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #1E5F3E; }
@@ -54,6 +54,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <span class="nav-icon">&#128161;</span> Opportunities
     <span class="nav-new-badge">NEW</span>
   </div>
+  <div class="nav-item" onclick="showScreen('feed')" id="nav-feed">
+    <span class="nav-icon">&#128240;</span> Feed
+  </div>
 
   <div class="nav-section">Account</div>
   <div class="nav-item" onclick="showScreen('settings')" id="nav-settings">
@@ -68,6 +71,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="screen active" id="screen-campaigns"></div>
   <div class="screen" id="screen-all-data"></div>
   <div class="screen" id="screen-opportunities"></div>
+  <div class="screen" id="screen-feed"></div>
   <div class="screen" id="screen-settings"></div>
 </div>
 
@@ -92,7 +96,6 @@ async function loadAccounts() {
     footer.innerHTML = accounts.map(acc => {
       const name = acc.full_name || acc.display_name || acc.account_id;
       const ini  = initials(name);
-      // We render both <img> and initials span; img onerror hides itself and shows initials.
       const avatarInner = acc.avatar_url
         ? `<img src="${acc.avatar_url}" alt="" loading="lazy"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
