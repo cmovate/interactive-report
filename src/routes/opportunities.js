@@ -393,6 +393,80 @@ router.post('/attach-to-campaign', async (req, res) => {
 });
 
 // POST /api/opportunities/send-message
+
+// POST /enrich — search LinkedIn connections at opportunity companies (no campaign required)
+router.post('/enrich', async (req, res) => {
+  const { workspace_id, company_ids, titles, limit } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+  try {
+    // Get accounts for this workspace
+    const acctRows = (await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1',
+      [workspace_id]
+    )).rows;
+    if (!acctRows.length) return res.status(400).json({ error: "No LinkedIn accounts connected to this workspace" });
+    const account_id = acctRows[0].account_id;
+
+    // Get companies to enrich
+    let companyRows;
+    if (company_ids && company_ids.length) {
+      companyRows = (await db.query(
+        'SELECT id, company_name, company_linkedin_id, li_company_url FROM opportunity_companies WHERE workspace_id = $1 AND id = ANY($2)',
+        [workspace_id, company_ids]
+      )).rows;
+    } else {
+      companyRows = (await db.query(
+        'SELECT id, company_name, company_linkedin_id, li_company_url FROM opportunity_companies WHERE workspace_id = $1',
+        [workspace_id]
+      )).rows;
+    }
+
+    const effectiveLimit = Math.min(parseInt(limit) || 25, 50);
+    let enriched = 0, added = 0;
+    const results = [];
+
+    for (const comp of companyRows) {
+      try {
+        const slug = extractCompanySlug(comp.li_company_url || "");
+        const companyId = comp.company_linkedin_id || slug;
+        if (!companyId) { results.push({ company: comp.company_name, skipped: true, reason: "no linkedin id" }); continue; }
+
+        const companyName = comp.company_name;
+        const resolvedId = await lookupCompany(account_id, companyId, companyName);
+        if (!resolvedId) { results.push({ company: companyName, skipped: true, reason: "lookup failed" }); continue; }
+
+        const rawPeople = await searchPeopleByCompany(account_id, resolvedId, companyName, titles || [], effectiveLimit);
+        const people = validateCompanyResults(rawPeople, companyName);
+        enriched++;
+
+        for (const p of people) {
+          const liUrl = (p.linkedin_url || p.public_profile_url || "").split("?")[0].trim();
+          if (!liUrl) continue;
+          // Upsert contact — campaign_id = NULL, linked to opportunity_company
+          const ins = (await db.query(
+            'INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url)' +
+            ' VALUES (NULL, $1, $2, $3, $4, $5, $6, $7)' +
+            ' ON CONFLICT (li_profile_url) WHERE workspace_id = $1 DO UPDATE SET' +
+            ' company = EXCLUDED.company, title = EXCLUDED.title, updated_at = NOW()' +
+            ' RETURNING id',
+            [workspace_id, p.first_name||"", p.last_name||"", companyName, p.headline||"", liUrl, comp.li_company_url||""]
+          )).rows;
+          if (ins.length) added++;
+        }
+        results.push({ company: companyName, found: people.length, added });
+      } catch (compErr) {
+        results.push({ company: comp.company_name, error: compErr.message });
+      }
+    }
+
+    res.json({ ok: true, companies_processed: enriched, contacts_added: added, results });
+  } catch (err) {
+    console.error('[Opportunities] enrich error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/send-message', async (req, res) => {
   try {
     const { contact_id, text, workspace_id } = req.body;
