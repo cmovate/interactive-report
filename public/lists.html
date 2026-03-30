@@ -1109,15 +1109,13 @@ async function createList() {
   const desc = document.getElementById('nl-desc').value.trim();
   if (!name) { document.getElementById('nl-name').focus(); return; }
   try {
-    const r = await apiFetch('/api/lists', {
+    const r = await fetch('/api/lists', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ workspace_id: parseInt(workspaceId), name, type: _newListType, description: desc||undefined })
     });
     closeNewListModal();
     await loadLists();
-    // Auto-select newly created list
-    filterContacts(r.id, r.name, r.type);
   } catch(e) { showMsg('Failed to create list: ' + e.message, 'error'); }
 }
 
@@ -1135,7 +1133,7 @@ async function saveRename() {
   const desc = document.getElementById('rl-desc').value.trim();
   if (!name) return;
   try {
-    await apiFetch('/api/lists/' + _renameListId, {
+    await fetch('/api/lists/' + _renameListId, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ workspace_id: parseInt(workspaceId), name, description: desc||null })
@@ -1148,7 +1146,7 @@ async function saveRename() {
 async function deleteList(listId, listName) {
   if (!confirm('Delete list "' + listName + '"?\nContacts in the list will NOT be deleted.')) return;
   try {
-    await apiFetch('/api/lists/' + listId + '?workspace_id=' + workspaceId, { method: 'DELETE' });
+    await fetch('/api/lists/' + listId + '?workspace_id=' + workspaceId, { method: 'DELETE' });
     if (_activeListId === listId) filterContacts('all');
     await loadLists();
   } catch(e) { showMsg('Failed to delete list: ' + e.message, 'error'); }
@@ -1156,7 +1154,7 @@ async function deleteList(listId, listName) {
 
 async function loadLists() {
   try {
-    const data = await apiFetch('/api/lists?workspace_id=' + workspaceId);
+    const data = await fetch('/api/lists?workspace_id=' + workspaceId).then(r=>r.json());
     _lists = data.items || [];
     renderListCards();
   } catch(e) {
