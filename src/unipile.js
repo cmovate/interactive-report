@@ -243,6 +243,30 @@ async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
   });
 }
 
+
+/**
+ * Search for 1st-degree LinkedIn connections working at a specific company.
+ * Uses DISTANCE_1 filter so results are only direct connections.
+ */
+async function searchFirstDegreeAtCompany(accountId, companyId, limit = 50) {
+  const data = await request(
+    '/api/v1/linkedin/search?account_id=' + encodeURIComponent(accountId),
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        api: 'classic',
+        category: 'people',
+        filters: {
+          currentCompany: [String(companyId)],
+          network_distance: ['DISTANCE_1']
+        },
+        limit
+      })
+    }
+  );
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
