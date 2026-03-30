@@ -70,7 +70,7 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
       camp.account_id
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE c.workspace_id = $1 AND c.already_connected = true
+    WHERE c.workspace_id = $1
       ${filter}
     ORDER BY
       COALESCE(NULLIF(c.li_profile_url, ''), c.id::text),
