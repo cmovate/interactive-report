@@ -65,11 +65,11 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
       c.id, c.first_name, c.last_name, c.company, c.title,
       c.li_profile_url, c.email, c.chat_id, c.provider_id,
       c.campaign_id, c.msg_replied, c.invite_approved,
-      camp.name   AS campaign_name,
-      camp.status AS campaign_status,
+      COALESCE(camp.name,'')   AS campaign_name,
+      COALESCE(camp.status,'') AS campaign_status,
       camp.account_id
     FROM contacts c
-    JOIN campaigns camp ON camp.id = c.campaign_id
+    LEFT JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE c.workspace_id = $1
       ${filter}
     ORDER BY
