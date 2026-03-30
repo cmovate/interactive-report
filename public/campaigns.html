@@ -623,30 +623,39 @@ function wizToggleDay(key) {
 function wizUpdateHour(key,field,value){wizard.hours[key][field]=value;}
 
 async function loadListsForPicker() {
-  const grid = document.getElementById("list-picker-grid");
+  const grid = document.getElementById('list-picker-grid');
   if (!grid) return;
   try {
-    const data = await fetch("/api/lists?workspace_id=" + workspaceId).then(r=>r.json());
-    const lists = (data.items || []).filter(l => l.type === "contacts");
+    const data = await fetch('/api/lists?workspace_id=' + workspaceId).then(r=>r.json());
+    const lists = (data.items || []).filter(l => l.type === 'contacts');
     if (!lists.length) {
-      grid.innerHTML = "<div class=\"list-picker-loading\">No contact lists yet — create one in the Lists tab.</div>";
+      grid.innerHTML = '<div class="list-picker-loading">No contact lists yet — go to <strong>Lists</strong> tab to create one.</div>';
       return;
     }
     grid.innerHTML = lists.map(l => {
       const sel = wizard.list_id === l.id;
       const cnt = l.contact_count || 0;
-      const desc = l.description ? " · " + esc(l.description) : "";
-      return "<div class=\"list-picker-card" + (sel ? " selected" : "") + "\"" +
-             " onclick=\"selectList(" + l.id + "," + JSON.stringify(l.name) + ")\">"+
-             "<div class=\"lpc-icon\">\uD83D\uDC65</div>"+
-             "<div class=\"lpc-info\"><div class=\"lpc-name\">" + esc(l.name) + "</div>"+
-             "<div class=\"lpc-count\">" + cnt + " contacts" + desc + "</div></div>"+
-             (sel ? "<div class=\"lpc-check\">\u2713</div>" : "") + "</div>";
-    }).join("");
+      const desc = l.description ? ' · ' + l.description : '';
+      return '<div class="list-picker-card' + (sel ? ' selected' : '') + '" data-id="' + l.id + '" data-name="' + (l.name||'').replace(/"/g,'&quot;') + '">' +
+        '<div class="lpc-icon">&#128101;</div>' +
+        '<div class="lpc-info">' +
+          '<div class="lpc-name">' + (l.name||'') + '</div>' +
+          '<div class="lpc-count">' + cnt + ' contacts' + desc + '</div>' +
+        '</div>' +
+        (sel ? '<div class="lpc-check">&#10003;</div>' : '') +
+        '</div>';
+    }).join('');
+    // Attach click handlers (no inline onclick = no escaping issues)
+    grid.querySelectorAll('.list-picker-card').forEach(function(card) {
+      card.addEventListener('click', function() {
+        selectList(parseInt(card.dataset.id), card.dataset.name);
+      });
+    });
   } catch(e) {
-    grid.innerHTML = "<div class=\"list-picker-loading\" style=\"color:#e53e3e\">Failed: " + e.message + "</div>";
+    grid.innerHTML = '<div class="list-picker-loading" style="color:#e53e3e">Failed: ' + e.message + '</div>';
   }
 }
+
 
 function selectList(id, name) {
   wizard.list_id = id;
