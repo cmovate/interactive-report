@@ -167,24 +167,33 @@ router.post('/:id/contacts', async (req, res) => {
         if (!url.includes('linkedin.com/in/')) { skipped++; continue; }
 
         // Upsert contact into contacts table (no campaign)
-        const { rows: ins } = await db.query(
-          `INSERT INTO contacts (workspace_id, first_name, last_name, company, title, li_profile_url, campaign_id)
-           VALUES ($1,$2,$3,$4,$5,$6,NULL)
-           ON CONFLICT (workspace_id, li_profile_url) DO UPDATE
-             SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
-                 company=EXCLUDED.company, title=EXCLUDED.title
-           RETURNING id`,
-          [workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'', url]
+        // Find or create contact by URL
+        let contactId = null;
+        const { rows: existing } = await db.query(
+          'SELECT id FROM contacts WHERE workspace_id = $1 AND li_profile_url = $2 LIMIT 1',
+          [workspace_id, url]
         );
-        if (!ins[0]?.id) { skipped++; continue; }
+        if (existing.length) {
+          contactId = existing[0].id;
+        } else {
+          const { rows: ins } = await db.query(
+            `INSERT INTO contacts (workspace_id, first_name, last_name, company, title, li_profile_url, campaign_id)
+             VALUES ($1,$2,$3,$4,$5,$6,NULL) RETURNING id`,
+            [workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'', url]
+          );
+          if (!ins[0]?.id) { skipped++; continue; }
+          contactId = ins[0].id;
+          toEnrich.push({ id: contactId, li_profile_url: url });
+        }
+
 
         // Link to list
         await db.query(
           'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-          [req.params.id, ins[0].id]
+          [req.params.id, contactId]
         );
         added++;
-        toEnrich.push({ id: ins[0].id, li_profile_url: url });
+        // toEnrich already pushed above for new contacts
       }
     }
 
