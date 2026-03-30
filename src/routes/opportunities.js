@@ -446,10 +446,10 @@ router.post('/enrich', async (req, res) => {
           // Upsert contact — campaign_id = NULL, linked to opportunity_company
           const ins = (await db.query(
             'INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url)' +
-            ' VALUES (NULL, $1, $2, $3, $4, $5, $6, $7)' +
-            ' ON CONFLICT (li_profile_url) WHERE workspace_id = $1 DO UPDATE SET' +
-            ' company = EXCLUDED.company, title = EXCLUDED.title, updated_at = NOW()' +
-            ' RETURNING id',
+            ' SELECT NULL, $1, $2, $3, $4, $5, $6, $7' +
+            ' WHERE NOT EXISTS (' +
+            '   SELECT 1 FROM contacts WHERE workspace_id = $1 AND li_profile_url = $6' +
+            ' ) RETURNING id',
             [workspace_id, p.first_name||"", p.last_name||"", companyName, p.headline||"", liUrl, comp.li_company_url||""]
           )).rows;
           if (ins.length) added++;
