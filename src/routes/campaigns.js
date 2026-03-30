@@ -1,18 +1,17 @@
-const express  = require('express');
-const router   = express.Router();
-const db       = require('../db');
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
 const { searchPeopleByKeywords } = require('../unipile');
-const { enqueue, getStatus }     = require('../enrichment');
-const { countSentThisMonth }     = require('../companyFollowSender');
-const engagementScraper          = require('../engagementScraper');
-const likeSender                 = require('../likeSender');
-const withdrawSender             = require('../withdrawSender');
+const { enqueue, getStatus } = require('../enrichment');
+const { countSentThisMonth } = require('../companyFollowSender');
+const engagementScraper = require('../engagementScraper');
+const likeSender = require('../likeSender');
+const withdrawSender = require('../withdrawSender');
 
-const MAX_MSG_SLOTS   = 20;
-const BATCH_SIZE      = 4;   // max companies per keywords query
-const BATCH_MAX_PAGES = 3;   // pages per batch in background fetch
+const MAX_MSG_SLOTS = 20;
+const BATCH_SIZE = 4;
+const BATCH_MAX_PAGES = 3;
 
-// Workspace isolation helper
 async function requireCampaign(req, res, workspaceId) {
   if (!workspaceId) { res.status(400).json({ error: 'workspace_id required' }); return null; }
   const campaignId = parseInt(req.params.id, 10);
@@ -30,11 +29,6 @@ function extractCompanySlug(url) {
   return match ? match[1].replace(/\/$/, '').trim() : null;
 }
 
-/**
- * Build a LinkedIn keywords query for a batch of company URLs + titles + optional country.
- * e.g. "(VP R&D OR CTO) (Bezeq OR Partner OR HOT) Israel"
- * country is appended verbatim — LinkedIn uses it to geo-filter results.
- */
 function buildKeywordsQuery(companyUrls, titles, country) {
   const companyNames = [...new Set(
     (companyUrls || []).map(url => {
@@ -44,9 +38,9 @@ function buildKeywordsQuery(companyUrls, titles, country) {
     }).filter(Boolean)
   )];
   const parts = [];
-  if (titles?.length)       parts.push(`(${titles.join(' OR ')})`);
-  if (companyNames.length)  parts.push(`(${companyNames.join(' OR ')})`);
-  if (country?.trim())      parts.push(country.trim());
+  if (titles?.length) parts.push(`(${titles.join(' OR ')})`);
+  if (companyNames.length) parts.push(`(${companyNames.join(' OR ')})`);
+  if (country?.trim()) parts.push(country.trim());
   return parts.join(' ');
 }
 
@@ -56,17 +50,17 @@ router.get('/', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const { rows } = await db.query(
       `SELECT c.*,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id)                                      AS contact_count,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true)               AS invites_sent,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true)           AS invites_approved,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent = true)                  AS messages_sent,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_replied = true)               AS messages_replied,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND positive_reply = true)            AS positive_replies,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_invited = true)    AS follow_invited,
-        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_confirmed = true)  AS follow_confirmed,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id) AS contact_count,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true) AS invites_sent,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true) AS invites_approved,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent = true) AS messages_sent,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_replied = true) AS messages_replied,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND positive_reply = true) AS positive_replies,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_invited = true) AS follow_invited,
+        (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND company_follow_confirmed = true) AS follow_confirmed,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND last_profile_view_at IS NOT NULL) AS profile_views,
-        (SELECT COALESCE(SUM(post_likes_sent),0)    FROM contacts WHERE campaign_id = c.id)           AS total_post_likes,
-        (SELECT COALESCE(SUM(comment_likes_sent),0) FROM contacts WHERE campaign_id = c.id)           AS total_comment_likes
+        (SELECT COALESCE(SUM(post_likes_sent),0) FROM contacts WHERE campaign_id = c.id) AS total_post_likes,
+        (SELECT COALESCE(SUM(comment_likes_sent),0) FROM contacts WHERE campaign_id = c.id) AS total_comment_likes
        FROM campaigns c WHERE c.workspace_id = $1 ORDER BY c.created_at DESC`,
       [workspace_id]);
     res.json({ items: rows });
@@ -89,31 +83,35 @@ router.get('/:id/ab-analytics', async (req, res) => {
     const wsId = req.query.workspace_id;
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
-    const { rows: overallRows } = await db.query(`
-      SELECT COUNT(*) AS total_contacts,
-        COUNT(*) FILTER (WHERE already_connected = true)  AS already_connected,
-        COUNT(*) FILTER (WHERE invite_sent = true)        AS invites_sent,
-        COUNT(*) FILTER (WHERE invite_approved = true)    AS invites_approved,
-        COUNT(*) FILTER (WHERE msg_sent = true)           AS messages_sent,
-        COUNT(*) FILTER (WHERE msg_replied = true)        AS messages_replied,
-        COUNT(*) FILTER (WHERE positive_reply = true)     AS positive_replies,
-        COALESCE(SUM(msgs_sent_count), 0)                 AS total_msgs_sent
-      FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`, [camp.id, wsId]);
+    const { rows: overallRows } = await db.query(
+      `SELECT COUNT(*) AS total_contacts,
+        COUNT(*) FILTER (WHERE already_connected = true) AS already_connected,
+        COUNT(*) FILTER (WHERE invite_sent = true) AS invites_sent,
+        COUNT(*) FILTER (WHERE invite_approved = true) AS invites_approved,
+        COUNT(*) FILTER (WHERE msg_sent = true) AS messages_sent,
+        COUNT(*) FILTER (WHERE msg_replied = true) AS messages_replied,
+        COUNT(*) FILTER (WHERE positive_reply = true) AS positive_replies,
+        COALESCE(SUM(msgs_sent_count), 0) AS total_msgs_sent
+       FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`,
+      [camp.id, wsId]);
     const rawSettings = camp.settings || {};
     const settings = typeof rawSettings === 'string' ? JSON.parse(rawSettings) : rawSettings;
     const messages = settings.messages || {};
     const steps = [];
     for (let i = 1; i <= MAX_MSG_SLOTS; i++) {
-      const { rows } = await db.query(`
-        SELECT COALESCE(msg_${i}_variant, 'A') AS variant, COUNT(*) AS sent,
+      const { rows } = await db.query(
+        `SELECT COALESCE(msg_${i}_variant, 'A') AS variant,
+          COUNT(*) AS sent,
           COUNT(*) FILTER (WHERE msg_replied = true) AS replied
-        FROM contacts WHERE campaign_id = $1 AND workspace_id = $2 AND msg_${i}_text IS NOT NULL
-        GROUP BY COALESCE(msg_${i}_variant, 'A') ORDER BY COALESCE(msg_${i}_variant, 'A')`, [camp.id, wsId]);
+         FROM contacts WHERE campaign_id = $1 AND workspace_id = $2 AND msg_${i}_text IS NOT NULL
+         GROUP BY COALESCE(msg_${i}_variant, 'A') ORDER BY COALESCE(msg_${i}_variant, 'A')`,
+        [camp.id, wsId]);
       if (rows.length > 0) {
         const allSeqs = [...(messages.new||[]),...(messages.existing_no_history||[]),...(messages.existing_with_history||[])];
         const stepCfg = allSeqs[i-1];
         steps.push({ step: i, delay: stepCfg?.delay, unit: stepCfg?.unit,
-          variants: rows.map(r => ({ label: r.variant, sent: parseInt(r.sent), replied: parseInt(r.replied),
+          variants: rows.map(r => ({ label: r.variant, sent: parseInt(r.sent),
+            replied: parseInt(r.replied),
             rate: parseInt(r.sent) > 0 ? Math.round(parseInt(r.replied) / parseInt(r.sent) * 100) : 0 })) });
       }
     }
@@ -127,18 +125,18 @@ router.get('/:id/engagement-stats', async (req, res) => {
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
     const { rows } = await db.query(
-      `SELECT
-         COUNT(*) FILTER (WHERE engagement_level = 'un_engaged')      AS un_engaged,
-         COUNT(*) FILTER (WHERE engagement_level = 'average_engaged')  AS average_engaged,
-         COUNT(*) FILTER (WHERE engagement_level = 'engaged')          AS engaged,
-         COUNT(*) FILTER (WHERE engagement_level IN ('average_engaged','engaged')) AS with_content,
-         COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS not_yet_scraped,
-         COUNT(*) FILTER (WHERE provider_id IS NULL)                   AS not_enriched,
-         COALESCE(SUM(post_likes_sent),0)                              AS total_post_likes,
-         COALESCE(SUM(comment_likes_sent),0)                           AS total_comment_likes,
-         COUNT(*) FILTER (WHERE post_likes_sent > 0 OR comment_likes_sent > 0) AS contacts_liked,
-         COUNT(*)                                                       AS total
-       FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`, [camp.id, wsId]);
+      `SELECT COUNT(*) FILTER (WHERE engagement_level = 'un_engaged') AS un_engaged,
+        COUNT(*) FILTER (WHERE engagement_level = 'average_engaged') AS average_engaged,
+        COUNT(*) FILTER (WHERE engagement_level = 'engaged') AS engaged,
+        COUNT(*) FILTER (WHERE engagement_level IN ('average_engaged','engaged')) AS with_content,
+        COUNT(*) FILTER (WHERE engagement_level IS NULL AND provider_id IS NOT NULL) AS not_yet_scraped,
+        COUNT(*) FILTER (WHERE provider_id IS NULL) AS not_enriched,
+        COALESCE(SUM(post_likes_sent),0) AS total_post_likes,
+        COALESCE(SUM(comment_likes_sent),0) AS total_comment_likes,
+        COUNT(*) FILTER (WHERE post_likes_sent > 0 OR comment_likes_sent > 0) AS contacts_liked,
+        COUNT(*) AS total
+       FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`,
+      [camp.id, wsId]);
     res.json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -156,14 +154,12 @@ router.post('/', async (req, res) => {
     if (Array.isArray(contacts) && contacts.length > 0) {
       for (const c of contacts) {
         const { rows: ins } = await db.query(
-          `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title,
-             li_profile_url, li_company_url, email, website)
+          `INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url, email, website)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, li_profile_url`,
-          [campaign.id, workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'',
-           c.li_profile_url||c.linkedin_url||'', c.li_company_url||'', c.email||'', c.website||'']);
+          [campaign.id, workspace_id, c.first_name||'', c.last_name||'', c.company||'',
+           c.title||'', c.li_profile_url||c.linkedin_url||'', c.li_company_url||'', c.email||'', c.website||'']);
         const saved = ins[0];
-        if (saved?.li_profile_url?.includes('linkedin.com/in/'))
-          toEnrich.push({ id: saved.id, li_profile_url: saved.li_profile_url });
+        if (saved?.li_profile_url?.includes('linkedin.com/in/')) toEnrich.push({ id: saved.id, li_profile_url: saved.li_profile_url });
       }
     }
     res.status(201).json({ ...campaign, enrichment_queued: toEnrich.length });
@@ -243,48 +239,36 @@ router.patch('/:id/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// FIX: Cascade-delete all related data when a campaign is deleted
 router.delete('/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
+    // Delete all dependent data first (no FK cascade in schema)
+    await db.query('DELETE FROM contacts WHERE campaign_id = $1 AND workspace_id = $2', [camp.id, wsId]);
+    await db.query('DELETE FROM campaign_companies WHERE campaign_id = $1', [camp.id]);
     await db.query('DELETE FROM campaigns WHERE id=$1 AND workspace_id=$2', [camp.id, wsId]);
+    console.log(`[Campaigns] Deleted campaign ${camp.id} ("${camp.name}") and all related data`);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/campaigns/search-people
 router.post('/search-people', async (req, res) => {
   try {
     const { account_id, company_urls, titles, target_country } = req.body;
-    if (!account_id || !company_urls?.length)
-      return res.status(400).json({ error: 'account_id and company_urls required' });
-
+    if (!account_id || !company_urls?.length) return res.status(400).json({ error: 'account_id and company_urls required' });
     const previewBatch = company_urls.slice(0, BATCH_SIZE);
     const keywords = buildKeywordsQuery(previewBatch, titles || [], target_country || '');
-    if (!keywords)
-      return res.json({ items: [], companies: [], keywords_query: '', next_cursor: null, total_batches: 0 });
-
+    if (!keywords) return res.json({ items: [], companies: [], keywords_query: '', next_cursor: null, total_batches: 0 });
     const totalBatches = Math.ceil(company_urls.length / BATCH_SIZE);
-    console.log(`[Search] Batch 1/${totalBatches} (${previewBatch.length} co${target_country ? ' + '+target_country : ''}): "${keywords.slice(0, 120)}"`);
-
+    console.log(`[Search] Batch 1/${totalBatches} (${previewBatch.length} co${target_country ? ' + '+target_country : ''}): "${keywords.slice(0,120)}"`);
     const { items, cursor, totalCount } = await searchPeopleByKeywords(account_id, keywords, 50);
-
-    res.json({
-      items,
-      companies:         [],
-      keywords_query:    keywords,
-      next_cursor:       cursor,
-      total_count:       totalCount,
-      total_companies:   company_urls.length,
-      previewed_batches: 1,
-      total_batches:     totalBatches,
-      has_more_batches:  totalBatches > 1,
-    });
+    res.json({ items, companies: [], keywords_query: keywords, next_cursor: cursor,
+      total_count: totalCount, total_companies: company_urls.length, previewed_batches: 1,
+      total_batches: totalBatches, has_more_batches: totalBatches > 1 });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
-
-// Campaign detail / edit endpoints
 
 router.get('/:id', async (req, res) => {
   try {
@@ -292,9 +276,8 @@ router.get('/:id', async (req, res) => {
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
     const { rows: cnt } = await db.query(
-      `SELECT
-         (SELECT COUNT(*) FROM contacts           WHERE campaign_id=$1 AND workspace_id=$2) AS contact_count,
-         (SELECT COUNT(*) FROM campaign_companies WHERE campaign_id=$1 AND workspace_id=$2) AS company_count`,
+      `SELECT (SELECT COUNT(*) FROM contacts WHERE campaign_id=$1 AND workspace_id=$2) AS contact_count,
+              (SELECT COUNT(*) FROM campaign_companies WHERE campaign_id=$1 AND workspace_id=$2) AS company_count`,
       [camp.id, wsId]);
     if (typeof camp.settings === 'string') camp.settings = JSON.parse(camp.settings);
     res.json({ ...camp, ...cnt[0] });
@@ -319,18 +302,15 @@ router.get('/:id/contacts', async (req, res) => {
     const wsId = req.query.workspace_id;
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
-    const page   = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit  = Math.min(100, parseInt(req.query.limit) || 50);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
     const offset = (page - 1) * limit;
-    const { rows: cnt } = await db.query(
-      'SELECT COUNT(*) FROM contacts WHERE campaign_id=$1 AND workspace_id=$2', [camp.id, wsId]);
+    const { rows: cnt } = await db.query('SELECT COUNT(*) FROM contacts WHERE campaign_id=$1 AND workspace_id=$2', [camp.id, wsId]);
     const total = parseInt(cnt[0].count);
     const { rows } = await db.query(
       `SELECT id, first_name, last_name, company, title, li_profile_url,
-              invite_sent, invite_approved, already_connected,
-              msg_sent, msg_replied, positive_reply, created_at
-       FROM contacts WHERE campaign_id=$1 AND workspace_id=$2
-       ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
+              invite_sent, invite_approved, already_connected, msg_sent, msg_replied, positive_reply, created_at
+       FROM contacts WHERE campaign_id=$1 AND workspace_id=$2 ORDER BY created_at DESC LIMIT $3 OFFSET $4`,
       [camp.id, wsId, limit, offset]);
     res.json({ items: rows, total, page, limit, pages: Math.ceil(total / limit) || 1 });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -342,8 +322,7 @@ router.post('/:id/contacts', async (req, res) => {
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
     const { contacts } = req.body;
-    if (!Array.isArray(contacts) || !contacts.length)
-      return res.status(400).json({ error: 'contacts[] required' });
+    if (!Array.isArray(contacts) || !contacts.length) return res.status(400).json({ error: 'contacts[] required' });
     let added = 0, skipped = 0;
     const toEnrich = [];
     for (const c of contacts) {
@@ -378,25 +357,20 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Background batched keywords fetch
 async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, companyUrls, titles, startBatchIdx, country) {
   const totalBatches = Math.ceil(companyUrls.length / BATCH_SIZE);
   console.log(`[BatchFetch] Campaign ${campaignId}: batches ${startBatchIdx + 1}-${totalBatches}${country ? ' country='+country : ''}`);
   let totalAdded = 0;
-
   for (let batchIdx = startBatchIdx; batchIdx < totalBatches; batchIdx++) {
-    const batch    = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+    const batch = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
     const keywords = buildKeywordsQuery(batch, titles, country);
-    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx + 1}/${totalBatches} \u2014 "${keywords.slice(0, 100)}"`);
-
-    let cursor = null;
-    let page   = 0;
+    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} — "${keywords.slice(0,100)}"`);
+    let cursor = null, page = 0;
     do {
       page++;
       try {
         const { items, cursor: nextCursor } = await searchPeopleByKeywords(accountId, keywords, 50, cursor);
         cursor = nextCursor;
-        console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx + 1} p${page} \u2014 ${items.length} results`);
         for (const p of items) {
           const liUrl = p.public_profile_url || p.li_profile_url || '';
           if (!liUrl.includes('linkedin.com/in/')) continue;
@@ -410,21 +384,15 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
             [campaignId, workspaceId, p.first_name||'', p.last_name||'', p.company||'', p.headline||'', liUrl]);
           if (ins[0]?.id) { totalAdded++; enqueue(ins[0].id, accountId, liUrl); }
         }
-      } catch (e) {
-        console.error(`[BatchFetch] Campaign ${campaignId} b${batchIdx + 1} p${page}:`, e.message);
-        break;
-      }
+      } catch (e) { console.error(`[BatchFetch] Campaign ${campaignId} b${batchIdx+1} p${page}:`, e.message); break; }
       if (!cursor) break;
       await new Promise(r => setTimeout(r, 3000 + Math.random() * 2000));
     } while (page < BATCH_MAX_PAGES);
-
-    if (batchIdx < totalBatches - 1)
-      await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
+    if (batchIdx < totalBatches - 1) await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
   }
-  console.log(`[BatchFetch] Campaign ${campaignId}: complete \u2014 ${totalAdded} contacts added`);
+  console.log(`[BatchFetch] Campaign ${campaignId}: complete — ${totalAdded} contacts added`);
 }
 
-// POST /api/campaigns/:id/fetch-all-companies
 router.post('/:id/fetch-all-companies', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -434,13 +402,10 @@ router.post('/:id/fetch-all-companies', async (req, res) => {
     const sc = settings.searchConfig || {};
     const { companyUrls = [], titles = [], targetCountry = '' } = sc;
     if (!companyUrls.length) return res.json({ status: 'nothing_to_fetch', reason: 'no companyUrls in searchConfig' });
-
     const totalBatches = Math.ceil(companyUrls.length / BATCH_SIZE);
     if (totalBatches <= 1) return res.json({ status: 'nothing_to_fetch', reason: 'preview covered all companies' });
-
     runKeywordsBatchFetch(camp.id, camp.workspace_id, camp.account_id, companyUrls, titles, 1, targetCountry)
       .catch(e => console.error(`[BatchFetch] Campaign ${camp.id}:`, e.message));
-
     res.json({ status: 'started', mode: 'batched_keywords', remaining_batches: totalBatches - 1, total_companies: companyUrls.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
