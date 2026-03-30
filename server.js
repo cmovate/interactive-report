@@ -1,4 +1,4 @@
-// El-Via ABM Server â build 1774827836956
+// El-Via ABM Server Ã¢ÂÂ build 1774827836956
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
@@ -64,7 +64,7 @@ async function nukeIfBroken() {
     `);
     const idType = rows[0]?.data_type || '';
     if (idType === 'uuid') {
-      console.log('[DB] Detected old UUID schema â dropping and rebuilding...');
+      console.log('[DB] Detected old UUID schema Ã¢ÂÂ dropping and rebuilding...');
       await db.query(`DROP TABLE IF EXISTS
         contacts, campaigns, unipile_accounts,
         company_followers, company_page_daily_stats,
@@ -238,7 +238,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ââ Feed tables ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Feed tables Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   await s('linkedin_posts', () => db.query(`
     CREATE TABLE IF NOT EXISTS linkedin_posts (
       id                 SERIAL PRIMARY KEY,
@@ -276,7 +276,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ââ Inbox tables âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Inbox tables Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   await s('inbox_threads', () => db.query(`
     CREATE TABLE IF NOT EXISTS inbox_threads (
       id                   SERIAL PRIMARY KEY,
@@ -306,7 +306,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ââ Hot Opportunities tables ââââââââââââââââââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Hot Opportunities tables Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   await s('company_news', () => db.query(`
     CREATE TABLE IF NOT EXISTS company_news (
       id           SERIAL PRIMARY KEY,
@@ -574,35 +574,44 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   });
 
   await s('backfill.account_profiles', async () => {
-    const { getAccountInfo } = require('./src/unipile');
+    const { getAccountInfo, enrichProfile } = require('./src/unipile');
     const { rows: accounts } = await db.query(
       "SELECT account_id FROM unipile_accounts WHERE avatar_url IS NULL OR full_name IS NULL"
     );
     if (!accounts.length) return;
-    console.log(`[DB] Backfilling profiles for ${accounts.length} account(s)...`);
+    console.log('[DB] Backfilling profiles for ' + accounts.length + ' account(s)...');
     for (const acc of accounts) {
       try {
-        const profile = await getAccountInfo(acc.account_id);
-        const avatarUrl =
-          profile?.picture || profile?.avatar || profile?.avatar_url ||
-          profile?.profile_picture_url || profile?.photo_url ||
-          profile?.sources?.find(s => s.type === 'picture')?.value || null;
-        const fullName = profile?.name || null;
+        const accountData = await getAccountInfo(acc.account_id);
+        const identifier = accountData?.connection_params?.im?.publicIdentifier || null;
+        const nameFromAccount = accountData?.name || accountData?.connection_params?.im?.username || null;
+        if (!identifier) {
+          if (nameFromAccount) await db.query(
+            'UPDATE unipile_accounts SET full_name=$1 WHERE account_id=$2 AND full_name IS NULL',
+            [nameFromAccount, acc.account_id]);
+          continue;
+        }
+        const profile = await enrichProfile(acc.account_id,
+          'https://www.linkedin.com/in/' + identifier, false);
+        const avatarUrl = profile?.profile_picture_url || profile?.profile_picture_url_large ||
+          profile?.picture || profile?.avatar || null;
+        const fullName = (profile?.first_name && profile?.last_name)
+          ? (profile.first_name + ' ' + profile.last_name).trim()
+          : (profile?.full_name || nameFromAccount || null);
         if (avatarUrl || fullName) {
           await db.query(
             'UPDATE unipile_accounts SET avatar_url=$1, full_name=$2 WHERE account_id=$3',
-            [avatarUrl, fullName, acc.account_id]
-          );
-          console.log(`[DB] Hydrated profile for ${acc.account_id}: "${fullName}"`);
+            [avatarUrl, fullName, acc.account_id]);
+          console.log('[DB] Hydrated ' + acc.account_id + ': "' + fullName + '" avatar=' + (avatarUrl ? 'yes' : 'no'));
         }
       } catch (err) {
-        console.warn(`[DB] Could not backfill profile for ${acc.account_id}: ${err.message}`);
+        console.warn('[DB] Could not backfill profile for ' + acc.account_id + ': ' + err.message);
       }
     }
   });
 
   
-  // ── Cleanup: orphaned contacts (campaign was deleted) ──────────────────────
+  // ââ Cleanup: orphaned contacts (campaign was deleted) ââââââââââââââââââââââ
   await s('cleanup.orphaned_contacts', async () => {
     const { rowCount } = await db.query(
       "DELETE FROM contacts WHERE campaign_id IS NOT NULL AND campaign_id NOT IN (SELECT id FROM campaigns)"
@@ -610,7 +619,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     if (rowCount > 0) console.log('[DB] Cleaned ' + rowCount + ' orphaned contact(s) with deleted campaign');
   });
 
-  // ── Cleanup: orphaned campaign_companies (campaign was deleted) ─────────────
+  // ââ Cleanup: orphaned campaign_companies (campaign was deleted) âââââââââââââ
   await s('cleanup.orphaned_campaign_companies', async () => {
     const { rowCount } = await db.query(
       "DELETE FROM campaign_companies WHERE campaign_id NOT IN (SELECT id FROM campaigns)"
@@ -618,7 +627,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     if (rowCount > 0) console.log('[DB] Cleaned ' + rowCount + ' orphaned campaign_compan(ies)');
   });
 
-console.log(`[DB] Schema ready â msg slots: ${MAX_MSG_SLOTS}`);
+console.log(`[DB] Schema ready Ã¢ÂÂ msg slots: ${MAX_MSG_SLOTS}`);
 
   invitationSender.start();
   withdrawSender.start();
