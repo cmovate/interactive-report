@@ -559,6 +559,15 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     console.log(`[DB] campaign_companies backfill: ${upserted} companies from ${contacts.length} contacts`);
   });
 
+    await s('migrate.ua_unique', async () => {
+    await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key');
+    try {
+      await db.query('ALTER TABLE unipile_accounts ADD CONSTRAINT unipile_accounts_workspace_id_account_id_key UNIQUE (workspace_id, account_id)');
+    } catch (migErr) {
+      if (!migErr.message.includes('already exists')) throw migErr;
+    }
+  });
+
   await s('backfill.account_profiles', async () => {
     const { getAccountInfo } = require('./src/unipile');
     const { rows: accounts } = await db.query(
