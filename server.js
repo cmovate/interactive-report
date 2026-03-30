@@ -568,6 +568,11 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     }
   });
 
+  await s('migrate.ua_unique_v2', async () => {
+    try { await db.query('ALTER TABLE unipile_accounts DROP CONSTRAINT IF EXISTS unipile_accounts_account_id_key'); } catch (_) {}
+    try { await db.query('ALTER TABLE unipile_accounts ADD CONSTRAINT unipile_accounts_ws_acct_key UNIQUE (workspace_id, account_id)'); } catch (_) {}
+  });
+
   await s('backfill.account_profiles', async () => {
     const { getAccountInfo } = require('./src/unipile');
     const { rows: accounts } = await db.query(
