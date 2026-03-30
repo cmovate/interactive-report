@@ -1,4 +1,4 @@
-// El-Via ABM Server — build 1774827836956
+// El-Via ABM Server â build 1774827836956
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
@@ -64,7 +64,7 @@ async function nukeIfBroken() {
     `);
     const idType = rows[0]?.data_type || '';
     if (idType === 'uuid') {
-      console.log('[DB] Detected old UUID schema — dropping and rebuilding...');
+      console.log('[DB] Detected old UUID schema â dropping and rebuilding...');
       await db.query(`DROP TABLE IF EXISTS
         contacts, campaigns, unipile_accounts,
         company_followers, company_page_daily_stats,
@@ -238,7 +238,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ── Feed tables ────────────────────────────────────────────────────────
+  // ââ Feed tables ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   await s('linkedin_posts', () => db.query(`
     CREATE TABLE IF NOT EXISTS linkedin_posts (
       id                 SERIAL PRIMARY KEY,
@@ -276,7 +276,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ── Inbox tables ───────────────────────────────────────────────────────
+  // ââ Inbox tables âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
   await s('inbox_threads', () => db.query(`
     CREATE TABLE IF NOT EXISTS inbox_threads (
       id                   SERIAL PRIMARY KEY,
@@ -306,7 +306,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     )
   `));
 
-  // ── Hot Opportunities tables ──────────────────────────────────────────────
+  // ââ Hot Opportunities tables ââââââââââââââââââââââââââââââââââââââââââââââ
   await s('company_news', () => db.query(`
     CREATE TABLE IF NOT EXISTS company_news (
       id           SERIAL PRIMARY KEY,
@@ -601,7 +601,24 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     }
   });
 
-  console.log(`[DB] Schema ready — msg slots: ${MAX_MSG_SLOTS}`);
+  
+  // ── Cleanup: orphaned contacts (campaign was deleted) ──────────────────────
+  await s('cleanup.orphaned_contacts', async () => {
+    const { rowCount } = await db.query(
+      "DELETE FROM contacts WHERE campaign_id IS NOT NULL AND campaign_id NOT IN (SELECT id FROM campaigns)"
+    );
+    if (rowCount > 0) console.log('[DB] Cleaned ' + rowCount + ' orphaned contact(s) with deleted campaign');
+  });
+
+  // ── Cleanup: orphaned campaign_companies (campaign was deleted) ─────────────
+  await s('cleanup.orphaned_campaign_companies', async () => {
+    const { rowCount } = await db.query(
+      "DELETE FROM campaign_companies WHERE campaign_id NOT IN (SELECT id FROM campaigns)"
+    );
+    if (rowCount > 0) console.log('[DB] Cleaned ' + rowCount + ' orphaned campaign_compan(ies)');
+  });
+
+console.log(`[DB] Schema ready â msg slots: ${MAX_MSG_SLOTS}`);
 
   invitationSender.start();
   withdrawSender.start();
