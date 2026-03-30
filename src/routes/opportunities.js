@@ -71,6 +71,8 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
     FROM contacts c
     LEFT JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE c.workspace_id = $1
+      AND c.already_connected = true
+      AND c.campaign_id IS NULL
       ${filter}
     ORDER BY
       COALESCE(NULLIF(c.li_profile_url, ''), c.id::text),
@@ -445,8 +447,8 @@ router.post('/enrich', async (req, res) => {
           if (!liUrl) continue;
           // Upsert contact — campaign_id = NULL, linked to opportunity_company
           const ins = (await db.query(
-            'INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url)' +
-            ' SELECT NULL, $1, $2, $3, $4, $5, $6, $7' +
+            'INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url, already_connected)' +
+            ' SELECT NULL, $1, $2, $3, $4, $5, $6, $7, true' +
             ' WHERE NOT EXISTS (' +
             '   SELECT 1 FROM contacts WHERE workspace_id = $1 AND li_profile_url = $6' +
             ' ) RETURNING id',
