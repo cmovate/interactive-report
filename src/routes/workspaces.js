@@ -7,24 +7,43 @@ const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
 /**
  * Extract avatar URL from a Unipile account object.
- * Unipile returns different shapes across provider versions —
+ * Unipile returns different shapes across provider versions â
  * fall through the known field names in priority order.
  */
 function extractAvatar(profile) {
-  return (
-    profile?.picture ||
-    profile?.avatar ||
-    profile?.avatar_url ||
-    profile?.profile_picture_url ||
-    profile?.photo_url ||
-    profile?.sources?.find(s => s.type === 'picture')?.value ||
-    null
-  );
+  if (!profile) return null;
+  // Try direct fields first
+  const direct = profile.picture || profile.avatar || profile.avatar_url ||
+    profile.profile_picture_url || profile.photo_url ||
+    profile.connection_params?.picture || profile.thumbnail ||
+    profile.profile_picture || profile.image_url || profile.photo;
+  if (direct) return direct;
+  // Try sources array
+  const sources = profile.sources || profile.images || [];
+  if (Array.isArray(sources)) {
+    const src = sources.find(s => s.type === 'picture' || s.type === 'avatar' ||
+      s.type === 'profile_picture' || s.type === 'image');
+    if (src?.value) return src.value;
+    if (src?.url) return src.url;
+    // Any source with a URL-like value
+    const anySrc = sources.find(s => s.value?.startsWith('http'));
+    if (anySrc?.value) return anySrc.value;
+  }
+  return null;
+}
+
+// Log profile fields for debugging avatar issues
+function logProfileFields(accountId, profile) {
+  if (!profile) { console.warn('[Avatar] No profile returned for', accountId); return; }
+  const keys = Object.keys(profile);
+  const urlKeys = keys.filter(k => typeof profile[k] === 'string' && profile[k].startsWith('http'));
+  console.log('[Avatar] Account', accountId, '— top-level keys:', keys.slice(0,15).join(', '));
+  if (urlKeys.length) console.log('[Avatar] URL-like fields:', urlKeys.map(k => k + '=' + String(profile[k]).slice(0,60)).join(' | '));
 }
 
 /**
  * Fetch Unipile account info and write avatar_url / full_name to DB.
- * Fire-and-forget safe — errors are only warned, never thrown.
+ * Fire-and-forget safe â errors are only warned, never thrown.
  */
 async function hydrateAccountProfile(accountId) {
   try {
