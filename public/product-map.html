@@ -73,6 +73,57 @@ ul.feat li::before{content:'→';color:#9ca3af;font-size:12px;margin-top:2px;fle
 .callout.warn{background:#fffbeb;border-color:#f59e0b;color:#92400e}
 .callout.success{background:var(--green-light);border-color:var(--green);color:#14532d}
 @media(max-width:768px){.hero{padding:32px 24px}.container{padding:0 20px}.cols-2,.cols-3,.card-grid{grid-template-columns:1fr}.toc{padding:0 16px}}
+
+/* ══ INTERACTIVE SYSTEM ══ */
+.commentable{position:relative}
+.commentable:hover>.item-actions,.commentable:focus-within>.item-actions{opacity:1;pointer-events:auto}
+.item-actions{display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .15s;position:absolute;right:4px;top:4px;z-index:10}
+ul.feat li .item-actions{position:static;margin-left:auto;flex-shrink:0;opacity:0;transition:opacity .15s}
+ul.feat li:hover .item-actions{opacity:1;pointer-events:auto}
+.auto-content .item-actions{position:static;margin-top:6px;opacity:0;transition:opacity .15s}
+.auto-row:hover .item-actions{opacity:1;pointer-events:auto}
+.btn-action{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;border:1px solid;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;background:white;transition:all .12s;line-height:1.6}
+.btn-comment{color:#92400e;border-color:#fbbf24;background:#fffbeb}
+.btn-comment:hover{background:#fef3c7}
+.btn-add{color:#0d9488;border-color:#5eead4;background:#f0fdfa}
+.btn-add:hover{background:#ccfbf1}
+.section-actions{display:flex;gap:8px;margin-left:auto;align-items:center;flex-shrink:0}
+.section-header .section-actions .btn-action{font-size:12px;padding:4px 12px}
+.tab-actions{display:flex;gap:8px;margin-left:auto;align-items:flex-start;flex-shrink:0;padding-top:4px}
+.comment-thread{margin-top:6px;margin-left:16px;border-left:2px solid #fbbf24;padding-left:12px;display:flex;flex-direction:column;gap:6px}
+.section-comment-thread{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 18px;margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.comment-bubble{background:white;border:1px solid #fde68a;border-radius:8px;padding:8px 12px;font-size:13px;position:relative}
+.comment-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.comment-author{font-weight:700;font-size:12px;color:#92400e}
+.comment-time{font-size:11px;color:#9ca3af}
+.comment-text{color:#374151;line-height:1.5;white-space:pre-wrap}
+.comment-del{position:absolute;right:8px;top:8px;background:none;border:none;color:#d1d5db;cursor:pointer;font-size:14px;padding:0 4px;line-height:1}
+.comment-del:hover{color:#ef4444}
+.added-item{display:flex;align-items:flex-start;gap:8px;font-size:13.5px;color:#374151;background:#fffbeb;border-radius:4px;padding:6px 8px;margin:3px 0;border-left:3px solid #0d9488}
+.added-item .del-added{margin-left:auto;background:none;border:none;color:#d1d5db;cursor:pointer;font-size:14px;flex-shrink:0}
+.added-item .del-added:hover{color:#ef4444}
+.inline-form{margin-top:8px;background:white;border:1.5px solid #fbbf24;border-radius:10px;padding:12px;display:none;flex-direction:column;gap:8px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.inline-form.open{display:flex}
+.inline-form textarea,.inline-form input[type=text]{border:1px solid #e5e7eb;border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;outline:none;transition:border .15s}
+.inline-form textarea:focus,.inline-form input[type=text]:focus{border-color:#fbbf24}
+.inline-form textarea{min-height:60px}
+.form-row{display:flex;gap:8px;align-items:center}
+.form-author{width:140px}
+.form-btns{display:flex;gap:6px;margin-left:auto}
+.btn-save{padding:6px 16px;background:#16a34a;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
+.btn-save:hover{background:#15803d}
+.btn-cancel{padding:6px 12px;background:white;color:#6b7280;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;cursor:pointer}
+.btn-cancel:hover{background:#f9fafb}
+.form-label{font-size:12px;font-weight:600;color:#92400e;margin-bottom:2px}
+.comment-count{display:inline-flex;align-items:center;justify-content:center;background:#fbbf24;color:white;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:4px;min-width:18px}
+#stats-bar{position:fixed;bottom:20px;right:20px;background:white;border:1px solid #e5e7eb;border-radius:12px;padding:10px 16px;font-size:12px;color:#6b7280;box-shadow:0 4px 20px rgba(0,0,0,.1);display:flex;gap:16px;align-items:center;z-index:200}
+#stats-bar strong{color:#111827}
+#clear-all-btn{font-size:11px;color:#ef4444;background:none;border:none;cursor:pointer;padding:0;font-weight:600}
+#clear-all-btn:hover{text-decoration:underline}
+#author-badge{position:fixed;top:60px;right:20px;z-index:200;background:white;border:1px solid #e5e7eb;border-radius:8px;padding:6px 12px;font-size:12px;color:#6b7280;cursor:pointer;display:flex;gap:6px;align-items:center;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+#author-badge:hover{border-color:#16a34a;color:#16a34a}
+ul.feat li{flex-wrap:nowrap}
+.li-content{flex:1;min-width:0}
 </style>
 </head>
 <body>
@@ -104,6 +155,13 @@ ul.feat li::before{content:'→';color:#9ca3af;font-size:12px;margin-top:2px;fle
   <a href="#flow">Full Flow</a>
 </nav>
 
+
+<div id="author-badge" onclick="changeAuthor()">✏️ <span id="author-name">Set your name</span></div>
+<div id="stats-bar">
+  <div>💬 <strong id="total-comments">0</strong> notes</div>
+  <div>✦ <strong id="total-added">0</strong> additions</div>
+  <button id="clear-all-btn" onclick="clearAll()">Clear all</button>
+</div>
 <div class="container">
 
 <section id="overview">
@@ -568,5 +626,215 @@ ul.feat li::before{content:'→';color:#9ca3af;font-size:12px;margin-top:2px;fle
 </section>
 
 </div>
+
+<script>
+const STORAGE_KEY = 'elvia-pm-v3';
+function getData(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch(e){return{}}}
+function setData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
+function getAuthor(){return localStorage.getItem('elvia-pm-author')||'Anonymous'}
+function setAuthor(n){localStorage.setItem('elvia-pm-author',n)}
+function changeAuthor(){const n=prompt('Your name:',getAuthor());if(n&&n.trim()){setAuthor(n.trim());document.getElementById('author-name').textContent=n.trim()}}
+function formatTime(ts){const d=new Date(ts);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function toggleForm(id,type){
+  const f=document.getElementById(id+'-form');
+  if(!f)return;
+  if(f.classList.contains('open')){f.classList.remove('open');f.innerHTML='';return}
+  document.querySelectorAll('.inline-form.open').forEach(x=>{x.classList.remove('open');x.innerHTML=''});
+  f.classList.add('open');
+  if(type==='comment'){
+    f.innerHTML='<div class="form-label">💬 Add a note</div><textarea id="ft-'+id+'" placeholder="Write your note..." rows="3"></textarea><div class="form-row"><input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+esc(getAuthor())+'"><div class="form-btns"><button class="btn-cancel" onclick="toggleForm(''+id+'','comment')">Cancel</button><button class="btn-save" onclick="saveComment(''+id+'')">Save note</button></div></div>';
+  }else{
+    f.innerHTML='<div class="form-label">✦ Add new item</div><input type="text" id="ft-'+id+'" placeholder="Describe the new item..."><div class="form-row"><input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+esc(getAuthor())+'"><div class="form-btns"><button class="btn-cancel" onclick="toggleForm(''+id+'','add')">Cancel</button><button class="btn-save" onclick="saveAdded(''+id+'')">Add item</button></div></div>';
+    const inp=document.getElementById('ft-'+id);
+    if(inp)inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveAdded(id)}});
+  }
+  setTimeout(()=>{const el=document.getElementById('ft-'+id);if(el)el.focus()},50);
+}
+
+function saveComment(id){
+  const text=document.getElementById('ft-'+id)?.value?.trim();
+  const author=document.getElementById('fa-'+id)?.value?.trim()||getAuthor();
+  if(!text)return;
+  setAuthor(author);
+  document.getElementById('author-name').textContent=author;
+  const d=getData();
+  if(!d[id])d[id]={comments:[],added:[]};
+  d[id].comments.push({id:Date.now(),author,text,ts:Date.now()});
+  setData(d);toggleForm(id,'comment');renderThread(id);updateStats();
+}
+
+function saveAdded(id){
+  const text=document.getElementById('ft-'+id)?.value?.trim();
+  const author=document.getElementById('fa-'+id)?.value?.trim()||getAuthor();
+  if(!text)return;
+  setAuthor(author);
+  document.getElementById('author-name').textContent=author;
+  const d=getData();
+  if(!d[id])d[id]={comments:[],added:[]};
+  d[id].added.push({id:Date.now(),author,text,ts:Date.now()});
+  setData(d);toggleForm(id,'add');renderAdded(id);updateStats();
+}
+
+function deleteComment(id,cid){const d=getData();if(!d[id])return;d[id].comments=d[id].comments.filter(c=>c.id!==cid);setData(d);renderThread(id);updateStats()}
+function deleteAdded(id,aid){const d=getData();if(!d[id])return;d[id].added=d[id].added.filter(a=>a.id!==aid);setData(d);renderAdded(id);updateStats()}
+
+function renderThread(id){
+  const el=document.getElementById(id+'-thread');
+  if(!el)return;
+  const comments=(getData()[id]||{}).comments||[];
+  if(!comments.length){el.style.display='none';updateCount(id,0);return}
+  el.style.display='';
+  el.innerHTML=comments.map(c=>'<div class="comment-bubble"><button class="comment-del" onclick="deleteComment(''+id+'','+c.id+')" title="Delete">×</button><div class="comment-meta"><span class="comment-author">'+esc(c.author)+'</span><span class="comment-time">'+formatTime(c.ts)+'</span></div><div class="comment-text">'+esc(c.text)+'</div></div>').join('');
+  updateCount(id,comments.length);
+}
+
+function renderAdded(id){
+  const el=document.getElementById(id+'-added');
+  if(!el)return;
+  const items=(getData()[id]||{}).added||[];
+  el.innerHTML=items.map(a=>'<div class="added-item"><span>'+esc(a.text)+'</span><small style="color:#9ca3af;margin-left:8px;font-size:11px">— '+esc(a.author)+'</small><button class="del-added" onclick="deleteAdded(''+id+'','+a.id+')" title="Delete">×</button></div>').join('');
+}
+
+function updateCount(id,n){const el=document.getElementById(id+'-count');if(el){el.textContent=n;el.style.display=n>0?'inline-flex':'none'}}
+
+function updateStats(){
+  const d=getData();
+  let tc=0,ta=0;
+  Object.values(d).forEach(v=>{tc+=(v.comments||[]).length;ta+=(v.added||[]).length});
+  document.getElementById('total-comments').textContent=tc;
+  document.getElementById('total-added').textContent=ta;
+}
+
+function clearAll(){if(!confirm('Clear ALL notes and additions?'))return;localStorage.removeItem(STORAGE_KEY);document.querySelectorAll('[id$="-thread"]').forEach(el=>{el.innerHTML='';el.style.display='none'});document.querySelectorAll('[id$="-added"]').forEach(el=>el.innerHTML='');document.querySelectorAll('.comment-count').forEach(el=>el.style.display='none');updateStats()}
+
+// Add comment/add buttons to every section-header, every li, every auto-row
+function addInteractiveButtons(){
+  let counter=0;
+  // Section headers
+  document.querySelectorAll('.section-header').forEach(el=>{
+    if(el.querySelector('.section-actions'))return;
+    const id='sec-'+(counter++);
+    el.dataset.id=id;
+    el.classList.add('commentable');
+    const actions=document.createElement('div');
+    actions.className='section-actions';
+    actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬 Note</button><span id="'+id+'-count" class="comment-count" style="display:none"></span>';
+    el.appendChild(actions);
+    // Insert thread+form after section-header
+    const thread=document.createElement('div');
+    thread.id=id+'-thread';thread.className='section-comment-thread';thread.style.display='none';
+    const form=document.createElement('div');
+    form.id=id+'-form';form.className='inline-form';
+    el.after(form);el.after(thread);
+  });
+
+  // Tab headers (without tab-actions already)
+  document.querySelectorAll('.tab-header').forEach(el=>{
+    if(el.querySelector('.tab-actions'))return;
+    const id='tab-'+(counter++);
+    const actions=document.createElement('div');
+    actions.className='tab-actions';
+    actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬</button><span id="'+id+'-count" class="comment-count" style="display:none"></span>';
+    el.appendChild(actions);
+    const thread=document.createElement('div');
+    thread.id=id+'-thread';thread.className='section-comment-thread';thread.style.display='none';thread.style.margin='0 28px 12px';
+    const form=document.createElement('div');
+    form.id=id+'-form';form.className='inline-form';form.style.margin='0 28px 12px';
+    el.after(form);el.after(thread);
+  });
+
+  // ul.feat lists — add Add button to sub-titles and note buttons to each li
+  document.querySelectorAll('ul.feat').forEach(ul=>{
+    if(ul.dataset.interactive)return;
+    ul.dataset.interactive='1';
+    const listId='list-'+(counter++);
+    ul.id=listId;
+    // Add "+ Add" button to preceding .sub-title
+    const prev=ul.previousElementSibling;
+    if(prev&&prev.classList.contains('sub-title')&&!prev.querySelector('.btn-add')){
+      const btn=document.createElement('button');
+      btn.className='btn-action btn-add';
+      btn.style.marginLeft='auto';
+      btn.textContent='＋ Add';
+      btn.onclick=()=>toggleForm(listId,'add');
+      prev.appendChild(btn);
+    }
+    // Add "added" container and form after ul
+    const addedEl=document.createElement('div');
+    addedEl.id=listId+'-added';
+    const formEl=document.createElement('div');
+    formEl.id=listId+'-form';formEl.className='inline-form';
+    ul.after(formEl);ul.after(addedEl);
+    // Add comment button to each li
+    ul.querySelectorAll('li').forEach(li=>{
+      if(li.querySelector('.item-actions'))return;
+      const liId='li-'+(counter++);
+      // Wrap content
+      if(!li.querySelector('.li-content')){
+        const span=document.createElement('span');
+        span.className='li-content';
+        while(li.childNodes.length)span.appendChild(li.childNodes[0]);
+        li.appendChild(span);
+      }
+      const actions=document.createElement('span');
+      actions.className='item-actions';
+      actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+liId+'','comment')">💬</button>';
+      li.appendChild(actions);
+      // Add thread+form after li
+      const thread=document.createElement('div');
+      thread.id=liId+'-thread';thread.className='comment-thread';thread.style.display='none';
+      const form=document.createElement('div');
+      form.id=liId+'-form';form.className='inline-form';
+      li.after(form);li.after(thread);
+    });
+  });
+
+  // auto-rows
+  document.querySelectorAll('.auto-row').forEach(row=>{
+    if(row.querySelector('.item-actions'))return;
+    const id='auto-'+(counter++);
+    row.dataset.id=id;row.classList.add('commentable');
+    const content=row.querySelector('.auto-content');
+    if(content){
+      const actions=document.createElement('div');
+      actions.className='item-actions';
+      actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬 Note</button>';
+      content.appendChild(actions);
+    }
+    const thread=document.createElement('div');
+    thread.id=id+'-thread';thread.className='comment-thread';thread.style.display='none';thread.style.marginLeft='120px';
+    const form=document.createElement('div');
+    form.id=id+'-form';form.className='inline-form';form.style.marginLeft='120px';
+    row.after(form);row.after(thread);
+  });
+
+  // cards
+  document.querySelectorAll('.card').forEach(card=>{
+    if(card.querySelector('.item-actions'))return;
+    const id='card-'+(counter++);
+    card.dataset.id=id;card.classList.add('commentable');
+    const actions=document.createElement('div');
+    actions.className='item-actions';
+    actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬 Note</button>';
+    card.appendChild(actions);
+    const thread=document.createElement('div');
+    thread.id=id+'-thread';thread.className='comment-thread';thread.style.display='none';
+    const form=document.createElement('div');
+    form.id=id+'-form';form.className='inline-form';
+    card.appendChild(form);card.appendChild(thread);
+  });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('author-name').textContent=getAuthor();
+  addInteractiveButtons();
+  // Render saved data
+  Object.keys(getData()).forEach(id=>{renderThread(id);renderAdded(id)});
+  updateStats();
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.inline-form.open').forEach(f=>{f.classList.remove('open');f.innerHTML=''})});
+});
+</script>
 </body>
 </html>
