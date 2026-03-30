@@ -235,6 +235,16 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .list-picker-empty{font-size:13px;color:#9ca3af;padding:8px 0}
 .list-picker-empty a{color:#16a34a;text-decoration:none;font-weight:600}
 
+
+.list-picker-grid { display:flex; flex-direction:column; gap:8px; margin-top:4px; max-height:280px; overflow-y:auto; }
+.list-picker-loading { font-size:13px; color:#888; padding:8px 0; }
+.list-picker-card { display:flex; align-items:center; gap:12px; padding:11px 14px; border:1.5px solid #e5e7eb; border-radius:10px; cursor:pointer; transition:all .15s; background:white; }
+.list-picker-card:hover,.list-picker-card.selected { border-color:#1D9E75; background:#f0fbf7; }
+.lpc-icon { font-size:20px; flex-shrink:0; }
+.lpc-info { flex:1; min-width:0; }
+.lpc-name { font-size:14px; font-weight:600; color:#111; margin-bottom:2px; }
+.lpc-count { font-size:12px; color:#888; }
+.lpc-check { color:#1D9E75; font-size:16px; font-weight:700; flex-shrink:0; }
 </style>
 </head>
 <body>
@@ -345,8 +355,10 @@ var cmId=null, cmData=null, cmTab=null, cmLoaded={}, cmSettings=null, cmCtPage=1
 function resetWizard() {
   return {
     selectedAccount: null, list_id: null,
-    list_name: null,
+    list_list_id: wizard.list_id || null,
+        name: null,
     list_type: null,
+    list_id: null, list_name: null, list_type: null,
     audienceType: null,
     urlsPasted: '', companyUrls: '', searchTitles: '', maxPerCompany: 10,
     searchStatus: null, contacts: [], companiesMeta: [],
@@ -419,7 +431,7 @@ function renderStep() {
 async function nextStep() {
   if (currentStep===0 && !wizard.selectedAccount) return alert('Please select an account.');
   if (currentStep===1) {
-    if (!wizard.list_id) return alert('Please select a list to use for this campaign.');
+    if (!wizard.list_id) return alert('Please select a list for this campaign.');
   }
   if (currentStep===STEPS.length-1) { await createCampaign(); return; }
   currentStep++; renderStep();
@@ -439,7 +451,9 @@ function selectAccount(id) {
 }
 
 function renderStepAudience(body) {
-  body.innerHTML = '<div class="section-label">Select a list</div><div id="list-picker-grid" class="list-picker-grid"><div class="list-picker-loading">Loading lists…</div></div>';
+  body.innerHTML = `<div class="section-label">Select a contacts list</div>
+    <p style="font-size:13px;color:#888;margin:-4px 0 14px">Choose which list to use. Create lists in the <strong>Lists</strong> tab.</p>
+    <div id="list-picker-grid" class="list-picker-grid"><div class="list-picker-loading">Loading…</div></div>`;
   loadListsForPicker();
 }
 function selectAudience(type) { wizard.audienceType=type; renderStepAudience(document.getElementById('modal-body')); }
@@ -610,6 +624,38 @@ function wizToggleDay(key) {
   const el=document.getElementById('hours-summary');if(el)el.textContent=ad.length?ad.join(', ')+(fa?' \u00b7 '+wizard.hours[fa.key].from+'\u2013'+wizard.hours[fa.key].to:''):'No active days';
 }
 function wizUpdateHour(key,field,value){wizard.hours[key][field]=value;}
+
+async function loadListsForPicker() {
+  const grid = document.getElementById("list-picker-grid");
+  if (!grid) return;
+  try {
+    const data = await apiFetch("/api/lists?workspace_id=" + workspaceId);
+    const lists = (data.items || []).filter(l => l.type === "contacts");
+    if (!lists.length) {
+      grid.innerHTML = "<div class=\"list-picker-loading\">No contact lists yet — create one in the Lists tab.</div>";
+      return;
+    }
+    grid.innerHTML = lists.map(l => {
+      const sel = wizard.list_id === l.id;
+      const cnt = l.contact_count || 0;
+      const desc = l.description ? " · " + esc(l.description) : "";
+      return "<div class=\"list-picker-card" + (sel ? " selected" : "") + "\"" +
+             " onclick=\"selectList(" + l.id + "," + JSON.stringify(l.name) + ")\">"+
+             "<div class=\"lpc-icon\">\uD83D\uDC65</div>"+
+             "<div class=\"lpc-info\"><div class=\"lpc-name\">" + esc(l.name) + "</div>"+
+             "<div class=\"lpc-count\">" + cnt + " contacts" + desc + "</div></div>"+
+             (sel ? "<div class=\"lpc-check\">\u2713</div>" : "") + "</div>";
+    }).join("");
+  } catch(e) {
+    grid.innerHTML = "<div class=\"list-picker-loading\" style=\"color:#e53e3e\">Failed: " + e.message + "</div>";
+  }
+}
+
+function selectList(id, name) {
+  wizard.list_id = id;
+  wizard.list_name = name;
+  loadListsForPicker();
+}
 
 async function createCampaign() {
   if (!wizard.campaignName.trim()) return alert('Please enter a campaign name.');
