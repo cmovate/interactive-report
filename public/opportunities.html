@@ -140,6 +140,16 @@ tbody tr:last-child > td { border-bottom: none; }
 .send-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .msg-status-ok  { background: #E1F5EE; border: 1px solid #A7F3D0; border-radius: 8px; padding: 10px 14px; color: #0F6E56; font-size: 13px; margin-bottom: 12px; }
 .msg-status-err { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; color: #DC2626; font-size: 13px; margin-bottom: 12px; }
+
+.scan-btn {
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+  border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;
+  border:1.5px solid #22c55e;background:#f0fdf4;color:#16a34a;
+  transition:all .15s ease;white-space:nowrap;
+}
+.scan-btn:hover{background:#dcfce7;border-color:#16a34a;}
+.scan-btn:disabled{opacity:.55;cursor:not-allowed;}
+.scan-btn.scanning{background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;}
 </style>
 </head>
 <body>
@@ -151,6 +161,9 @@ tbody tr:last-child > td { border-bottom: none; }
         Companies from campaigns are added automatically. Add your own custom lists too.</div>
     </div>
     <div class="header-btns">
+      <button class="scan-btn" id="scan-btn" onclick="scanConnections()" title="Search LinkedIn for 1st-degree connections at all target companies">
+        🔍 Scan connections
+      </button>
       <button class="primary-btn" onclick="toggleAddPanel()">&#43; Add companies</button>
       <button class="ghost-btn" id="refresh-btn" onclick="load()"><span id="refresh-icon">&#x21BB;</span> Refresh</button>
   <button id="enrich-btn" class="ghost-btn" onclick="runEnrich()" title="Search LinkedIn connections at your target companies">
@@ -525,7 +538,7 @@ function encodeId(n,l){return(l||n||'').replace(/[^a-z0-9]/gi,'_');}
 
 load();
 
-// ── Find LinkedIn connections at opportunity companies ──────────────────
+// ââ Find LinkedIn connections at opportunity companies ââââââââââââââââââ
 async function runEnrich() {
   const btn  = document.getElementById("enrich-btn");
   const icon = document.getElementById("enrich-icon");
@@ -559,6 +572,32 @@ if (typeof showToast === "undefined") {
     t.textContent = msg;
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 4000);
+  }
+}
+
+async function scanConnections() {
+  const wsId = new URLSearchParams(location.search).get('id');
+  const btn = document.getElementById('scan-btn');
+  btn.disabled = true;
+  btn.classList.add('scanning');
+  btn.textContent = '⏳ Scanning...';
+  try {
+    const r = await apiFetch('/api/opportunities/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: parseInt(wsId) })
+    });
+    showMsg('🔍 Scanning LinkedIn connections in background. Results will appear within minutes.', 'success');
+    // Reload after 30s to pick up first results
+    setTimeout(() => load(), 30000);
+  } catch (err) {
+    showMsg('Scan failed: ' + err.message, 'error');
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.classList.remove('scanning');
+      btn.innerHTML = '🔍 Scan connections';
+    }, 5000);
   }
 }
 </script>
