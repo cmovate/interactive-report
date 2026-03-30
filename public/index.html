@@ -174,5 +174,66 @@ async function confirmDelete() {
 
 load();
 </script>
+
+<script>
+(function() {
+  const LAST_CHECK_KEY = 'elvia-last-session-check';
+  const TODO_URL = 'https://raw.githubusercontent.com/cmovate/interactive-report/main/TODO.md?t=' + Date.now();
+
+  async function checkForSessionUpdate() {
+    try {
+      const lastCheck = localStorage.getItem(LAST_CHECK_KEY) || '0';
+      const res = await fetch(TODO_URL);
+      if (!res.ok) return;
+      const text = await res.text();
+
+      // Extract session timestamp from TODO.md
+      const match = text.match(/Last session: (.+)/);
+      if (!match) return;
+      const sessionTime = match[1].trim();
+      
+      if (sessionTime === lastCheck) return; // already seen this session
+      
+      // New session notes — show notification
+      const summaryMatch = text.match(/## Completed this session\n([\s\S]*?)(?=##|$)/);
+      const summary = summaryMatch ? summaryMatch[1].trim().slice(0,200) : 'Check TODO.md for details.';
+
+      // Update last seen
+      localStorage.setItem(LAST_CHECK_KEY, sessionTime);
+
+      // Show browser notification
+      if ('Notification' in window) {
+        const show = () => new Notification('El-Via ABM — Claude session complete', {
+          body: 'Session: ' + sessionTime + '\n' + summary,
+          icon: '/favicon.ico',
+          tag: 'elvia-session'
+        });
+        if (Notification.permission === 'granted') {
+          show();
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then(p => { if (p === 'granted') show(); });
+        }
+      }
+
+      // Also show in-page banner
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#16a34a;color:white;padding:12px 20px;font-size:14px;font-family:sans-serif;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.2)';
+      banner.innerHTML = '<span>🤖 <strong>Claude session completed</strong> — ' + sessionTime + ' &nbsp;|&nbsp; <a href="/TODO.md" target="_blank" style="color:white;text-decoration:underline">View TODO.md</a></span>' +
+        '<button onclick="this.parentElement.remove()" style="background:none;border:none;color:white;font-size:18px;cursor:pointer">×</button>';
+      document.body.appendChild(banner);
+      setTimeout(() => banner?.remove(), 8000);
+
+    } catch(e) { /* silent */ }
+  }
+
+  // Run after page loads
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkForSessionUpdate);
+  } else {
+    setTimeout(checkForSessionUpdate, 1000);
+  }
+})();
+</script>
+
 </body>
 </html>
