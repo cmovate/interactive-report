@@ -626,7 +626,7 @@ async function loadListsForPicker() {
   const grid = document.getElementById("list-picker-grid");
   if (!grid) return;
   try {
-    const data = await apiFetch("/api/lists?workspace_id=" + workspaceId);
+    const data = await fetch("/api/lists?workspace_id=" + workspaceId).then(r=>r.json());
     const lists = (data.items || []).filter(l => l.type === "contacts");
     if (!lists.length) {
       grid.innerHTML = "<div class=\"list-picker-loading\">No contact lists yet — create one in the Lists tab.</div>";
@@ -724,7 +724,7 @@ async function loadListsForPicker() {
   const grid = document.getElementById('list-picker-grid');
   if (!grid) return;
   try {
-    const data = await apiFetch('/api/lists?workspace_id=' + workspaceId);
+    const data = await fetch('/api/lists?workspace_id=' + workspaceId).then(r=>r.json());
     const contactLists = (data.items||[]).filter(l => l.type === 'contacts');
     if (!contactLists.length) {
       grid.innerHTML = '<div class="list-picker-empty">No contact lists yet. <a href="javascript:void(0)" onclick="closeModal()">Go to Lists</a> to create one first.</div>';
