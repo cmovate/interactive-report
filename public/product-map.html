@@ -628,213 +628,423 @@ ul.feat li{flex-wrap:nowrap}
 </div>
 
 <script>
-const STORAGE_KEY = 'elvia-pm-v3';
+/* ═══════════════════════════════════════════
+   EL-VIA PRODUCT MAP — INTERACTIVE SYSTEM
+   Storage: localStorage
+   Pattern: data attributes + event delegation
+   ═══════════════════════════════════════════ */
+
+const STORAGE_KEY = 'elvia-pm-v4';
 function getData(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch(e){return{}}}
 function setData(d){localStorage.setItem(STORAGE_KEY,JSON.stringify(d))}
 function getAuthor(){return localStorage.getItem('elvia-pm-author')||'Anonymous'}
 function setAuthor(n){localStorage.setItem('elvia-pm-author',n)}
-function changeAuthor(){const n=prompt('Your name:',getAuthor());if(n&&n.trim()){setAuthor(n.trim());document.getElementById('author-name').textContent=n.trim()}}
-function formatTime(ts){const d=new Date(ts);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function formatTime(ts){const d=new Date(ts);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}
+
+function changeAuthor(){
+  const n=prompt('Your name:',getAuthor());
+  if(n&&n.trim()){setAuthor(n.trim());document.getElementById('author-name').textContent=n.trim()}
+}
 
 function toggleForm(id,type){
   const f=document.getElementById(id+'-form');
   if(!f)return;
   if(f.classList.contains('open')){f.classList.remove('open');f.innerHTML='';return}
-  document.querySelectorAll('.inline-form.open').forEach(x=>{x.classList.remove('open');x.innerHTML=''});
+  document.querySelectorAll('.inline-form.open').forEach(function(x){x.classList.remove('open');x.innerHTML=''});
   f.classList.add('open');
+  
+  const authorVal = esc(getAuthor());
   if(type==='comment'){
-    f.innerHTML='<div class="form-label">💬 Add a note</div><textarea id="ft-'+id+'" placeholder="Write your note..." rows="3"></textarea><div class="form-row"><input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+esc(getAuthor())+'"><div class="form-btns"><button class="btn-cancel" onclick="toggleForm(''+id+'','comment')">Cancel</button><button class="btn-save" onclick="saveComment(''+id+'')">Save note</button></div></div>';
-  }else{
-    f.innerHTML='<div class="form-label">✦ Add new item</div><input type="text" id="ft-'+id+'" placeholder="Describe the new item..."><div class="form-row"><input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+esc(getAuthor())+'"><div class="form-btns"><button class="btn-cancel" onclick="toggleForm(''+id+'','add')">Cancel</button><button class="btn-save" onclick="saveAdded(''+id+'')">Add item</button></div></div>';
-    const inp=document.getElementById('ft-'+id);
-    if(inp)inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveAdded(id)}});
+    f.innerHTML = [
+      '<div class="form-label">💬 Add a note</div>',
+      '<textarea id="ft-'+id+'" placeholder="Write your note..." rows="3"></textarea>',
+      '<div class="form-row">',
+      '<input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+authorVal+'">',
+      '<div class="form-btns">',
+      '<button class="btn-cancel" data-cancel="'+id+'" data-type="comment">Cancel</button>',
+      '<button class="btn-save" data-save="'+id+'" data-type="comment">Save note</button>',
+      '</div></div>'
+    ].join('');
+  } else {
+    f.innerHTML = [
+      '<div class="form-label">✦ Add new item</div>',
+      '<input type="text" id="ft-'+id+'" placeholder="Describe the new item...">',
+      '<div class="form-row">',
+      '<input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+authorVal+'">',
+      '<div class="form-btns">',
+      '<button class="btn-cancel" data-cancel="'+id+'" data-type="add">Cancel</button>',
+      '<button class="btn-save" data-save="'+id+'" data-type="add">Add item</button>',
+      '</div></div>'
+    ].join('');
+    const inp = document.getElementById('ft-'+id);
+    if(inp) inp.addEventListener('keydown', function(e){
+      if(e.key==='Enter'){e.preventDefault(); saveAdded(id);}
+    });
   }
-  setTimeout(()=>{const el=document.getElementById('ft-'+id);if(el)el.focus()},50);
+  setTimeout(function(){const el=document.getElementById('ft-'+id);if(el)el.focus();},50);
 }
 
+// Event delegation for all buttons
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('button');
+  if(!btn) return;
+
+  // Action buttons
+  if(btn.dataset.action){
+    const id = btn.dataset.id;
+    const type = btn.dataset.type;
+    toggleForm(id, type);
+    return;
+  }
+  // Save
+  if(btn.dataset.save){
+    const id = btn.dataset.save;
+    if(btn.dataset.type === 'comment') saveComment(id);
+    else saveAdded(id);
+    return;
+  }
+  // Cancel
+  if(btn.dataset.cancel !== undefined){
+    const id = btn.dataset.cancel;
+    const f = document.getElementById(id+'-form');
+    if(f){f.classList.remove('open');f.innerHTML='';}
+    return;
+  }
+  // Delete comment
+  if(btn.dataset.delComment !== undefined){
+    deleteComment(btn.dataset.id, parseInt(btn.dataset.delComment));
+    return;
+  }
+  // Delete added
+  if(btn.dataset.delAdded !== undefined){
+    deleteAdded(btn.dataset.id, parseInt(btn.dataset.delAdded));
+    return;
+  }
+  // Clear all
+  if(btn.id === 'clear-all-btn') clearAll();
+  // Author badge
+  if(btn.id === 'author-badge' || btn.closest('#author-badge')) changeAuthor();
+});
+
 function saveComment(id){
-  const text=document.getElementById('ft-'+id)?.value?.trim();
-  const author=document.getElementById('fa-'+id)?.value?.trim()||getAuthor();
-  if(!text)return;
-  setAuthor(author);
-  document.getElementById('author-name').textContent=author;
-  const d=getData();
-  if(!d[id])d[id]={comments:[],added:[]};
-  d[id].comments.push({id:Date.now(),author,text,ts:Date.now()});
-  setData(d);toggleForm(id,'comment');renderThread(id);updateStats();
+  const text = (document.getElementById('ft-'+id)||{}).value;
+  const author = (document.getElementById('fa-'+id)||{}).value;
+  if(!text||!text.trim()) return;
+  const a = (author||'').trim() || getAuthor();
+  setAuthor(a);
+  document.getElementById('author-name').textContent = a;
+  const d = getData();
+  if(!d[id]) d[id]={comments:[],added:[]};
+  d[id].comments.push({id:Date.now(),author:a,text:text.trim(),ts:Date.now()});
+  setData(d);
+  toggleForm(id,'comment');
+  renderThread(id);
+  updateStats();
 }
 
 function saveAdded(id){
-  const text=document.getElementById('ft-'+id)?.value?.trim();
-  const author=document.getElementById('fa-'+id)?.value?.trim()||getAuthor();
-  if(!text)return;
-  setAuthor(author);
-  document.getElementById('author-name').textContent=author;
-  const d=getData();
-  if(!d[id])d[id]={comments:[],added:[]};
-  d[id].added.push({id:Date.now(),author,text,ts:Date.now()});
-  setData(d);toggleForm(id,'add');renderAdded(id);updateStats();
+  const text = (document.getElementById('ft-'+id)||{}).value;
+  const author = (document.getElementById('fa-'+id)||{}).value;
+  if(!text||!text.trim()) return;
+  const a = (author||'').trim() || getAuthor();
+  setAuthor(a);
+  document.getElementById('author-name').textContent = a;
+  const d = getData();
+  if(!d[id]) d[id]={comments:[],added:[]};
+  d[id].added.push({id:Date.now(),author:a,text:text.trim(),ts:Date.now()});
+  setData(d);
+  toggleForm(id,'add');
+  renderAdded(id);
+  updateStats();
 }
 
-function deleteComment(id,cid){const d=getData();if(!d[id])return;d[id].comments=d[id].comments.filter(c=>c.id!==cid);setData(d);renderThread(id);updateStats()}
-function deleteAdded(id,aid){const d=getData();if(!d[id])return;d[id].added=d[id].added.filter(a=>a.id!==aid);setData(d);renderAdded(id);updateStats()}
+function deleteComment(id,cid){
+  const d=getData();
+  if(!d[id]) return;
+  d[id].comments = d[id].comments.filter(function(c){return c.id!==cid;});
+  setData(d);renderThread(id);updateStats();
+}
+
+function deleteAdded(id,aid){
+  const d=getData();
+  if(!d[id]) return;
+  d[id].added = d[id].added.filter(function(a){return a.id!==aid;});
+  setData(d);renderAdded(id);updateStats();
+}
 
 function renderThread(id){
-  const el=document.getElementById(id+'-thread');
-  if(!el)return;
-  const comments=(getData()[id]||{}).comments||[];
-  if(!comments.length){el.style.display='none';updateCount(id,0);return}
+  const el = document.getElementById(id+'-thread');
+  if(!el) return;
+  const comments = (getData()[id]||{}).comments||[];
+  if(!comments.length){el.style.display='none';updateCount(id,0);return;}
   el.style.display='';
-  el.innerHTML=comments.map(c=>'<div class="comment-bubble"><button class="comment-del" onclick="deleteComment(''+id+'','+c.id+')" title="Delete">×</button><div class="comment-meta"><span class="comment-author">'+esc(c.author)+'</span><span class="comment-time">'+formatTime(c.ts)+'</span></div><div class="comment-text">'+esc(c.text)+'</div></div>').join('');
-  updateCount(id,comments.length);
+  el.innerHTML = comments.map(function(c){
+    return '<div class="comment-bubble">' +
+      '<button class="comment-del" data-del-comment="'+c.id+'" data-id="'+id+'" title="Delete">×</button>' +
+      '<div class="comment-meta"><span class="comment-author">'+esc(c.author)+'</span>' +
+      '<span class="comment-time">'+formatTime(c.ts)+'</span></div>' +
+      '<div class="comment-text">'+esc(c.text)+'</div></div>';
+  }).join('');
+  updateCount(id, comments.length);
 }
 
 function renderAdded(id){
-  const el=document.getElementById(id+'-added');
-  if(!el)return;
-  const items=(getData()[id]||{}).added||[];
-  el.innerHTML=items.map(a=>'<div class="added-item"><span>'+esc(a.text)+'</span><small style="color:#9ca3af;margin-left:8px;font-size:11px">— '+esc(a.author)+'</small><button class="del-added" onclick="deleteAdded(''+id+'','+a.id+')" title="Delete">×</button></div>').join('');
+  const el = document.getElementById(id+'-added');
+  if(!el) return;
+  const items = (getData()[id]||{}).added||[];
+  el.innerHTML = items.map(function(a){
+    return '<div class="added-item"><span>'+esc(a.text)+'</span>' +
+      '<small style="color:#9ca3af;margin-left:8px;font-size:11px">— '+esc(a.author)+'</small>' +
+      '<button class="del-added" data-del-added="'+a.id+'" data-id="'+id+'" title="Delete">×</button></div>';
+  }).join('');
 }
 
-function updateCount(id,n){const el=document.getElementById(id+'-count');if(el){el.textContent=n;el.style.display=n>0?'inline-flex':'none'}}
+function updateCount(id,n){
+  const el = document.getElementById(id+'-count');
+  if(el){el.textContent=n;el.style.display=n>0?'inline-flex':'none';}
+}
 
 function updateStats(){
   const d=getData();
   let tc=0,ta=0;
-  Object.values(d).forEach(v=>{tc+=(v.comments||[]).length;ta+=(v.added||[]).length});
+  Object.values(d).forEach(function(v){tc+=(v.comments||[]).length;ta+=(v.added||[]).length;});
   document.getElementById('total-comments').textContent=tc;
   document.getElementById('total-added').textContent=ta;
 }
 
-function clearAll(){if(!confirm('Clear ALL notes and additions?'))return;localStorage.removeItem(STORAGE_KEY);document.querySelectorAll('[id$="-thread"]').forEach(el=>{el.innerHTML='';el.style.display='none'});document.querySelectorAll('[id$="-added"]').forEach(el=>el.innerHTML='');document.querySelectorAll('.comment-count').forEach(el=>el.style.display='none');updateStats()}
+function clearAll(){
+  if(!confirm('Clear ALL notes and additions? This cannot be undone.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('[id$="-thread"]').forEach(function(el){el.innerHTML='';el.style.display='none';});
+  document.querySelectorAll('[id$="-added"]').forEach(function(el){el.innerHTML='';});
+  document.querySelectorAll('.comment-count').forEach(function(el){el.style.display='none';});
+  updateStats();
+}
 
-// Add comment/add buttons to every section-header, every li, every auto-row
+function makeBtn(type, id, actionType, label){
+  const btn = document.createElement('button');
+  btn.className = 'btn-action btn-' + type;
+  btn.dataset.action = '1';
+  btn.dataset.id = id;
+  btn.dataset.type = actionType;
+  btn.textContent = label || (type === 'comment' ? '💬 Note' : '＋ Add');
+  return btn;
+}
+
+function makeCountBadge(id){
+  const span = document.createElement('span');
+  span.id = id + '-count';
+  span.className = 'comment-count';
+  span.style.display = 'none';
+  return span;
+}
+
+function makeThread(id, cls){
+  const div = document.createElement('div');
+  div.id = id + '-thread';
+  div.className = cls || 'comment-thread';
+  div.style.display = 'none';
+  return div;
+}
+
+function makeForm(id){
+  const div = document.createElement('div');
+  div.id = id + '-form';
+  div.className = 'inline-form';
+  return div;
+}
+
+function makeAdded(id){
+  const div = document.createElement('div');
+  div.id = id + '-added';
+  return div;
+}
+
+let _counter = 0;
+function uid(prefix){ return prefix + '-' + (++_counter); }
+
 function addInteractiveButtons(){
-  let counter=0;
-  // Section headers
-  document.querySelectorAll('.section-header').forEach(el=>{
-    if(el.querySelector('.section-actions'))return;
-    const id='sec-'+(counter++);
-    el.dataset.id=id;
-    el.classList.add('commentable');
-    const actions=document.createElement('div');
-    actions.className='section-actions';
-    actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬 Note</button><span id="'+id+'-count" class="comment-count" style="display:none"></span>';
+  // 1. Section headers
+  document.querySelectorAll('.section-header').forEach(function(el){
+    if(el.dataset.interactive) return;
+    el.dataset.interactive='1';
+    const id = uid('sec');
+    const actions = document.createElement('div');
+    actions.className = 'section-actions';
+    actions.appendChild(makeBtn('comment', id, 'comment', '💬 Note'));
+    actions.appendChild(makeCountBadge(id));
     el.appendChild(actions);
-    // Insert thread+form after section-header
-    const thread=document.createElement('div');
-    thread.id=id+'-thread';thread.className='section-comment-thread';thread.style.display='none';
-    const form=document.createElement('div');
-    form.id=id+'-form';form.className='inline-form';
-    el.after(form);el.after(thread);
+    el.after(makeForm(id));
+    el.after(makeThread(id, 'section-comment-thread'));
   });
 
-  // Tab headers (without tab-actions already)
-  document.querySelectorAll('.tab-header').forEach(el=>{
-    if(el.querySelector('.tab-actions'))return;
-    const id='tab-'+(counter++);
-    const actions=document.createElement('div');
-    actions.className='tab-actions';
-    actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬</button><span id="'+id+'-count" class="comment-count" style="display:none"></span>';
+  // 2. Tab headers
+  document.querySelectorAll('.tab-header').forEach(function(el){
+    if(el.dataset.interactive) return;
+    el.dataset.interactive='1';
+    const id = uid('tab');
+    const actions = document.createElement('div');
+    actions.className = 'tab-actions';
+    actions.appendChild(makeBtn('comment', id, 'comment', '💬'));
+    actions.appendChild(makeCountBadge(id));
     el.appendChild(actions);
-    const thread=document.createElement('div');
-    thread.id=id+'-thread';thread.className='section-comment-thread';thread.style.display='none';thread.style.margin='0 28px 12px';
-    const form=document.createElement('div');
-    form.id=id+'-form';form.className='inline-form';form.style.margin='0 28px 12px';
-    el.after(form);el.after(thread);
+    const thread = makeThread(id, 'section-comment-thread');
+    thread.style.margin = '0 28px 12px';
+    const form = makeForm(id);
+    form.style.margin = '0 28px 12px';
+    el.after(form);
+    el.after(thread);
   });
 
-  // ul.feat lists — add Add button to sub-titles and note buttons to each li
-  document.querySelectorAll('ul.feat').forEach(ul=>{
-    if(ul.dataset.interactive)return;
+  // 3. ul.feat lists
+  document.querySelectorAll('ul.feat').forEach(function(ul){
+    if(ul.dataset.interactive) return;
     ul.dataset.interactive='1';
-    const listId='list-'+(counter++);
-    ul.id=listId;
-    // Add "+ Add" button to preceding .sub-title
-    const prev=ul.previousElementSibling;
-    if(prev&&prev.classList.contains('sub-title')&&!prev.querySelector('.btn-add')){
-      const btn=document.createElement('button');
-      btn.className='btn-action btn-add';
-      btn.style.marginLeft='auto';
-      btn.textContent='＋ Add';
-      btn.onclick=()=>toggleForm(listId,'add');
+    const listId = uid('list');
+    ul.id = listId;
+    // Add button to preceding sub-title
+    const prev = ul.previousElementSibling;
+    if(prev && prev.classList.contains('sub-title') && !prev.querySelector('.btn-add')){
+      const btn = makeBtn('add', listId, 'add', '＋ Add');
+      btn.style.marginLeft = 'auto';
       prev.appendChild(btn);
     }
-    // Add "added" container and form after ul
-    const addedEl=document.createElement('div');
-    addedEl.id=listId+'-added';
-    const formEl=document.createElement('div');
-    formEl.id=listId+'-form';formEl.className='inline-form';
-    ul.after(formEl);ul.after(addedEl);
-    // Add comment button to each li
-    ul.querySelectorAll('li').forEach(li=>{
-      if(li.querySelector('.item-actions'))return;
-      const liId='li-'+(counter++);
-      // Wrap content
+    // Added container + form
+    ul.after(makeForm(listId));
+    ul.after(makeAdded(listId));
+    // Note button on each li
+    ul.querySelectorAll('li').forEach(function(li){
+      if(li.dataset.interactive) return;
+      li.dataset.interactive='1';
+      const liId = uid('li');
+      // Wrap content if needed
       if(!li.querySelector('.li-content')){
-        const span=document.createElement('span');
-        span.className='li-content';
-        while(li.childNodes.length)span.appendChild(li.childNodes[0]);
+        const span = document.createElement('span');
+        span.className = 'li-content';
+        Array.from(li.childNodes).forEach(function(n){span.appendChild(n.cloneNode(true));});
+        li.innerHTML = '';
         li.appendChild(span);
       }
-      const actions=document.createElement('span');
-      actions.className='item-actions';
-      actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+liId+'','comment')">💬</button>';
+      const actions = document.createElement('span');
+      actions.className = 'item-actions';
+      actions.appendChild(makeBtn('comment', liId, 'comment', '💬'));
       li.appendChild(actions);
-      // Add thread+form after li
-      const thread=document.createElement('div');
-      thread.id=liId+'-thread';thread.className='comment-thread';thread.style.display='none';
-      const form=document.createElement('div');
-      form.id=liId+'-form';form.className='inline-form';
-      li.after(form);li.after(thread);
+      li.after(makeForm(liId));
+      li.after(makeThread(liId));
     });
   });
 
-  // auto-rows
-  document.querySelectorAll('.auto-row').forEach(row=>{
-    if(row.querySelector('.item-actions'))return;
-    const id='auto-'+(counter++);
-    row.dataset.id=id;row.classList.add('commentable');
-    const content=row.querySelector('.auto-content');
+  // 4. Auto rows
+  document.querySelectorAll('.auto-row').forEach(function(row){
+    if(row.dataset.interactive) return;
+    row.dataset.interactive='1';
+    const id = uid('auto');
+    row.classList.add('commentable');
+    const content = row.querySelector('.auto-content');
     if(content){
-      const actions=document.createElement('div');
-      actions.className='item-actions';
-      actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬 Note</button>';
+      const actions = document.createElement('div');
+      actions.className = 'item-actions';
+      actions.appendChild(makeBtn('comment', id, 'comment', '💬 Note'));
       content.appendChild(actions);
     }
-    const thread=document.createElement('div');
-    thread.id=id+'-thread';thread.className='comment-thread';thread.style.display='none';thread.style.marginLeft='120px';
-    const form=document.createElement('div');
-    form.id=id+'-form';form.className='inline-form';form.style.marginLeft='120px';
-    row.after(form);row.after(thread);
+    const thread = makeThread(id);
+    thread.style.marginLeft = '120px';
+    const form = makeForm(id);
+    form.style.marginLeft = '120px';
+    row.after(form);
+    row.after(thread);
   });
 
-  // cards
-  document.querySelectorAll('.card').forEach(card=>{
-    if(card.querySelector('.item-actions'))return;
-    const id='card-'+(counter++);
-    card.dataset.id=id;card.classList.add('commentable');
-    const actions=document.createElement('div');
-    actions.className='item-actions';
-    actions.innerHTML='<button class="btn-action btn-comment" onclick="toggleForm(''+id+'','comment')">💬 Note</button>';
+  // 5. Cards
+  document.querySelectorAll('.card').forEach(function(card){
+    if(card.dataset.interactive) return;
+    card.dataset.interactive='1';
+    const id = uid('card');
+    card.classList.add('commentable');
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
+    actions.appendChild(makeBtn('comment', id, 'comment', '💬 Note'));
     card.appendChild(actions);
-    const thread=document.createElement('div');
-    thread.id=id+'-thread';thread.className='comment-thread';thread.style.display='none';
-    const form=document.createElement('div');
-    form.id=id+'-form';form.className='inline-form';
-    card.appendChild(form);card.appendChild(thread);
+    card.appendChild(makeForm(id));
+    card.appendChild(makeThread(id));
+  });
+
+  // 6. Callouts
+  document.querySelectorAll('.callout').forEach(function(el){
+    if(el.dataset.interactive) return;
+    el.dataset.interactive='1';
+    const id = uid('callout');
+    el.classList.add('commentable');
+    const actions = document.createElement('div');
+    actions.className = 'item-actions';
+    actions.appendChild(makeBtn('comment', id, 'comment', '💬'));
+    el.appendChild(actions);
+    el.after(makeForm(id));
+    el.after(makeThread(id));
+  });
+
+  // 7. Table rows in limits table
+  document.querySelectorAll('.limits-table tbody tr').forEach(function(tr){
+    if(tr.dataset.interactive) return;
+    tr.dataset.interactive='1';
+    const id = uid('tr');
+    // Add btn to last td
+    const lastTd = tr.querySelector('td:last-child');
+    if(lastTd){
+      const btn = makeBtn('comment', id, 'comment', '💬');
+      btn.style.marginLeft = '8px';
+      lastTd.appendChild(btn);
+    }
+    // Insert comment row after this row
+    const commentRow = document.createElement('tr');
+    commentRow.style.display='none'; // always hidden, thread shows via adjacent div
+    tr.after(commentRow);
+    const threadDiv = makeThread(id);
+    threadDiv.style.padding = '4px 14px';
+    const formDiv = makeForm(id);
+    formDiv.style.margin = '4px 14px';
+    const wrapTd = document.createElement('td');
+    wrapTd.colSpan = 4;
+    wrapTd.appendChild(threadDiv);
+    wrapTd.appendChild(formDiv);
+    commentRow.appendChild(wrapTd);
   });
 }
 
-document.addEventListener('DOMContentLoaded',()=>{
-  document.getElementById('author-name').textContent=getAuthor();
+// Observe for when threads become visible to show comment row
+const _observer = new MutationObserver(function(mutations){
+  mutations.forEach(function(m){
+    if(m.type==='attributes' && m.attributeName==='style'){
+      const el = m.target;
+      if(el.classList.contains('comment-thread')){
+        const parent = el.parentElement;
+        if(parent && parent.tagName==='TD'){
+          const tr = parent.parentElement;
+          if(tr && tr.tagName==='TR'){
+            tr.style.display = el.style.display === 'none' ? 'none' : '';
+          }
+        }
+      }
+    }
+  });
+});
+
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('author-name').textContent = getAuthor();
   addInteractiveButtons();
-  // Render saved data
-  Object.keys(getData()).forEach(id=>{renderThread(id);renderAdded(id)});
+  // Restore saved data
+  Object.keys(getData()).forEach(function(id){renderThread(id);renderAdded(id);});
   updateStats();
-  document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.inline-form.open').forEach(f=>{f.classList.remove('open');f.innerHTML=''})});
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape'){
+      document.querySelectorAll('.inline-form.open').forEach(function(f){f.classList.remove('open');f.innerHTML='';});
+    }
+  });
+  // Observe table rows
+  document.querySelectorAll('.limits-table').forEach(function(t){
+    _observer.observe(t,{subtree:true,attributes:true,attributeFilter:['style']});
+  });
 });
 </script>
 </body>
-</html>
