@@ -143,13 +143,33 @@ router.get('/:id/engagement-stats', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { workspace_id, account_id, name, audience_type, contacts, settings } = req.body;
+    const { workspace_id, account_id, name, audience_type, contacts, settings, list_id } = req.body;
     if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' });
     const { rows } = await db.query(
-      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status)
-       VALUES ($1, $2, $3, $4, $5, 'active') RETURNING *`,
-      [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {})]);
+      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status, list_id)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING *`,
+      [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {}), list_id || null]);
     const campaign = rows[0];
+    // ── If list_id provided, copy contacts from the list into this campaign ──
+    if (list_id) {
+      await db.query(
+        `INSERT INTO contacts (workspace_id, campaign_id, li_profile_url,
+            first_name, last_name, company, title)
+          SELECT c.workspace_id, $1, c.li_profile_url,
+                 c.first_name, c.last_name, c.company, c.title
+          FROM list_contacts lc
+          JOIN contacts c ON c.id = lc.contact_id
+          WHERE lc.list_id = $2
+            AND c.workspace_id = $3
+            AND NOT EXISTS (
+              SELECT 1 FROM contacts c2
+              WHERE c2.campaign_id = $1
+                AND c2.li_profile_url = c.li_profile_url
+                AND c2.workspace_id = $3
+            )`,
+        [campaign.id, list_id, workspace_id]
+      );
+    }
     const toEnrich = [];
     if (Array.isArray(contacts) && contacts.length > 0) {
       for (const c of contacts) {
