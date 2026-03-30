@@ -63,14 +63,17 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
   const { rows } = await db.query(`
     SELECT DISTINCT ON (COALESCE(NULLIF(c.li_profile_url, ''), c.id::text))
       c.id, c.first_name, c.last_name, c.company, c.title,
-      c.li_profile_url, c.email, c.chat_id, c.provider_id,
+      c.li_profile_url, c.li_company_url, c.email, c.chat_id, c.provider_id,
       c.campaign_id, c.msg_replied, c.invite_approved,
+      c.invite_sent, c.already_connected, c.positive_reply,
+      c.msgs_sent_count, c.engagement_level,
       camp.name   AS campaign_name,
       camp.status AS campaign_status,
       camp.account_id
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE c.workspace_id = $1 AND c.already_connected = true
+    WHERE c.workspace_id = $1
+      AND (c.li_profile_url IS NOT NULL AND c.li_profile_url != '')
       ${filter}
     ORDER BY
       COALESCE(NULLIF(c.li_profile_url, ''), c.id::text),
