@@ -1,17 +1,17 @@
 /**
  * /api/opportunities
  *
- * Warm leads intelligence â companies from campaigns + manually-added companies (views/labels).
+ * Warm leads intelligence Ã¢ÂÂ companies from campaigns + manually-added companies (views/labels).
  *
  * Routes:
- *   GET  /                       â all companies (merged) + views + campaigns metadata
- *   GET  /views                  â list views with company counts
- *   POST /views                  â create a view (label)
- *   DELETE /views/:id            â delete a view (workspace_id required)
- *   POST /companies              â add custom companies to a view
- *   DELETE /companies/:id        â remove a custom company (workspace_id required)
- *   POST /attach-to-campaign     â search LinkedIn & add contacts to an automation campaign
- *   POST /send-message           â send a direct LinkedIn message to a contact
+ *   GET  /                       Ã¢ÂÂ all companies (merged) + views + campaigns metadata
+ *   GET  /views                  Ã¢ÂÂ list views with company counts
+ *   POST /views                  Ã¢ÂÂ create a view (label)
+ *   DELETE /views/:id            Ã¢ÂÂ delete a view (workspace_id required)
+ *   POST /companies              Ã¢ÂÂ add custom companies to a view
+ *   DELETE /companies/:id        Ã¢ÂÂ remove a custom company (workspace_id required)
+ *   POST /attach-to-campaign     Ã¢ÂÂ search LinkedIn & add contacts to an automation campaign
+ *   POST /send-message           Ã¢ÂÂ send a direct LinkedIn message to a contact
  */
 
 const express  = require('express');
@@ -71,7 +71,7 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
     FROM contacts c
     LEFT JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE c.workspace_id = $1
-      AND c.already_connected = true
+      -- removed: AND c.already_connected = true
       AND c.campaign_id IS NULL
       ${filter}
     ORDER BY
@@ -231,7 +231,7 @@ router.post('/views', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/opportunities/views/:id  â workspace_id required
+// DELETE /api/opportunities/views/:id  Ã¢ÂÂ workspace_id required
 router.delete('/views/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -299,7 +299,7 @@ router.post('/companies', async (req, res) => {
   }
 });
 
-// DELETE /api/opportunities/companies/:id  â workspace_id required
+// DELETE /api/opportunities/companies/:id  Ã¢ÂÂ workspace_id required
 router.delete('/companies/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -396,7 +396,7 @@ router.post('/attach-to-campaign', async (req, res) => {
 
 // POST /api/opportunities/send-message
 
-// POST /enrich â search LinkedIn connections at opportunity companies (no campaign required)
+// POST /enrich Ã¢ÂÂ search LinkedIn connections at opportunity companies (no campaign required)
 router.post('/enrich', async (req, res) => {
   const { workspace_id, company_ids, titles, limit } = req.body;
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
@@ -445,7 +445,7 @@ router.post('/enrich', async (req, res) => {
         for (const p of people) {
           const liUrl = (p.linkedin_url || p.public_profile_url || "").split("?")[0].trim();
           if (!liUrl) continue;
-          // Upsert contact â campaign_id = NULL, linked to opportunity_company
+          // Upsert contact Ã¢ÂÂ campaign_id = NULL, linked to opportunity_company
           const ins = (await db.query(
             'INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url, already_connected)' +
             ' SELECT NULL, $1, $2, $3, $4, $5, $6, $7, true' +
@@ -493,7 +493,7 @@ router.post('/send-message', async (req, res) => {
     if (!contact.account_id)
       return res.status(400).json({ error: 'No Unipile account for this contact' });
     if (!contact.provider_id && !contact.chat_id)
-      return res.status(400).json({ error: 'Contact not enriched â provider_id missing' });
+      return res.status(400).json({ error: 'Contact not enriched Ã¢ÂÂ provider_id missing' });
 
     let chatId = contact.chat_id;
     if (chatId) {
@@ -571,6 +571,19 @@ router.post('/enrich-company-ids', async (req, res) => {
       }
       console.log(`[Opp] enrich-company-ids complete: ${updated} resolved, ${failed} failed`);
     })().catch(e => console.error('[Opp] enrich-company-ids error:', e.message));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// POST /api/opportunities/scan — trigger immediate scan for 1st-degree connections
+router.post('/scan', async (req, res) => {
+  try {
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const oppScraper = require('../opportunityScraper');
+    oppScraper.scanWorkspace(parseInt(workspace_id))
+      .catch(e => console.error('[OppScraper] manual scan error:', e.message));
+    res.json({ status: 'started', message: 'Scanning 1st-degree connections for all target companies...' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
