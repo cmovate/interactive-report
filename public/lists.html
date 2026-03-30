@@ -266,6 +266,10 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
 }
 .btn-create-list:hover { background: #15803d; }
 
+
+#ul-urls { font-family: monospace; font-size: 12px; }
+.lca-u { color: #2563eb !important; }
+
 </style>
 </head>
 <body>
@@ -1166,26 +1170,35 @@ async function loadLists() {
 function renderListCards() {
   const grid = document.getElementById('lists-grid');
   if (!_lists.length) {
-    grid.innerHTML = '<div class="lists-loading">No lists yet — create your first list to get started</div>';
+    grid.innerHTML = '<div class="lists-loading">No lists yet — click <strong>+ New list</strong> to create one</div>';
     return;
   }
-  grid.innerHTML = _lists.map(l => {
-    const icon = l.type === 'contacts' ? '👥' : '🏢';
-    const count = l.type === 'contacts' ? (l.contact_count||0) : (l.company_count||0);
-    const isActive = _activeListId === l.id;
-    return `<div class="list-card ${isActive?'active':''}" onclick="filterContacts(${l.id}, ${JSON.stringify(l.name)}, '${l.type}')">
-      <span class="lc-icon">${icon}</span>
-      <span class="lc-name">${escHtml(l.name)}</span>
-      <span class="lc-count">${count}</span>
-      <span class="lc-type">${l.type}</span>
-      <span class="list-card-actions" onclick="event.stopPropagation()">
-        <button class="btn-lc-action" title="Rename" onclick="openRenameModal(${l.id}, ${JSON.stringify(l.name)}, ${JSON.stringify(l.description||'')})">✏️</button>
-        <button class="btn-lc-action" title="Delete" onclick="deleteList(${l.id}, ${JSON.stringify(l.name)})">🗑️</button>
-      </span>
-    </div>`;
-  }).join('');
+  grid.innerHTML = '';
+  _lists.forEach(function(l) {
+    const cnt = l.type === 'contacts' ? (l.contact_count||0) : (l.company_count||0);
+    const card = document.createElement('div');
+    card.className = 'list-card' + (_activeListId===l.id?' active':'');
+    card.dataset.id = l.id;
+    card.dataset.name = l.name||'';
+    card.dataset.type = l.type;
+    card.dataset.desc = l.description||'';
+    card.innerHTML =
+      '<span class="lc-icon">' + (l.type==='contacts'?'👥':'🏢') + '</span>' +
+      '<span class="lc-name">' + escHtml(l.name) + '</span>' +
+      '<span class="lc-count">' + cnt + '</span>' +
+      '<span class="lc-type">' + l.type + '</span>' +
+      '<span class="list-card-actions">' +
+        '<button class="btn-lc-action lca-u" title="Upload">⬆</button>' +
+        '<button class="btn-lc-action lca-r" title="Rename">✏️</button>' +
+        '<button class="btn-lc-action lca-d" title="Delete">🗑️</button>' +
+      '</span>';
+    card.querySelector('.lca-u').addEventListener('click', function(e){e.stopPropagation();openUploadModal(l.id,l.name,l.type);});
+    card.querySelector('.lca-r').addEventListener('click', function(e){e.stopPropagation();openRenameModal(l.id,l.name,l.description||'');});
+    card.querySelector('.lca-d').addEventListener('click', function(e){e.stopPropagation();deleteList(l.id,l.name);});
+    card.addEventListener('click', function(){filterContacts(l.id,l.name,l.type);});
+    grid.appendChild(card);
+  });
 }
-
 function filterContacts(listIdOrAll, listName, listType) {
   const filterBar = document.getElementById('lists-filter-bar');
   const activeLabel = document.getElementById('filter-active-list');
@@ -1234,6 +1247,68 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+
+var _ulId = null;
+
+function openUploadModal(id, name, type) {
+  if (type !== 'contacts') { alert('This is a companies list. Upload contacts only to contacts lists.'); return; }
+  _ulId = id;
+  document.getElementById('ul-list-name').textContent = name;
+  document.getElementById('ul-urls').value = '';
+  document.getElementById('ul-result').textContent = '';
+  var btn = document.getElementById('ul-btn');
+  btn.disabled = false; btn.textContent = 'Upload';
+  document.getElementById('upload-modal').style.display = 'flex';
+  setTimeout(function(){document.getElementById('ul-urls').focus();},50);
+}
+
+function closeUploadModal() {
+  document.getElementById('upload-modal').style.display = 'none';
+  _ulId = null;
+}
+
+async function uploadContacts() {
+  var raw = document.getElementById('ul-urls').value.trim();
+  if (!raw) { document.getElementById('ul-result').textContent = 'Paste at least one LinkedIn URL.'; return; }
+  var lines = raw.split('\n').map(function(u){return u.trim();}).filter(function(u){return u.indexOf('linkedin.com/in/')>-1;});
+  if (!lines.length) {
+    document.getElementById('ul-result').innerHTML = '<span style="color:#e53e3e">No valid LinkedIn profile URLs. Use: https://www.linkedin.com/in/name</span>';
+    return;
+  }
+  var btn = document.getElementById('ul-btn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  document.getElementById('ul-result').textContent = 'Uploading ' + lines.length + ' contacts...';
+  try {
+    var contacts = lines.map(function(u){return {li_profile_url:u};});
+    var r = await fetch('/api/lists/' + _ulId + '/contacts', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({workspace_id: parseInt(workspaceId), contacts: contacts})
+    }).then(function(res){return res.json();});
+    document.getElementById('ul-result').innerHTML = '<span style="color:#16a34a">&#10003; Added ' + r.added + ' contact(s)' + (r.skipped?' (' + r.skipped + ' skipped)':'') + '</span>';
+    await loadLists();
+    btn.textContent = 'Done';
+    setTimeout(closeUploadModal, 1800);
+  } catch(e) {
+    document.getElementById('ul-result').innerHTML = '<span style="color:#e53e3e">Error: ' + e.message + '</span>';
+    btn.disabled = false; btn.textContent = 'Upload';
+  }
+}
+
 </script>
+
+<div id="upload-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeUploadModal()">
+  <div class="modal-box">
+    <div class="modal-title">⬆ Upload contacts to <span id="ul-list-name"></span></div>
+    <div class="modal-field">
+      <label>LinkedIn profile URLs <span style="color:#999;font-weight:400">(one per line)</span></label>
+      <textarea id="ul-urls" rows="8" placeholder="https://www.linkedin.com/in/john-doe"></textarea>
+    </div>
+    <div id="ul-result" style="font-size:13px;margin-top:4px;min-height:20px"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel-modal" onclick="closeUploadModal()">Cancel</button>
+      <button class="btn-create-list" id="ul-btn" onclick="uploadContacts()">Upload</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
