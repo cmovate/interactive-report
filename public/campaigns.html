@@ -221,6 +221,20 @@ textarea:focus { outline: none; border-color: #1D9E75; }
 .preview-notice strong { color:#0a5c44; }
 .country-input { width:100%;padding:10px 12px;border:1px solid #e0e0e0;border-radius:8px;font-size:13px;font-family:inherit;background:#fafafa; }
 .country-input:focus { outline:none;border-color:#1D9E75; }
+
+.list-picker-grid{display:flex;flex-wrap:wrap;gap:10px;padding:12px 0}
+.list-picker-loading{font-size:13px;color:#9ca3af;padding:8px 0}
+.list-picker-card{display:flex;align-items:center;gap:10px;padding:10px 16px;border:1.5px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .15s;background:white;min-width:160px}
+.list-picker-card:hover{border-color:#9ca3af;background:#f9fafb}
+.list-picker-card.selected{border-color:#16a34a;background:#f0fdf4}
+.list-picker-card .lpc-icon{font-size:18px}
+.list-picker-card .lpc-name{font-size:13px;font-weight:600;color:#111827}
+.list-picker-card .lpc-count{font-size:11px;color:#6b7280;margin-top:1px}
+.list-picker-card .lpc-check{margin-left:auto;color:#16a34a;font-size:16px;display:none}
+.list-picker-card.selected .lpc-check{display:block}
+.list-picker-empty{font-size:13px;color:#9ca3af;padding:8px 0}
+.list-picker-empty a{color:#16a34a;text-decoration:none;font-weight:600}
+
 </style>
 </head>
 <body>
@@ -303,7 +317,7 @@ const params = new URLSearchParams(window.location.search);
 const workspaceId = params.get('workspace_id');
 const settingsUrl = `settings.html?workspace_id=${workspaceId}`;
 
-const STEPS = ['Account','Audience','Sequence','Name & Hours'];
+const STEPS = ['Account','List','Sequence','Name & Hours'];
 const DAYS  = [
   {key:'1',label:'Mon'},{key:'2',label:'Tue'},{key:'3',label:'Wed'},
   {key:'4',label:'Thu'},{key:'5',label:'Fri'},{key:'6',label:'Sat'},{key:'7',label:'Sun'}
@@ -330,7 +344,10 @@ var cmId=null, cmData=null, cmTab=null, cmLoaded={}, cmSettings=null, cmCtPage=1
 
 function resetWizard() {
   return {
-    selectedAccount: null, audienceType: null,
+    selectedAccount: null, list_id: null,
+    list_name: null,
+    list_type: null,
+    audienceType: null,
     urlsPasted: '', companyUrls: '', searchTitles: '', maxPerCompany: 10,
     searchStatus: null, contacts: [], companiesMeta: [],
     allCompanyUrls: [], isPreview: false, totalCompanies: 0,
@@ -402,17 +419,7 @@ function renderStep() {
 async function nextStep() {
   if (currentStep===0 && !wizard.selectedAccount) return alert('Please select an account.');
   if (currentStep===1) {
-    if (!wizard.audienceType) return alert('Please choose how to define your audience.');
-    if (wizard.audienceType==='people' && countUrls(wizard.urlsPasted)===0) return alert('Please paste LinkedIn profile URLs.');
-    if (wizard.audienceType==='company') {
-      if (!wizard.companyUrls.trim()) return alert('Please paste company URLs.');
-      if (!wizard.searchTitles.trim()) return alert('Please enter job titles.');
-      if (wizard.searchStatus !== 'done') {
-        startSearch();
-        return;
-      }
-      if (wizard.contacts.length === 0) return alert('No contacts found. Try a different search.');
-    }
+    if (!wizard.list_id) return alert('Please select a list to use for this campaign.');
   }
   if (currentStep===STEPS.length-1) { await createCampaign(); return; }
   currentStep++; renderStep();
@@ -432,12 +439,8 @@ function selectAccount(id) {
 }
 
 function renderStepAudience(body) {
-  body.innerHTML = `<div class="section-label">Define audience</div>
-    <div class="audience-options">
-      <div class="audience-option${wizard.audienceType==='people'?' selected':''}" onclick="selectAudience('people')"><div class="audience-option-icon">&#128100;</div><div class="audience-option-title">Paste profile URLs</div><div class="audience-option-sub">LinkedIn profile links of specific people</div></div>
-      <div class="audience-option${wizard.audienceType==='company'?' selected':''}" onclick="selectAudience('company')"><div class="audience-option-icon">&#127970;</div><div class="audience-option-title">Search by company</div><div class="audience-option-sub">Find people by company + job title</div></div>
-    </div><div id="audience-detail"></div>`;
-  renderAudienceDetail();
+  body.innerHTML = '<div class="section-label">Select a list</div><div id="list-picker-grid" class="list-picker-grid"><div class="list-picker-loading">Loading lists…</div></div>';
+  loadListsForPicker();
 }
 function selectAudience(type) { wizard.audienceType=type; renderStepAudience(document.getElementById('modal-body')); }
 
@@ -673,6 +676,50 @@ function saveMsgDialog() {
 
 load();
 </script>
-<script src="campaign-modal.js"></script>
+<script src="campaign-modal.js">
+async function loadListsForPicker() {
+  const grid = document.getElementById('list-picker-grid');
+  if (!grid) return;
+  try {
+    const data = await apiFetch('/api/lists?workspace_id=' + workspaceId);
+    const contactLists = (data.items||[]).filter(l => l.type === 'contacts');
+    if (!contactLists.length) {
+      grid.innerHTML = '<div class="list-picker-empty">No contact lists yet. <a href="javascript:void(0)" onclick="closeModal()">Go to Lists</a> to create one first.</div>';
+      return;
+    }
+    grid.innerHTML = contactLists.map(l => {
+      const isSel = wizard.list_id === l.id;
+      return '<div class="list-picker-card' + (isSel?' selected':'') + '" onclick="selectList(' + l.id + ',' + JSON.stringify(l.name) + ')">' +
+        '<span class="lpc-icon">👥</span>' +
+        '<div><div class="lpc-name">' + escHtml(l.name) + '</div>' +
+        '<div class="lpc-count">' + (l.contact_count||0) + ' contacts</div></div>' +
+        '<span class="lpc-check">✓</span>' +
+        '</div>';
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = '<div class="list-picker-loading" style="color:#ef4444">Failed to load lists: ' + e.message + '</div>';
+  }
+}
+
+function selectList(id, name) {
+  wizard.list_id = id;
+  wizard.list_name = name;
+  wizard.list_type = 'contacts';
+  document.querySelectorAll('.list-picker-card').forEach(el => el.classList.remove('selected'));
+  // Find clicked card and select it
+  const cards = document.querySelectorAll('.list-picker-card');
+  cards.forEach(el => {
+    if (el.querySelector('.lpc-name') && el.querySelector('.lpc-name').textContent === name) {
+      el.classList.add('selected');
+      el.querySelector('.lpc-check').style.display = 'block';
+    }
+  });
+}
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+</script>
 </body>
 </html>
