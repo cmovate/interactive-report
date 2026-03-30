@@ -239,18 +239,32 @@ router.patch('/:id/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// FIX: Cascade-delete all related data when a campaign is deleted
+// DELETE campaign — optional cascades controlled by query params:
+//   ?delete_contacts=true   → also delete contacts (All Data)
+//   ?delete_companies=true  → also delete campaign_companies (Opportunities link)
 router.delete('/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
     const camp = await requireCampaign(req, res, wsId);
     if (!camp) return;
-    // Delete all dependent data first (no FK cascade in schema)
-    await db.query('DELETE FROM contacts WHERE campaign_id = $1 AND workspace_id = $2', [camp.id, wsId]);
-    await db.query('DELETE FROM campaign_companies WHERE campaign_id = $1', [camp.id]);
+
+    const deleteContacts  = req.query.delete_contacts  === 'true';
+    const deleteCompanies = req.query.delete_companies === 'true';
+
+    if (deleteContacts) {
+      const { rowCount } = await db.query(
+        'DELETE FROM contacts WHERE campaign_id = $1 AND workspace_id = $2', [camp.id, wsId]);
+      console.log(`[Campaigns] Deleted ${rowCount} contact(s) for campaign ${camp.id}`);
+    }
+    if (deleteCompanies) {
+      const { rowCount } = await db.query(
+        'DELETE FROM campaign_companies WHERE campaign_id = $1', [camp.id]);
+      console.log(`[Campaigns] Deleted ${rowCount} campaign_compan(ies) for campaign ${camp.id}`);
+    }
+
     await db.query('DELETE FROM campaigns WHERE id=$1 AND workspace_id=$2', [camp.id, wsId]);
-    console.log(`[Campaigns] Deleted campaign ${camp.id} ("${camp.name}") and all related data`);
-    res.json({ success: true });
+    console.log(`[Campaigns] Deleted campaign ${camp.id} ("${camp.name}") | contacts=${deleteContacts} companies=${deleteCompanies}`);
+    res.json({ success: true, deleted_contacts: deleteContacts, deleted_companies: deleteCompanies });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -364,7 +378,7 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
   for (let batchIdx = startBatchIdx; batchIdx < totalBatches; batchIdx++) {
     const batch = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
     const keywords = buildKeywordsQuery(batch, titles, country);
-    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} — "${keywords.slice(0,100)}"`);
+    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} â "${keywords.slice(0,100)}"`);
     let cursor = null, page = 0;
     do {
       page++;
@@ -390,7 +404,7 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
     } while (page < BATCH_MAX_PAGES);
     if (batchIdx < totalBatches - 1) await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
   }
-  console.log(`[BatchFetch] Campaign ${campaignId}: complete — ${totalAdded} contacts added`);
+  console.log(`[BatchFetch] Campaign ${campaignId}: complete â ${totalAdded} contacts added`);
 }
 
 router.post('/:id/fetch-all-companies', async (req, res) => {
