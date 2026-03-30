@@ -1,65 +1,59 @@
 const express = require('express');
-const router  = express.Router();
-const db      = require('../db');
-const { createRelationWebhook, deleteWebhook, getAccountInfo } = require('../unipile');
-
+const router = express.Router();
+const db = require('../db');
+const { createRelationWebhook, deleteWebhook, getAccountInfo, enrichProfile } = require('../unipile');
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
 /**
- * Extract avatar URL from a Unipile account object.
- * Unipile returns different shapes across provider versions â
- * fall through the known field names in priority order.
- */
-function extractAvatar(profile) {
-  if (!profile) return null;
-  // Try direct fields first
-  const direct = profile.picture || profile.avatar || profile.avatar_url ||
-    profile.profile_picture_url || profile.photo_url ||
-    profile.connection_params?.picture || profile.thumbnail ||
-    profile.profile_picture || profile.image_url || profile.photo;
-  if (direct) return direct;
-  // Try sources array
-  const sources = profile.sources || profile.images || [];
-  if (Array.isArray(sources)) {
-    const src = sources.find(s => s.type === 'picture' || s.type === 'avatar' ||
-      s.type === 'profile_picture' || s.type === 'image');
-    if (src?.value) return src.value;
-    if (src?.url) return src.url;
-    // Any source with a URL-like value
-    const anySrc = sources.find(s => s.value?.startsWith('http'));
-    if (anySrc?.value) return anySrc.value;
-  }
-  return null;
-}
-
-// Log profile fields for debugging avatar issues
-function logProfileFields(accountId, profile) {
-  if (!profile) { console.warn('[Avatar] No profile returned for', accountId); return; }
-  const keys = Object.keys(profile);
-  const urlKeys = keys.filter(k => typeof profile[k] === 'string' && profile[k].startsWith('http'));
-  console.log('[Avatar] Account', accountId, '— top-level keys:', keys.slice(0,15).join(', '));
-  if (urlKeys.length) console.log('[Avatar] URL-like fields:', urlKeys.map(k => k + '=' + String(profile[k]).slice(0,60)).join(' | '));
-}
-
-/**
- * Fetch Unipile account info and write avatar_url / full_name to DB.
- * Fire-and-forget safe â errors are only warned, never thrown.
+ * Hydrate avatar_url + full_name for a Unipile LinkedIn account.
+ *
+ * /api/v1/accounts/:id returns basic account metadata but NO profile picture.
+ * The picture lives on the LinkedIn user profile — we get it via enrichProfile
+ * using the publicIdentifier from connection_params.im.publicIdentifier.
  */
 async function hydrateAccountProfile(accountId) {
   try {
-    const profile = await getAccountInfo(accountId);
-    const avatarUrl = extractAvatar(profile);
-    const fullName  = profile?.name || null;
-    if (avatarUrl || fullName) {
-      await db.query(
-        `UPDATE unipile_accounts SET avatar_url = $1, full_name = $2
-         WHERE account_id = $3`,
-        [avatarUrl, fullName, accountId]
-      );
-      console.log(`[Workspace] Profile hydrated for ${accountId}: name="${fullName}" avatar=${avatarUrl ? 'yes' : 'no'}`);
+    // Step 1: get account metadata to extract the LinkedIn public identifier
+    const account = await getAccountInfo(accountId);
+    const identifier = account?.connection_params?.im?.publicIdentifier || null;
+    const nameFromAccount = account?.name ||
+      account?.connection_params?.im?.username ||
+      account?.connection_params?.im?.name ||
+      null;
+
+    if (!identifier) {
+      console.warn('[Avatar] No publicIdentifier for account', accountId,
+        '— keys:', Object.keys(account || {}).join(', '));
+      // Still save name if we have it
+      if (nameFromAccount) {
+        await db.query(
+          'UPDATE unipile_accounts SET full_name = $1 WHERE account_id = $2 AND full_name IS NULL',
+          [nameFromAccount, accountId]
+        );
+      }
+      return;
     }
+
+    // Step 2: fetch the LinkedIn user profile to get the picture
+    const profile = await enrichProfile(accountId, 'https://www.linkedin.com/in/' + identifier, false);
+    const avatarUrl =
+      profile?.profile_picture_url ||
+      profile?.profile_picture_url_large ||
+      profile?.picture ||
+      profile?.avatar ||
+      profile?.photo_url ||
+      null;
+    const fullName = profile?.first_name && profile?.last_name
+      ? (profile.first_name + ' ' + profile.last_name).trim()
+      : (profile?.full_name || profile?.name || nameFromAccount || null);
+
+    await db.query(
+      'UPDATE unipile_accounts SET avatar_url = $1, full_name = $2 WHERE account_id = $3',
+      [avatarUrl, fullName, accountId]
+    );
+    console.log('[Avatar] Hydrated', accountId, '— name:', fullName, '— avatar:', avatarUrl ? 'YES' : 'NO');
   } catch (err) {
-    console.warn(`[Workspace] Could not hydrate profile for ${accountId}: ${err.message}`);
+    console.warn('[Avatar] Could not hydrate', accountId, ':', err.message);
   }
 }
 
@@ -77,9 +71,7 @@ router.post('/', async (req, res) => {
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
     const { rows } = await db.query(
-      'INSERT INTO workspaces (name) VALUES ($1) RETURNING *',
-      [name.trim()]
-    );
+      'INSERT INTO workspaces (name) VALUES ($1) RETURNING *', [name.trim()]);
     res.status(201).json(rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -88,9 +80,7 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { rows: accounts } = await db.query(
-      'SELECT account_id, webhook_id FROM unipile_accounts WHERE workspace_id = $1',
-      [req.params.id]
-    );
+      'SELECT account_id, webhook_id FROM unipile_accounts WHERE workspace_id = $1', [req.params.id]);
     for (const acc of accounts) {
       if (acc.webhook_id) await deleteWebhook(acc.webhook_id);
     }
@@ -103,9 +93,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/accounts', async (req, res) => {
   try {
     const { rows } = await db.query(
-      'SELECT * FROM unipile_accounts WHERE workspace_id = $1 ORDER BY created_at ASC',
-      [req.params.id]
-    );
+      'SELECT * FROM unipile_accounts WHERE workspace_id = $1 ORDER BY created_at ASC', [req.params.id]);
     res.json({ items: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -115,54 +103,38 @@ router.post('/:id/accounts', async (req, res) => {
   try {
     const { account_id, display_name, provider, status } = req.body;
     if (!account_id) return res.status(400).json({ error: 'account_id is required' });
-
     const existing = await db.query(
       'SELECT id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
-      [req.params.id, account_id]
-    );
-    if (existing.rows.length > 0) {
+      [req.params.id, account_id]);
+    if (existing.rows.length > 0)
       return res.status(409).json({ error: 'Account already connected to this workspace' });
-    }
-
     let webhookId = null;
     try {
       webhookId = await createRelationWebhook(account_id, SERVER_URL);
-      console.log(`[Workspace] Created webhook ${webhookId} for account ${account_id}`);
+      console.log('[Workspace] Created webhook', webhookId, 'for account', account_id);
     } catch (err) {
-      console.warn(`[Workspace] Could not create webhook for ${account_id}: ${err.message}`);
+      console.warn('[Workspace] Could not create webhook for', account_id, ':', err.message);
     }
-
     const { rows } = await db.query(
       `INSERT INTO unipile_accounts (workspace_id, account_id, display_name, provider, status, webhook_id)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.params.id, account_id, display_name || account_id,
-       provider || 'linkedin', status || 'connected', webhookId]
-    );
+      [req.params.id, account_id, display_name || account_id, provider || 'linkedin', status || 'connected', webhookId]);
     const saved = rows[0];
-
-    // Fire-and-forget profile hydration (avatar + full_name)
-    hydrateAccountProfile(account_id);
-
+    hydrateAccountProfile(account_id); // fire-and-forget
     res.status(201).json(saved);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // POST /api/workspaces/:id/accounts/:accountId/refresh-profile
-// Manually re-fetch the LinkedIn profile picture + name for an account.
-// Call this from the settings page or on a weekly cron.
 router.post('/:id/accounts/:accountId/refresh-profile', async (req, res) => {
   try {
     const { rows } = await db.query(
       'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
-      [req.params.id, req.params.accountId]
-    );
+      [req.params.id, req.params.accountId]);
     if (!rows.length) return res.status(404).json({ error: 'Account not found' });
     await hydrateAccountProfile(req.params.accountId);
-    // Return the freshly updated row
     const { rows: updated } = await db.query(
-      'SELECT * FROM unipile_accounts WHERE account_id = $1',
-      [req.params.accountId]
-    );
+      'SELECT * FROM unipile_accounts WHERE account_id = $1', [req.params.accountId]);
     res.json({ success: true, account: updated[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -171,20 +143,16 @@ router.post('/:id/accounts/:accountId/refresh-profile', async (req, res) => {
 router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
   try {
     const { limits, company_page_url } = req.body;
-    if (!limits || typeof limits !== 'object') {
+    if (!limits || typeof limits !== 'object')
       return res.status(400).json({ error: 'limits object required' });
-    }
     const settingsPatch = { limits };
     if (typeof company_page_url === 'string') settingsPatch.company_page_url = company_page_url.trim();
     const { rows } = await db.query(
-      `UPDATE unipile_accounts
-       SET settings = settings || $1::jsonb
-       WHERE workspace_id = $2 AND account_id = $3
-       RETURNING *`,
-      [JSON.stringify(settingsPatch), req.params.id, req.params.accountId]
-    );
+      `UPDATE unipile_accounts SET settings = settings || $1::jsonb
+       WHERE workspace_id = $2 AND account_id = $3 RETURNING *`,
+      [JSON.stringify(settingsPatch), req.params.id, req.params.accountId]);
     if (!rows.length) return res.status(404).json({ error: 'Account not found' });
-    console.log(`[Settings] Saved limits for account ${req.params.accountId}:`, limits);
+    console.log('[Settings] Saved limits for account', req.params.accountId, ':', limits);
     res.json({ success: true, settings: rows[0].settings });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -194,15 +162,11 @@ router.delete('/:id/accounts/:accountId', async (req, res) => {
   try {
     const { rows } = await db.query(
       'SELECT webhook_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
-      [req.params.id, req.params.accountId]
-    );
-    if (rows.length > 0 && rows[0].webhook_id) {
-      await deleteWebhook(rows[0].webhook_id);
-    }
+      [req.params.id, req.params.accountId]);
+    if (rows.length > 0 && rows[0].webhook_id) await deleteWebhook(rows[0].webhook_id);
     await db.query(
       'DELETE FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
-      [req.params.id, req.params.accountId]
-    );
+      [req.params.id, req.params.accountId]);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
