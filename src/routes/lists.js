@@ -1,0 +1,271 @@
+/**
+ * /api/lists
+ *
+ * Lists are the new starting point of El-Via ABM.
+ * A list is a named, reusable collection of contacts OR companies
+ * that can be attached to campaigns, opportunities, and feed views.
+ *
+ * Tables:
+ *   lists             — id, workspace_id, name, type ('contacts'|'companies'), description
+ *   list_contacts     — list_id, contact_id  (many-to-many to contacts)
+ *   list_companies    — id, list_id, workspace_id, company_name, li_company_url, company_linkedin_id
+ *
+ * Routes:
+ *   GET    /                         list all lists for workspace
+ *   POST   /                         create a list
+ *   PATCH  /:id                      rename / update description
+ *   DELETE /:id                      delete list (and its members)
+ *   GET    /:id/contacts             get contacts in list (with pagination)
+ *   POST   /:id/contacts             add contacts to list (array of li_profile_urls or contact_ids)
+ *   DELETE /:id/contacts/:contactId  remove contact from list
+ *   GET    /:id/companies            get companies in list
+ *   POST   /:id/companies            add companies to list
+ *   DELETE /:id/companies/:companyId remove company from list
+ */
+
+const express = require('express');
+const router = express.Router();
+const db = require('../db');
+const { enqueue } = require('../enrichment');
+
+// ─── GET /api/lists ────────────────────────────────────────────────────────
+router.get('/', async (req, res) => {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    const { rows } = await db.query(
+      `SELECT l.*,
+         (SELECT COUNT(*) FROM list_contacts lc
+          JOIN contacts c ON c.id = lc.contact_id
+          WHERE lc.list_id = l.id AND c.workspace_id = l.workspace_id) AS contact_count,
+         (SELECT COUNT(*) FROM list_companies lco WHERE lco.list_id = l.id) AS company_count
+       FROM lists l
+       WHERE l.workspace_id = $1
+       ORDER BY l.created_at DESC`,
+      [workspace_id]
+    );
+    res.json({ items: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/lists ───────────────────────────────────────────────────────
+router.post('/', async (req, res) => {
+  try {
+    const { workspace_id, name, type, description } = req.body;
+    if (!workspace_id || !name || !type)
+      return res.status(400).json({ error: 'workspace_id, name, type required' });
+    if (!['contacts','companies'].includes(type))
+      return res.status(400).json({ error: 'type must be contacts or companies' });
+
+    const { rows } = await db.query(
+      `INSERT INTO lists (workspace_id, name, type, description)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [workspace_id, name.trim(), type, (description||'').trim() || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── PATCH /api/lists/:id ─────────────────────────────────────────────────
+router.patch('/:id', async (req, res) => {
+  try {
+    const { workspace_id, name, description } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const updates = [];
+    const values = [];
+    if (name)        { updates.push(`name = $${values.push(name.trim())}`); }
+    if (description !== undefined) { updates.push(`description = $${values.push(description||null)}`); }
+    if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
+    values.push(req.params.id, workspace_id);
+    const { rows } = await db.query(
+      `UPDATE lists SET ${updates.join(', ')} WHERE id = $${values.length-1} AND workspace_id = $${values.length} RETURNING *`,
+      values
+    );
+    if (!rows.length) return res.status(404).json({ error: 'List not found' });
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── DELETE /api/lists/:id ────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    // Remove all members
+    await db.query('DELETE FROM list_contacts  WHERE list_id = $1', [req.params.id]);
+    await db.query('DELETE FROM list_companies WHERE list_id = $1', [req.params.id]);
+    const { rowCount } = await db.query(
+      'DELETE FROM lists WHERE id = $1 AND workspace_id = $2', [req.params.id, workspace_id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'List not found' });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GET /api/lists/:id/contacts ──────────────────────────────────────────
+router.get('/:id/contacts', async (req, res) => {
+  try {
+    const { workspace_id, page = 1, limit = 50 } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const { rows: cnt } = await db.query(
+      `SELECT COUNT(*) FROM list_contacts lc
+       JOIN contacts c ON c.id = lc.contact_id
+       WHERE lc.list_id = $1 AND c.workspace_id = $2`,
+      [req.params.id, workspace_id]
+    );
+    const { rows } = await db.query(
+      `SELECT c.*, lc.added_at
+       FROM list_contacts lc
+       JOIN contacts c ON c.id = lc.contact_id
+       WHERE lc.list_id = $1 AND c.workspace_id = $2
+       ORDER BY lc.added_at DESC
+       LIMIT $3 OFFSET $4`,
+      [req.params.id, workspace_id, parseInt(limit), offset]
+    );
+    res.json({ items: rows, total: parseInt(cnt[0].count), page: parseInt(page), limit: parseInt(limit) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/lists/:id/contacts ─────────────────────────────────────────
+// Body: { workspace_id, contacts: [{li_profile_url, first_name, last_name, company, title}] }
+// Or:   { workspace_id, contact_ids: [1,2,3] }  (add existing contacts by ID)
+router.post('/:id/contacts', async (req, res) => {
+  try {
+    const { workspace_id, contacts, contact_ids } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Verify list exists + belongs to workspace
+    const { rows: list } = await db.query(
+      'SELECT id, type FROM lists WHERE id = $1 AND workspace_id = $2',
+      [req.params.id, workspace_id]
+    );
+    if (!list.length) return res.status(404).json({ error: 'List not found' });
+    if (list[0].type !== 'contacts') return res.status(400).json({ error: 'This is a companies list' });
+
+    let added = 0, skipped = 0;
+    const toEnrich = [];
+
+    // Mode 1: add by contact_ids (existing contacts)
+    if (Array.isArray(contact_ids) && contact_ids.length) {
+      for (const cid of contact_ids) {
+        try {
+          await db.query(
+            'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [req.params.id, cid]
+          );
+          added++;
+        } catch { skipped++; }
+      }
+    }
+
+    // Mode 2: add new contacts by URL/data
+    if (Array.isArray(contacts) && contacts.length) {
+      for (const c of contacts) {
+        const url = (c.li_profile_url || '').trim();
+        if (!url.includes('linkedin.com/in/')) { skipped++; continue; }
+
+        // Upsert contact into contacts table (no campaign)
+        const { rows: ins } = await db.query(
+          `INSERT INTO contacts (workspace_id, first_name, last_name, company, title, li_profile_url, campaign_id)
+           VALUES ($1,$2,$3,$4,$5,$6,NULL)
+           ON CONFLICT (workspace_id, li_profile_url) DO UPDATE
+             SET first_name=EXCLUDED.first_name, last_name=EXCLUDED.last_name,
+                 company=EXCLUDED.company, title=EXCLUDED.title
+           RETURNING id`,
+          [workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'', url]
+        );
+        if (!ins[0]?.id) { skipped++; continue; }
+
+        // Link to list
+        await db.query(
+          'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [req.params.id, ins[0].id]
+        );
+        added++;
+        toEnrich.push({ id: ins[0].id, li_profile_url: url });
+      }
+    }
+
+    res.json({ added, skipped, enrichment_queued: toEnrich.length });
+
+    // Trigger enrichment (fire-and-forget, use first account in workspace)
+    if (toEnrich.length) {
+      db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id])
+        .then(({ rows }) => {
+          if (rows[0]) toEnrich.forEach(c => enqueue(c.id, rows[0].account_id, c.li_profile_url));
+        });
+    }
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── DELETE /api/lists/:id/contacts/:contactId ───────────────────────────
+router.delete('/:id/contacts/:contactId', async (req, res) => {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    await db.query('DELETE FROM list_contacts WHERE list_id=$1 AND contact_id=$2',
+      [req.params.id, req.params.contactId]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GET /api/lists/:id/companies ────────────────────────────────────────
+router.get('/:id/companies', async (req, res) => {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const { rows } = await db.query(
+      'SELECT * FROM list_companies WHERE list_id=$1 AND workspace_id=$2 ORDER BY company_name',
+      [req.params.id, workspace_id]
+    );
+    res.json({ items: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── POST /api/lists/:id/companies ───────────────────────────────────────
+router.post('/:id/companies', async (req, res) => {
+  try {
+    const { workspace_id, companies } = req.body;
+    if (!workspace_id || !Array.isArray(companies))
+      return res.status(400).json({ error: 'workspace_id and companies[] required' });
+
+    const { rows: list } = await db.query(
+      'SELECT id, type FROM lists WHERE id=$1 AND workspace_id=$2',
+      [req.params.id, workspace_id]
+    );
+    if (!list.length) return res.status(404).json({ error: 'List not found' });
+    if (list[0].type !== 'companies') return res.status(400).json({ error: 'This is a contacts list' });
+
+    let added = 0, skipped = 0;
+    for (const co of companies) {
+      if (!co.company_name && !co.li_company_url) { skipped++; continue; }
+      const { rows: dup } = await db.query(
+        'SELECT id FROM list_companies WHERE list_id=$1 AND li_company_url=$2 LIMIT 1',
+        [req.params.id, co.li_company_url||'']
+      );
+      if (dup.length) { skipped++; continue; }
+      await db.query(
+        `INSERT INTO list_companies (list_id, workspace_id, company_name, li_company_url, company_linkedin_id)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [req.params.id, workspace_id, co.company_name||'', co.li_company_url||'', co.company_linkedin_id||null]
+      );
+      added++;
+    }
+    res.json({ added, skipped });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── DELETE /api/lists/:id/companies/:companyId ──────────────────────────
+router.delete('/:id/companies/:companyId', async (req, res) => {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    await db.query('DELETE FROM list_companies WHERE id=$1 AND list_id=$2 AND workspace_id=$3',
+      [req.params.companyId, req.params.id, workspace_id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+module.exports = router;
