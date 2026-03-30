@@ -35,6 +35,33 @@ router.post('/unipile', async (req, res) => {
   try {
     if (payload?.event === 'new_relation')  await handleNewRelation(payload);
     if (payload?.event === 'new_message')   await handleNewMessage(payload);
+
+  // Sync incoming message to inbox_threads + inbox_messages
+  try {
+    const chatId = payload.chat_id || payload.object_id;
+    const msgId  = payload.message_id || payload.id || ('wh_' + Date.now());
+    const text   = payload.text || payload.body || payload.content || '';
+    if (chatId && text && rows.length) {
+      const wsId = rows[0].workspace_id;
+      const accId = rows[0].camp_account_id || null;
+      const upsertThread = 'INSERT INTO inbox_threads'
+        + ' (workspace_id, account_id, thread_id, last_message_at, last_message_preview, unread_count, updated_at)'
+        + ' VALUES ($1,$2,$3,NOW(),$4,1,NOW())'
+        + ' ON CONFLICT (thread_id) DO UPDATE SET'
+        + ' unread_count = inbox_threads.unread_count + 1,'
+        + ' last_message_at = NOW(), last_message_preview = $4, updated_at = NOW()'
+        + ' RETURNING id';
+      const thrRes = await db.query(upsertThread, [wsId, accId, chatId, text.slice(0,120)]);
+      const threadDbId = thrRes.rows[0] && thrRes.rows[0].id;
+      if (threadDbId) {
+        const insertMsg = 'INSERT INTO inbox_messages (thread_id, unipile_msg_id, direction, content, sent_at)'
+          + ' VALUES ($1,$2,''received'',$3,NOW()) ON CONFLICT (unipile_msg_id) DO NOTHING';
+        await db.query(insertMsg, [threadDbId, msgId, text]);
+      }
+    }
+  } catch (inboxErr) {
+    console.warn('[Webhook] inbox sync failed:', inboxErr.message);
+  }
   } catch (err) {
     console.error('[Webhook] Error processing event:', err.message);
   }
