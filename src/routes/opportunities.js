@@ -1,17 +1,17 @@
 /**
  * /api/opportunities
  *
- * Warm leads intelligence — companies from campaigns + manually-added companies (views/labels).
+ * Warm leads intelligence â companies from campaigns + manually-added companies (views/labels).
  *
  * Routes:
- *   GET  /                       – all companies (merged) + views + campaigns metadata
- *   GET  /views                  – list views with company counts
- *   POST /views                  – create a view (label)
- *   DELETE /views/:id            – delete a view (workspace_id required)
- *   POST /companies              – add custom companies to a view
- *   DELETE /companies/:id        – remove a custom company (workspace_id required)
- *   POST /attach-to-campaign     – search LinkedIn & add contacts to an automation campaign
- *   POST /send-message           – send a direct LinkedIn message to a contact
+ *   GET  /                       â all companies (merged) + views + campaigns metadata
+ *   GET  /views                  â list views with company counts
+ *   POST /views                  â create a view (label)
+ *   DELETE /views/:id            â delete a view (workspace_id required)
+ *   POST /companies              â add custom companies to a view
+ *   DELETE /companies/:id        â remove a custom company (workspace_id required)
+ *   POST /attach-to-campaign     â search LinkedIn & add contacts to an automation campaign
+ *   POST /send-message           â send a direct LinkedIn message to a contact
  */
 
 const express  = require('express');
@@ -231,7 +231,7 @@ router.post('/views', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE /api/opportunities/views/:id  — workspace_id required
+// DELETE /api/opportunities/views/:id  â workspace_id required
 router.delete('/views/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -299,7 +299,7 @@ router.post('/companies', async (req, res) => {
   }
 });
 
-// DELETE /api/opportunities/companies/:id  — workspace_id required
+// DELETE /api/opportunities/companies/:id  â workspace_id required
 router.delete('/companies/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -396,7 +396,7 @@ router.post('/attach-to-campaign', async (req, res) => {
 
 // POST /api/opportunities/send-message
 
-// POST /enrich — search LinkedIn connections at opportunity companies (no campaign required)
+// POST /enrich â search LinkedIn connections at opportunity companies (no campaign required)
 router.post('/enrich', async (req, res) => {
   const { workspace_id, company_ids, titles, limit } = req.body;
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
@@ -445,7 +445,7 @@ router.post('/enrich', async (req, res) => {
         for (const p of people) {
           const liUrl = (p.linkedin_url || p.public_profile_url || "").split("?")[0].trim();
           if (!liUrl) continue;
-          // Upsert contact — campaign_id = NULL, linked to opportunity_company
+          // Upsert contact â campaign_id = NULL, linked to opportunity_company
           const ins = (await db.query(
             'INSERT INTO contacts (campaign_id, workspace_id, first_name, last_name, company, title, li_profile_url, li_company_url, already_connected)' +
             ' SELECT NULL, $1, $2, $3, $4, $5, $6, $7, true' +
@@ -493,7 +493,7 @@ router.post('/send-message', async (req, res) => {
     if (!contact.account_id)
       return res.status(400).json({ error: 'No Unipile account for this contact' });
     if (!contact.provider_id && !contact.chat_id)
-      return res.status(400).json({ error: 'Contact not enriched — provider_id missing' });
+      return res.status(400).json({ error: 'Contact not enriched â provider_id missing' });
 
     let chatId = contact.chat_id;
     if (chatId) {
@@ -515,6 +515,63 @@ router.post('/send-message', async (req, res) => {
     console.error('[Opportunities] send-message error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+
+// POST /api/opportunities/enrich-company-ids
+// Background job: resolve LinkedIn company IDs for opportunity_companies that have a URL but no ID.
+// Uses the first available Unipile account in the workspace.
+router.post('/enrich-company-ids', async (req, res) => {
+  try {
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Get first account for this workspace
+    const { rows: accs } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1', [workspace_id]
+    );
+    if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
+    const accountId = accs[0].account_id;
+
+    // Find companies with URL but no LinkedIn ID
+    const { rows: companies } = await db.query(
+      `SELECT id, company_name, li_company_url FROM opportunity_companies
+       WHERE workspace_id = $1 AND (company_linkedin_id IS NULL OR company_linkedin_id = '')
+       AND li_company_url IS NOT NULL AND li_company_url != ''
+       ORDER BY id LIMIT 50`,
+      [workspace_id]
+    );
+
+    if (!companies.length) return res.json({ status: 'nothing_to_do', message: 'All companies already have LinkedIn IDs' });
+
+    res.json({ status: 'started', total: companies.length, message: `Resolving IDs for ${companies.length} companies...` });
+
+    // Background enrichment
+    (async () => {
+      let updated = 0, failed = 0;
+      for (const co of companies) {
+        try {
+          const slug = (co.li_company_url || '').match(/linkedin\.com\/company\/([^/?#]+)/)?.[1];
+          if (!slug) { failed++; continue; }
+          const result = await lookupCompany(accountId, slug);
+          if (result?.id) {
+            await db.query(
+              'UPDATE opportunity_companies SET company_linkedin_id = $1 WHERE id = $2',
+              [result.id, co.id]
+            );
+            updated++;
+            console.log(`[Opp] Resolved ${co.company_name}: ${result.id}`);
+          } else { failed++; }
+          await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+        } catch (err) {
+          console.warn(`[Opp] Failed to resolve ${co.company_name}: ${err.message}`);
+          failed++;
+          await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      console.log(`[Opp] enrich-company-ids complete: ${updated} resolved, ${failed} failed`);
+    })().catch(e => console.error('[Opp] enrich-company-ids error:', e.message));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
