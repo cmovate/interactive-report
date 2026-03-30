@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>El-Via ABM — Product Map</title>
+<title>El-Via ABM â Product Map</title>
 <style>
 :root{--green:#16a34a;--green-light:#dcfce7;--teal:#0d9488;--blue:#2563eb;--blue-light:#dbeafe;--purple:#7c3aed;--purple-light:#ede9fe;--orange:#ea580c;--orange-light:#ffedd5;--gray:#6b7280;--border:#e5e7eb;--text:#111827;--text-sub:#374151}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -42,7 +42,7 @@ section:last-child{padding-bottom:80px}
 ul.feat{list-style:none;padding:0}
 ul.feat li{font-size:13.5px;color:var(--text-sub);padding:5px 0;display:flex;align-items:flex-start;gap:8px;border-bottom:1px solid #f3f4f6}
 ul.feat li:last-child{border-bottom:none}
-ul.feat li::before{content:'→';color:#9ca3af;font-size:12px;margin-top:2px;flex-shrink:0}
+ul.feat li::before{content:'â';color:#9ca3af;font-size:12px;margin-top:2px;flex-shrink:0}
 .auto-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid #f3f4f6}
 .auto-row:last-child{border-bottom:none}
 .auto-badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0;margin-top:2px}
@@ -74,13 +74,13 @@ ul.feat li::before{content:'→';color:#9ca3af;font-size:12px;margin-top:2px;fle
 .callout.success{background:var(--green-light);border-color:var(--green);color:#14532d}
 @media(max-width:768px){.hero{padding:32px 24px}.container{padding:0 20px}.cols-2,.cols-3,.card-grid{grid-template-columns:1fr}.toc{padding:0 16px}}
 
-/* ══ INTERACTIVE SYSTEM ══ */
+/* ââ INTERACTIVE SYSTEM ââ */
 .commentable{position:relative}
 .commentable:hover>.item-actions,.commentable:focus-within>.item-actions{opacity:1;pointer-events:auto}
 .item-actions{display:flex;gap:4px;opacity:0;pointer-events:none;transition:opacity .15s;position:absolute;right:4px;top:4px;z-index:10}
-ul.feat li .item-actions{position:static;margin-left:auto;flex-shrink:0;opacity:0;transition:opacity .15s}
-ul.feat li:hover .item-actions{opacity:1;pointer-events:auto}
-.auto-content .item-actions{position:static;margin-top:6px;opacity:0;transition:opacity .15s}
+ul.feat li .item-actions{position:static;margin-left:auto;flex-shrink:0;opacity:.35;transition:opacity .15s}
+ul.feat li:hover .item-actions,.ul.feat li:focus-within .item-actions{opacity:1;pointer-events:auto}
+.auto-content .item-actions{position:static;margin-top:6px;opacity:.35;transition:opacity .15s}
 .auto-row:hover .item-actions{opacity:1;pointer-events:auto}
 .btn-action{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:6px;border:1px solid;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;background:white;transition:all .12s;line-height:1.6}
 .btn-comment{color:#92400e;border-color:#fbbf24;background:#fffbeb}
@@ -129,11 +129,11 @@ ul.feat li{flex-wrap:nowrap}
 <body>
 
 <div class="hero">
-  <div class="hero-badge">Product Map · Internal Documentation</div>
-  <h1>⚡ El-Via ABM</h1>
-  <p class="hero-sub">LinkedIn Account-Based Marketing automation platform. Automates outreach, tracks engagement, surfaces warm leads, and manages multi-account LinkedIn campaigns — without touching LinkedIn directly.</p>
+  <div class="hero-badge">Product Map Â· Internal Documentation</div>
+  <h1>â¡ El-Via ABM</h1>
+  <p class="hero-sub">LinkedIn Account-Based Marketing automation platform. Automates outreach, tracks engagement, surfaces warm leads, and manages multi-account LinkedIn campaigns â without touching LinkedIn directly.</p>
   <div class="hero-meta">
-    <div class="hero-meta-item"><strong>Stack</strong> Node.js · Express · PostgreSQL · Unipile API</div>
+    <div class="hero-meta-item"><strong>Stack</strong> Node.js Â· Express Â· PostgreSQL Â· Unipile API</div>
     <div class="hero-meta-item"><strong>Deploy</strong> Railway (auto-deploy from GitHub)</div>
     <div class="hero-meta-item"><strong>Repo</strong> cmovate/interactive-report</div>
     <div class="hero-meta-item"><strong>LinkedIn API</strong> Unipile DSN api25.unipile.com:15554</div>
@@ -156,39 +156,39 @@ ul.feat li{flex-wrap:nowrap}
 </nav>
 
 
-<div id="author-badge" onclick="changeAuthor()">✏️ <span id="author-name">Set your name</span></div>
+<div id="author-badge" onclick="changeAuthor()">âï¸ <span id="author-name">Set your name</span></div>
 <div id="stats-bar">
-  <div>💬 <strong id="total-comments">0</strong> notes</div>
-  <div>✦ <strong id="total-added">0</strong> additions</div>
+  <div>ð¬ <strong id="total-comments">0</strong> notes</div>
+  <div>â¦ <strong id="total-added">0</strong> additions</div>
   <button id="clear-all-btn" onclick="clearAll()">Clear all</button>
 </div>
 <div class="container">
 
 <section id="overview">
   <div class="section-header">
-    <div class="section-icon" style="background:#f0fdf4">🗺️</div>
+    <div class="section-icon" style="background:#f0fdf4">ðºï¸</div>
     <div><h2>Product Overview</h2><p>What El-Via ABM is, who it's for, and how it works</p></div>
   </div>
-  <div class="callout info"><strong>Core premise:</strong> El-Via ABM lets SDRs and CMOs run LinkedIn outreach campaigns at scale — automatically sending connection requests, sequenced messages, profile views, company follows, and post likes — while surfacing intelligence about warm leads at target accounts.</div>
+  <div class="callout info"><strong>Core premise:</strong> El-Via ABM lets SDRs and CMOs run LinkedIn outreach campaigns at scale â automatically sending connection requests, sequenced messages, profile views, company follows, and post likes â while surfacing intelligence about warm leads at target accounts.</div>
   <div class="card-grid">
-    <div class="card"><h3>🎯 Primary Use Case</h3><p>Outbound LinkedIn ABM: define a list of target companies + personas, build a message sequence, and let El-Via automate the full outreach funnel — from initial connection request through multi-step follow-up — while respecting LinkedIn daily limits.</p></div>
-    <div class="card"><h3>👤 Who Uses It</h3><p>SDRs, AEs, and fractional CMOs managing LinkedIn outreach for one or more companies. Each company gets its own <strong>Workspace</strong> with its own LinkedIn accounts, campaigns, and contacts. Multiple accounts can run per workspace.</p></div>
-    <div class="card"><h3>🔌 LinkedIn Connection</h3><p>All actions go through <strong>Unipile API</strong> — a middleware wrapping LinkedIn's internal APIs. Each account is authenticated once in Unipile and accessed via <code>account_id</code>. El-Via never stores LinkedIn passwords.</p></div>
-    <div class="card"><h3>⚙️ How Automation Works</h3><p>Background workers run on <strong>setInterval</strong> loops (every 30–60 min). Each cycle processes a small batch of contacts per account, respecting per-account daily limits. All actions are rate-limited and logged in the database.</p></div>
+    <div class="card"><h3>ð¯ Primary Use Case</h3><p>Outbound LinkedIn ABM: define a list of target companies + personas, build a message sequence, and let El-Via automate the full outreach funnel â from initial connection request through multi-step follow-up â while respecting LinkedIn daily limits.</p></div>
+    <div class="card"><h3>ð¤ Who Uses It</h3><p>SDRs, AEs, and fractional CMOs managing LinkedIn outreach for one or more companies. Each company gets its own <strong>Workspace</strong> with its own LinkedIn accounts, campaigns, and contacts. Multiple accounts can run per workspace.</p></div>
+    <div class="card"><h3>ð LinkedIn Connection</h3><p>All actions go through <strong>Unipile API</strong> â a middleware wrapping LinkedIn's internal APIs. Each account is authenticated once in Unipile and accessed via <code>account_id</code>. El-Via never stores LinkedIn passwords.</p></div>
+    <div class="card"><h3>âï¸ How Automation Works</h3><p>Background workers run on <strong>setInterval</strong> loops (every 30â60 min). Each cycle processes a small batch of contacts per account, respecting per-account daily limits. All actions are rate-limited and logged in the database.</p></div>
   </div>
   <div class="card">
-    <h3>🏗️ Architecture at a Glance</h3>
+    <h3>ðï¸ Architecture at a Glance</h3>
     <div class="flow" style="margin-top:12px">
       <div class="flow-step"><div class="num">1</div><div class="step-name">Workspace</div><div class="step-sub">Company bucket</div></div>
-      <div class="flow-arrow">→</div>
+      <div class="flow-arrow">â</div>
       <div class="flow-step"><div class="num">2</div><div class="step-name">Campaign</div><div class="step-sub">Target list + sequence</div></div>
-      <div class="flow-arrow">→</div>
+      <div class="flow-arrow">â</div>
       <div class="flow-step"><div class="num">3</div><div class="step-name">Contacts</div><div class="step-sub">Enriched profiles</div></div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step"><div class="num">4</div><div class="step-name">Automations</div><div class="step-sub">Invite → Msg → Follow</div></div>
-      <div class="flow-arrow">→</div>
-      <div class="flow-step"><div class="num">5</div><div class="step-name">Intelligence</div><div class="step-sub">Opportunities · Feed</div></div>
-      <div class="flow-arrow">→</div>
+      <div class="flow-arrow">â</div>
+      <div class="flow-step"><div class="num">4</div><div class="step-name">Automations</div><div class="step-sub">Invite â Msg â Follow</div></div>
+      <div class="flow-arrow">â</div>
+      <div class="flow-step"><div class="num">5</div><div class="step-name">Intelligence</div><div class="step-sub">Opportunities Â· Feed</div></div>
+      <div class="flow-arrow">â</div>
       <div class="flow-step"><div class="num">6</div><div class="step-name">Inbox</div><div class="step-sub">Replies + AI</div></div>
     </div>
   </div>
@@ -196,12 +196,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="workspaces">
   <div class="section-header">
-    <div class="section-icon" style="background:#fef3c7">🏢</div>
-    <div><h2>Workspaces</h2><p>Top-level isolation — each client gets its own workspace</p></div>
+    <div class="section-icon" style="background:#fef3c7">ð¢</div>
+    <div><h2>Workspaces</h2><p>Top-level isolation â each client gets its own workspace</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#fef3c7">🏢</div>
+      <div class="tab-icon-wrap" style="background:#fef3c7">ð¢</div>
       <div class="tab-header-text"><h3>Workspace Selector (Entry Screen)</h3><p class="tab-purpose">Landing page after login. Shows all workspaces. Each is fully isolated with its own LinkedIn accounts, campaigns, contacts, and settings.</p></div>
     </div>
     <div class="tab-body">
@@ -209,19 +209,19 @@ ul.feat li{flex-wrap:nowrap}
         <div>
           <div class="sub-title green">Active Workspaces</div>
           <ul class="feat">
-            <li><strong>CMO'vate (id=1)</strong> — CMOvate's own outreach</li>
-            <li><strong>CLY (id=2)</strong> — CLY Smart IVR Solutions</li>
-            <li><strong>TFT (id=3)</strong> — Daniel Gelman + Elad Itzkovitch + Sivan Melamed</li>
-            <li><strong>Datatailr (id=4)</strong> — Damien Jenner + Dimitri Offengenden</li>
+            <li><strong>CMO'vate (id=1)</strong> â CMOvate's own outreach</li>
+            <li><strong>CLY (id=2)</strong> â CLY Smart IVR Solutions</li>
+            <li><strong>TFT (id=3)</strong> â Daniel Gelman + Elad Itzkovitch + Sivan Melamed</li>
+            <li><strong>Datatailr (id=4)</strong> â Damien Jenner + Dimitri Offengenden</li>
           </ul>
         </div>
         <div>
           <div class="sub-title blue">Technical</div>
           <ul class="feat">
-            <li>Each workspace has 1–N LinkedIn accounts (via Unipile)</li>
-            <li>Avatar fetched via <code>enrichProfile(publicIdentifier)</code> — not getAccountInfo</li>
+            <li>Each workspace has 1âN LinkedIn accounts (via Unipile)</li>
+            <li>Avatar fetched via <code>enrichProfile(publicIdentifier)</code> â not getAccountInfo</li>
             <li>Webhook created per account for real-time LinkedIn events</li>
-            <li>All DB records scoped by workspace_id — zero leakage</li>
+            <li>All DB records scoped by workspace_id â zero leakage</li>
             <li>Startup cleanup removes orphaned contacts from deleted campaigns</li>
           </ul>
         </div>
@@ -232,31 +232,31 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="campaigns">
   <div class="section-header">
-    <div class="section-icon" style="background:#dcfce7">📋</div>
-    <div><h2>Campaigns Tab</h2><p>Core outreach engine — define targets, sequence, and launch</p></div>
+    <div class="section-icon" style="background:#dcfce7">ð</div>
+    <div><h2>Campaigns Tab</h2><p>Core outreach engine â define targets, sequence, and launch</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#dcfce7">📋</div>
-      <div class="tab-header-text"><h3>Campaigns</h3><p class="tab-purpose">Each campaign targets a contact list and runs a full LinkedIn outreach sequence: connection request → approval → follow-up messages. Multiple campaigns run simultaneously across different accounts.</p></div>
+      <div class="tab-icon-wrap" style="background:#dcfce7">ð</div>
+      <div class="tab-header-text"><h3>Campaigns</h3><p class="tab-purpose">Each campaign targets a contact list and runs a full LinkedIn outreach sequence: connection request â approval â follow-up messages. Multiple campaigns run simultaneously across different accounts.</p></div>
     </div>
     <div class="tab-body">
       <div class="cols-2">
         <div>
           <div class="sub-title green">Campaign Properties</div>
           <ul class="feat">
-            <li><strong>Name</strong> — internal label</li>
-            <li><strong>Account</strong> — which LinkedIn account runs it</li>
-            <li><strong>Audience type</strong> — new / existing no-history / existing with-history</li>
-            <li><strong>Status</strong> — active / paused</li>
-            <li><strong>Settings JSON</strong> — messages[], searchConfig, schedule</li>
-            <li><strong>Company list</strong> — via campaign_companies table</li>
+            <li><strong>Name</strong> â internal label</li>
+            <li><strong>Account</strong> â which LinkedIn account runs it</li>
+            <li><strong>Audience type</strong> â new / existing no-history / existing with-history</li>
+            <li><strong>Status</strong> â active / paused</li>
+            <li><strong>Settings JSON</strong> â messages[], searchConfig, schedule</li>
+            <li><strong>Company list</strong> â via campaign_companies table</li>
           </ul>
           <div class="sub-title green" style="margin-top:16px">Contact Sourcing</div>
           <ul class="feat">
-            <li><strong>Manual upload</strong> — paste or CSV LinkedIn URLs</li>
-            <li><strong>Keyword search</strong> — search LinkedIn by title + company</li>
-            <li><strong>Batch search</strong> — iterates all company URLs in batches of 4</li>
+            <li><strong>Manual upload</strong> â paste or CSV LinkedIn URLs</li>
+            <li><strong>Keyword search</strong> â search LinkedIn by title + company</li>
+            <li><strong>Batch search</strong> â iterates all company URLs in batches of 4</li>
           </ul>
           <div class="sub-title green" style="margin-top:16px">Deletion Behavior</div>
           <ul class="feat">
@@ -286,9 +286,9 @@ ul.feat li{flex-wrap:nowrap}
           </ul>
           <div class="sub-title blue" style="margin-top:16px">Engagement Actions</div>
           <ul class="feat">
-            <li><strong>Scrape engagement</strong> — fetches posts of all contacts</li>
-            <li><strong>Send likes</strong> — likes posts of engaged contacts</li>
-            <li><strong>Run withdraw</strong> — withdraws old pending invites</li>
+            <li><strong>Scrape engagement</strong> â fetches posts of all contacts</li>
+            <li><strong>Send likes</strong> â likes posts of engaged contacts</li>
+            <li><strong>Run withdraw</strong> â withdraws old pending invites</li>
           </ul>
         </div>
       </div>
@@ -298,12 +298,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="alldata">
   <div class="section-header">
-    <div class="section-icon" style="background:#dbeafe">👥</div>
-    <div><h2>All Data Tab</h2><p>Full contacts database — enriched LinkedIn profiles across all campaigns</p></div>
+    <div class="section-icon" style="background:#dbeafe">ð¥</div>
+    <div><h2>All Data Tab</h2><p>Full contacts database â enriched LinkedIn profiles across all campaigns</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#dbeafe">👥</div>
+      <div class="tab-icon-wrap" style="background:#dbeafe">ð¥</div>
       <div class="tab-header-text"><h3>All Data</h3><p class="tab-purpose">Cross-campaign view of all contacts. Each row is a person with their LinkedIn profile, outreach status, and engagement level. Source of truth for the enrichment pipeline.</p></div>
     </div>
     <div class="tab-body">
@@ -344,13 +344,13 @@ ul.feat li{flex-wrap:nowrap}
       <div class="sub-title green" style="margin-top:20px">Enrichment Pipeline</div>
       <div class="flow">
         <div class="flow-step"><div class="num">1</div><div class="step-name">Contact added</div><div class="step-sub">campaign or scraper</div></div>
-        <div class="flow-arrow">→</div>
+        <div class="flow-arrow">â</div>
         <div class="flow-step"><div class="num">2</div><div class="step-name">Enqueue</div><div class="step-sub">enrichment.js</div></div>
-        <div class="flow-arrow">→</div>
+        <div class="flow-arrow">â</div>
         <div class="flow-step"><div class="num">3</div><div class="step-name">enrichProfile()</div><div class="step-sub">Unipile /users</div></div>
-        <div class="flow-arrow">→</div>
+        <div class="flow-arrow">â</div>
         <div class="flow-step"><div class="num">4</div><div class="step-name">profile_data saved</div><div class="step-sub">name, title, photo</div></div>
-        <div class="flow-arrow">→</div>
+        <div class="flow-arrow">â</div>
         <div class="flow-step"><div class="num">5</div><div class="step-name">provider_id set</div><div class="step-sub">enables messaging</div></div>
       </div>
     </div>
@@ -359,22 +359,22 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="opportunities">
   <div class="section-header">
-    <div class="section-icon" style="background:#fef3c7">💡</div>
-    <div><h2>Opportunities Tab</h2><p>Intelligence — who do you already know at your target companies?</p></div>
+    <div class="section-icon" style="background:#fef3c7">ð¡</div>
+    <div><h2>Opportunities Tab</h2><p>Intelligence â who do you already know at your target companies?</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#fef3c7">💡</div>
-      <div class="tab-header-text"><h3>Opportunities</h3><p class="tab-purpose">Shows all target companies with a count of 1st-degree LinkedIn connections currently employed there. These are warm leads — people you can reach without a cold connection request. Scanned hourly automatically.</p></div>
+      <div class="tab-icon-wrap" style="background:#fef3c7">ð¡</div>
+      <div class="tab-header-text"><h3>Opportunities</h3><p class="tab-purpose">Shows all target companies with a count of 1st-degree LinkedIn connections currently employed there. These are warm leads â people you can reach without a cold connection request. Scanned hourly automatically.</p></div>
     </div>
     <div class="tab-body">
       <div class="cols-2">
         <div>
           <div class="sub-title green">Company Sources (3)</div>
           <ul class="feat">
-            <li><strong>Campaign companies</strong> — any company in any campaign</li>
-            <li><strong>Opportunity companies</strong> — manually added via + Add companies</li>
-            <li><strong>Contact employers</strong> — from contacts' work_experience[0]</li>
+            <li><strong>Campaign companies</strong> â any company in any campaign</li>
+            <li><strong>Opportunity companies</strong> â manually added via + Add companies</li>
+            <li><strong>Contact employers</strong> â from contacts' work_experience[0]</li>
           </ul>
           <div class="sub-title green" style="margin-top:16px">Views (Labels)</div>
           <ul class="feat">
@@ -392,7 +392,7 @@ ul.feat li{flex-wrap:nowrap}
           </ul>
         </div>
         <div>
-          <div class="sub-title blue">opportunityScraper — Hourly</div>
+          <div class="sub-title blue">opportunityScraper â Hourly</div>
           <ul class="feat">
             <li>Runs every 60 min via setInterval</li>
             <li>Collects all company LinkedIn IDs from 3 sources</li>
@@ -403,10 +403,10 @@ ul.feat li{flex-wrap:nowrap}
           </ul>
           <div class="sub-title blue" style="margin-top:16px">Manual Actions</div>
           <ul class="feat">
-            <li><strong>🔍 Scan connections</strong> — immediate scan for current workspace</li>
-            <li><strong>+ Add companies</strong> — add by LinkedIn URL</li>
-            <li><strong>Refresh</strong> — reload page data</li>
-            <li><strong>POST /enrich-company-ids</strong> — resolve missing LinkedIn IDs</li>
+            <li><strong>ð Scan connections</strong> â immediate scan for current workspace</li>
+            <li><strong>+ Add companies</strong> â add by LinkedIn URL</li>
+            <li><strong>Refresh</strong> â reload page data</li>
+            <li><strong>POST /enrich-company-ids</strong> â resolve missing LinkedIn IDs</li>
           </ul>
         </div>
       </div>
@@ -416,13 +416,13 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="feed">
   <div class="section-header">
-    <div class="section-icon" style="background:#f3e8ff">📰</div>
-    <div><h2>Feed Tab</h2><p>LinkedIn activity monitor — posts from target contacts</p></div>
+    <div class="section-icon" style="background:#f3e8ff">ð°</div>
+    <div><h2>Feed Tab</h2><p>LinkedIn activity monitor â posts from target contacts</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#f3e8ff">📰</div>
-      <div class="tab-header-text"><h3>Feed</h3><p class="tab-purpose">Aggregates recent LinkedIn posts and comments from contacts across all campaigns. Used for engagement intelligence — identifying active contacts and opportunities to like or comment with contextual messages.</p></div>
+      <div class="tab-icon-wrap" style="background:#f3e8ff">ð°</div>
+      <div class="tab-header-text"><h3>Feed</h3><p class="tab-purpose">Aggregates recent LinkedIn posts and comments from contacts across all campaigns. Used for engagement intelligence â identifying active contacts and opportunities to like or comment with contextual messages.</p></div>
     </div>
     <div class="tab-body">
       <div class="cols-2">
@@ -451,12 +451,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="inbox">
   <div class="section-header">
-    <div class="section-icon" style="background:#ffe4e6">💬</div>
+    <div class="section-icon" style="background:#ffe4e6">ð¬</div>
     <div><h2>Inbox Tab</h2><p>LinkedIn message inbox with AI-powered reply analysis</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#ffe4e6">💬</div>
+      <div class="tab-icon-wrap" style="background:#ffe4e6">ð¬</div>
       <div class="tab-header-text"><h3>Inbox</h3><p class="tab-purpose">Mirrors the LinkedIn inbox for connected accounts. Shows all conversations, flags replies from campaign contacts, and uses AI to classify replies as positive / neutral / negative with next-step recommendations.</p></div>
     </div>
     <div class="tab-body">
@@ -474,9 +474,9 @@ ul.feat li{flex-wrap:nowrap}
         <div>
           <div class="sub-title blue">Background Automations</div>
           <ul class="feat">
-            <li><strong>conversationQueue</strong> — polls new messages every 30 min</li>
-            <li><strong>conversationAnalyzer</strong> — AI classification of intent</li>
-            <li><strong>messageSender</strong> — sends next sequence step after reply</li>
+            <li><strong>conversationQueue</strong> â polls new messages every 30 min</li>
+            <li><strong>conversationAnalyzer</strong> â AI classification of intent</li>
+            <li><strong>messageSender</strong> â sends next sequence step after reply</li>
             <li>Unipile webhooks trigger real-time updates</li>
           </ul>
         </div>
@@ -487,12 +487,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="settings">
   <div class="section-header">
-    <div class="section-icon" style="background:#f1f5f9">⚙️</div>
-    <div><h2>Settings Tab</h2><p>Workspace config — LinkedIn accounts, limits, company page</p></div>
+    <div class="section-icon" style="background:#f1f5f9">âï¸</div>
+    <div><h2>Settings Tab</h2><p>Workspace config â LinkedIn accounts, limits, company page</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#f1f5f9">⚙️</div>
+      <div class="tab-icon-wrap" style="background:#f1f5f9">âï¸</div>
       <div class="tab-header-text"><h3>Settings</h3><p class="tab-purpose">Manages LinkedIn account connections and per-account outreach limits. Each account operates independently with its own daily quotas enforced by automation workers.</p></div>
     </div>
     <div class="tab-body">
@@ -513,7 +513,7 @@ ul.feat li{flex-wrap:nowrap}
             <li>Connection requests: 8/day</li>
             <li>Messages: 15/day</li>
             <li>Profile views: 50/day</li>
-            <li>Company follows: 10/day · 250/month</li>
+            <li>Company follows: 10/day Â· 250/month</li>
             <li>Followings: 15/day</li>
             <li>Post/comment likes: 15/day</li>
             <li>InMails: 8/day</li>
@@ -526,10 +526,10 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="automations">
   <div class="section-header">
-    <div class="section-icon" style="background:#fef9c3">🤖</div>
-    <div><h2>Background Automations</h2><p>All workers running continuously — the engine of El-Via</p></div>
+    <div class="section-icon" style="background:#fef9c3">ð¤</div>
+    <div><h2>Background Automations</h2><p>All workers running continuously â the engine of El-Via</p></div>
   </div>
-  <div class="callout info">All automations registered in <code>server.js</code> via <code>module.start()</code> after DB schema init. Run on Railway server process — no external cron needed.</div>
+  <div class="callout info">All automations registered in <code>server.js</code> via <code>module.start()</code> after DB schema init. Run on Railway server process â no external cron needed.</div>
   <div class="tab-block">
     <div class="tab-body" style="padding-top:16px">
       <div class="sub-title green">Outreach Automations</div>
@@ -555,7 +555,7 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="database">
   <div class="section-header">
-    <div class="section-icon" style="background:#f0fdf4">🗄️</div>
+    <div class="section-icon" style="background:#f0fdf4">ðï¸</div>
     <div><h2>Database Schema</h2><p>PostgreSQL tables and their relationships</p></div>
   </div>
   <div class="cols-3">
@@ -570,21 +570,21 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="limits">
   <div class="section-header">
-    <div class="section-icon" style="background:#fff7ed">📊</div>
+    <div class="section-icon" style="background:#fff7ed">ð</div>
     <div><h2>LinkedIn Safety Limits</h2><p>Per-account daily caps enforced to avoid account restrictions</p></div>
   </div>
-  <div class="callout warn"><strong>Important:</strong> LinkedIn monitors unusual activity. These are conservative safe defaults. Exceeding them — especially connection requests — can trigger restrictions or bans.</div>
+  <div class="callout warn"><strong>Important:</strong> LinkedIn monitors unusual activity. These are conservative safe defaults. Exceeding them â especially connection requests â can trigger restrictions or bans.</div>
   <div class="card">
     <table class="limits-table">
       <thead><tr><th>Action</th><th>Default Limit</th><th>Module</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td>Connection requests</td><td>8/day</td><td>invitationSender</td><td>LinkedIn real limit ~20/day for older accounts; 8 is safe</td></tr>
         <tr><td>Messages</td><td>15/day</td><td>messageSender</td><td>To 1st-degree connections only</td></tr>
-        <tr><td>Profile views</td><td>50/day</td><td>profileViewer</td><td>High limit OK — signals interest to target</td></tr>
-        <tr><td>Company follows</td><td>10/day · 250/month</td><td>companyFollowSender</td><td>Monthly cap tracked in DB</td></tr>
+        <tr><td>Profile views</td><td>50/day</td><td>profileViewer</td><td>High limit OK â signals interest to target</td></tr>
+        <tr><td>Company follows</td><td>10/day Â· 250/month</td><td>companyFollowSender</td><td>Monthly cap tracked in DB</td></tr>
         <tr><td>Followings (people)</td><td>15/day</td><td>followerScraper</td><td>Following without connecting</td></tr>
         <tr><td>Post/comment likes</td><td>15/day</td><td>likeSender</td><td>Keeps engagement signal warm</td></tr>
-        <tr><td>InMails</td><td>8/day</td><td>messageSender</td><td>Paid credits — use sparingly</td></tr>
+        <tr><td>InMails</td><td>8/day</td><td>messageSender</td><td>Paid credits â use sparingly</td></tr>
         <tr><td>Invite withdrawals</td><td>No hard limit</td><td>withdrawSender</td><td>Manual; withdraws pending &gt; 3 weeks</td></tr>
       </tbody>
     </table>
@@ -593,46 +593,46 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="flow">
   <div class="section-header">
-    <div class="section-icon" style="background:#ede9fe">🔄</div>
+    <div class="section-icon" style="background:#ede9fe">ð</div>
     <div><h2>End-to-End Outreach Flow</h2><p>From contact added to deal booked</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-body">
       <div class="cols-2">
         <div>
-          <div class="sub-title green">Day 0 — Contact Added</div>
-          <ul class="feat"><li>Imported via CSV / search / opportunityScraper</li><li>Enqueued for enrichment → profile_data + provider_id set</li><li>If already_connected=true → skip invite, go to messages</li></ul>
-          <div class="sub-title green" style="margin-top:14px">Day 1–3 — Invite Phase</div>
+          <div class="sub-title green">Day 0 â Contact Added</div>
+          <ul class="feat"><li>Imported via CSV / search / opportunityScraper</li><li>Enqueued for enrichment â profile_data + provider_id set</li><li>If already_connected=true â skip invite, go to messages</li></ul>
+          <div class="sub-title green" style="margin-top:14px">Day 1â3 â Invite Phase</div>
           <ul class="feat"><li>invitationSender sends connection request (with optional note)</li><li>profileViewer views their profile (warm signal)</li><li>invite_sent=true recorded</li></ul>
-          <div class="sub-title green" style="margin-top:14px">Day 3–7 — Approval</div>
+          <div class="sub-title green" style="margin-top:14px">Day 3â7 â Approval</div>
           <ul class="feat"><li>Webhook or polling detects connection accepted</li><li>invite_approved=true set</li><li>companyFollowSender sends company page follow</li></ul>
         </div>
         <div>
-          <div class="sub-title blue">Day 7+ — Message Sequence</div>
-          <ul class="feat"><li>messageSender sends Message 1 (first follow-up)</li><li>Delay N days → Message 2, 3... up to 20 steps</li><li>conversationQueue monitors for replies → msg_replied=true</li><li>conversationAnalyzer classifies reply sentiment + intent</li><li>positive_reply=true → surfaces in Inbox for human follow-up</li></ul>
-          <div class="sub-title blue" style="margin-top:14px">Parallel — Engagement</div>
+          <div class="sub-title blue">Day 7+ â Message Sequence</div>
+          <ul class="feat"><li>messageSender sends Message 1 (first follow-up)</li><li>Delay N days â Message 2, 3... up to 20 steps</li><li>conversationQueue monitors for replies â msg_replied=true</li><li>conversationAnalyzer classifies reply sentiment + intent</li><li>positive_reply=true â surfaces in Inbox for human follow-up</li></ul>
+          <div class="sub-title blue" style="margin-top:14px">Parallel â Engagement</div>
           <ul class="feat"><li>engagementScraper classifies contact activity level</li><li>likeSender warms engaged contacts with post likes</li><li>Feed tab shows what contacts are posting about</li></ul>
-          <div class="sub-title blue" style="margin-top:14px">Always Running — Intelligence</div>
+          <div class="sub-title blue" style="margin-top:14px">Always Running â Intelligence</div>
           <ul class="feat"><li>opportunityScraper adds 1st-degree connections at target companies</li><li>followerScraper surfaces organic followers as warm leads</li><li>statsSnapshotter tracks growth over time</li></ul>
         </div>
       </div>
     </div>
   </div>
-  <div class="callout success" style="margin-top:20px"><strong>Key Insight:</strong> El-Via is not a blast-and-hope tool. The intelligence layer (Opportunities + Feed + Inbox AI) surfaces the <em>right moment</em> to engage — when a target is active on LinkedIn, just changed jobs, or is already a 1st-degree connection at a company you're targeting.</div>
+  <div class="callout success" style="margin-top:20px"><strong>Key Insight:</strong> El-Via is not a blast-and-hope tool. The intelligence layer (Opportunities + Feed + Inbox AI) surfaces the <em>right moment</em> to engage â when a target is active on LinkedIn, just changed jobs, or is already a 1st-degree connection at a company you're targeting.</div>
   <div style="text-align:center;margin-top:40px;padding:24px;background:white;border-radius:12px;border:1px solid var(--border)">
-    <div style="font-size:13px;color:var(--gray);margin-bottom:6px">El-Via ABM · Product Map</div>
-    <div style="font-size:12px;color:#9ca3af">Built with Claude · cmovate/interactive-report · Railway</div>
+    <div style="font-size:13px;color:var(--gray);margin-bottom:6px">El-Via ABM Â· Product Map</div>
+    <div style="font-size:12px;color:#9ca3af">Built with Claude Â· cmovate/interactive-report Â· Railway</div>
   </div>
 </section>
 
 </div>
 
 <script>
-/* ═══════════════════════════════════════════
-   EL-VIA PRODUCT MAP — INTERACTIVE SYSTEM
+/* âââââââââââââââââââââââââââââââââââââââââââ
+   EL-VIA PRODUCT MAP â INTERACTIVE SYSTEM
    Storage: localStorage
    Pattern: data attributes + event delegation
-   ═══════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââ */
 
 const STORAGE_KEY = 'elvia-pm-v4';
 function getData(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch(e){return{}}}
@@ -657,7 +657,7 @@ function toggleForm(id,type){
   const authorVal = esc(getAuthor());
   if(type==='comment'){
     f.innerHTML = [
-      '<div class="form-label">💬 Add a note</div>',
+      '<div class="form-label">ð¬ Add a note</div>',
       '<textarea id="ft-'+id+'" placeholder="Write your note..." rows="3"></textarea>',
       '<div class="form-row">',
       '<input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+authorVal+'">',
@@ -668,7 +668,7 @@ function toggleForm(id,type){
     ].join('');
   } else {
     f.innerHTML = [
-      '<div class="form-label">✦ Add new item</div>',
+      '<div class="form-label">â¦ Add new item</div>',
       '<input type="text" id="ft-'+id+'" placeholder="Describe the new item...">',
       '<div class="form-row">',
       '<input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+authorVal+'">',
@@ -781,7 +781,7 @@ function renderThread(id){
   el.style.display='';
   el.innerHTML = comments.map(function(c){
     return '<div class="comment-bubble">' +
-      '<button class="comment-del" data-del-comment="'+c.id+'" data-id="'+id+'" title="Delete">×</button>' +
+      '<button class="comment-del" data-del-comment="'+c.id+'" data-id="'+id+'" title="Delete">Ã</button>' +
       '<div class="comment-meta"><span class="comment-author">'+esc(c.author)+'</span>' +
       '<span class="comment-time">'+formatTime(c.ts)+'</span></div>' +
       '<div class="comment-text">'+esc(c.text)+'</div></div>';
@@ -795,8 +795,8 @@ function renderAdded(id){
   const items = (getData()[id]||{}).added||[];
   el.innerHTML = items.map(function(a){
     return '<div class="added-item"><span>'+esc(a.text)+'</span>' +
-      '<small style="color:#9ca3af;margin-left:8px;font-size:11px">— '+esc(a.author)+'</small>' +
-      '<button class="del-added" data-del-added="'+a.id+'" data-id="'+id+'" title="Delete">×</button></div>';
+      '<small style="color:#9ca3af;margin-left:8px;font-size:11px">â '+esc(a.author)+'</small>' +
+      '<button class="del-added" data-del-added="'+a.id+'" data-id="'+id+'" title="Delete">Ã</button></div>';
   }).join('');
 }
 
@@ -828,7 +828,7 @@ function makeBtn(type, id, actionType, label){
   btn.dataset.action = '1';
   btn.dataset.id = id;
   btn.dataset.type = actionType;
-  btn.textContent = label || (type === 'comment' ? '💬 Note' : '＋ Add');
+  btn.textContent = label || (type === 'comment' ? 'ð¬ Note' : 'ï¼ Add');
   return btn;
 }
 
@@ -872,7 +872,7 @@ function addInteractiveButtons(){
     const id = uid('sec');
     const actions = document.createElement('div');
     actions.className = 'section-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '💬 Note'));
+    actions.appendChild(makeBtn('comment', id, 'comment', 'ð¬ Note'));
     actions.appendChild(makeCountBadge(id));
     el.appendChild(actions);
     el.after(makeForm(id));
@@ -886,7 +886,7 @@ function addInteractiveButtons(){
     const id = uid('tab');
     const actions = document.createElement('div');
     actions.className = 'tab-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '💬'));
+    actions.appendChild(makeBtn('comment', id, 'comment', 'ð¬'));
     actions.appendChild(makeCountBadge(id));
     el.appendChild(actions);
     const thread = makeThread(id, 'section-comment-thread');
@@ -906,7 +906,7 @@ function addInteractiveButtons(){
     // Add button to preceding sub-title
     const prev = ul.previousElementSibling;
     if(prev && prev.classList.contains('sub-title') && !prev.querySelector('.btn-add')){
-      const btn = makeBtn('add', listId, 'add', '＋ Add');
+      const btn = makeBtn('add', listId, 'add', 'ï¼ Add');
       btn.style.marginLeft = 'auto';
       prev.appendChild(btn);
     }
@@ -928,7 +928,7 @@ function addInteractiveButtons(){
       }
       const actions = document.createElement('span');
       actions.className = 'item-actions';
-      actions.appendChild(makeBtn('comment', liId, 'comment', '💬'));
+      actions.appendChild(makeBtn('comment', liId, 'comment', 'ð¬'));
       li.appendChild(actions);
       li.after(makeForm(liId));
       li.after(makeThread(liId));
@@ -945,7 +945,7 @@ function addInteractiveButtons(){
     if(content){
       const actions = document.createElement('div');
       actions.className = 'item-actions';
-      actions.appendChild(makeBtn('comment', id, 'comment', '💬 Note'));
+      actions.appendChild(makeBtn('comment', id, 'comment', 'ð¬ Note'));
       content.appendChild(actions);
     }
     const thread = makeThread(id);
@@ -964,7 +964,7 @@ function addInteractiveButtons(){
     card.classList.add('commentable');
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '💬 Note'));
+    actions.appendChild(makeBtn('comment', id, 'comment', 'ð¬ Note'));
     card.appendChild(actions);
     card.appendChild(makeForm(id));
     card.appendChild(makeThread(id));
@@ -978,7 +978,7 @@ function addInteractiveButtons(){
     el.classList.add('commentable');
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '💬'));
+    actions.appendChild(makeBtn('comment', id, 'comment', 'ð¬'));
     el.appendChild(actions);
     el.after(makeForm(id));
     el.after(makeThread(id));
@@ -992,7 +992,7 @@ function addInteractiveButtons(){
     // Add btn to last td
     const lastTd = tr.querySelector('td:last-child');
     if(lastTd){
-      const btn = makeBtn('comment', id, 'comment', '💬');
+      const btn = makeBtn('comment', id, 'comment', 'ð¬');
       btn.style.marginLeft = '8px';
       lastTd.appendChild(btn);
     }
