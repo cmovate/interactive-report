@@ -743,10 +743,6 @@ const opportunityScraper = require('./src/opportunityScraper');
   await conversationQueue.start();
 })();
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 
 // ââ Dev: push file to GitHub âââââââââââââââââââââââââââââââââââââââââââââââ
 // POST /dev/push-file { path, content (base64 or utf8), message, encoding? }
@@ -805,11 +801,16 @@ app.get('/dev/push-file/status', (req, res) => {
   res.json({ available: !!process.env.GITHUB_TOKEN, repo: 'cmovate/interactive-report' });
 
 
-app.use(express.static(path.join(__dirname, 'public')));
 
 // Ã¢ÂÂÃ¢ÂÂ Dev: push file to GitHub Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // POST /dev/push-file  { path, content (base64 or utf8), message, encoding? }
 // Requires GITHUB_TOKEN env var. Only works in dev/internal Ã¢ÂÂ not exposed via auth.
+});
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
