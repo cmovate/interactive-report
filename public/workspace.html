@@ -128,24 +128,24 @@ function showScreen(name) {
 
 function loadScreen(name) {
   loaded[name] = true;
-  const frame = document.createElement('iframe');
   const fileMap = {lists: 'lists-v2'};
   const fname = fileMap[name] || name;
-  frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName) + '&_v=' + Date.now();
+  const url = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
+  const frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
-  // After iframe loads, trigger loadLists for the lists screen
-  if (name === 'lists') {
-    frame.addEventListener('load', function() {
+  frame.sandbox = 'allow-same-origin allow-scripts allow-forms allow-popups';
+  document.getElementById('screen-' + name).appendChild(frame);
+  // Use fetch to bypass disk cache, then write into iframe
+  fetch(url, {cache: 'no-store'}).then(function(r) { return r.text(); }).then(function(html) {
+    frame.contentDocument.open();
+    frame.contentDocument.write(html);
+    frame.contentDocument.close();
+    // After writing, call loadLists if lists screen
+    if (name === 'lists') {
       setTimeout(function() {
         try { frame.contentWindow.eval('typeof loadLists === "function" && loadLists()'); } catch(e) {}
-      }, 500);
-    });
-  }
-  document.getElementById('screen-'+name).innerHTML = '';
-  document.getElementById('screen-'+name).appendChild(frame);
+      }, 300);
+    }
+  }).catch(function(e) { console.error('loadScreen fetch error:', e); });
 }
-
-init();
-</script>
-</body>
-</html>
+>
