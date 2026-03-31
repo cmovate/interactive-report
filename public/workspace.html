@@ -129,7 +129,9 @@ function showScreen(name) {
 function loadScreen(name) {
   loaded[name] = true;
   const frame = document.createElement('iframe');
-  frame.src = '/' + name + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName) + '&_v=' + Date.now();
+  const fileMap = {lists: 'lists-v2'};
+  const fname = fileMap[name] || name;
+  frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName) + '&_v=' + Date.now();
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
   // After iframe loads, trigger loadLists for the lists screen
   if (name === 'lists') {
