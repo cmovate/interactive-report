@@ -132,8 +132,25 @@ function loadScreen(name) {
   const fname = fileMap[name] || name;
   const frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
-  frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
-  document.getElementById('screen-' + name).appendChild(frame);
+
+  if (name === 'lists') {
+    // CDN caches lists-v2.html — bypass via fetch, pass workspace via frame.name
+    frame.name = 'workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
+    frame.src = 'about:blank';
+    document.getElementById('screen-' + name).appendChild(frame);
+    fetch('/lists-v2.html', {cache: 'no-store'})
+      .then(function(r) { return r.text(); })
+      .then(function(html) {
+        frame.contentDocument.open();
+        frame.contentDocument.write(html);
+        frame.contentDocument.close();
+      }).catch(function() {
+        frame.src = '/lists-v2.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
+      });
+  } else {
+    frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
+    document.getElementById('screen-' + name).appendChild(frame);
+  }
 }
 
 init();
