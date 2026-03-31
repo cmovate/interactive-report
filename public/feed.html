@@ -123,6 +123,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .stat-lbl { color: #666; }
 .stat-val { font-weight: 600; color: #191919; }
 .date-badge { background: #F0FBF7; border: 1px solid #B7E4D2; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #0F6E56; font-weight: 500; text-align: center; margin-bottom: 6px; }
+
+#list-filter-feed { min-width: 140px; }
+
 </style>
 </head>
 <body>
@@ -144,6 +147,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
       <span class="filter-label">Campaign</span>
       <select class="filter-select" id="campaign-select" onchange="onCampaignChange()">
         <option value="">All campaigns</option>
+      </select>
+      <span class="filter-label" style="margin-left:8px">List</span>
+      <select class="filter-select" id="list-filter-feed" onchange="applyFeedListFilter()">
+        <option value="">All contacts</option>
       </select>
       <button class="fetch-btn" id="fetch-btn" onclick="triggerFetch()">
         &#8635; Fetch posts
@@ -451,6 +458,30 @@ async function triggerFetch() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadCampaigns().then(loadFeed);
+
+var _feedListId = null;
+
+async function loadListsForFeed() {
+  try {
+    const data = await fetch('/api/lists?workspace_id=' + workspaceId).then(r=>r.json());
+    const sel = document.getElementById('list-filter-feed');
+    if (!sel) return;
+    (data.items||[]).filter(function(l){ return l.type === 'contacts'; }).forEach(function(l) {
+      const opt = document.createElement('option');
+      opt.value = l.id;
+      opt.textContent = l.name;
+      sel.appendChild(opt);
+    });
+  } catch(e) { /* silent */ }
+}
+
+function applyFeedListFilter() {
+  const sel = document.getElementById('list-filter-feed');
+  _feedListId = sel && sel.value ? parseInt(sel.value) : null;
+  if (typeof loadFeed === 'function') loadFeed();
+  else if (typeof init === 'function') init();
+}
+
 </script>
 </body>
 </html>
