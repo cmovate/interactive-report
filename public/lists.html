@@ -1249,18 +1249,35 @@ function escHtml(s) {
 
 
 var _ulId = null;
+var _ulType = null;
 
 function openUploadModal(id, name, type) {
-  if (type !== 'contacts') { alert('This is a companies list. Upload contacts only to contacts lists.'); return; }
   _ulId = id;
+  _ulType = type;
   document.getElementById('ul-list-name').textContent = name;
   document.getElementById('ul-urls').value = '';
   document.getElementById('ul-result').textContent = '';
+
+  // Adjust label and placeholder based on type
+  var label = document.getElementById('ul-label');
+  var textarea = document.getElementById('ul-urls');
+  var title = document.getElementById('ul-modal-title');
+  if (type === 'companies') {
+    if (title) title.textContent = '🏢 Upload companies to';
+    if (label) label.textContent = 'LinkedIn company URLs (one per line)';
+    if (textarea) textarea.placeholder = 'https://www.linkedin.com/company/microsoft';
+  } else {
+    if (title) title.textContent = '⬆ Upload contacts to';
+    if (label) label.textContent = 'LinkedIn profile URLs (one per line)';
+    if (textarea) textarea.placeholder = 'https://www.linkedin.com/in/john-doe';
+  }
+
   var btn = document.getElementById('ul-btn');
   btn.disabled = false; btn.textContent = 'Upload';
   document.getElementById('upload-modal').style.display = 'flex';
-  setTimeout(function(){document.getElementById('ul-urls').focus();},50);
+  setTimeout(function(){textarea.focus();}, 50);
 }
+
 
 function closeUploadModal() {
   document.getElementById('upload-modal').style.display = 'none';
@@ -1269,22 +1286,36 @@ function closeUploadModal() {
 
 async function uploadContacts() {
   var raw = document.getElementById('ul-urls').value.trim();
-  if (!raw) { document.getElementById('ul-result').textContent = 'Paste at least one LinkedIn URL.'; return; }
-  var lines = raw.split('\n').map(function(u){return u.trim();}).filter(function(u){return u.indexOf('linkedin.com/in/')>-1;});
-  if (!lines.length) {
-    document.getElementById('ul-result').innerHTML = '<span style="color:#e53e3e">No valid LinkedIn profile URLs. Use: https://www.linkedin.com/in/name</span>';
-    return;
-  }
+  if (!raw) { document.getElementById('ul-result').textContent = 'Paste at least one URL.'; return; }
+
+  var lines = raw.split('\n').map(function(u){ return u.trim(); }).filter(Boolean);
   var btn = document.getElementById('ul-btn');
   btn.disabled = true; btn.textContent = 'Uploading...';
-  document.getElementById('ul-result').textContent = 'Uploading ' + lines.length + ' contacts...';
+
   try {
-    var contacts = lines.map(function(u){return {li_profile_url:u};});
-    var r = await fetch('/api/lists/' + _ulId + '/contacts', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({workspace_id: parseInt(workspaceId), contacts: contacts})
-    }).then(function(res){return res.json();});
-    document.getElementById('ul-result').innerHTML = '<span style="color:#16a34a">&#10003; Added ' + r.added + ' contact(s)' + (r.skipped?' (' + r.skipped + ' skipped)':'') + '</span>';
+    var body, endpoint, validLines;
+
+    if (_ulType === 'companies') {
+      validLines = lines.filter(function(u){ return u.indexOf('linkedin.com/company/') > -1; });
+      if (!validLines.length) {
+        document.getElementById('ul-result').innerHTML = '<span style="color:#e53e3e">No valid company URLs. Use: https://www.linkedin.com/company/name</span>';
+        btn.disabled = false; btn.textContent = 'Upload'; return;
+      }
+      body = JSON.stringify({workspace_id: parseInt(workspaceId), companies: validLines.map(function(u){ return {li_company_url: u, company_name: u.split('/').filter(Boolean).pop()}; })});
+      endpoint = '/api/lists/' + _ulId + '/companies';
+    } else {
+      validLines = lines.filter(function(u){ return u.indexOf('linkedin.com/in/') > -1; });
+      if (!validLines.length) {
+        document.getElementById('ul-result').innerHTML = '<span style="color:#e53e3e">No valid profile URLs. Use: https://www.linkedin.com/in/name</span>';
+        btn.disabled = false; btn.textContent = 'Upload'; return;
+      }
+      body = JSON.stringify({workspace_id: parseInt(workspaceId), contacts: validLines.map(function(u){ return {li_profile_url: u}; })});
+      endpoint = '/api/lists/' + _ulId + '/contacts';
+    }
+
+    document.getElementById('ul-result').textContent = 'Uploading ' + validLines.length + '...';
+    var r = await fetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'}, body: body}).then(function(res){return res.json();});
+    document.getElementById('ul-result').innerHTML = '<span style="color:#16a34a">&#10003; Added ' + (r.added||0) + (r.skipped ? ' (' + r.skipped + ' skipped)' : '') + '</span>';
     await loadLists();
     btn.textContent = 'Done';
     setTimeout(closeUploadModal, 1800);
@@ -1294,21 +1325,3 @@ async function uploadContacts() {
   }
 }
 
-</script>
-
-<div id="upload-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeUploadModal()">
-  <div class="modal-box">
-    <div class="modal-title">⬆ Upload contacts to <span id="ul-list-name"></span></div>
-    <div class="modal-field">
-      <label>LinkedIn profile URLs <span style="color:#999;font-weight:400">(one per line)</span></label>
-      <textarea id="ul-urls" rows="8" placeholder="https://www.linkedin.com/in/john-doe"></textarea>
-    </div>
-    <div id="ul-result" style="font-size:13px;margin-top:4px;min-height:20px"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel-modal" onclick="closeUploadModal()">Cancel</button>
-      <button class="btn-create-list" id="ul-btn" onclick="uploadContacts()">Upload</button>
-    </div>
-  </div>
-</div>
-</body>
-</html>
