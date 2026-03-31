@@ -57,6 +57,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .result-msg { font-size: 12px; min-height: 18px; margin-top: 8px; }
 .result-err { color: #dc2626; }
 .result-ok { color: #16a34a; }
+.progress-wrap { margin-top: 16px; }
+.progress-bar-bg { background: #f3f4f6; border-radius: 8px; height: 6px; overflow: hidden; margin: 8px 0; }
+.progress-bar-fill { background: #1D9E75; height: 6px; border-radius: 8px; transition: width .4s; }
+.progress-label { font-size: 12px; color: #6b7280; }
+.progress-done { font-size: 13px; color: #16a34a; font-weight: 500; margin-top: 8px; }
+
 .icp-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #f3f4f6; }
 .icp-title { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 2px; }
 .icp-sub { font-size: 12px; color: #6b7280; margin-bottom: 18px; }
@@ -266,12 +272,58 @@ function saveList() {
     }).then(function(r){ return r.json(); })
     .then(function(res) {
       addBubble(listId, name, type, res.added || valid.length);
-      closeModal();
+      if (type === 'companies') {
+        // Trigger LinkedIn search for contacts at these companies
+        var titles = document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean);
+        runCompanySearch(listId, titles);
+      } else {
+        closeModal();
+      }
     });
   })
   .catch(function(e) {
     document.getElementById('save-result').innerHTML = '<span class="result-err">Error: ' + e.message + '</span>';
     btn.disabled = false; btn.textContent = 'Save List';
+  });
+}
+
+function runCompanySearch(listId, jobTitles) {
+  var resultEl = document.getElementById('save-result');
+  resultEl.innerHTML = '<div class="progress-wrap">'
+    + '<div class="progress-label">Searching LinkedIn for contacts...</div>'
+    + '<div class="progress-bar-bg"><div class="progress-bar-fill" id="pbar" style="width:10%"></div></div>'
+    + '</div>';
+  // Animate progress while waiting
+  var pct = 10;
+  var timer = setInterval(function() {
+    pct = Math.min(pct + 5, 85);
+    var pb = document.getElementById('pbar');
+    if (pb) pb.style.width = pct + '%';
+  }, 1200);
+  fetch('/api/lists/' + listId + '/company-search', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ workspace_id: parseInt(workspaceId), job_titles: jobTitles })
+  }).then(function(r){ return r.json(); })
+  .then(function(data) {
+    clearInterval(timer);
+    var pb = document.getElementById('pbar');
+    if (pb) pb.style.width = '100%';
+    if (data.error) {
+      resultEl.innerHTML += '<div class="result-err" style="margin-top:8px">Search error: ' + data.error + '</div>';
+      return;
+    }
+    resultEl.innerHTML += '<div class="progress-done">'
+      + '✓ Found ' + data.contacts_found + ' contacts across ' + data.companies_processed + ' companies'
+      + (data.contacts_added ? ' — ' + data.contacts_added + ' added' : '')
+      + '</div>';
+    // Refresh bubbles to show updated count
+    loadSavedLists();
+    setTimeout(function(){ closeModal(); }, 2500);
+  })
+  .catch(function(e) {
+    clearInterval(timer);
+    resultEl.innerHTML += '<div class="result-err" style="margin-top:8px">Search failed: ' + e.message + '</div>';
   });
 }
 function addBubble(id, name, type, count) {
