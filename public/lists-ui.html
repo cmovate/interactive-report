@@ -1009,7 +1009,7 @@ function exportContactsCSV(){
 async function loadCompanies() {
   try {
     const cid = document.getElementById('company-campaign-filter').value;
-    const data = await fetch('/api/companies?workspace_id='+workspaceId+(cid?'&campaign_id='+cid:'')).then(r=>r.json());
+    const data = await fetch('/api/lists/companies?workspace_id='+workspaceId+(cid?'&list_id='+cid:'')).then(r=>r.json());
     allCompanies = Array.isArray(data.items) ? data.items : [];
     applyCompanyFilters();
   } catch(e) { console.error(e); }
