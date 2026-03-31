@@ -400,4 +400,27 @@ router.post('/:id/company-search', async (req, res) => {
   }
 });
 
+
+// ─── GET /api/companies ───────────────────────────────────────────────────────
+// All companies from list_companies for a workspace, with list_name column
+router.get('/companies', async (req, res) => {
+  try {
+    const { workspace_id, list_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const conds = ['lc.workspace_id = $1'];
+    const params = [workspace_id];
+    if (list_id) { conds.push('lc.list_id = $2'); params.push(list_id); }
+    const { rows } = await db.query(
+      `SELECT lc.id, lc.list_id, lc.company_name, lc.li_company_url,
+              lc.company_linkedin_id, lc.created_at, l.name AS list_name
+       FROM list_companies lc
+       JOIN lists l ON l.id = lc.list_id
+       WHERE ${conds.join(' AND ')}
+       ORDER BY lc.created_at DESC`,
+      params
+    );
+    res.json({ items: rows, total: rows.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
