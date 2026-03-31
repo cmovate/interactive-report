@@ -49,7 +49,7 @@ router.get('/', async (req, res) => {
     const { workspace_id } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const { rows } = await db.query(
-      `SELECT c.*,
+      `SELECT c.*, (SELECT name FROM lists WHERE id = c.list_id) AS list_name,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id) AS contact_count,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true) AS invites_sent,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true) AS invites_approved,
