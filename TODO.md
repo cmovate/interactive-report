@@ -1,35 +1,33 @@
 # El-Via ABM — Development TODO
 
-Last session: 2026-03-30 23:19 UTC
+Last session: 2026-03-31 07:39 UTC
 
-## ✅ Completed this session
-- Full Lists architecture: tables, routes, UI
+## CORE ARCHITECTURE — COMPLETE ✅
+The Lists-first architecture is fully working:
+- Lists tab: create lists, upload contacts (LinkedIn URLs), view count
 - Campaign wizard: Account → List → Sequence → Name & Hours
-- List picker in campaigns: data-id approach (no escaping issues)
-- express.static before catch-all (workspace.html was broken)
-- /dev/push-file works for files up to 10MB
-- resetWizard TDZ fix
-- apiFetch → fetch() in lists.html and campaigns.html
+- Campaign creation: contacts automatically copied from selected list
+- End-to-end tested: list with 3 contacts → campaign created with 3 contacts
 
-## 🔴 High Priority (do next)
-- [ ] lists.html: "Upload contacts" panel — paste LinkedIn URLs → POST /api/lists/:id/contacts
-- [ ] lists.html: list-card onclick fix (same escaping issue as campaigns — use data-id)
-- [ ] Test full end-to-end: create list → add contacts → create campaign → verify contacts copied
+## 🔴 High Priority (next)
+- [ ] Upload contacts UI: test from the actual modal (lca-u button click → modal → paste URLs → upload)
+- [ ] Campaign wizard UI test: click through all 4 steps visually, create real campaign
+- [ ] Lists: "+ New list" modal test (create via UI, not API)
 
-## 🟡 Medium Priority
-- [ ] opportunities.html: add list filter dropdown (select company list)
+## 🟡 Medium Priority  
+- [ ] opportunities.html: add list filter dropdown (select company list to scope scan)
 - [ ] feed.html: add list filter dropdown
-- [ ] list_companies: UI to add companies to a companies-type list
-- [ ] List stats: contact_count should update after contacts added
+- [ ] list_companies: UI to add companies to companies-type list
+- [ ] campaigns.html: show list name on campaign card (currently only account shown)
 
-## 🟢 Low Priority  
-- [ ] Admin Analytics encoding bug (garbled text in link)
-- [ ] server.js: backfill account_profiles still uses old getAccountInfo
+## 🟢 Low Priority
+- [ ] Admin Analytics encoding bug (garbled unicode in link text)
+- [ ] server.js: backfill.account_profiles uses old getAccountInfo (no avatar)
+- [ ] Notification system: test that index.html banner fires on next visit
 
 ## Key Info
-- Repo: cmovate/interactive-report
+- Repo: cmovate/interactive-report  
 - Prod: https://interactive-report-production-0c5d.up.railway.app
-- Push: POST /dev/push-file (10MB limit, GITHUB_TOKEN in Railway env)
-- GitHub token: stored in Railway env as GITHUB_TOKEN (not here)
-- DB: PostgreSQL on Railway (lists, list_contacts, list_companies tables added)
+- Push: POST /dev/push-file (10MB limit, GITHUB_TOKEN env in Railway)
 - Workspaces: CMOvate(1) CLY(2) TFT(3) Datatailr(4)
+- TFT test list id=1 "Israeli CTOs Q3 2025" has 3 contacts
