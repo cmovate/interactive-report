@@ -130,32 +130,19 @@ function loadScreen(name) {
   loaded[name] = true;
   const fileMap = {lists: 'lists-v2'};
   const fname = fileMap[name] || name;
-  const url = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
   const frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
-  frame.src = 'about:blank';
+  // Add timestamp to bust CDN cache
+  frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName) + '&_t=' + Date.now();
   document.getElementById('screen-' + name).appendChild(frame);
-  fetch('/' + fname + '.html', {cache: 'no-store'})
-    .then(function(r) { return r.text(); })
-    .then(function(html) {
-      // Patch URLSearchParams so the iframe script gets correct workspaceId
-      var patched = html.replace(
-        'new URLSearchParams(window.location.search)',
-        "new URLSearchParams('workspace_id=" + workspaceId + "&workspace_name=" + encodeURIComponent(workspaceName) + "')"
-      );
-      frame.contentDocument.open();
-      frame.contentDocument.write(patched);
-      frame.contentDocument.close();
-      if (name === 'lists') {
-        frame.addEventListener('load', function() {
-          setTimeout(function() {
-            try { frame.contentWindow.eval('typeof loadLists==="function"&&loadLists()'); } catch(e) {}
-          }, 400);
-        });
-      }
-    }).catch(function(e) {
-      frame.src = url;
+  // After load, call loadLists for lists screen
+  if (name === 'lists') {
+    frame.addEventListener('load', function() {
+      setTimeout(function() {
+        try { frame.contentWindow.eval('typeof loadLists==="function"&&loadLists()'); } catch(e){}
+      }, 400);
     });
+  }
 }
 
 init();
