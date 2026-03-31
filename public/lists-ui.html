@@ -1042,7 +1042,7 @@ function renderCompanyStats() {
 }
 function renderCompaniesTable() {
   const tbody = document.getElementById('companies-body');
-  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="10">No companies found \u2014 contacts need to be enriched first</td></tr>'; return; }
+  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="11">No companies found \u2014 contacts need to be enriched first</td></tr>'; return; }
   tbody.innerHTML = filteredCompanies.map(c => {
     const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
     const liUrl = c.li_company_url || (c.company_linkedin_id ? 'https://www.linkedin.com/company/'+c.company_linkedin_id : '');
@@ -1057,7 +1057,8 @@ function renderCompaniesTable() {
       +'<td style="text-align:center;">'+fmtDate(c.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(c.post_likes_sent)+'</td>'
       +'<td style="text-align:center;">'+cooldownBadge(c.likes_sent_at)+'</td>'
-      +'<td>'+liLink+'</td></tr>';
+      +'<td>'+liLink+'</td>'
+      +'<td class="cell-muted">'+(c.list_name?esc(c.list_name):'<span class="cell-muted">—</span>')+'</td></tr>';
   }).join('');
 }
 function exportCompaniesCSV() {
