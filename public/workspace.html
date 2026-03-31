@@ -128,18 +128,29 @@ function showScreen(name) {
 
 function loadScreen(name) {
   loaded[name] = true;
-  const frame = document.createElement('iframe');
   const fileMap = {lists: 'lists-v2'};
   const fname = fileMap[name] || name;
-  fetch('/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName), {cache: 'no-store'})
-    .then(function(r){return r.text();})
-    .then(function(html){
-      frame.contentDocument.open();
-      frame.contentDocument.write(html);
-      frame.contentDocument.close();
-      if(name==='lists'){setTimeout(function(){try{frame.contentWindow.eval('typeof loadLists==="function"&&loadLists()');}catch(e){}},400);}
+  const url = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'width:100%;height:100vh;border:none;';
+  // Fetch fresh content bypassing CDN, inject via srcdoc (no browser caching for srcdoc)
+  fetch(url, {cache: 'no-store', headers: {'Cache-Control': 'no-cache', 'Pragma': 'no-cache'}})
+    .then(function(r) { return r.text(); })
+    .then(function(html) {
+      frame.srcdoc = html;
+      document.getElementById('screen-' + name).appendChild(frame);
+      if (name === 'lists') {
+        frame.addEventListener('load', function() {
+          setTimeout(function() {
+            try { frame.contentWindow.eval('typeof loadLists==="function"&&loadLists()'); } catch(e){}
+          }, 300);
+        });
+      }
+    }).catch(function(e) {
+      // Fallback to src if fetch fails
+      frame.src = url;
+      document.getElementById('screen-' + name).appendChild(frame);
     });
-  document.getElementById('screen-' + name).appendChild(frame);
 }
 
 init();
