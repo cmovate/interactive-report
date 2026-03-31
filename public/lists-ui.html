@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lists</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8f9fa; }
+
+/* LISTS PANEL */
+.lists-header { background: white; padding: 16px 20px 12px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: flex-start; justify-content: space-between; }
+.lists-header-left h2 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.lists-header-left p { font-size: 12px; color: #6b7280; margin-top: 3px; }
+.btn-new-list { background: #1D9E75; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.btn-new-list:hover { background: #178a65; }
+
+.lists-cards { padding: 10px 20px; display: flex; gap: 8px; flex-wrap: wrap; min-height: 44px; align-items: center; }
+.list-card { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1.5px solid #e5e7eb; border-radius: 20px; cursor: pointer; font-size: 13px; background: white; transition: all .15s; position: relative; }
+.list-card:hover { border-color: #9ca3af; background: #f9fafb; }
+.list-card.active { border-color: #1D9E75; background: #f0fdf4; }
+.lc-count { background: #e5e7eb; color: #374151; font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
+.lc-type { font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; }
+.lc-actions { display: flex; gap: 4px; margin-left: 4px; }
+.lc-actions button { background: none; border: none; cursor: pointer; font-size: 14px; padding: 2px; opacity: .6; }
+.lc-actions button:hover { opacity: 1; }
+.lists-loading { font-size: 13px; color: #9ca3af; }
+
+/* CONTACTS SECTION */
+.contacts-header { background: white; padding: 10px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-select { padding: 5px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; }
+.search-input { padding: 5px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; flex: 1; min-width: 140px; }
+.btn-refresh { padding: 5px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; cursor: pointer; background: white; }
+.stats-bar { background: white; padding: 6px 20px; border-bottom: 1px solid #e5e7eb; display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: #6b7280; }
+.stat-item { display: flex; gap: 3px; align-items: center; }
+.stat-item strong { color: #111827; }
+
+.contacts-table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: white; font-size: 12px; }
+th { padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; background: #f9fafb; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+tr:hover td { background: #f9fafb; }
+.empty-row td { text-align: center; color: #9ca3af; padding: 40px; }
+a.li-link { color: #1D9E75; text-decoration: none; }
+a.li-link:hover { text-decoration: underline; }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.modal-box { background: white; border-radius: 12px; padding: 24px; width: 440px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+.modal-field { margin-bottom: 14px; }
+.modal-field label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 5px; }
+.modal-field input, .modal-field textarea, .modal-field select { width: 100%; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px; }
+.modal-field textarea { resize: vertical; font-family: monospace; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.btn-cancel { padding: 7px 14px; border: 1px solid #e5e7eb; border-radius: 6px; background: white; cursor: pointer; font-size: 13px; }
+.btn-primary { padding: 7px 16px; background: #1D9E75; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.type-btns { display: flex; gap: 8px; }
+.type-btn { flex: 1; padding: 10px; border: 1.5px solid #e5e7eb; border-radius: 8px; cursor: pointer; text-align: center; font-size: 13px; background: white; }
+.type-btn.selected { border-color: #1D9E75; background: #f0fdf4; }
+.result-msg { font-size: 12px; margin-top: 6px; min-height: 18px; }
+.result-ok { color: #16a34a; }
+.result-err { color: #dc2626; }
+</style>
+</head>
+<body>
+
+<div class="lists-header">
+  <div class="lists-header-left">
+    <h2>📋 Lists</h2>
+    <p>Reusable contact and company lists. Attach a list to a campaign, opportunities scan, or feed.</p>
+  </div>
+  <button class="btn-new-list" id="btn-new-list">+ New list</button>
+</div>
+
+<div class="lists-cards" id="lists-cards"><span class="lists-loading">Loading lists...</span></div>
+
+<div class="contacts-header">
+  <input class="search-input" id="search-input" type="text" placeholder="Search by name, company, email..." oninput="filterTable()">
+  <select class="filter-select" id="camp-filter" onchange="filterTable()"><option value="">All campaigns</option></select>
+  <select class="filter-select" id="stage-filter" onchange="filterTable()"><option value="">All stages</option></select>
+  <button class="btn-refresh" onclick="loadContacts()">&#x21BB; Refresh</button>
+</div>
+
+<div class="stats-bar" id="stats-bar"></div>
+
+<div class="contacts-table-wrap">
+  <table id="contacts-table">
+    <thead><tr>
+      <th></th><th>First name</th><th>Last name</th><th>Title</th><th>Company</th>
+      <th>Location</th><th>LinkedIn</th><th>Email</th><th>Stage</th><th>Campaign</th>
+    </tr></thead>
+    <tbody id="contacts-tbody"><tr class="empty-row"><td colspan="10">Loading...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- New list modal -->
+<div class="modal-overlay" id="modal-new">
+  <div class="modal-box">
+    <div class="modal-title">New list</div>
+    <div class="modal-field">
+      <label>Type</label>
+      <div class="type-btns">
+        <button class="type-btn selected" id="type-contacts" onclick="selectType('contacts')">👥 Contacts</button>
+        <button class="type-btn" id="type-companies" onclick="selectType('companies')">🏢 Companies</button>
+      </div>
+    </div>
+    <div class="modal-field"><label>Name</label><input id="new-list-name" type="text" placeholder="e.g. Israeli CTOs Q3 2025"></div>
+    <div class="modal-field"><label>Description <span style="color:#9ca3af;font-weight:400">(optional)</span></label><input id="new-list-desc" type="text" placeholder="Brief description"></div>
+    <div class="result-msg" id="new-list-result"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-new')">Cancel</button>
+      <button class="btn-primary" id="btn-create-list" onclick="createList()">Create list</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload modal -->
+<div class="modal-overlay" id="modal-upload">
+  <div class="modal-box">
+    <div class="modal-title" id="upload-title">Upload contacts</div>
+    <div class="modal-field">
+      <label id="upload-label">LinkedIn profile URLs <span style="color:#9ca3af;font-weight:400">(one per line)</span></label>
+      <textarea id="upload-urls" rows="8" placeholder="https://www.linkedin.com/in/john-doe"></textarea>
+    </div>
+    <div class="result-msg" id="upload-result"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('modal-upload')">Cancel</button>
+      <button class="btn-primary" id="btn-upload" onclick="doUpload()">Upload</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var params = new URLSearchParams(window.location.search);
+var workspaceId = params.get('workspace_id');
+var workspaceName = params.get('workspace_name') || '';
+var allContacts = [];
+var campaigns = [];
+var _lists = [];
+var _activeListId = null;
+var _newListType = 'contacts';
+var _uploadListId = null;
+var _uploadListType = 'contacts';
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmt(s) { return s && s !== 'null' && s !== 'undefined' ? esc(s) : '<span style="color:#d1d5db">\u2014</span>'; }
+
+// ── LISTS ────────────────────────────────────────────────────────────────────
+
+function loadLists() {
+  var grid = document.getElementById('lists-cards');
+  grid.innerHTML = '<span class="lists-loading">Loading lists...</span>';
+  fetch('/api/lists?workspace_id=' + workspaceId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      _lists = data.items || [];
+      renderLists();
+    })
+    .catch(function(e) {
+      grid.innerHTML = '<span class="lists-loading result-err">Failed to load lists: ' + esc(e.message) + '</span>';
+    });
+}
+
+function renderLists() {
+  var grid = document.getElementById('lists-cards');
+  if (!_lists.length) {
+    grid.innerHTML = '<span class="lists-loading">No lists yet &#x2014; click <strong>+ New list</strong> to create one</span>';
+    return;
+  }
+  grid.innerHTML = '';
+  _lists.forEach(function(l) {
+    var card = document.createElement('div');
+    card.className = 'list-card' + (_activeListId === l.id ? ' active' : '');
+    var icon = l.type === 'contacts' ? '\uD83D\uDC65' : '\uD83C\uDFE2';
+    var cnt = l.type === 'contacts' ? (l.contact_count || 0) : (l.company_count || 0);
+    card.innerHTML = icon + ' <strong>' + esc(l.name) + '</strong>'
+      + '<span class="lc-count">' + cnt + '</span>'
+      + '<span class="lc-type">' + esc(l.type) + '</span>'
+      + '<span class="lc-actions">';
+    var btnUp = document.createElement('button');
+    btnUp.title = 'Upload';
+    btnUp.textContent = '\u2B06';
+    btnUp.onclick = (function(id, name, type) { return function(e) { e.stopPropagation(); openUpload(id, name, type); }; })(l.id, l.name, l.type);
+    var btnDel = document.createElement('button');
+    btnDel.title = 'Delete';
+    btnDel.textContent = '\uD83D\uDDD1\uFE0F';
+    btnDel.onclick = (function(id, name) { return function(e) { e.stopPropagation(); deleteList(id, name); }; })(l.id, l.name);
+    card.querySelector('.lc-actions').appendChild(btnUp);
+    card.querySelector('.lc-actions').appendChild(btnDel);
+    card.onclick = (function(id) { return function() { filterByList(id); }; })(l.id);
+    grid.appendChild(card);
+  });
+}
+
+function filterByList(listId) {
+  _activeListId = listId;
+  renderLists();
+  loadContacts();
+}
+
+function deleteList(listId, listName) {
+  if (!confirm('Delete list "' + listName + '"? This cannot be undone.')) return;
+  fetch('/api/lists/' + listId + '?workspace_id=' + workspaceId, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function() { _activeListId = null; loadLists(); })
+    .catch(function(e) { alert('Delete failed: ' + e.message); });
+}
+
+// ── NEW LIST MODAL ────────────────────────────────────────────────────────────
+
+function openNewListModal() {
+  _newListType = 'contacts';
+  document.getElementById('type-contacts').className = 'type-btn selected';
+  document.getElementById('type-companies').className = 'type-btn';
+  document.getElementById('new-list-name').value = '';
+  document.getElementById('new-list-desc').value = '';
+  document.getElementById('new-list-result').textContent = '';
+  document.getElementById('btn-create-list').disabled = false;
+  document.getElementById('btn-create-list').textContent = 'Create list';
+  openModal('modal-new');
+  setTimeout(function() { document.getElementById('new-list-name').focus(); }, 50);
+}
+
+function selectType(t) {
+  _newListType = t;
+  document.getElementById('type-contacts').className = 'type-btn' + (t === 'contacts' ? ' selected' : '');
+  document.getElementById('type-companies').className = 'type-btn' + (t === 'companies' ? ' selected' : '');
+}
+
+function createList() {
+  var name = document.getElementById('new-list-name').value.trim();
+  var desc = document.getElementById('new-list-desc').value.trim();
+  if (!name) { document.getElementById('new-list-result').textContent = 'Name is required.'; return; }
+  var btn = document.getElementById('btn-create-list');
+  btn.disabled = true; btn.textContent = 'Creating...';
+  fetch('/api/lists', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ workspace_id: parseInt(workspaceId), name: name, type: _newListType, description: desc || undefined })
+  }).then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error(data.error);
+      closeModal('modal-new');
+      loadLists();
+    })
+    .catch(function(e) {
+      document.getElementById('new-list-result').innerHTML = '<span class="result-err">Error: ' + esc(e.message) + '</span>';
+      btn.disabled = false; btn.textContent = 'Create list';
+    });
+}
+
+// ── UPLOAD MODAL ─────────────────────────────────────────────────────────────
+
+function openUpload(listId, listName, listType) {
+  _uploadListId = listId;
+  _uploadListType = listType;
+  var isContacts = listType === 'contacts';
+  document.getElementById('upload-title').textContent = (isContacts ? 'Upload contacts to ' : 'Upload companies to ') + listName;
+  document.getElementById('upload-label').textContent = isContacts ? 'LinkedIn profile URLs (one per line)' : 'LinkedIn company URLs (one per line)';
+  document.getElementById('upload-urls').placeholder = isContacts ? 'https://www.linkedin.com/in/john-doe' : 'https://www.linkedin.com/company/microsoft';
+  document.getElementById('upload-urls').value = '';
+  document.getElementById('upload-result').textContent = '';
+  var btn = document.getElementById('btn-upload');
+  btn.disabled = false; btn.textContent = 'Upload';
+  openModal('modal-upload');
+  setTimeout(function() { document.getElementById('upload-urls').focus(); }, 50);
+}
+
+function doUpload() {
+  var raw = document.getElementById('upload-urls').value.trim();
+  if (!raw) { document.getElementById('upload-result').textContent = 'Paste at least one URL.'; return; }
+  var isContacts = _uploadListType === 'contacts';
+  var keyword = isContacts ? '/in/' : '/company/';
+  var lines = raw.split('\n').map(function(l) { return l.trim(); }).filter(function(l) { return l.indexOf(keyword) > -1; });
+  if (!lines.length) {
+    document.getElementById('upload-result').innerHTML = '<span class="result-err">No valid LinkedIn URLs found.</span>';
+    return;
+  }
+  var btn = document.getElementById('btn-upload');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  document.getElementById('upload-result').textContent = 'Uploading ' + lines.length + '...';
+  var body, endpoint;
+  if (isContacts) {
+    body = JSON.stringify({ workspace_id: parseInt(workspaceId), contacts: lines.map(function(u) { return { li_profile_url: u }; }) });
+    endpoint = '/api/lists/' + _uploadListId + '/contacts';
+  } else {
+    body = JSON.stringify({ workspace_id: parseInt(workspaceId), companies: lines.map(function(u) { return { li_company_url: u, company_name: u.split('/').filter(Boolean).pop() }; }) });
+    endpoint = '/api/lists/' + _uploadListId + '/companies';
+  }
+  fetch(endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: body })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) throw new Error(data.error);
+      document.getElementById('upload-result').innerHTML = '<span class="result-ok">&#x2713; Added ' + (data.added || 0) + (data.skipped ? ' (' + data.skipped + ' skipped)' : '') + '</span>';
+      loadLists();
+      btn.textContent = 'Done';
+      setTimeout(function() { closeModal('modal-upload'); }, 1800);
+    })
+    .catch(function(e) {
+      document.getElementById('upload-result').innerHTML = '<span class="result-err">Error: ' + esc(e.message) + '</span>';
+      btn.disabled = false; btn.textContent = 'Upload';
+    });
+}
+
+// ── CONTACTS TABLE ────────────────────────────────────────────────────────────
+
+function loadContacts() {
+  var url = '/api/contacts?workspace_id=' + workspaceId;
+  if (_activeListId) url += '&list_id=' + _activeListId;
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      allContacts = data.items || [];
+      campaigns = data.campaigns || [];
+      populateCampFilter();
+      renderStats(data);
+      renderTable(allContacts);
+    })
+    .catch(function(e) {
+      document.getElementById('contacts-tbody').innerHTML = '<tr class="empty-row"><td colspan="10">Error: ' + esc(e.message) + '</td></tr>';
+    });
+}
+
+function populateCampFilter() {
+  var sel = document.getElementById('camp-filter');
+  sel.innerHTML = '<option value="">All campaigns</option>';
+  campaigns.forEach(function(c) {
+    var opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+
+function renderStats(data) {
+  var bar = document.getElementById('stats-bar');
+  var items = [
+    [data.total_contacts || allContacts.length, 'Total contacts'],
+    [data.already_connected || 0, 'Already connected'],
+    [data.invites_sent || 0, 'Invites sent'],
+    [data.messages_sent || 0, 'Messages sent']
+  ];
+  bar.innerHTML = items.map(function(i) {
+    return '<div class="stat-item"><strong>' + i[0] + '</strong> ' + esc(i[1]) + '</div>';
+  }).join('<span style="color:#e5e7eb">|</span>');
+}
+
+function renderTable(contacts) {
+  var tbody = document.getElementById('contacts-tbody');
+  if (!contacts.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No contacts found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = contacts.map(function(c) {
+    return '<tr>'
+      + '<td><input type="checkbox"></td>'
+      + '<td>' + fmt(c.first_name) + '</td>'
+      + '<td>' + fmt(c.last_name) + '</td>'
+      + '<td>' + fmt(c.title) + '</td>'
+      + '<td>' + fmt(c.company) + '</td>'
+      + '<td>' + fmt(c.location) + '</td>'
+      + '<td>' + (c.li_profile_url ? '<a class="li-link" href="' + esc(c.li_profile_url) + '" target="_blank">View</a>' : '<span style="color:#d1d5db">\u2014</span>') + '</td>'
+      + '<td>' + fmt(c.email) + '</td>'
+      + '<td>' + fmt(c.stage) + '</td>'
+      + '<td>' + fmt(c.campaign_name) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function filterTable() {
+  var q = document.getElementById('search-input').value.toLowerCase();
+  var campId = document.getElementById('camp-filter').value;
+  var filtered = allContacts.filter(function(c) {
+    var matchQ = !q || [c.first_name, c.last_name, c.company, c.email].some(function(f) { return f && f.toLowerCase().includes(q); });
+    var matchC = !campId || String(c.campaign_id) === campId;
+    return matchQ && matchC;
+  });
+  renderTable(filtered);
+}
+
+// ── MODAL HELPERS ─────────────────────────────────────────────────────────────
+
+function openModal(id) {
+  document.getElementById(id).style.display = 'flex';
+}
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+// Close on overlay click
+document.querySelectorAll('.modal-overlay').forEach(function(el) {
+  el.addEventListener('click', function(e) {
+    if (e.target === el) closeModal(el.id);
+  });
+});
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('btn-new-list').addEventListener('click', openNewListModal);
+
+if (workspaceId) {
+  loadLists();
+  loadContacts();
+}
+</script>
+</body>
+</html>
