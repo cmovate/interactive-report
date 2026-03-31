@@ -1082,6 +1082,7 @@ function downloadCSV(filename, labels, rows) {
 
 buildContactsHeader();
 load(false);
+loadLists();
 fetch('/api/contacts/re-extract?workspace_id='+workspaceId,{method:'POST'})
   .then(r=>r.json()).then(d=>{if(d.updated>0)setTimeout(()=>load(true),3000);})
   .catch(()=>{});
@@ -1239,7 +1240,7 @@ async function loadListContacts(listId, listType) {
     // Override next contacts API call to use list endpoint
     window._listFilter = listId;
     load()
-  loadLists();;
+  loadLists();
   }
 }
 
