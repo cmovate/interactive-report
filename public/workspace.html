@@ -131,6 +131,14 @@ function loadScreen(name) {
   const frame = document.createElement('iframe');
   frame.src = '/'+name+'.html?workspace_id='+workspaceId+'&workspace_name='+encodeURIComponent(workspaceName);
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
+  // After iframe loads, trigger loadLists for the lists screen
+  if (name === 'lists') {
+    frame.addEventListener('load', function() {
+      setTimeout(function() {
+        try { frame.contentWindow.loadLists && frame.contentWindow.loadLists(); } catch(e) {}
+      }, 500);
+    });
+  }
   document.getElementById('screen-'+name).innerHTML = '';
   document.getElementById('screen-'+name).appendChild(frame);
 }
