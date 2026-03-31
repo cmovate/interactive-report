@@ -132,34 +132,8 @@ function loadScreen(name) {
   const fname = fileMap[name] || name;
   const frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
+  frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
   document.getElementById('screen-' + name).appendChild(frame);
-  // Fetch WITHOUT query params to avoid CDN cache, then patch workspace context
-  fetch('/' + fname + '.html', {cache: 'no-store'})
-    .then(function(r) { return r.text(); })
-    .then(function(html) {
-      // Inject workspace context directly into script before it runs
-      var patched = html.replace(
-        'const params = new URLSearchParams(window.location.search);',
-        'const params = new URLSearchParams("workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName) + '");'
-      );
-      // Blob URL = same origin as parent page, so all onclick/functions work
-      var blob = new Blob([patched], {type: 'text/html'});
-      var blobUrl = URL.createObjectURL(blob);
-      frame.src = blobUrl;
-      if (name === 'lists') {
-        frame.addEventListener('load', function() {
-          URL.revokeObjectURL(blobUrl);
-          setTimeout(function() {
-            try { frame.contentWindow.eval('typeof loadLists==="function"&&loadLists()'); } catch(e){}
-          }, 400);
-        });
-      } else {
-        frame.addEventListener('load', function() { URL.revokeObjectURL(blobUrl); });
-      }
-    }).catch(function() {
-      // fallback
-      frame.src = '/' + fname + '.html?workspace_id=' + workspaceId + '&workspace_name=' + encodeURIComponent(workspaceName);
-    });
 }
 
 init();
