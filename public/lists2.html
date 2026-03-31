@@ -17,6 +17,48 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .view-btn { flex: 1; padding: 14px; border: 2px solid #e5e7eb; border-radius: 10px; background: white; font-size: 15px; font-weight: 500; cursor: pointer; color: #374151; transition: all .15s; }
 .view-btn:hover { border-color: #9ca3af; }
 .view-btn.active { border-color: #1D9E75; background: #f0fdf4; color: #1D9E75; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 1000; }
+.overlay.open { display: flex; }
+.modal { background: white; border-radius: 14px; width: 860px; max-width: 95vw; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,.18); }
+.modal-header { padding: 20px 24px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.modal-header h2 { font-size: 16px; font-weight: 600; color: #111827; }
+.modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+.modal-close:hover { background: #f3f4f6; color: #111827; }
+.modal-body { display: flex; flex: 1; overflow: hidden; }
+.panel { flex: 1; padding: 24px; overflow-y: auto; }
+.panel-right { border-left: 1px solid #e5e7eb; }
+.panel-title { font-size: 13px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+.url-canvas { width: 100%; height: 160px; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; font-size: 13px; font-family: monospace; resize: none; color: #374151; line-height: 1.6; }
+.url-canvas:focus { outline: none; border-color: #1D9E75; }
+.url-canvas::placeholder { color: #9ca3af; }
+.canvas-hint { font-size: 11px; color: #9ca3af; margin-top: 6px; }
+.icp-section { margin-top: 24px; }
+.icp-title { font-size: 14px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+.icp-sub { font-size: 12px; color: #6b7280; margin-bottom: 14px; }
+.field-label { font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 6px; display: block; }
+.country-wrapper { position: relative; margin-bottom: 10px; }
+.country-trigger { width: 100%; padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; background: white; font-size: 13px; color: #374151; cursor: pointer; text-align: left; display: flex; align-items: center; justify-content: space-between; }
+.country-trigger:hover { border-color: #9ca3af; }
+.country-trigger.open { border-color: #1D9E75; }
+.country-dropdown { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1.5px solid #e5e7eb; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); z-index: 10; max-height: 200px; overflow-y: auto; display: none; }
+.country-dropdown.open { display: block; }
+.country-search { width: 100%; padding: 8px 12px; border: none; border-bottom: 1px solid #f3f4f6; font-size: 13px; outline: none; }
+.country-option { padding: 8px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.country-option:hover { background: #f9fafb; }
+.country-option.selected { background: #f0fdf4; color: #1D9E75; }
+.country-option input[type="checkbox"] { accent-color: #1D9E75; }
+.country-bubbles { display: flex; flex-wrap: wrap; gap: 6px; min-height: 10px; }
+.bubble { display: inline-flex; align-items: center; gap: 5px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 20px; padding: 3px 10px 3px 10px; font-size: 12px; font-weight: 500; }
+.bubble-x { background: none; border: none; cursor: pointer; color: #166534; font-size: 14px; line-height: 1; padding: 0; margin-left: 2px; }
+.bubble-x:hover { color: #dc2626; }
+.titles-canvas { width: 100%; height: 120px; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; font-size: 13px; resize: none; color: #374151; line-height: 1.7; margin-top: 14px; }
+.titles-canvas:focus { outline: none; border-color: #1D9E75; }
+.titles-canvas::placeholder { color: #9ca3af; }
+.modal-footer { padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
+.btn-cancel { padding: 9px 18px; border: 1.5px solid #e5e7eb; border-radius: 8px; background: white; font-size: 13px; font-weight: 500; cursor: pointer; color: #374151; }
+.btn-cancel:hover { background: #f9fafb; }
+.btn-save { padding: 9px 20px; background: #1D9E75; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-save:hover { background: #178a65; }
 </style>
 </head>
 <body>
@@ -25,21 +67,118 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
   <p>Manage your contact and company lists</p>
 </div>
 <div class="content">
-  <button class="btn-add-list">+ ADD LIST</button>
+  <button class="btn-add-list" id="btn-add">+ ADD LIST</button>
   <div class="view-toggle">
     <button class="view-btn active" id="btn-contacts" onclick="selectView('contacts')">&#128101; Contacts</button>
     <button class="view-btn" id="btn-companies" onclick="selectView('companies')">&#127970; Companies</button>
+  </div>
+</div>
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add List</h2>
+      <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+    </div>
+    <div class="modal-body">
+      <div class="panel panel-left" id="panel-left">
+        <div class="panel-title">Left panel</div>
+      </div>
+      <div class="panel panel-right" id="panel-right">
+        <div class="panel-title">Companies</div>
+        <textarea class="url-canvas" id="company-urls" placeholder="https://www.linkedin.com/company/microsoft&#10;https://www.linkedin.com/company/google&#10;..."></textarea>
+        <div class="canvas-hint">Paste one LinkedIn company URL per line. No limit.</div>
+        <div class="icp-section">
+          <div class="icp-title">Define your ICP</div>
+          <div class="icp-sub">Set the criteria to filter and target the right accounts</div>
+          <label class="field-label">Country</label>
+          <div class="country-wrapper" id="country-wrapper">
+            <button class="country-trigger" id="country-trigger" onclick="toggleCountry()">Select countries &#9660;</button>
+            <div class="country-dropdown" id="country-dropdown">
+              <input class="country-search" id="country-search" placeholder="Search country..." oninput="filterCountries(this.value)">
+              <div id="country-list"></div>
+            </div>
+          </div>
+          <div class="country-bubbles" id="country-bubbles"></div>
+          <label class="field-label" style="margin-top:16px">Job titles</label>
+          <textarea class="titles-canvas" id="job-titles" placeholder="Chief Technology Officer&#10;VP Engineering&#10;Head of Product&#10;..."></textarea>
+          <div class="canvas-hint">One title per line</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save">Save List</button>
+    </div>
   </div>
 </div>
 <script>
 var params = new URLSearchParams(window.location.search);
 var workspaceId = params.get('workspace_id');
 var currentView = 'contacts';
+var selectedCountries = [];
+var ALL_COUNTRIES = ["Afghanistan","Albania","Algeria","Andorra","Angola","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahrain","Bangladesh","Belarus","Belgium","Belize","Benin","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Chad","Chile","China","Colombia","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic","Denmark","Dominican Republic","Ecuador","Egypt","El Salvador","Estonia","Ethiopia","Finland","France","Georgia","Germany","Ghana","Greece","Guatemala","Honduras","Hungary","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kuwait","Latvia","Lebanon","Libya","Lithuania","Luxembourg","Malaysia","Mali","Malta","Mexico","Moldova","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","Norway","Oman","Pakistan","Panama","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saudi Arabia","Senegal","Serbia","Singapore","Slovakia","Slovenia","Somalia","South Africa","South Korea","Spain","Sri Lanka","Sudan","Sweden","Switzerland","Syria","Taiwan","Tanzania","Thailand","Tunisia","Turkey","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
 function selectView(v) {
   currentView = v;
   document.getElementById('btn-contacts').className = 'view-btn' + (v==='contacts' ? ' active' : '');
   document.getElementById('btn-companies').className = 'view-btn' + (v==='companies' ? ' active' : '');
 }
+function openModal() {
+  document.getElementById('overlay').classList.add('open');
+  renderCountryList('');
+}
+function closeModal() {
+  document.getElementById('overlay').classList.remove('open');
+}
+function toggleCountry() {
+  var dd = document.getElementById('country-dropdown');
+  var tr = document.getElementById('country-trigger');
+  var open = dd.classList.contains('open');
+  dd.classList.toggle('open');
+  tr.classList.toggle('open');
+  if (!open) { document.getElementById('country-search').focus(); }
+}
+function filterCountries(q) { renderCountryList(q); }
+function renderCountryList(q) {
+  var list = document.getElementById('country-list');
+  var filtered = ALL_COUNTRIES.filter(function(c) { return !q || c.toLowerCase().includes(q.toLowerCase()); });
+  list.innerHTML = '';
+  filtered.forEach(function(c) {
+    var div = document.createElement('div');
+    div.className = 'country-option' + (selectedCountries.indexOf(c) > -1 ? ' selected' : '');
+    div.innerHTML = '<input type="checkbox"' + (selectedCountries.indexOf(c) > -1 ? ' checked' : '') + '> ' + c;
+    div.onclick = function() { toggleCountrySelect(c); };
+    list.appendChild(div);
+  });
+}
+function toggleCountrySelect(c) {
+  var idx = selectedCountries.indexOf(c);
+  if (idx > -1) { selectedCountries.splice(idx, 1); }
+  else { selectedCountries.push(c); }
+  renderCountryList(document.getElementById('country-search').value);
+  renderBubbles();
+}
+function renderBubbles() {
+  var wrap = document.getElementById('country-bubbles');
+  wrap.innerHTML = '';
+  selectedCountries.forEach(function(c) {
+    var b = document.createElement('span');
+    b.className = 'bubble';
+    b.innerHTML = c + '<button class="bubble-x" title="Remove">&times;</button>';
+    b.querySelector('.bubble-x').onclick = function() { toggleCountrySelect(c); };
+    wrap.appendChild(b);
+  });
+}
+document.addEventListener('click', function(e) {
+  var wrapper = document.getElementById('country-wrapper');
+  if (wrapper && !wrapper.contains(e.target)) {
+    document.getElementById('country-dropdown').classList.remove('open');
+    document.getElementById('country-trigger').classList.remove('open');
+  }
+});
+document.getElementById('overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('btn-add').addEventListener('click', openModal);
 </script>
 </body>
 </html>
