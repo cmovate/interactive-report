@@ -1,33 +1,29 @@
 # El-Via ABM — Development TODO
 
-Last session: 2026-03-31 07:39 UTC
+Last session: 2026-03-31 07:54 UTC
 
-## CORE ARCHITECTURE — COMPLETE ✅
-The Lists-first architecture is fully working:
-- Lists tab: create lists, upload contacts (LinkedIn URLs), view count
-- Campaign wizard: Account → List → Sequence → Name & Hours
-- Campaign creation: contacts automatically copied from selected list
-- End-to-end tested: list with 3 contacts → campaign created with 3 contacts
+## CORE FEATURES — COMPLETE ✅
+- Lists tab: create, upload contacts (LinkedIn URLs), view count + card
+- Campaign wizard: Account → List → Sequence → Name & Hours  
+- Campaign card: shows list name badge (👥 Israeli CTOs Q3 2025)
+- Opportunities: list filter dropdown (for companies lists)
+- Feed: list filter dropdown (for contacts lists)
+- Full e2e: list(3 contacts) → campaign → 3 contacts auto-copied ✅
 
-## 🔴 High Priority (next)
-- [ ] Upload contacts UI: test from the actual modal (lca-u button click → modal → paste URLs → upload)
-- [ ] Campaign wizard UI test: click through all 4 steps visually, create real campaign
-- [ ] Lists: "+ New list" modal test (create via UI, not API)
+## 🔴 Still Needed (next session)
+- [ ] New list modal: test via UI (the + New list button)
+- [ ] Companies list: UI to add companies (similar to upload contacts)
+- [ ] Opportunities filter: only shows options when companies-type lists exist — need to create one to test
 
-## 🟡 Medium Priority  
-- [ ] opportunities.html: add list filter dropdown (select company list to scope scan)
-- [ ] feed.html: add list filter dropdown
-- [ ] list_companies: UI to add companies to companies-type list
-- [ ] campaigns.html: show list name on campaign card (currently only account shown)
-
-## 🟢 Low Priority
-- [ ] Admin Analytics encoding bug (garbled unicode in link text)
-- [ ] server.js: backfill.account_profiles uses old getAccountInfo (no avatar)
-- [ ] Notification system: test that index.html banner fires on next visit
+## 🟡 Medium Priority
+- [ ] Campaign card: show contact count from list_id (currently shows contacts in campaign)
+- [ ] lists.html: "+ New list" modal test — verify it works from UI (not just API)
+- [ ] Admin Analytics encoding bug (garbled unicode in link)
+- [ ] server.js: backfill.account_profiles uses old getAccountInfo
 
 ## Key Info
-- Repo: cmovate/interactive-report  
+- Repo: cmovate/interactive-report
 - Prod: https://interactive-report-production-0c5d.up.railway.app
-- Push: POST /dev/push-file (10MB limit, GITHUB_TOKEN env in Railway)
+- Push: POST /dev/push-file (10MB, GITHUB_TOKEN in Railway env)
+- TFT test: list id=1 "Israeli CTOs Q3 2025" has 3 contacts
 - Workspaces: CMOvate(1) CLY(2) TFT(3) Datatailr(4)
-- TFT test list id=1 "Israeli CTOs Q3 2025" has 3 contacts
