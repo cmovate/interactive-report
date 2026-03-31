@@ -349,6 +349,21 @@ document.addEventListener('click', function(e) {
 document.getElementById('overlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
 document.getElementById('list-name').addEventListener('keydown', function(e){ if(e.key==='Enter') footerAction(); });
 document.getElementById('btn-add').addEventListener('click', openModal);
+// Load existing lists from API on page load
+function loadSavedLists() {
+  if (!workspaceId) return;
+  fetch('/api/lists?workspace_id=' + workspaceId)
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+      savedLists = (data.items || []).map(function(l) {
+        var count = l.type==='contacts' ? (l.contact_count||0) : (l.company_count||0);
+        return { id: l.id, name: l.name, type: l.type, count: count };
+      });
+      renderAllBubbles();
+    })
+    .catch(function(){});
+}
+loadSavedLists();
 </script>
 </body>
 </html>
