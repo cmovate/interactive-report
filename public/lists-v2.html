@@ -460,7 +460,7 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
 const MAX_MSG_SLOTS = 20;
 const VARIANTS = ['A', 'B', 'C'];
 
-const params = new URLSearchParams(window.location.search);
+const params = new URLSearchParams(window.location.search || window.name || '');
 const workspaceId = params.get('workspace_id');
 let allContacts = [], campaigns = [], filteredContacts = [];
 let allCompanies = [], filteredCompanies = [];
