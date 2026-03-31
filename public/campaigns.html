@@ -395,10 +395,11 @@ function renderCampaigns() {
     return;
   }
   el.innerHTML = `<div class="campaigns-table-wrap"><table class="campaigns-table">
-    <thead><tr><th>Campaign</th><th>Account</th><th>Invites sent</th><th>Approved</th><th>Messages</th><th>Positive replies</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Campaign</th><th>Account</th><th>List</th><th>Invites sent</th><th>Approved</th><th>Messages</th><th>Positive replies</th><th>Status</th><th></th></tr></thead>
     <tbody>${campaigns.map(c=>`<tr onclick="openCampaignModal(${c.id})">
       <td><strong>${esc(c.name)}</strong><div class="analytics-hint">&#9998; Click to view &amp; edit</div></td>
       <td style="color:#888;">${esc(c.account_id||'\u2014')}</td>
+      <td style="color:#1D9E75;font-size:12px;">${c.list_id ? ('\uD83D\uDC65 ' + (c.list_name||'List #'+c.list_id)) : '\u2014'}</td>
       <td><div class="stat-num">${parseInt(c.invites_sent)||0}</div></td>
       <td><div class="stat-num">${parseInt(c.invites_approved)||0}</div><div class="stat-rate">${pct(c.invites_approved,c.invites_sent)}</div></td>
       <td><div class="stat-num">${parseInt(c.messages_sent)||0}</div></td>
