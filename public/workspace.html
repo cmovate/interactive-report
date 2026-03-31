@@ -135,7 +135,7 @@ function loadScreen(name) {
   if (name === 'lists') {
     frame.addEventListener('load', function() {
       setTimeout(function() {
-        try { frame.contentWindow.loadLists && frame.contentWindow.loadLists(); } catch(e) {}
+        try { frame.contentWindow.eval('typeof loadLists === "function" && loadLists()'); } catch(e) {}
       }, 500);
     });
   }
