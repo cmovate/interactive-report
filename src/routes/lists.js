@@ -6,9 +6,9 @@
  * that can be attached to campaigns, opportunities, and feed views.
  *
  * Tables:
- *   lists             â id, workspace_id, name, type ('contacts'|'companies'), description
- *   list_contacts     â list_id, contact_id  (many-to-many to contacts)
- *   list_companies    â id, list_id, workspace_id, company_name, li_company_url, company_linkedin_id
+ *   lists             — id, workspace_id, name, type ('contacts'|'companies'), description
+ *   list_contacts     — list_id, contact_id  (many-to-many to contacts)
+ *   list_companies    — id, list_id, workspace_id, company_name, li_company_url, company_linkedin_id
  *
  * Routes:
  *   GET    /                         list all lists for workspace
@@ -29,7 +29,7 @@ const db = require('../db');
 const { enqueue } = require('../enrichment');
 const { lookupCompany, searchPeopleByCompany } = require('../unipile');
 
-// âââ GET /api/lists ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── GET /api/lists ────────────────────────────────────────────────────────
 router.get('/', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ POST /api/lists âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── POST /api/lists ───────────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
     const { workspace_id, name, type, description } = req.body;
@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ PATCH /api/lists/:id âââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── PATCH /api/lists/:id ─────────────────────────────────────────────────
 router.patch('/:id', async (req, res) => {
   try {
     const { workspace_id, name, description } = req.body;
@@ -88,7 +88,7 @@ router.patch('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ DELETE /api/lists/:id ââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── DELETE /api/lists/:id ────────────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -104,7 +104,7 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ GET /api/lists/:id/contacts ââââââââââââââââââââââââââââââââââââââââââ
+// ─── GET /api/lists/:id/contacts ──────────────────────────────────────────
 router.get('/:id/contacts', async (req, res) => {
   try {
     const { workspace_id, page = 1, limit = 50 } = req.query;
@@ -129,7 +129,7 @@ router.get('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ POST /api/lists/:id/contacts âââââââââââââââââââââââââââââââââââââââââ
+// ─── POST /api/lists/:id/contacts ─────────────────────────────────────────
 // Body: { workspace_id, contacts: [{li_profile_url, first_name, last_name, company, title}] }
 // Or:   { workspace_id, contact_ids: [1,2,3] }  (add existing contacts by ID)
 router.post('/:id/contacts', async (req, res) => {
@@ -210,7 +210,7 @@ router.post('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ DELETE /api/lists/:id/contacts/:contactId âââââââââââââââââââââââââââ
+// ─── DELETE /api/lists/:id/contacts/:contactId ───────────────────────────
 router.delete('/:id/contacts/:contactId', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -221,7 +221,7 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ GET /api/lists/:id/companies ââââââââââââââââââââââââââââââââââââââââ
+// ─── GET /api/lists/:id/companies ────────────────────────────────────────
 router.get('/:id/companies', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -234,7 +234,7 @@ router.get('/:id/companies', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ POST /api/lists/:id/companies âââââââââââââââââââââââââââââââââââââââ
+// ─── POST /api/lists/:id/companies ───────────────────────────────────────
 router.post('/:id/companies', async (req, res) => {
   try {
     const { workspace_id, companies } = req.body;
@@ -267,7 +267,7 @@ router.post('/:id/companies', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ DELETE /api/lists/:id/companies/:companyId ââââââââââââââââââââââââââ
+// ─── DELETE /api/lists/:id/companies/:companyId ──────────────────────────
 router.delete('/:id/companies/:companyId', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -279,71 +279,129 @@ router.delete('/:id/companies/:companyId', async (req, res) => {
 });
 
 
-// âââ POST /api/lists/:id/company-search âââââââââââââââââââââââââââââââââââââââ
+// ─── POST /api/lists/:id/company-search ───────────────────────────────────────
 // Searches LinkedIn for people at each company matching job titles.
 // Processes 4 companies in parallel. Saves found contacts to contacts table.
 router.post('/:id/company-search', async (req, res) => {
   try {
     const { workspace_id, job_titles = [], contacts_list_id } = req.body;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-    const { rows: list } = await db.query("SELECT id, type, name FROM lists WHERE id=$1 AND workspace_id=$2", [req.params.id, workspace_id]);
+
+    // Verify list exists + is companies type
+    const { rows: list } = await db.query(
+      'SELECT id, type, name FROM lists WHERE id=$1 AND workspace_id=$2',
+      [req.params.id, workspace_id]
+    );
     if (!list.length) return res.status(404).json({ error: 'List not found' });
     if (list[0].type !== 'companies') return res.status(400).json({ error: 'Not a companies list' });
-    const listName = list[0].name;
-    const { rows: companies } = await db.query('SELECT id, company_name, li_company_url, company_linkedin_id FROM list_companies WHERE list_id=$1', [req.params.id]);
-    const { rows: accounts } = await db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]);
-    if (!accounts.length) return res.status(400).json({ error: 'No LinkedIn account' });
+    const companiesListName = list[0].name;
+
+    // Get companies in this list
+    const { rows: companies } = await db.query(
+      'SELECT id, company_name, li_company_url, company_linkedin_id FROM list_companies WHERE list_id=$1',
+      [req.params.id]
+    );
+    if (!companies.length) return res.json({ companies_processed: 0, contacts_found: 0, contacts_added: 0 });
+
+    // Get first Unipile account for workspace
+    const { rows: accounts } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',
+      [workspace_id]
+    );
+    if (!accounts.length) return res.status(400).json({ error: 'No LinkedIn account connected to this workspace' });
     const accountId = accounts[0].account_id;
-    let cListId = contacts_list_id || null;
+
+    // Find or create a contacts list linked to this companies list
+    let cListId = contacts_list_id;
     if (!cListId) {
-      const { rows: ex } = await db.query("SELECT id FROM lists WHERE workspace_id=$1 AND name=$2 AND type='contacts' LIMIT 1", [workspace_id, listName]);
-      if (ex.length) { cListId = ex[0].id; }
-      else { const { rows: cr } = await db.query("INSERT INTO lists (workspace_id,name,type,description) VALUES ($1,$2,'contacts',$3) RETURNING id", [workspace_id, listName, 'Auto from '+listName]); cListId = cr[0].id; }
+      const { rows: existing } = await db.query(
+        "SELECT id FROM lists WHERE workspace_id=$1 AND name=$2 AND type='contacts' LIMIT 1",
+        [workspace_id, companiesListName]
+      );
+      if (existing.length) {
+        cListId = existing[0].id;
+      } else {
+        const { rows: created } = await db.query(
+          "INSERT INTO lists (workspace_id, name, type, description) VALUES ($1,$2,'contacts',$3) RETURNING id",
+          [workspace_id, companiesListName, 'Auto-generated from ' + companiesListName + ' company search']
+        );
+        cListId = created[0].id;
+      }
     }
-    res.json({ status: 'started', contacts_list_id: cListId, companies_total: companies.length });
-    setImmediate(function() {
-      runCompanySearchBg(accountId, workspace_id, companies, job_titles, cListId);
+
+    // Process 4 companies at a time
+    const BATCH = 4;
+    let totalFound = 0, totalAdded = 0;
+    const errors = [];
+
+    for (let i = 0; i < companies.length; i += BATCH) {
+      const batch = companies.slice(i, i + BATCH);
+      const results = await Promise.allSettled(batch.map(async (co) => {
+        try {
+          const slug = (co.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || co.company_name;
+          let companyId = co.company_linkedin_id;
+          if (!companyId) {
+            const looked = await lookupCompany(accountId, slug);
+            companyId = looked?.id || null;
+          }
+          const people = await searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20);
+          let found = 0, added = 0;
+          for (const p of people) {
+            const pid = p.public_identifier || p.identifier;
+            if (!pid) continue;
+            const profileUrl = 'https://www.linkedin.com/in/' + pid;
+            found++;
+            let contactId;
+            const { rows: ex } = await db.query(
+              'SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
+              [workspace_id, profileUrl]
+            );
+            if (ex.length) {
+              contactId = ex[0].id;
+            } else {
+              const { rows: ins } = await db.query(
+                'INSERT INTO contacts (workspace_id, first_name, last_name, title, company, li_profile_url, campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) RETURNING id',
+                [workspace_id, p.first_name||'', p.last_name||'', p.headline||'', co.company_name||'', profileUrl]
+              );
+              if (!ins[0]?.id) continue;
+              contactId = ins[0].id;
+              // Queue enrichment
+              enqueue(contactId, accountId, profileUrl);
+            }
+            await db.query(
+              'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+              [cListId, contactId]
+            );
+            added++;
+          }
+          return { found, added };
+        } catch (e) {
+          errors.push(co.company_name + ': ' + e.message);
+          return { found: 0, added: 0 };
+        }
+      }));
+      for (const r of results) {
+        if (r.status === 'fulfilled') {
+          totalFound += r.value.found;
+          totalAdded += r.value.added;
+        }
+      }
+    }
+
+    res.json({
+      contacts_list_id: cListId,
+      companies_processed: companies.length,
+      contacts_found: totalFound,
+      contacts_added: totalAdded,
+      errors: errors.slice(0, 5)
     });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-async function runCompanySearchBg(accountId, workspace_id, companies, job_titles, cListId) {
-  const BATCH = 4;
-  for (let i = 0; i < companies.length; i += BATCH) {
-    const batch = companies.slice(i, i + BATCH);
-    await Promise.allSettled(batch.map(async function(co) {
-      try {
-        const urlMatch = (co.li_company_url || '').match(/\/company\/([^\/\?#]+)/);
-        const slug = urlMatch ? urlMatch[1] : co.company_name;
-        let companyId = co.company_linkedin_id || null;
-        if (!companyId) {
-          try { const looked = await lookupCompany(accountId, slug); if (looked && looked.id) companyId = looked.id; } catch(e) {}
-        }
-        const people = await searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20);
-        for (const p of people) {
-          const pid = p.public_identifier || p.identifier;
-          if (!pid) continue;
-          const profileUrl = 'https://www.linkedin.com/in/' + pid;
-          const { rows: ex } = await db.query('SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1', [workspace_id, profileUrl]);
-          let contactId;
-          if (ex.length) { contactId = ex[0].id; }
-          else {
-            const { rows: ins } = await db.query('INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) RETURNING id', [workspace_id, p.first_name||'', p.last_name||'', p.headline||'', co.company_name||'', profileUrl]);
-            if (!ins.length || !ins[0].id) continue;
-            contactId = ins[0].id;
-            enqueue(contactId, accountId, profileUrl);
-          }
-          await db.query('INSERT INTO list_contacts (list_id,contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [cListId, contactId]);
-        }
-      } catch(e) {}
-    }));
-  }
-}
-);
-);
 
-
-// âââ GET /api/companies âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── GET /api/companies ───────────────────────────────────────────────────────
 // All companies from list_companies for a workspace, with list_name column
 router.get('/companies', async (req, res) => {
   try {
