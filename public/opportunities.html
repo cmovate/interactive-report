@@ -66,9 +66,8 @@ tr.company-row.expanded .expand-icon { transform: rotate(90deg); }
       <th>Company</th>
       <th>List</th>
       <th>Connections found</th>
-      <th style="width:130px"></th>
     </tr></thead>
-    <tbody id="co-tbody"><tr><td colspan="5" style="text-align:center;padding:40px;color:#9ca3af">Loading...</td></tr></tbody>
+    <tbody id="co-tbody"><tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af">Loading...</td></tr></tbody>
   </table>
 </div>
 <script>
@@ -86,6 +85,8 @@ function init() {
       companies = data.items || [];
       document.getElementById('status-text').textContent = companies.length + ' companies from your lists';
       renderTable();
+      // Auto-scan all companies
+      (data.items || []).forEach(function(co) { doScan(co); });
     })
     .catch(function(e) { document.getElementById('status-text').textContent = 'Failed to load: ' + e.message; });
 }
@@ -93,7 +94,7 @@ function init() {
 function renderTable() {
   var tbody = document.getElementById('co-tbody');
   if (!companies.length) {
-    tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state"><h3>No companies yet</h3><p>Add companies in List 2 and they will appear here automatically.</p></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><h3>No companies yet</h3><p>Add companies in List 2 and they will appear here automatically.</p></div></td></tr>';
     return;
   }
   tbody.innerHTML = '';
@@ -112,10 +113,7 @@ function renderTable() {
       + '<td><span class="list-tag">' + esc(co.list_name || '') + '</span></td>'
       + '<td class="contacts-count' + (count === 0 ? ' zero' : '') + '">'
       + (count === null ? '<span style="color:#9ca3af">—</span>' : (count === 0 ? 'No connections found' : count + ' connection' + (count!==1?'s':''))) + '</td>'
-      + '<td>' + (cache.scanning
-         ? '<span class="scanning-msg"><span class="spinner"></span> Scanning...</span>'
-         : '<button class="scan-btn" onclick="scanCompany(' + co.id + ', event)">&#128269; Scan LinkedIn</button>')
-      + '</td>';
+
     coRow.onclick = function() { toggleExpand(co.id); };
     tbody.appendChild(coRow);
 
@@ -134,7 +132,7 @@ function renderTable() {
 
 function buildContactsHtml(coId, coName) {
   var cache = scanCache[coId];
-  if (!cache) return '<div class="no-contacts">Click &#128269; Scan LinkedIn to find connections at ' + esc(coName) + '.</div>';
+  if (!cache) return '<div class="scanning-msg"><span class="spinner"></span> Scanning...</div>' + esc(coName) + '.</div>';
   if (cache.scanning) return '<div class="scanning-msg"><span class="spinner"></span> Scanning LinkedIn across all workspace accounts...</div>';
   if (!cache.contacts || !cache.contacts.length) return '<div class="no-contacts">No 1st-degree connections found at this company.</div>';
   return '<div class="contacts-grid">' + cache.contacts.map(function(c) {
