@@ -616,10 +616,7 @@ router.post('/scan-company', async (req, res) => {
     const all = [];
     for (const acc of accounts) {
       try {
-        // Use searchPeopleByCompany then filter DISTANCE_1 (searchFirstDegreeAtCompany
-        // breaks when combined with currentCompany filter in Unipile Classic API)
-        const allPeople = await searchPeopleByCompany(acc.account_id, companyId, company_name, [], 50);
-        const people = allPeople.filter(p => !p.member_distance || p.member_distance === 'DISTANCE_1' || p.distance === 1 || p.distance === '1');
+        const people = await searchFirstDegreeAtCompany(acc.account_id, companyId, 30);
         for (const p of people) {
           const pid = p.public_identifier || p.identifier;
           if (!pid) continue;
