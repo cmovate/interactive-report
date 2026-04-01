@@ -257,7 +257,8 @@ function saveList() {
       // Still trigger company-search even if no new URLs were pasted
       if (type === 'companies') {
         var titles = document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean);
-        runCompanySearch(listId, titles);
+        var geoUrn = getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '');
+        runCompanySearch(listId, titles, geoUrn);
       } else {
         closeModal();
       }
@@ -293,7 +294,12 @@ function saveList() {
   });
 }
 
-function runCompanySearch(listId, jobTitles) {
+
+function getGeoUrn(country) {
+  var map = { 'IL': '103599573', 'US': '103644278', 'GB': '101165590', 'DE': '101282230', 'FR': '105015875' };
+  return map[country] || null;
+}
+function runCompanySearch(listId, jobTitles, geoUrn) {
   var resultEl = document.getElementById('save-result');
   resultEl.innerHTML = '<div class="progress-wrap">'
     + '<div class="progress-label">Starting LinkedIn search...</div>'
@@ -303,14 +309,14 @@ function runCompanySearch(listId, jobTitles) {
   fetch('/api/lists/' + listId + '/company-search', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ workspace_id: parseInt(workspaceId), job_titles: jobTitles })
+    body: JSON.stringify({ workspace_id: parseInt(workspaceId), job_titles: jobTitles, geo_urn: geoUrn || null })
   }).then(function(r){ return r.json(); })
   .then(function(data) {
     if (data.error) {
       resultEl.innerHTML = '<span class="result-err">Error: ' + data.error + '</span>';
       return;
     }
-    // Server responded immediately — now poll for contacts count
+    // Server responded immediately â now poll for contacts count
     var total = data.companies_total || 0;
     var cListId = data.contacts_list_id;
     resultEl.innerHTML = '<div class="progress-wrap">'
@@ -340,7 +346,7 @@ function runCompanySearch(listId, jobTitles) {
           if (stableRounds >= 3) {
             clearInterval(pollId);
             if (pb) pb.style.width = '100%';
-            resultEl.innerHTML += '<div class="progress-done" style="margin-top:8px">&#10003; Done — ' + count + ' contacts found across ' + total + ' companies</div>';
+            resultEl.innerHTML += '<div class="progress-done" style="margin-top:8px">&#10003; Done â ' + count + ' contacts found across ' + total + ' companies</div>';
             loadSavedLists();
             setTimeout(function(){ closeModal(); }, 2500);
           }
