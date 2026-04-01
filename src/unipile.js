@@ -108,19 +108,29 @@ async function lookupCompany(accountId, slugOrId) {
   return id ? { id: String(id), name } : { id: null, name };
 }
 
-async function searchPeopleByCompany(accountId, companyId, companyName, titles = [], limit = 10, geoUrn = null) {
+async function searchPeopleByCompany(accountId, companyId, companyName, titles = [], limit = 10, locationId = null) {
   const body = { api: 'classic', category: 'people', limit };
+
+  // Set company filter (top-level per Unipile docs)
   if (companyId) {
-    body.filters = { currentCompany: [companyId] };
-    if (geoUrn) body.filters.geoUrn = [geoUrn];
-    if (titles.length) body.keywords = titles.join(' OR ');
-  } else {
-    body.keywords = titles.length
-      ? `(${titles.join(' OR ')}) "${companyName}"`
-      : `"${companyName}"`;
+    body.company = [String(companyId)];
   }
+
+  // Set location filter (top-level per Unipile docs)
+  if (locationId) {
+    body.location = [String(locationId)];
+  }
+
+  // Keywords: job titles joined with OR, or fall back to company name
+  if (titles.length) {
+    const titleKeywords = titles.join(' OR ');
+    body.keywords = companyId ? titleKeywords : '(' + titleKeywords + ') "' + companyName + '"';
+  } else if (!companyId) {
+    body.keywords = '"' + companyName + '"';
+  }
+
   const data = await request(
-    `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
+    '/api/v1/linkedin/search?account_id=' + encodeURIComponent(accountId),
     { method: 'POST', body: JSON.stringify(body) }
   );
   return Array.isArray(data?.items) ? data.items : [];
