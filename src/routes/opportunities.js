@@ -17,7 +17,7 @@
 const express  = require('express');
 const router   = express.Router();
 const db       = require('../db');
-const { sendMessage, startDirectMessage, searchPeopleByCompany, lookupCompany } = require('../unipile');
+const { sendMessage, startDirectMessage, searchPeopleByCompany, lookupCompany, searchFirstDegreeAtCompany } = require('../unipile');
 const { enqueue } = require('../enrichment');
 
 function extractCompanySlug(url) {
@@ -600,4 +600,43 @@ router.post('/scan', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// POST /api/opportunities/scan-company
+router.post('/scan-company', async (req, res) => {
+  try {
+    const { workspace_id, company_name, li_company_url, company_linkedin_id } = req.body;
+    if (!workspace_id || !company_name) return res.status(400).json({ error: 'workspace_id and company_name required' });
+    const { rows: accounts } = await db.query('SELECT ua.account_id, ua.display_name FROM unipile_accounts ua WHERE ua.workspace_id=$1', [workspace_id]);
+    if (!accounts.length) return res.json({ contacts: [], accounts_scanned: 0 });
+    const slug = (li_company_url||'').match(/\/company\/([^\/\?#]+)/)?.[1] || company_name;
+    let companyId = company_linkedin_id || null;
+    if (!companyId) {
+      try { const l = await lookupCompany(accounts[0].account_id, slug); companyId = l?.id || null; } catch(e) {}
+    }
+    const all = [];
+    for (const acc of accounts) {
+      try {
+        const people = await searchFirstDegreeAtCompany(acc.account_id, companyId, 30);
+        for (const p of people) {
+          const pid = p.public_identifier || p.identifier;
+          if (!pid) continue;
+          const url = 'https://www.linkedin.com/in/' + pid;
+          const ex = all.find(c => c.li_profile_url === url);
+          if (ex) { if (!ex.connected_via.find(v => v.account_id === acc.account_id)) ex.connected_via.push({account_id:acc.account_id, name:acc.display_name}); }
+          else all.push({ li_profile_url:url, public_identifier:pid, first_name:p.first_name||'', last_name:p.last_name||'', headline:p.headline||'', profile_picture:p.profile_picture_url||null, connected_via:[{account_id:acc.account_id, name:acc.display_name}] });
+        }
+      } catch(e) {}
+    }
+    for (const c of all.slice(0,20)) {
+      try {
+        const { rows:ex } = await db.query('SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',[workspace_id,c.li_profile_url]);
+        if (!ex.length) {
+          const { rows:ins } = await db.query('INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) ON CONFLICT DO NOTHING RETURNING id',[workspace_id,c.first_name,c.last_name,c.headline,company_name,c.li_profile_url]);
+          if (ins[0]?.id) { const {enqueue}=require('../enrichment'); enqueue(ins[0].id,accounts[0].account_id,c.li_profile_url); }
+        }
+      } catch(e) {}
+    }
+    res.json({ company:company_name, company_linkedin_id:companyId, accounts_scanned:accounts.length, contacts:all });
+  } catch(err) { res.status(500).json({error:err.message}); }
+});
 module.exports = router;
