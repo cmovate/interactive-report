@@ -278,6 +278,14 @@ async function searchFirstDegreeAtCompany(accountId, companyId, limit = 50) {
   return Array.isArray(data?.items) ? data.items : [];
 }
 
+async function getCompanyProfile(accountId, slug) {
+  const data = await request(
+    '/api/v1/linkedin/company/' + encodeURIComponent(slug) + '?account_id=' + encodeURIComponent(accountId),
+    { method: 'GET' }
+  );
+  return data;
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
