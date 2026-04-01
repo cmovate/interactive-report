@@ -254,12 +254,12 @@ function saveList() {
     var keyword = isContacts ? '/in/' : '/company/';
     var valid = lines.filter(function(u){ return u.indexOf(keyword) > -1; });
     if (!valid.length) {
+      // Read titles+geoUrn BEFORE closing modal (DOM disappears after closeModal)
+      var titles = type === 'companies' ? (document.getElementById('job-titles') ? document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean) : []) : [];
+      var geoUrn = type === 'companies' ? getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '') : null;
       addBubble(listId, name, type, 0);
-      // Close modal first, then start search after modal is gone
       closeModal();
       if (type === 'companies') {
-        var titles = document.getElementById('job-titles') ? document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean) : [];
-        var geoUrn = getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '');
         setTimeout(function(){ runCompanySearch(listId, titles, geoUrn); }, 300);
       }
       return;
@@ -281,8 +281,10 @@ function saveList() {
       addBubble(listId, name, type, res.added || valid.length);
       if (type === 'companies') {
         // Trigger LinkedIn search for contacts at these companies
-        var titles = document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean);
-        runCompanySearch(listId, titles);
+        var titles2 = document.getElementById('job-titles') ? document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean) : [];
+        var geoUrn2 = getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '');
+        closeModal();
+        setTimeout(function(){ runCompanySearch(listId, titles2, geoUrn2); }, 300);
       } else {
         closeModal();
       }
