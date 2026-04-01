@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { request } = require('../unipile');
+const { getCompanyProfile } = require('../unipile');
 
 // POST /api/enrich-companies
-// Enriches ONE company from a list at a time using Unipile company profile API.
+// Enriches ONE company at a time using Unipile company profile API.
 // Frontend loops: offset=0,1,2... until finished:true
-// Saves company_linkedin_id to list_companies table
+// Saves company_linkedin_id and real company_name to list_companies table
 
 router.post('/', async function(req, res) {
   try {
@@ -36,7 +36,7 @@ router.post('/', async function(req, res) {
 
     var co = coRes.rows[0];
 
-    // Already has ID — skip
+    // Already has LinkedIn ID — skip
     if (co.company_linkedin_id && co.company_linkedin_id.trim()) {
       return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: co.company_name, linkedin_id: co.company_linkedin_id, skipped: true });
     }
@@ -46,20 +46,15 @@ router.post('/', async function(req, res) {
     if (!slug) return res.json({ done: offset + 1, total: total, company_id: co.id, skipped: true, reason: 'no_slug' });
 
     try {
-      // Call Unipile company profile endpoint directly with slug
-      var profileData = await request(
-        '/api/v1/linkedin/company/' + encodeURIComponent(slug) + '?account_id=' + encodeURIComponent(accountId),
-        { method: 'GET' }
-      );
-
-      if (profileData && profileData.id) {
+      var profile = await getCompanyProfile(accountId, slug);
+      if (profile && profile.id) {
         await db.query(
           'UPDATE list_companies SET company_linkedin_id=$1, company_name=$2 WHERE id=$3',
-          [String(profileData.id), profileData.name || co.company_name, co.id]
+          [String(profile.id), profile.name || co.company_name, co.id]
         );
-        return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: profileData.name || co.company_name, linkedin_id: String(profileData.id) });
+        return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: profile.name || co.company_name, linkedin_id: String(profile.id) });
       }
-    } catch (apiErr) {}
+    } catch (e) {}
 
     return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: co.company_name, error: 'not_found' });
   } catch (err) { res.status(500).json({ error: err.message }); }
