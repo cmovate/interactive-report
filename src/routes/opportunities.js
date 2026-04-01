@@ -17,7 +17,7 @@
 const express  = require('express');
 const router   = express.Router();
 const db       = require('../db');
-const { sendMessage, startDirectMessage, searchPeopleByCompany, lookupCompany, searchFirstDegreeAtCompany } = require('../unipile');
+const { sendMessage, startDirectMessage, searchPeopleByCompany, lookupCompany, searchFirstDegreeAtCompany, enrichProfile } = require('../unipile');
 const { enqueue } = require('../enrichment');
 
 function extractCompanySlug(url) {
@@ -626,7 +626,18 @@ router.post('/scan-company', async (req, res) => {
           const url = 'https://www.linkedin.com/in/' + pid;
           const ex = all.find(c => c.li_profile_url === url);
           if (ex) { if (!ex.connected_via.find(v => v.account_id === acc.account_id)) ex.connected_via.push({account_id:acc.account_id, name:acc.display_name}); }
-          else all.push({ li_profile_url:url, public_identifier:pid, first_name:p.first_name||'', last_name:p.last_name||'', headline:p.headline||'', profile_picture:p.profile_picture_url||null, connected_via:[{account_id:acc.account_id, name:acc.display_name}] });
+          else let enriched = null;
+          try { enriched = await enrichProfile(acc.account_id, url); } catch(e) {}
+          all.push({
+            li_profile_url: url, public_identifier: pid,
+            first_name: enriched?.first_name || p.first_name || '',
+            last_name: enriched?.last_name || p.last_name || '',
+            headline: enriched?.headline || p.headline || '',
+            company: enriched?.company || '',
+            profile_picture: enriched?.profile_picture || p.profile_picture_url || null,
+            provider_id: pid,
+            connected_via: [{ account_id: acc.account_id, name: acc.display_name }]
+          });
         }
       } catch(e) {}
     }
@@ -641,5 +652,16 @@ router.post('/scan-company', async (req, res) => {
     }
     res.json({ company:company_name, company_linkedin_id:companyId, accounts_scanned:accounts.length, contacts:all });
   } catch(err) { res.status(500).json({error:err.message}); }
+});
+
+router.post('/send-dm', async (req, res) => {
+  try {
+    const { workspace_id, account_id, provider_id, li_profile_url, message } = req.body;
+    if (!workspace_id || !account_id || !message) return res.status(400).json({ error: 'workspace_id, account_id, message required' });
+    const target = provider_id || (li_profile_url||'').match(/\/in\/([^\/\?#]+)/)?.[1];
+    if (!target) return res.status(400).json({ error: 'provider_id or li_profile_url required' });
+    const result = await startDirectMessage(account_id, target, message);
+    res.json({ success: true, chat_id: result?.id || result?.chat_id || null });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 module.exports = router;
