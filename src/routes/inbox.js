@@ -22,7 +22,7 @@ const router  = express.Router();
 const db      = require('../db');
 const { getChatMessages, sendMessage, startDirectMessage } = require('../unipile');
 
-// ââ Helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 /**
  * Fetch and store messages for a single Unipile chat.
@@ -112,14 +112,37 @@ async function syncWorkspaceInbox(workspaceId) {
                             chat.attendees?.[0]?.id;
         if (!chatId || !providerId) continue;
 
-        // Try to find matching contact in any campaign of this workspace
+        // Find contact: by provider_id, then by li_profile_url, then create
         const { rows: contactRows } = await db.query(
           `SELECT id, campaign_id FROM contacts
            WHERE workspace_id = $1 AND provider_id = $2 LIMIT 1`,
           [workspaceId, providerId]
         );
-        const contact = contactRows[0];
-        if (!contact) continue; // Not a campaign contact
+        let contact = contactRows[0];
+        if (!contact) {
+          // Also try matching by li_profile_url (contacts from lists lack provider_id)
+          const { rows: byUrl } = await db.query(
+            `SELECT id, campaign_id FROM contacts
+             WHERE workspace_id = $1 AND li_profile_url = $2 LIMIT 1`,
+            [workspaceId, 'https://www.linkedin.com/in/' + providerId]
+          );
+          contact = byUrl[0];
+        }
+        if (!contact) {
+          // Create new contact from chat attendee data
+          const attendee = chat.attendees && chat.attendees[0];
+          const fullName = (attendee && (attendee.name || attendee.display_name)) || '';
+          const nameParts = fullName.trim().split(' ');
+          const { rows: newC } = await db.query(
+            `INSERT INTO contacts (workspace_id, first_name, last_name, li_profile_url, campaign_id)
+             VALUES ($1, $2, $3, $4, NULL)
+             ON CONFLICT DO NOTHING RETURNING id, campaign_id`,
+            [workspaceId, nameParts[0] || '', nameParts.slice(1).join(' ') || '',
+             'https://www.linkedin.com/in/' + providerId]
+          );
+          contact = newC[0];
+        }
+        if (!contact) continue; // Could not resolve or create contact
 
         // Upsert inbox thread
         const { rows: threadRows } = await db.query(
@@ -146,7 +169,7 @@ async function syncWorkspaceInbox(workspaceId) {
   console.log(`[Inbox] Sync complete for workspace ${workspaceId}`);
 }
 
-// ââ Routes ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Routes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 /**
  * GET /api/inbox?workspace_id=&campaign_id=&filter=all|unread|replied
