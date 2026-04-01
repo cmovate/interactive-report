@@ -20,6 +20,7 @@ const feedRouter               = require('./src/routes/feed');
 const inboxRouter              = require('./src/routes/inbox');
 const hotOpportunitiesRouter   = require('./src/routes/hot-opportunities');
 const enrichListRouter         = require('./src/routes/enrichList');
+const enrichCompaniesRouter    = require('./src/routes/enrichCompanies');
 const cleanupRouter            = require('./src/routes/cleanup');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
@@ -105,6 +106,7 @@ app.use('/api/feed',               feedRouter);
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/enrich-list',        enrichListRouter);
+app.use('/api/enrich-companies',   enrichCompaniesRouter);
 app.use('/api/cleanup',            cleanupRouter);
 
 async function s(label, fn) {
