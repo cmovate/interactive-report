@@ -287,31 +287,20 @@ router.post('/:id/company-search', async (req, res) => {
     const { workspace_id, job_titles = [], contacts_list_id } = req.body;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
-    // Verify list exists + is companies type
     const { rows: list } = await db.query(
-      'SELECT id, type, name FROM lists WHERE id=$1 AND workspace_id=$2',
+      "SELECT id, type, name FROM lists WHERE id=$1 AND workspace_id=$2",
       [req.params.id, workspace_id]
     );
     if (!list.length) return res.status(404).json({ error: 'List not found' });
     if (list[0].type !== 'companies') return res.status(400).json({ error: 'Not a companies list' });
     const companiesListName = list[0].name;
 
-    // Get companies in this list
     const { rows: companies } = await db.query(
       'SELECT id, company_name, li_company_url, company_linkedin_id FROM list_companies WHERE list_id=$1',
       [req.params.id]
     );
-    if (!companies.length) return res.json({ companies_processed: 0, contacts_found: 0, contacts_added: 0 });
 
-    // Get first Unipile account for workspace
-    const { rows: accounts } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',
-      [workspace_id]
-    );
-    if (!accounts.length) return res.status(400).json({ error: 'No LinkedIn account connected to this workspace' });
-    const accountId = accounts[0].account_id;
-
-    // Find or create a contacts list linked to this companies list
+    // Find or create contacts list
     let cListId = contacts_list_id;
     if (!cListId) {
       const { rows: existing } = await db.query(
@@ -323,82 +312,72 @@ router.post('/:id/company-search', async (req, res) => {
       } else {
         const { rows: created } = await db.query(
           "INSERT INTO lists (workspace_id, name, type, description) VALUES ($1,$2,'contacts',$3) RETURNING id",
-          [workspace_id, companiesListName, 'Auto-generated from ' + companiesListName + ' company search']
+          [workspace_id, companiesListName, 'Auto-generated from ' + companiesListName]
         );
         cListId = created[0].id;
       }
     }
 
-    // Process 4 companies at a time
-    const BATCH = 4;
-    let totalFound = 0, totalAdded = 0;
-    const errors = [];
+    const { rows: accounts } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',
+      [workspace_id]
+    );
+    if (!accounts.length) return res.status(400).json({ error: 'No LinkedIn account connected' });
+    const accountId = accounts[0].account_id;
 
-    for (let i = 0; i < companies.length; i += BATCH) {
-      const batch = companies.slice(i, i + BATCH);
-      const results = await Promise.allSettled(batch.map(async (co) => {
-        try {
-          const slug = (co.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || co.company_name;
-          let companyId = co.company_linkedin_id;
-          if (!companyId) {
-            const looked = await lookupCompany(accountId, slug);
-            companyId = looked?.id || null;
-          }
-          const people = await searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20);
-          let found = 0, added = 0;
-          for (const p of people) {
-            const pid = p.public_identifier || p.identifier;
-            if (!pid) continue;
-            const profileUrl = 'https://www.linkedin.com/in/' + pid;
-            found++;
-            let contactId;
-            const { rows: ex } = await db.query(
-              'SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
-              [workspace_id, profileUrl]
-            );
-            if (ex.length) {
-              contactId = ex[0].id;
-            } else {
-              const { rows: ins } = await db.query(
-                'INSERT INTO contacts (workspace_id, first_name, last_name, title, company, li_profile_url, campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) RETURNING id',
-                [workspace_id, p.first_name||'', p.last_name||'', p.headline||'', co.company_name||'', profileUrl]
-              );
-              if (!ins[0]?.id) continue;
-              contactId = ins[0].id;
-              // Queue enrichment
-              enqueue(contactId, accountId, profileUrl);
+    // Respond immediately — process in background
+    res.json({ status: 'started', contacts_list_id: cListId, companies_total: companies.length });
+
+    // Background processing (fire and forget)
+    setImmediate(async () => {
+      const BATCH = 4;
+      for (let i = 0; i < companies.length; i += BATCH) {
+        const batch = companies.slice(i, i + BATCH);
+        await Promise.allSettled(batch.map(async (co) => {
+          try {
+            const slug = (co.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || co.company_name;
+            let companyId = co.company_linkedin_id;
+            if (!companyId) {
+              const looked = await lookupCompany(accountId, slug);
+              companyId = looked?.id || null;
             }
-            await db.query(
-              'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-              [cListId, contactId]
-            );
-            added++;
-          }
-          return { found, added };
-        } catch (e) {
-          errors.push(co.company_name + ': ' + e.message);
-          return { found: 0, added: 0 };
-        }
-      }));
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          totalFound += r.value.found;
-          totalAdded += r.value.added;
-        }
+            const people = await searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20);
+            for (const p of people) {
+              const pid = p.public_identifier || p.identifier;
+              if (!pid) continue;
+              const profileUrl = 'https://www.linkedin.com/in/' + pid;
+              const { rows: ex } = await db.query(
+                'SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
+                [workspace_id, profileUrl]
+              );
+              let contactId;
+              if (ex.length) {
+                contactId = ex[0].id;
+              } else {
+                const { rows: ins } = await db.query(
+                  'INSERT INTO contacts (workspace_id, first_name, last_name, title, company, li_profile_url, campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) RETURNING id',
+                  [workspace_id, p.first_name||'', p.last_name||'', p.headline||'', co.company_name||'', profileUrl]
+                );
+                if (!ins[0]?.id) continue;
+                contactId = ins[0].id;
+                enqueue(contactId, accountId, profileUrl);
+              }
+              await db.query(
+                'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+                [cListId, contactId]
+              );
+            }
+          } catch(e) { /* skip failed company */ }
+        }));
       }
-    }
-
-    res.json({
-      contacts_list_id: cListId,
-      companies_processed: companies.length,
-      contacts_found: totalFound,
-      contacts_added: totalAdded,
-      errors: errors.slice(0, 5)
+      console.log('[company-search] done for list', cListId);
     });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+);
 
 
 // ─── GET /api/companies ───────────────────────────────────────────────────────
