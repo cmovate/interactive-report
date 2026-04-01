@@ -24,7 +24,7 @@ router.post('/', async function(req, res) {
     var total = parseInt(totalRes.rows[0].n);
 
     var ctRes = await db.query(
-      'SELECT c.id, c.li_profile_url, c.first_name, c.last_name, c.profile_data FROM list_contacts lc JOIN contacts c ON c.id=lc.contact_id WHERE lc.list_id=$1 ORDER BY lc.id LIMIT 1 OFFSET $2',
+      'SELECT c.id, c.li_profile_url, c.first_name, c.last_name, c.profile_data FROM list_contacts lc JOIN contacts c ON c.id=lc.contact_id WHERE lc.list_id=$1 ORDER BY lc.contact_id LIMIT 1 OFFSET $2',
       [list_id, offset]
     );
     if (!ctRes.rows.length) return res.json({ finished: true, total: total, done: offset });
