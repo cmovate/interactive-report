@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Opportunities</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,17 +13,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .page-body { padding: 20px 24px; }
 .status-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 12px; color: #6b7280; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
-.co-block { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; overflow: hidden; }
-.co-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
-.co-name { font-weight: 700; color: #111827; font-size: 15px; }
+.co-block { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 12px; overflow: hidden; }
+.co-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; cursor: pointer; user-select: none; transition: background .1s; }
+.co-header:hover { background: #f9fafb; }
+.chevron { font-size: 11px; color: #9ca3af; flex-shrink: 0; transition: transform .2s; }
+.co-block.open > .co-header .chevron { transform: rotate(90deg); }
+.co-name { font-weight: 700; color: #111827; font-size: 14px; }
 .co-link { color: #1D9E75; font-size: 12px; text-decoration: none; }
 .co-link:hover { text-decoration: underline; }
-.list-tag { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 500; margin-left: auto; }
 .co-count { font-size: 12px; color: #6b7280; }
-.scanning-row { padding: 16px 18px; display: flex; align-items: center; gap: 8px; color: #6b7280; font-size: 13px; }
+.list-tag { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 500; margin-left: auto; }
+.co-body { border-top: 1px solid #f3f4f6; display: none; }
+.co-block.open > .co-body { display: block; }
+.scanning-row { padding: 14px 18px; display: flex; align-items: center; gap: 8px; color: #6b7280; font-size: 13px; }
 .spinner { width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #1D9E75; border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.no-conn { padding: 16px 18px; color: #9ca3af; font-size: 13px; }
+.no-conn { padding: 14px 18px; color: #9ca3af; font-size: 13px; }
 .co-table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
@@ -80,41 +86,31 @@ textarea.msg-box:focus { outline: none; border-color: #1D9E75; }
 <script>
 var params = new URLSearchParams(window.location.search);
 var workspaceId = params.get('workspace_id');
-var companies = [];
-var scanResults = {};
-var accounts = [];
-var dmTarget = null;
+var companies = [], scanResults = {}, accounts = [], dmTarget = null;
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toggleCo(coId) {
+  var block = document.getElementById('co-' + coId);
+  if (!block) return;
+  block.classList.toggle('open');
+}
 function init() {
   if (!workspaceId) return;
-  fetch('/api/workspaces/' + workspaceId + '/accounts').then(r=>r.json()).then(function(d) {
+  fetch('/api/workspaces/' + workspaceId + '/accounts').then(function(r){return r.json();}).then(function(d){
     accounts = d.items || [];
     var sel = document.getElementById('dm-from-sel');
     sel.innerHTML = '';
-    accounts.forEach(function(a) {
-      var opt = document.createElement('option');
-      opt.value = a.account_id;
-      opt.textContent = a.display_name;
-      sel.appendChild(opt);
-    });
+    accounts.forEach(function(a) { var o=document.createElement('option'); o.value=a.account_id; o.textContent=a.display_name; sel.appendChild(o); });
   });
-  fetch('/api/lists/companies?workspace_id=' + workspaceId)
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      companies = data.items || [];
-      document.getElementById('status-text').textContent = companies.length + ' companies from your lists';
-      renderAll();
-      companies.forEach(function(co) { doScan(co); });
-    }).catch(function(e) {
-      document.getElementById('status-text').textContent = 'Error: ' + e.message;
-    });
+  fetch('/api/lists/companies?workspace_id=' + workspaceId).then(function(r){return r.json();}).then(function(data){
+    companies = data.items || [];
+    document.getElementById('status-text').textContent = companies.length + ' companies from your lists';
+    renderAll();
+    companies.forEach(function(co){ doScan(co); });
+  }).catch(function(e){ document.getElementById('status-text').textContent = 'Error: '+e.message; });
 }
 function renderAll() {
   var list = document.getElementById('co-list');
-  if (!companies.length) {
-    list.innerHTML = '<div class="empty-state"><h3>No companies yet</h3><p>Add companies via List 2.</p></div>';
-    return;
-  }
+  if (!companies.length) { list.innerHTML = '<div class="empty-state"><h3>No companies yet</h3><p>Add companies via List 2.</p></div>'; return; }
   list.innerHTML = '';
   companies.forEach(function(co) {
     var block = document.createElement('div');
@@ -126,36 +122,37 @@ function renderAll() {
 }
 function renderBlock(co) {
   var res = scanResults[co.id];
-  var hdr = '<div class="co-header">'
+  var countLabel = '';
+  if (res && !res.scanning) countLabel = '<span class="co-count">' + (res.contacts ? res.contacts.length : 0) + ' connection' + (res.contacts && res.contacts.length!==1?'s':'') + ' found</span>';
+  var hdr = '<div class="co-header" onclick="toggleCo(' + co.id + ')">'
+    + '<span class="chevron">&#9654;</span>'
     + '<span class="co-name">' + esc(co.company_name) + '</span>'
-    + (co.li_company_url ? ' <a class="co-link" href="' + esc(co.li_company_url) + '" target="_blank">View on LinkedIn</a>' : '')
-    + (res && !res.scanning && res.contacts ? '<span class="co-count">' + res.contacts.length + ' connection' + (res.contacts.length!==1?'s':'') + ' found</span>' : '')
+    + (co.li_company_url ? ' <a class="co-link" href="' + esc(co.li_company_url) + '" target="_blank" onclick="event.stopPropagation()">View on LinkedIn</a>' : '')
+    + countLabel
     + '<span class="list-tag">' + esc(co.list_name||'') + '</span>'
     + '</div>';
   var body;
   if (!res || res.scanning) {
-    body = '<div class="scanning-row"><span class="spinner"></span> Scanning LinkedIn...</div>';
+    body = '<div class="co-body"><div class="scanning-row"><span class="spinner"></span> Scanning LinkedIn...</div></div>';
   } else if (!res.contacts || !res.contacts.length) {
-    body = '<div class="no-conn">No 1st-degree connections found at this company.</div>';
+    body = '<div class="co-body"><div class="no-conn">No 1st-degree connections found at this company.</div></div>';
   } else {
+    var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
       var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'—');
-      var viaTags = (c.connected_via||[]).map(function(v) {
-        return '<span class="via-tag">via ' + esc(v.name) + '</span>';
-      }).join(' ');
+      var via = (c.connected_via||[]).map(function(v){ return '<span class="via-tag">via '+esc(v.name)+'</span>'; }).join(' ');
       return '<tr>'
-        + '<td class="contact-name">' + nm + '</td>'
-        + '<td>' + esc(c.company||'—') + '</td>'
-        + '<td>' + esc(c.headline||'—') + '</td>'
-        + '<td>' + (c.li_profile_url ? '<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>' : '—') + '</td>'
-        + '<td><div class="via-tags">' + (viaTags||'<span class="via-tag">—</span>') + '</div></td>'
-        + '<td><button class="btn-msg" onclick="openDM(' + i + ',\'' + co.id + '\')">&rarr; Message</button></td>'
-        + '</tr>';
+        +'<td class="contact-name">'+nm+'</td>'
+        +'<td>'+esc(c.company||'—')+'</td>'
+        +'<td>'+esc(c.headline||'—')+'</td>'
+        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'—')+'</td>'
+        +'<td><div class="via-tags">'+(via||'—')+'</div></td>'
+        +'<td><button class="btn-msg" onclick="openDM('+i+','+co.id+')">&#8594; Message</button></td>'
+        +'</tr>';
     }).join('');
-    body = '<div class="co-table-wrap"><table>'
-      + '<thead><tr><th>First + Last name</th><th>Company</th><th>Title</th><th>LinkedIn</th><th>Connected via</th><th></th></tr></thead>'
-      + '<tbody>' + rows + '</tbody>'
-      + '</table></div>';
+    body = '<div class="co-body"><div class="co-table-wrap"><table>'
+      +'<thead><tr><th>First + Last name</th><th>Company</th><th>Title</th><th>LinkedIn</th><th>Connected via</th><th></th></tr></thead>'
+      +'<tbody>'+rows+'</tbody></table></div></div>';
   }
   return hdr + body;
 }
@@ -166,61 +163,58 @@ function doScan(co) {
   fetch('/api/opportunities/scan-company', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ workspace_id: parseInt(workspaceId), company_name: co.company_name, li_company_url: co.li_company_url, company_linkedin_id: co.company_linkedin_id })
-  }).then(function(r) { return r.json(); })
+  }).then(function(r){return r.json();})
   .then(function(data) {
     scanResults[co.id] = { scanning: false, contacts: data.contacts || [] };
     var el2 = document.getElementById('co-' + co.id);
-    if (el2) el2.innerHTML = renderBlock(co);
+    if (el2) {
+      var wasOpen = el2.classList.contains('open');
+      el2.innerHTML = renderBlock(co);
+      if (wasOpen) el2.classList.add('open');
+    }
   }).catch(function() {
     scanResults[co.id] = { scanning: false, contacts: [] };
     var el3 = document.getElementById('co-' + co.id);
     if (el3) el3.innerHTML = renderBlock(co);
   });
 }
-function openDM(contactIdx, coId) {
-  var res = scanResults[coId];
-  if (!res || !res.contacts) return;
-  dmTarget = res.contacts[contactIdx];
-  dmTarget._coId = coId;
-  var nm = ((dmTarget.first_name||'') + ' ' + (dmTarget.last_name||'')).trim() || 'this person';
-  document.getElementById('dm-sub').textContent = 'To: ' + nm + (dmTarget.headline ? ' · ' + dmTarget.headline : '');
+function openDM(i, coId) {
+  var res = scanResults[coId]; if (!res||!res.contacts) return;
+  dmTarget = res.contacts[i]; dmTarget._coId = coId;
+  var nm = ((dmTarget.first_name||'')+' '+(dmTarget.last_name||'')).trim()||'this person';
+  document.getElementById('dm-sub').textContent = 'To: '+nm+(dmTarget.headline?' \u00b7 '+dmTarget.headline:'');
   document.getElementById('dm-text').value = '';
   document.getElementById('dm-result').textContent = '';
   document.getElementById('dm-send-btn').disabled = false;
   document.getElementById('dm-send-btn').textContent = 'Send';
-  var via = dmTarget.connected_via?.[0]?.account_id;
-  if (via) {
-    document.getElementById('dm-from-sel').value = via;
-  }
+  var via = dmTarget.connected_via && dmTarget.connected_via[0] && dmTarget.connected_via[0].account_id;
+  if (via) document.getElementById('dm-from-sel').value = via;
   document.getElementById('dm-overlay').classList.add('open');
   setTimeout(function(){ document.getElementById('dm-text').focus(); }, 50);
 }
-function closeDM() {
-  document.getElementById('dm-overlay').classList.remove('open');
-  dmTarget = null;
-}
+function closeDM() { document.getElementById('dm-overlay').classList.remove('open'); dmTarget = null; }
 function sendDM() {
   var msg = document.getElementById('dm-text').value.trim();
   if (!msg) { document.getElementById('dm-result').innerHTML = '<span class="msg-err">Please write a message.</span>'; return; }
   var accId = document.getElementById('dm-from-sel').value;
-  if (!accId) { return; }
+  if (!accId) return;
   var btn = document.getElementById('dm-send-btn');
   btn.disabled = true; btn.textContent = 'Sending...';
   fetch('/api/opportunities/send-dm', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ workspace_id: parseInt(workspaceId), account_id: accId, provider_id: dmTarget.provider_id, li_profile_url: dmTarget.li_profile_url, message: msg })
-  }).then(function(r) { return r.json(); })
+  }).then(function(r){return r.json();})
   .then(function(data) {
     if (data.error) throw new Error(data.error);
-    document.getElementById('dm-result').innerHTML = '<span class="msg-ok">&#10003; Message sent successfully!</span>';
+    document.getElementById('dm-result').innerHTML = '<span class="msg-ok">\u2713 Message sent successfully!</span>';
     btn.textContent = 'Sent';
     setTimeout(closeDM, 1500);
   }).catch(function(e) {
-    document.getElementById('dm-result').innerHTML = '<span class="msg-err">Error: ' + e.message + '</span>';
+    document.getElementById('dm-result').innerHTML = '<span class="msg-err">Error: '+e.message+'</span>';
     btn.disabled = false; btn.textContent = 'Send';
   });
 }
-document.getElementById('dm-overlay').addEventListener('click', function(e) { if (e.target===this) closeDM(); });
+document.getElementById('dm-overlay').addEventListener('click', function(e){ if(e.target===this) closeDM(); });
 init();
 </script>
 </body>
