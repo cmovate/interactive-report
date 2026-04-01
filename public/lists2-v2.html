@@ -254,7 +254,13 @@ function saveList() {
     var valid = lines.filter(function(u){ return u.indexOf(keyword) > -1; });
     if (!valid.length) {
       addBubble(listId, name, type, 0);
-      closeModal();
+      // Still trigger company-search even if no new URLs were pasted
+      if (type === 'companies') {
+        var titles = document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean);
+        runCompanySearch(listId, titles);
+      } else {
+        closeModal();
+      }
       return;
     }
     var endpoint = '/api/lists/' + listId + '/' + type;
@@ -314,8 +320,8 @@ function runCompanySearch(listId, jobTitles) {
       return;
     }
     resultEl.innerHTML += '<div class="progress-done">'
-      + '✓ Found ' + data.contacts_found + ' contacts across ' + data.companies_processed + ' companies'
-      + (data.contacts_added ? ' — ' + data.contacts_added + ' added' : '')
+      + 'â Found ' + data.contacts_found + ' contacts across ' + data.companies_processed + ' companies'
+      + (data.contacts_added ? ' â ' + data.contacts_added + ' added' : '')
       + '</div>';
     // Refresh bubbles to show updated count
     loadSavedLists();
