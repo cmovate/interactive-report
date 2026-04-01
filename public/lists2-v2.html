@@ -296,40 +296,66 @@ function saveList() {
 function runCompanySearch(listId, jobTitles) {
   var resultEl = document.getElementById('save-result');
   resultEl.innerHTML = '<div class="progress-wrap">'
-    + '<div class="progress-label">Searching LinkedIn for contacts...</div>'
-    + '<div class="progress-bar-bg"><div class="progress-bar-fill" id="pbar" style="width:10%"></div></div>'
+    + '<div class="progress-label">Starting LinkedIn search...</div>'
+    + '<div class="progress-bar-bg"><div class="progress-bar-fill" id="pbar" style="width:5%"></div></div>'
     + '</div>';
-  // Animate progress while waiting
-  var pct = 10;
-  var timer = setInterval(function() {
-    pct = Math.min(pct + 5, 85);
-    var pb = document.getElementById('pbar');
-    if (pb) pb.style.width = pct + '%';
-  }, 1200);
+
   fetch('/api/lists/' + listId + '/company-search', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ workspace_id: parseInt(workspaceId), job_titles: jobTitles })
   }).then(function(r){ return r.json(); })
   .then(function(data) {
-    clearInterval(timer);
-    var pb = document.getElementById('pbar');
-    if (pb) pb.style.width = '100%';
     if (data.error) {
-      resultEl.innerHTML += '<div class="result-err" style="margin-top:8px">Search error: ' + data.error + '</div>';
+      resultEl.innerHTML = '<span class="result-err">Error: ' + data.error + '</span>';
       return;
     }
-    resultEl.innerHTML += '<div class="progress-done">'
-      + 'â Found ' + data.contacts_found + ' contacts across ' + data.companies_processed + ' companies'
-      + (data.contacts_added ? ' â ' + data.contacts_added + ' added' : '')
+    // Server responded immediately — now poll for contacts count
+    var total = data.companies_total || 0;
+    var cListId = data.contacts_list_id;
+    resultEl.innerHTML = '<div class="progress-wrap">'
+      + '<div class="progress-label" id="prog-label">Searching ' + total + ' companies in background...</div>'
+      + '<div class="progress-bar-bg"><div class="progress-bar-fill" id="pbar" style="width:10%"></div></div>'
       + '</div>';
-    // Refresh bubbles to show updated count
-    loadSavedLists();
-    setTimeout(function(){ closeModal(); }, 2500);
+
+    var lastCount = 0, stableRounds = 0, pct = 10;
+    var pollId = setInterval(function() {
+      fetch('/api/lists?workspace_id=' + workspaceId)
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+          var cList = (d.items || []).find(function(l){ return l.id === cListId; });
+          var count = parseInt(cList && (cList.contact_count || 0)) || 0;
+          pct = Math.min(95, 10 + Math.round((count / Math.max(total, 1)) * 85));
+          var pb = document.getElementById('pbar');
+          var lbl = document.getElementById('prog-label');
+          if (pb) pb.style.width = pct + '%';
+          if (lbl) lbl.textContent = count + ' contacts found so far (' + total + ' companies)...';
+          if (count > 0 && count === lastCount) {
+            stableRounds++;
+          } else {
+            stableRounds = 0;
+          }
+          lastCount = count;
+          // Stop polling after 3 stable rounds (no new contacts) or after 10 min
+          if (stableRounds >= 3) {
+            clearInterval(pollId);
+            if (pb) pb.style.width = '100%';
+            resultEl.innerHTML += '<div class="progress-done" style="margin-top:8px">&#10003; Done — ' + count + ' contacts found across ' + total + ' companies</div>';
+            loadSavedLists();
+            setTimeout(function(){ closeModal(); }, 2500);
+          }
+        }).catch(function(){});
+    }, 5000); // poll every 5 seconds
+
+    // Safety timeout after 15 minutes
+    setTimeout(function(){
+      clearInterval(pollId);
+      loadSavedLists();
+      closeModal();
+    }, 900000);
   })
   .catch(function(e) {
-    clearInterval(timer);
-    resultEl.innerHTML += '<div class="result-err" style="margin-top:8px">Search failed: ' + e.message + '</div>';
+    resultEl.innerHTML = '<span class="result-err">Search failed: ' + e.message + '</span>';
   });
 }
 function addBubble(id, name, type, count) {
