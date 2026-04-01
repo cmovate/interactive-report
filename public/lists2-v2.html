@@ -255,13 +255,12 @@ function saveList() {
     var valid = lines.filter(function(u){ return u.indexOf(keyword) > -1; });
     if (!valid.length) {
       addBubble(listId, name, type, 0);
-      // Still trigger company-search even if no new URLs were pasted
+      // Close modal first, then start search after modal is gone
+      closeModal();
       if (type === 'companies') {
-        var titles = document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean);
+        var titles = document.getElementById('job-titles') ? document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean) : [];
         var geoUrn = getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '');
-        runCompanySearch(listId, titles, geoUrn);
-      } else {
-        closeModal();
+        setTimeout(function(){ runCompanySearch(listId, titles, geoUrn); }, 300);
       }
       return;
     }
