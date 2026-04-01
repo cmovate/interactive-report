@@ -71,8 +71,8 @@ router.post('/:id/re-analyze', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id Ã¢ÂÂ contact has not been messaged or replied yet' });
-    if (!contact.account_id) return res.status(400).json({ error: 'No account_id Ã¢ÂÂ campaign missing account' });
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id â contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id â campaign missing account' });
 
     // Run async, return immediately
     analyzeConversation(contactId, contact.account_id, contact.chat_id)
@@ -177,7 +177,7 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet Ã¢ÂÂ provider_id missing' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet â provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
     await sendInvitation(contact.account_id, contact.provider_id);
     await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
@@ -223,51 +223,6 @@ router.delete('/', async (req, res) => {
     await db.query('DELETE FROM contacts WHERE id = ANY($1)', [ids]);
     res.json({ success: true, deleted: ids.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-
-// POST /api/contacts/enrich-list
-// Stage 2: Enrich one contact at a time from a list.
-// Frontend calls this in a loop, one contact per call.
-// Returns: { done, total, contact_id, enriched_data } or { finished: true }
-router.post('/enrich-list', async (req, res) => {
-  try {
-    const { list_id, workspace_id, offset = 0 } = req.body;
-    if (!list_id || !workspace_id) return res.status(400).json({ error: 'list_id and workspace_id required' });
-    const { enrichProfile } = require('../unipile');
-    const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]
-    );
-    if (!accs.length) return res.json({ error: 'No LinkedIn account connected' });
-    const accountId = accs[0].account_id;
-    const { rows: total } = await db.query(
-      'SELECT COUNT(*) AS n FROM list_contacts lc JOIN contacts c ON c.id=lc.contact_id WHERE lc.list_id=$1', [list_id]
-    );
-    const totalN = parseInt(total[0].n);
-    const { rows: contacts } = await db.query(
-      'SELECT c.id, c.li_profile_url, c.first_name, c.last_name, c.profile_data FROM list_contacts lc JOIN contacts c ON c.id=lc.contact_id WHERE lc.list_id=$1 ORDER BY lc.id LIMIT 1 OFFSET $2',
-      [list_id, offset]
-    );
-    if (!contacts.length) return res.json({ finished: true, total: totalN, done: offset });
-    const ct = contacts[0];
-    const needsEnrich = !ct.first_name || !ct.profile_data || Object.keys(ct.profile_data||{}).length === 0;
-    if (!needsEnrich) {
-      return res.json({ done: offset + 1, total: totalN, contact_id: ct.id, skipped: true, first_name: ct.first_name, last_name: ct.last_name });
-    }
-    const pid = (ct.li_profile_url||'').replace('https://www.linkedin.com/in/','').replace(/\/$/,'');
-    if (!pid) return res.json({ done: offset + 1, total: totalN, contact_id: ct.id, skipped: true });
-    try {
-      const profile = await enrichProfile(accountId, pid);
-      if (profile && profile.id) {
-        await db.query(
-          'UPDATE contacts SET first_name=$1,last_name=$2,title=$3,li_company_url=$4,location=$5,profile_data=$6 WHERE id=$7',
-          [profile.first_name||ct.first_name||'', profile.last_name||ct.last_name||'', profile.headline||'', profile.current_company_url||'', profile.location||'', JSON.stringify(profile), ct.id]
-        );
-        return res.json({ done: offset + 1, total: totalN, contact_id: ct.id, first_name: profile.first_name||'', last_name: profile.last_name||'', title: profile.headline||'', location: profile.location||'' });
-      }
-    } catch(enrichErr) {}
-    return res.json({ done: offset + 1, total: totalN, contact_id: ct.id, error: 'enrich failed' });
-  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
