@@ -21,7 +21,9 @@ router.get('/', async (req, res) => {
     }
     const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
     const { rows } = await db.query(
-      `SELECT c.*, camp.name AS campaign_name FROM contacts c LEFT JOIN campaigns camp ON camp.id = c.campaign_id ${where} ORDER BY c.created_at DESC`,
+      `SELECT c.*, camp.name AS campaign_name,
+      COALESCE((SELECT STRING_AGG(l.name, ', ' ORDER BY l.name) FROM list_contacts lc JOIN lists l ON l.id = lc.list_id WHERE lc.contact_id = c.id), '') AS list_names
+      FROM contacts c LEFT JOIN campaigns camp ON camp.id = c.campaign_id ${where} ORDER BY c.created_at DESC`,
       params
     );
     res.json({ items: rows });
@@ -69,8 +71,8 @@ router.post('/:id/re-analyze', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id — contact has not been messaged or replied yet' });
-    if (!contact.account_id) return res.status(400).json({ error: 'No account_id — campaign missing account' });
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id â contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id â campaign missing account' });
 
     // Run async, return immediately
     analyzeConversation(contactId, contact.account_id, contact.chat_id)
@@ -175,7 +177,7 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet — provider_id missing' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet â provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
     await sendInvitation(contact.account_id, contact.provider_id);
     await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
