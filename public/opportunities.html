@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Opportunities</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -11,190 +10,135 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .page-header h1 { font-size: 18px; font-weight: 600; color: #111827; }
 .page-header p { font-size: 13px; color: #6b7280; margin-top: 4px; max-width: 560px; }
 .page-body { padding: 20px 24px; }
-.status-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 12px; color: #6b7280; }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; }
-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); font-size: 13px; }
-th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
-td { padding: 12px 14px; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: middle; }
-tr.company-row { cursor: pointer; transition: background .1s; }
-tr.company-row:hover td { background: #f9fafb; }
-tr.company-row.expanded td { background: #f0fdf4; border-bottom: none; }
-tr.contacts-row td { padding: 0; border-bottom: 1px solid #e5e7eb; }
-.contacts-inner { padding: 16px 20px 20px 40px; }
-.expand-icon { font-size: 10px; color: #9ca3af; margin-right: 6px; transition: transform .2s; display: inline-block; }
-tr.company-row.expanded .expand-icon { transform: rotate(90deg); }
-.co-name { font-weight: 500; color: #111827; }
-.co-link { color: #1D9E75; font-size: 12px; margin-left: 6px; }
-.list-tag { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
-.scan-btn { background: #1D9E75; color: white; border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; }
-.scan-btn:hover { background: #178a65; }
-.scan-btn.scanning { background: #9ca3af; cursor: default; }
-.contacts-count { font-size: 12px; font-weight: 600; color: #1D9E75; }
-.contacts-count.zero { color: #9ca3af; font-weight: 400; }
-/* Contact cards */
-.contacts-grid { display: flex; flex-direction: column; gap: 10px; }
-.contact-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; display: flex; align-items: flex-start; gap: 12px; }
-.contact-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #e5e7eb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #9ca3af; }
-.contact-avatar img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-.contact-info { flex: 1; }
-.contact-name { font-weight: 600; color: #111827; font-size: 13px; }
-.contact-headline { font-size: 12px; color: #6b7280; margin-top: 2px; }
-.contact-li { font-size: 11px; color: #1D9E75; margin-top: 3px; }
-.connected-via { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.via-tag { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
-.no-contacts { color: #9ca3af; font-size: 13px; padding: 10px 0; }
-.scanning-msg { color: #6b7280; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.status-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 12px; color: #6b7280; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; flex-shrink: 0; }
+.co-block { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 12px; overflow: hidden; }
+.co-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #f3f4f6; }
+.co-name { font-weight: 600; color: #111827; font-size: 14px; }
+.co-link { color: #1D9E75; font-size: 12px; text-decoration: none; }
+.co-link:hover { text-decoration: underline; }
+.list-tag { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 500; margin-left: auto; }
+.co-connections { padding: 14px 18px; }
+.scanning-msg { display: flex; align-items: center; gap: 8px; color: #6b7280; font-size: 13px; }
 .spinner { width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #1D9E75; border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.empty-state { text-align: center; padding: 60px 20px; color: #9ca3af; }
-.empty-state h3 { font-size: 15px; font-weight: 500; margin-bottom: 6px; color: #374151; }
+.no-connections { color: #9ca3af; font-size: 13px; padding: 4px 0; }
+.contacts-list { display: flex; flex-direction: column; gap: 8px; }
+.contact-card { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; background: #f9fafb; border-radius: 8px; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: #e5e7eb; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #6b7280; overflow: hidden; }
+.avatar img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; }
+.contact-body { flex: 1; min-width: 0; }
+.contact-name { font-weight: 600; color: #111827; font-size: 13px; }
+.contact-headline { font-size: 12px; color: #6b7280; margin-top: 1px; }
+.contact-footer { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; }
+.li-btn { color: #1D9E75; font-size: 11px; text-decoration: none; }
+.li-btn:hover { text-decoration: underline; }
+.via-tag { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 10px; padding: 2px 8px; font-size: 11px; font-weight: 500; }
+.connections-count { font-size: 12px; font-weight: 600; color: #1D9E75; margin-bottom: 10px; }
+.empty-state { text-align: center; padding: 60px; color: #9ca3af; }
+.empty-state h3 { font-size: 15px; font-weight: 500; color: #374151; margin-bottom: 6px; }
 </style>
 </head>
 <body>
 <div class="page-header">
   <h1>&#128161; Opportunities</h1>
-  <p>Turn your existing data into warm introductions. See who your team is already connected to at target companies &#x2014; straight from your LinkedIn network.</p>
+  <p>Turn your existing data into warm introductions. See who your team is already connected to at target companies.</p>
 </div>
 <div class="page-body">
-  <div class="status-bar">
-    <span class="status-dot"></span>
-    <span id="status-text">Loading companies...</span>
-  </div>
-  <table id="co-table">
-    <thead><tr>
-      <th style="width:32px"></th>
-      <th>Company</th>
-      <th>List</th>
-      <th>Connections found</th>
-    </tr></thead>
-    <tbody id="co-tbody"><tr><td colspan="4" style="text-align:center;padding:40px;color:#9ca3af">Loading...</td></tr></tbody>
-  </table>
+  <div class="status-bar"><span class="status-dot"></span><span id="status-text">Loading...</span></div>
+  <div id="co-list"></div>
 </div>
 <script>
 var params = new URLSearchParams(window.location.search);
 var workspaceId = params.get('workspace_id');
 var companies = [];
-var scanCache = {};
-var expandedId = null;
-
+var scanResults = {};
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function init() {
-  if (!workspaceId) { document.getElementById('status-text').textContent = 'No workspace selected.'; return; }
+  if (!workspaceId) return;
   fetch('/api/lists/companies?workspace_id=' + workspaceId)
     .then(function(r) { return r.json(); })
     .then(function(data) {
       companies = data.items || [];
       document.getElementById('status-text').textContent = companies.length + ' companies from your lists';
-      renderTable();
-      // Auto-scan all companies
-      (data.items || []).forEach(function(co) { doScan(co); });
-    })
-    .catch(function(e) { document.getElementById('status-text').textContent = 'Failed to load: ' + e.message; });
+      renderAll();
+      companies.forEach(function(co) { doScan(co); });
+    }).catch(function(e) {
+      document.getElementById('status-text').textContent = 'Error: ' + e.message;
+    });
 }
-
-function renderTable() {
-  var tbody = document.getElementById('co-tbody');
+function renderAll() {
+  var list = document.getElementById('co-list');
   if (!companies.length) {
-    tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state"><h3>No companies yet</h3><p>Add companies in List 2 and they will appear here automatically.</p></div></td></tr>';
+    list.innerHTML = '<div class="empty-state"><h3>No companies yet</h3><p>Add companies via List 2.</p></div>';
     return;
   }
-  tbody.innerHTML = '';
-  companies.forEach(function(co, i) {
-    var cache = scanCache[co.id] || {};
-    var count = cache.contacts ? cache.contacts.length : null;
-    var isExpanded = expandedId === co.id;
-
-    var coRow = document.createElement('tr');
-    coRow.className = 'company-row' + (isExpanded ? ' expanded' : '');
-    coRow.innerHTML =
-      '<td><span class="expand-icon">&#9654;</span></td>'
-      + '<td><span class="co-name">' + esc(co.company_name) + '</span>'
-      + (co.li_company_url ? ' <a class="co-link" href="' + esc(co.li_company_url) + '" target="_blank" onclick="event.stopPropagation()">View</a>' : '')
-      + '</td>'
-      + '<td><span class="list-tag">' + esc(co.list_name || '') + '</span></td>'
-      + '<td class="contacts-count' + (count === 0 ? ' zero' : '') + '">'
-      + (count === null ? '<span style="color:#9ca3af">—</span>' : (count === 0 ? 'No connections found' : count + ' connection' + (count!==1?'s':''))) + '</td>'
-
-    coRow.onclick = function() { toggleExpand(co.id); };
-    tbody.appendChild(coRow);
-
-    // Accordion row
-    var accRow = document.createElement('tr');
-    accRow.className = 'contacts-row';
-    accRow.id = 'acc-' + co.id;
-    accRow.style.display = isExpanded ? '' : 'none';
-    var td = document.createElement('td');
-    td.colSpan = 5;
-    td.innerHTML = '<div class="contacts-inner">' + buildContactsHtml(co.id, co.company_name) + '</div>';
-    accRow.appendChild(td);
-    tbody.appendChild(accRow);
+  list.innerHTML = '';
+  companies.forEach(function(co) {
+    var block = document.createElement('div');
+    block.className = 'co-block';
+    block.id = 'co-' + co.id;
+    block.innerHTML = renderBlock(co);
+    list.appendChild(block);
   });
 }
-
-function buildContactsHtml(coId, coName) {
-  var cache = scanCache[coId];
-  if (!cache) return '<div class="scanning-msg"><span class="spinner"></span> Scanning...</div>' + esc(coName) + '.</div>';
-  if (cache.scanning) return '<div class="scanning-msg"><span class="spinner"></span> Scanning LinkedIn across all workspace accounts...</div>';
-  if (!cache.contacts || !cache.contacts.length) return '<div class="no-contacts">No 1st-degree connections found at this company.</div>';
-  return '<div class="contacts-grid">' + cache.contacts.map(function(c) {
-    var initials = ((c.first_name||'?')[0] + (c.last_name||'?')[0]).toUpperCase();
-    var avatar = c.profile_picture
-      ? '<div class="contact-avatar"><img src="' + esc(c.profile_picture) + '" onerror="this.parentNode.innerHTML=\'' + initials + '\'"></div>'
-      : '<div class="contact-avatar">' + initials + '</div>';
-    var viaTags = (c.connected_via||[]).map(function(v) { return '<span class="via-tag">Connected via ' + esc(v.name) + '</span>'; }).join('');
-    return '<div class="contact-card">'
-      + avatar
-      + '<div class="contact-info">'
-      + '<div class="contact-name">' + esc((c.first_name||'')+' '+(c.last_name||'')).trim() + '</div>'
-      + (c.headline ? '<div class="contact-headline">' + esc(c.headline) + '</div>' : '')
-      + '<a class="contact-li" href="' + esc(c.li_profile_url) + '" target="_blank">View LinkedIn profile</a>'
-      + (viaTags ? '<div class="connected-via">' + viaTags + '</div>' : '')
-      + '</div></div>';
-  }).join('') + '</div>';
-}
-
-function toggleExpand(coId) {
-  expandedId = (expandedId === coId) ? null : coId;
-  renderTable();
-  // Auto-scan if not yet scanned and now expanded
-  if (expandedId === coId && !scanCache[coId]) {
-    var co = companies.find(function(c){ return c.id === coId; });
-    if (co) doScan(co);
+function renderBlock(co) {
+  var res = scanResults[co.id];
+  var h = '<div class="co-header">'
+    + '<span class="co-name">' + esc(co.company_name) + '</span>'
+    + (co.li_company_url ? ' <a class="co-link" href="' + esc(co.li_company_url) + '" target="_blank">View on LinkedIn</a>' : '')
+    + '<span class="list-tag">' + esc(co.list_name||'') + '</span>'
+    + '</div>';
+  var body;
+  if (!res || res.scanning) {
+    body = '<div class="co-connections"><div class="scanning-msg"><span class="spinner"></span> Scanning LinkedIn...</div></div>';
+  } else if (!res.contacts || !res.contacts.length) {
+    body = '<div class="co-connections"><div class="no-connections">No 1st-degree connections found.</div></div>';
+  } else {
+    var n = res.contacts.length;
+    var cards = res.contacts.map(function(c) {
+      var init = ((c.first_name||'?')[0]+(c.last_name||'?')[0]).toUpperCase();
+      var av = c.profile_picture ? '<img src="'+esc(c.profile_picture)+'" onerror="this.parentNode.textContent=this.parentNode.textContent">' : init;
+      var via = (c.connected_via||[]).map(function(v) {
+        return '<span class="via-tag">via ' + esc(v.name) + '</span>';
+      }).join(' ');
+      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'Unknown');
+      return '<div class="contact-card">'
+        + '<div class="avatar">' + av + '</div>'
+        + '<div class="contact-body">'
+        + '<div class="contact-name">' + nm + '</div>'
+        + (c.headline ? '<div class="contact-headline">'+esc(c.headline)+'</div>' : '')
+        + '<div class="contact-footer">'
+        + '<a class="li-btn" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>'
+        + (via ? ' &middot; ' + via : '')
+        + '</div></div></div>';
+    }).join('');
+    body = '<div class="co-connections">'
+      + '<div class="connections-count">' + n + ' connection' + (n!==1?'s':'') + ' found</div>'
+      + '<div class="contacts-list">' + cards + '</div>'
+      + '</div>';
   }
+  return h + body;
 }
-
-function scanCompany(coId, e) {
-  if (e) e.stopPropagation();
-  var co = companies.find(function(c){ return c.id === coId; });
-  if (!co) return;
-  expandedId = coId;
-  doScan(co);
-}
-
 function doScan(co) {
-  scanCache[co.id] = { scanning: true, contacts: null };
-  renderTable();
+  scanResults[co.id] = { scanning: true };
+  var el = document.getElementById('co-' + co.id);
+  if (el) el.innerHTML = renderBlock(co);
   fetch('/api/opportunities/scan-company', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      workspace_id: parseInt(workspaceId),
-      company_name: co.company_name,
-      li_company_url: co.li_company_url,
-      company_linkedin_id: co.company_linkedin_id
-    })
-  }).then(function(r){ return r.json(); })
+    body: JSON.stringify({ workspace_id: parseInt(workspaceId), company_name: co.company_name, li_company_url: co.li_company_url, company_linkedin_id: co.company_linkedin_id })
+  }).then(function(r) { return r.json(); })
   .then(function(data) {
-    scanCache[co.id] = { scanning: false, contacts: data.contacts || [], company_linkedin_id: data.company_linkedin_id };
-    renderTable();
-  })
-  .catch(function(e) {
-    scanCache[co.id] = { scanning: false, contacts: [], error: e.message };
-    renderTable();
+    scanResults[co.id] = { scanning: false, contacts: data.contacts || [] };
+    var el2 = document.getElementById('co-' + co.id);
+    if (el2) el2.innerHTML = renderBlock(co);
+  }).catch(function() {
+    scanResults[co.id] = { scanning: false, contacts: [] };
+    var el3 = document.getElementById('co-' + co.id);
+    if (el3) el3.innerHTML = renderBlock(co);
   });
 }
-
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 init();
 </script>
 </body>
