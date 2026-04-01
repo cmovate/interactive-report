@@ -91,6 +91,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .btn-primary:hover { background: #178a65; }
 .btn-primary:disabled { background: #9ca3af; cursor: default; }
 </style>
+<script src="/enrichFunctions.js"></script>
 </head>
 <body>
 <div class="page-header">
@@ -348,7 +349,7 @@ function runCompanySearch(listId, jobTitles, geoUrn) {
             if (pb) pb.style.width = '100%';
             resultEl.innerHTML += '<div class="progress-done" style="margin-top:8px">&#10003; Done â ' + count + ' contacts found across ' + total + ' companies</div>';
             loadSavedLists();
-            setTimeout(function(){ closeModal(); }, 2500);
+            resultEl.innerHTML += '<div style="margin-top:12px">'  + '<button class="footer-btn" onclick="startEnrichment(' + cListId + ', ' + workspaceId + ')" style="background:#10b981">' + '&#9654; Stage 2: Enrich (' + count + ' contacts)</button></div>';
           }
         }).catch(function(){});
     }, 5000); // poll every 5 seconds
