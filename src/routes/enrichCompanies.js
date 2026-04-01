@@ -36,7 +36,7 @@ router.post('/', async function(req, res) {
 
     var co = coRes.rows[0];
 
-    // Already has LinkedIn ID — skip
+    // Already has LinkedIn ID â skip
     if (co.company_linkedin_id && co.company_linkedin_id.trim()) {
       return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: co.company_name, linkedin_id: co.company_linkedin_id, skipped: true });
     }
@@ -54,9 +54,11 @@ router.post('/', async function(req, res) {
         );
         return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: profile.name || co.company_name, linkedin_id: String(profile.id) });
       }
-    } catch (e) {}
+    } catch (e) {
+      return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: co.company_name, error: 'api_error', detail: e.message });
+    }
 
-    return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: co.company_name, error: 'not_found' });
+    return res.json({ done: offset + 1, total: total, company_id: co.id, company_name: co.company_name, error: 'null_response' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
