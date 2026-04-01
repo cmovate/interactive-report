@@ -6,9 +6,9 @@
  * that can be attached to campaigns, opportunities, and feed views.
  *
  * Tables:
- *   lists             â id, workspace_id, name, type ('contacts'|'companies'), description
- *   list_contacts     â list_id, contact_id  (many-to-many to contacts)
- *   list_companies    â id, list_id, workspace_id, company_name, li_company_url, company_linkedin_id
+ *   lists             Ã¢ÂÂ id, workspace_id, name, type ('contacts'|'companies'), description
+ *   list_contacts     Ã¢ÂÂ list_id, contact_id  (many-to-many to contacts)
+ *   list_companies    Ã¢ÂÂ id, list_id, workspace_id, company_name, li_company_url, company_linkedin_id
  *
  * Routes:
  *   GET    /                         list all lists for workspace
@@ -29,7 +29,7 @@ const db = require('../db');
 const { enqueue } = require('../enrichment');
 const { lookupCompany, searchPeopleByCompany } = require('../unipile');
 
-// âââ GET /api/lists ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /api/lists Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get('/', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ POST /api/lists âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /api/lists Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.post('/', async (req, res) => {
   try {
     const { workspace_id, name, type, description } = req.body;
@@ -68,7 +68,7 @@ router.post('/', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ PATCH /api/lists/:id âââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ PATCH /api/lists/:id Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.patch('/:id', async (req, res) => {
   try {
     const { workspace_id, name, description } = req.body;
@@ -88,7 +88,7 @@ router.patch('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ DELETE /api/lists/:id ââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DELETE /api/lists/:id Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.delete('/:id', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -104,7 +104,7 @@ router.delete('/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ GET /api/lists/:id/contacts ââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /api/lists/:id/contacts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get('/:id/contacts', async (req, res) => {
   try {
     const { workspace_id, page = 1, limit = 50 } = req.query;
@@ -129,7 +129,7 @@ router.get('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ POST /api/lists/:id/contacts âââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /api/lists/:id/contacts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Body: { workspace_id, contacts: [{li_profile_url, first_name, last_name, company, title}] }
 // Or:   { workspace_id, contact_ids: [1,2,3] }  (add existing contacts by ID)
 router.post('/:id/contacts', async (req, res) => {
@@ -210,7 +210,7 @@ router.post('/:id/contacts', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ DELETE /api/lists/:id/contacts/:contactId âââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DELETE /api/lists/:id/contacts/:contactId Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.delete('/:id/contacts/:contactId', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -221,7 +221,7 @@ router.delete('/:id/contacts/:contactId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ GET /api/lists/:id/companies ââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /api/lists/:id/companies Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.get('/:id/companies', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -234,7 +234,7 @@ router.get('/:id/companies', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ POST /api/lists/:id/companies âââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /api/lists/:id/companies Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.post('/:id/companies', async (req, res) => {
   try {
     const { workspace_id, companies } = req.body;
@@ -267,7 +267,7 @@ router.post('/:id/companies', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// âââ DELETE /api/lists/:id/companies/:companyId ââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ DELETE /api/lists/:id/companies/:companyId Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 router.delete('/:id/companies/:companyId', async (req, res) => {
   try {
     const { workspace_id } = req.query;
@@ -279,7 +279,7 @@ router.delete('/:id/companies/:companyId', async (req, res) => {
 });
 
 
-// âââ POST /api/lists/:id/company-search âââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ POST /api/lists/:id/company-search Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Searches LinkedIn for people at each company matching job titles.
 // Processes 4 companies in parallel. Saves found contacts to contacts table.
 router.post('/:id/company-search', async (req, res) => {
@@ -401,7 +401,7 @@ router.post('/:id/company-search', async (req, res) => {
 });
 
 
-// âââ GET /api/companies âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ GET /api/companies Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // All companies from list_companies for a workspace, with list_name column
 router.get('/companies', async (req, res) => {
   try {
@@ -421,6 +421,56 @@ router.get('/companies', async (req, res) => {
     );
     res.json({ items: rows, total: rows.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// POST /api/lists/company-search-batch
+// Processes a small batch of companies (passed directly), returns found contacts.
+// The frontend loops through all companies 4 at a time and calls this repeatedly.
+router.post('/company-search-batch', async (req, res) => {
+  try {
+    const { workspace_id, companies = [], job_titles = [], geo_urn = null, contacts_list_id } = req.body;
+    if (!workspace_id || !companies.length) return res.status(400).json({ error: 'workspace_id and companies[] required' });
+    const { rows: accounts } = await db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]);
+    if (!accounts.length) return res.status(400).json({ error: 'No LinkedIn account' });
+    const accountId = accounts[0].account_id;
+    const found = [];
+    await Promise.allSettled(companies.map(async function(co) {
+      try {
+        const urlMatch = (co.li_company_url || '').match(/\/company\/([^\/\?#]+)/);
+        const slug = urlMatch ? urlMatch[1] : co.company_name;
+        let companyId = co.company_linkedin_id || null;
+        if (!companyId) {
+          try { const looked = await lookupCompany(accountId, slug); if (looked && looked.id) companyId = looked.id; } catch(e) {}
+        }
+        const people = await searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20, geo_urn);
+        for (const p of people) {
+          const pid = p.public_identifier || p.identifier;
+          if (!pid) continue;
+          const profileUrl = 'https://www.linkedin.com/in/' + pid;
+          // Upsert contact
+          const { rows: ex } = await db.query('SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1', [workspace_id, profileUrl]);
+          let contactId;
+          if (ex.length) {
+            contactId = ex[0].id;
+          } else {
+            const { rows: ins } = await db.query(
+              'INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) RETURNING id',
+              [workspace_id, p.first_name||'', p.last_name||'', p.headline||'', co.company_name||'', profileUrl]
+            );
+            if (!ins.length || !ins[0].id) continue;
+            contactId = ins[0].id;
+            enqueue(contactId, accountId, profileUrl);
+          }
+          if (contacts_list_id) {
+            await db.query('INSERT INTO list_contacts (list_id,contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [contacts_list_id, contactId]);
+          }
+          found.push({ li_profile_url: profileUrl, first_name: p.first_name||'', last_name: p.last_name||'', headline: p.headline||'', company: co.company_name });
+        }
+      } catch(e) {}
+    }));
+    res.json({ found });
+  } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;
