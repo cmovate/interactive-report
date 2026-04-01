@@ -108,10 +108,11 @@ async function lookupCompany(accountId, slugOrId) {
   return id ? { id: String(id), name } : { id: null, name };
 }
 
-async function searchPeopleByCompany(accountId, companyId, companyName, titles = [], limit = 10) {
+async function searchPeopleByCompany(accountId, companyId, companyName, titles = [], limit = 10, geoUrn = null) {
   const body = { api: 'classic', category: 'people', limit };
   if (companyId) {
     body.filters = { currentCompany: [companyId] };
+    if (geoUrn) body.filters.geoUrn = [geoUrn];
     if (titles.length) body.keywords = titles.join(' OR ');
   } else {
     body.keywords = titles.length
