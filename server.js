@@ -105,7 +105,7 @@ app.use('/api/feed',               feedRouter);
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/cleanup',            cleanupRouter);
-app.use('/api/enrich-companies',   enrichCompaniesRouter);
+app.use('/api/enrich-companies',   enrichCompaniesRouter); // timeout-fix-deployed
 
 async function s(label, fn) {
   try { await fn(); }
