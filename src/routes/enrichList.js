@@ -38,7 +38,7 @@ router.post('/', async function(req, res) {
 
     try {
       var profile = await enrichProfile(accountId, pid);
-      if (profile && profile.id) {
+      if (profile && (profile.member_urn || profile.public_identifier)) {
         var company = '';
         var companyUrl = '';
         // job title = current position role (not headline)
@@ -64,7 +64,7 @@ router.post('/', async function(req, res) {
       }
     } catch (enrichErr) { enrichErrMsg = enrichErr.message || String(enrichErr); }
 
-    return res.json({ done: offset + 1, total, contact_id: ct.id, error: 'enrich_failed', detail: enrichErrMsg, profile_keys: profile ? Object.keys(profile) : 'null', profile_type: profile ? profile.type : 'n/a', profile_status: profile ? profile.status : 'n/a' });
+    return res.json({ done: offset + 1, total, contact_id: ct.id, error: 'enrich_failed', detail: enrichErrMsg });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
