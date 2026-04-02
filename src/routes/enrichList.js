@@ -64,7 +64,7 @@ router.post('/', async function(req, res) {
       }
     } catch (enrichErr) { enrichErrMsg = enrichErr.message || String(enrichErr); }
 
-    return res.json({ done: offset + 1, total, contact_id: ct.id, error: 'enrich_failed', detail: enrichErrMsg });
+    return res.json({ done: offset + 1, total, contact_id: ct.id, error: 'enrich_failed', detail: enrichErrMsg, profile_keys: profile ? Object.keys(profile) : 'null', profile_type: profile ? profile.type : 'n/a', profile_status: profile ? profile.status : 'n/a' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
