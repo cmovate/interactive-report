@@ -106,7 +106,7 @@ app.use('/api/feed',               feedRouter);
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/enrich-list',        enrichListRouter);
-app.use('/api/enrich-companies',   enrichCompaniesRouter);
+app.use('/api/enrich-companies',   enrichCompaniesRouter); // company profile enrichment
 app.use('/api/cleanup',            cleanupRouter);
 
 async function s(label, fn) {
