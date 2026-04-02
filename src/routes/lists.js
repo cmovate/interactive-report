@@ -473,4 +473,32 @@ router.post('/company-search-batch', async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+
+router.post('/:id/bulk-import', async (req, res) => {
+  try {
+    const listId = parseInt(req.params.id);
+    const { workspace_id, urls } = req.body;
+    if (!workspace_id || !Array.isArray(urls)) return res.status(400).json({ error: 'workspace_id and urls[] required' });
+    let inserted = 0, skipped = 0;
+    for (const rawUrl of urls) {
+      const url = rawUrl.trim().toLowerCase().replace(/\/+$/, '');
+      if (!url.includes('linkedin.com/in/')) continue;
+      try {
+        const ex = await db.query('SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2', [workspace_id, url]);
+        let contactId;
+        if (ex.rows.length) { contactId = ex.rows[0].id; skipped++; }
+        else {
+          const ins = await db.query(
+            'INSERT INTO contacts (workspace_id, li_profile_url, first_name, last_name, headline, company) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING RETURNING id',
+            [workspace_id, url, '', '', '', '']
+          );
+          if (ins.rows[0]) { contactId = ins.rows[0].id; inserted++; } else { skipped++; continue; }
+        }
+        await db.query('INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [listId, contactId]);
+      } catch(e) { /* skip */ }
+    }
+    res.json({ inserted, skipped, total: urls.length });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
