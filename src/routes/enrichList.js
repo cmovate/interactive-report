@@ -29,7 +29,10 @@ router.post('/', async function(req, res) {
       return res.json({ done: offset + 1, total, contact_id: ct.id, skipped: true, first_name: ct.first_name, last_name: ct.last_name });
     }
 
-    var pid = (ct.li_profile_url || '').replace('https://www.linkedin.com/in/', '').replace('http://www.linkedin.com/in/', '').replace(/\/+$/, '');
+    var pid = (ct.li_profile_url || '')
+      .replace('https://www.linkedin.com/in/', '')
+      .replace('http://www.linkedin.com/in/', '')
+      .replace(/\/+$/, '');
     if (!pid) return res.json({ done: offset + 1, total, contact_id: ct.id, skipped: true, reason: 'no_pid' });
 
     try {
@@ -37,20 +40,26 @@ router.post('/', async function(req, res) {
       if (profile && profile.id) {
         var company = '';
         var companyUrl = '';
+        // job title = current position role (not headline)
+        var jobTitle = '';
         if (profile.current_positions && profile.current_positions[0]) {
-          company = profile.current_positions[0].company || '';
-          companyUrl = profile.current_positions[0].company_url || '';
+          jobTitle    = profile.current_positions[0].role    || '';
+          company     = profile.current_positions[0].company || '';
+          companyUrl  = profile.current_positions[0].company_url || '';
         }
         await db.query(
           'UPDATE contacts SET first_name=$1, last_name=$2, title=$3, location=$4, company=$5, li_company_url=$6, member_urn=$7, provider_id=$8, profile_data=$9 WHERE id=$10',
           [
-            profile.first_name || '', profile.last_name || '', profile.headline || '',
-            profile.location || '', company, companyUrl,
+            profile.first_name || '', profile.last_name || '',
+            jobTitle, profile.location || '',
+            company, companyUrl,
             profile.member_urn || '', profile.id || '',
             JSON.stringify(profile), ct.id
           ]
         );
-        return res.json({ done: offset + 1, total, contact_id: ct.id, first_name: profile.first_name || '', last_name: profile.last_name || '', title: profile.headline || '', company, location: profile.location || '' });
+        return res.json({ done: offset + 1, total, contact_id: ct.id, ok: true,
+          first_name: profile.first_name || '', last_name: profile.last_name || '',
+          title: jobTitle, company, location: profile.location || '' });
       }
     } catch (enrichErr) {}
 
