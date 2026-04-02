@@ -286,6 +286,25 @@ async function getCompanyProfile(accountId, slug) {
   return data;
 }
 
+async function searchPeopleAdvanced(accountId, opts) {
+  const body = { api: 'classic', category: 'people', limit: opts.limit || 50 };
+  if (opts.keywords) body.keywords = opts.keywords;
+  if (opts.company && opts.company.length) body.company = opts.company.map(String);
+  if (opts.industry && opts.industry.length) body.industry = opts.industry.map(String);
+  if (opts.location && opts.location.length) body.location = opts.location.map(String);
+  if (opts.advanced_keywords) body.advanced_keywords = opts.advanced_keywords;
+  if (opts.cursor) body.cursor = opts.cursor;
+  const data = await request(
+    `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return {
+    items:      Array.isArray(data?.items) ? data.items : [],
+    cursor:     data?.paging?.cursor || null,
+    totalCount: data?.paging?.total_count || 0,
+  };
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
@@ -308,4 +327,5 @@ module.exports = {
   getChatsByAttendee,
   sendCompanyFollowInvites,
   getCompanyProfile,
+  searchPeopleAdvanced,
 };
