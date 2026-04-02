@@ -22,6 +22,7 @@ const hotOpportunitiesRouter   = require('./src/routes/hot-opportunities');
 const cleanupRouter            = require('./src/routes/cleanup');
 const enrichCompaniesRouter    = require('./src/routes/enrichCompanies');
 const industrySearchRouter     = require('./src/routes/industrySearch');
+const enrichListRouter         = require('./src/routes/enrichList');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -108,6 +109,7 @@ app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/cleanup',            cleanupRouter);
 app.use('/api/enrich-companies',   enrichCompaniesRouter);
 app.use('/api/industry-search',    industrySearchRouter);
+app.use('/api/enrich-list',        enrichListRouter);
 
 async function s(label, fn) {
   try { await fn(); }
