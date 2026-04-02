@@ -307,4 +307,5 @@ module.exports = {
   startDirectMessage,
   getChatsByAttendee,
   sendCompanyFollowInvites,
+  getCompanyProfile,
 };
