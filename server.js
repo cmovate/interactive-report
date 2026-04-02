@@ -836,3 +836,29 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Webhook endpoint: ${process.env.SERVER_URL || 'http://localhost:' + PORT}/api/webhooks/unipile`);
 });
+
+
+// Bulk contacts import: POST /api/lists/:id/bulk-contacts
+// Body: { workspace_id, urls: [...] }
+app.post('/api/lists/:id/bulk-contacts', async (req, res) => {
+  const { workspace_id, urls } = req.body;
+  const list_id = parseInt(req.params.id);
+  if (!workspace_id || !urls || !urls.length) return res.status(400).json({ error: 'workspace_id and urls required' });
+  let inserted = 0, skipped = 0;
+  for (const url of urls) {
+    if (!url || !url.includes('linkedin.com/in/')) continue;
+    const norm = url.toLowerCase().replace(/\/$/, '');
+    try {
+      const ex = await db.query('SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2', [workspace_id, norm]);
+      let cid;
+      if (ex.rows.length) { cid = ex.rows[0].id; skipped++; }
+      else {
+        const ins = await db.query('INSERT INTO contacts (workspace_id, li_profile_url) VALUES ($1,$2) ON CONFLICT DO NOTHING RETURNING id', [workspace_id, norm]);
+        cid = ins.rows[0] && ins.rows[0].id;
+        if (cid) inserted++;
+      }
+      if (cid) await db.query('INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [list_id, cid]);
+    } catch(e) {}
+  }
+  res.json({ inserted, skipped, total: urls.length });
+});
