@@ -29,6 +29,7 @@ router.post('/', async function(req, res) {
       return res.json({ done: offset + 1, total, contact_id: ct.id, skipped: true, first_name: ct.first_name, last_name: ct.last_name });
     }
 
+    var enrichErrMsg = '';
     var pid = (ct.li_profile_url || '')
       .replace('https://www.linkedin.com/in/', '')
       .replace('http://www.linkedin.com/in/', '')
@@ -61,9 +62,9 @@ router.post('/', async function(req, res) {
           first_name: profile.first_name || '', last_name: profile.last_name || '',
           title: jobTitle, company, location: profile.location || '' });
       }
-    } catch (enrichErr) {}
+    } catch (enrichErr) { enrichErrMsg = enrichErr.message || String(enrichErr); }
 
-    return res.json({ done: offset + 1, total, contact_id: ct.id, error: 'enrich_failed' });
+    return res.json({ done: offset + 1, total, contact_id: ct.id, error: 'enrich_failed', detail: enrichErrMsg });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
