@@ -21,6 +21,7 @@ const inboxRouter              = require('./src/routes/inbox');
 const hotOpportunitiesRouter   = require('./src/routes/hot-opportunities');
 const cleanupRouter            = require('./src/routes/cleanup');
 const enrichCompaniesRouter    = require('./src/routes/enrichCompanies');
+const industrySearchRouter     = require('./src/routes/industrySearch');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -105,7 +106,8 @@ app.use('/api/feed',               feedRouter);
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/cleanup',            cleanupRouter);
-app.use('/api/enrich-companies',   enrichCompaniesRouter); // timeout-fix-deployed
+app.use('/api/enrich-companies',   enrichCompaniesRouter);
+app.use('/api/industry-search',    industrySearchRouter);
 
 async function s(label, fn) {
   try { await fn(); }
