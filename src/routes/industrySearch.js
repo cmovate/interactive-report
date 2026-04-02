@@ -9,7 +9,7 @@ const { searchPeopleAdvanced } = require('../unipile');
 // Paginates automatically until < 50 results or total_count reached
 router.post('/', async function(req, res) {
   try {
-    const { workspace_id, list_id, title, company_ids, cursor } = req.body;
+    const { workspace_id, list_id, title, keywords, company_ids, industry_ids, min_headcount, cursor } = req.body;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
     const accRes = await db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]);
@@ -18,11 +18,19 @@ router.post('/', async function(req, res) {
 
     const opts = { limit: 50 };
     if (title) opts.advanced_keywords = { title };
+    if (keywords && !title) opts.keywords = keywords;
     if (company_ids && company_ids.length) opts.company = company_ids.map(String);
+    if (industry_ids && industry_ids.length) opts.industry = industry_ids.map(String);
     if (cursor) opts.cursor = cursor;
 
     const result = await searchPeopleAdvanced(accountId, opts);
-    const items = result.items || [];
+    let items = result.items || [];
+    if (min_headcount) {
+      items = items.filter(p => {
+        const pos = p.current_positions && p.current_positions[0];
+        return pos && pos.company_headcount && pos.company_headcount.min >= min_headcount;
+      });
+    }
 
     // Save to list
     let saved = 0;
