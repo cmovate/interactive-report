@@ -91,7 +91,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; b
 .btn-primary:hover { background: #178a65; }
 .btn-primary:disabled { background: #9ca3af; cursor: default; }
 </style>
-<script src="/enrichFunctions.js"></script>
 </head>
 <body>
 <div class="page-header">
@@ -254,14 +253,8 @@ function saveList() {
     var keyword = isContacts ? '/in/' : '/company/';
     var valid = lines.filter(function(u){ return u.indexOf(keyword) > -1; });
     if (!valid.length) {
-      // Read titles+geoUrn BEFORE closing modal (DOM disappears after closeModal)
-      var titles = type === 'companies' ? (document.getElementById('job-titles') ? document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean) : []) : [];
-      var geoUrn = type === 'companies' ? getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '') : null;
       addBubble(listId, name, type, 0);
       closeModal();
-      if (type === 'companies') {
-        setTimeout(function(){ runCompanySearch(listId, titles, geoUrn); }, 300);
-      }
       return;
     }
     var endpoint = '/api/lists/' + listId + '/' + type;
@@ -281,10 +274,7 @@ function saveList() {
       addBubble(listId, name, type, res.added || valid.length);
       if (type === 'companies') {
         // Trigger LinkedIn search for contacts at these companies
-        var titles2 = document.getElementById('job-titles') ? document.getElementById('job-titles').value.trim().split('\n').map(function(t){return t.trim();}).filter(Boolean) : [];
-        var geoUrn2 = getGeoUrn(document.getElementById('country-select') ? document.getElementById('country-select').value : '');
         closeModal();
-        setTimeout(function(){ runCompanySearch(listId, titles2, geoUrn2); }, 300);
       } else {
         closeModal();
       }
@@ -301,66 +291,7 @@ function getGeoUrn(country) {
   var map = { 'IL': '103599573', 'US': '103644278', 'GB': '101165590', 'DE': '101282230', 'FR': '105015875' };
   return map[country] || null;
 }
-function runCompanySearch(listId, jobTitles, geoUrn) {
-  var bar = document.getElementById('search-status-bar');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.id = 'search-status-bar';
-    bar.style.cssText = 'position:fixed;bottom:0;left:176px;right:0;background:#fff;border-top:2px solid #10b981;padding:10px 20px;z-index:200;box-shadow:0 -2px 12px rgba(0,0,0,0.08);font-size:13px;';
-    document.body.appendChild(bar);
-  }
-  function setBar(html) { bar.innerHTML = html; }
-  function pbar(pct, label) {
-    return '<div style="display:flex;align-items:center;gap:12px">'
-      + '<div style="flex:1"><div id="sbar-label" style="font-weight:500;margin-bottom:4px">' + label + '</div>'
-      + '<div style="height:6px;background:#e5e7eb;border-radius:3px"><div id="spbar" style="height:6px;background:#10b981;border-radius:3px;width:' + pct + '%;transition:width 0.5s"></div></div></div>'
-      + '</div>';
-  }
-  setBar(pbar(5, 'Stage 1: Starting LinkedIn search...'));
-  fetch('/api/lists/' + listId + '/company-search', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ workspace_id: parseInt(workspaceId), job_titles: jobTitles, geo_urn: geoUrn || null })
-  }).then(function(r){ return r.json(); })
-  .then(function(data) {
-    if (data.error) { setBar('<span style="color:red">Error: ' + data.error + '</span>'); return; }
-    var total = data.companies_total || 0;
-    var cListId = data.contacts_list_id;
-    setBar(pbar(10, 'Stage 1: Searching ' + total + ' companies...'));
-    var lastCount = 0, stableRounds = 0, pct = 10;
-    var wsParam = 'workspace_id=' + workspaceId;
-    var pollId = setInterval(function() {
-      fetch('/api/lists?' + wsParam)
-        .then(function(r){ return r.json(); })
-        .then(function(d) {
-          var cList = (d.items || []).find(function(l){ return l.id === cListId; });
-          var count = parseInt(cList && (cList.contact_count || 0)) || 0;
-          pct = Math.min(95, 10 + Math.round((count / Math.max(total, 1)) * 85));
-          var pb = document.getElementById('spbar');
-          var lbl = document.getElementById('sbar-label');
-          if (pb) pb.style.width = pct + '%';
-          if (lbl) lbl.textContent = 'Stage 1: ' + count + ' contacts found (' + total + ' companies)...';
-          var bcount = document.getElementById('bcount-' + cListId);
-          if (bcount) bcount.textContent = count;
-          var sl = savedLists.find(function(x){ return x.id === cListId; });
-          if (sl) sl.count = count;
-          if (count > 0 && count === lastCount) { stableRounds++; } else { stableRounds = 0; }
-          lastCount = count;
-          if (stableRounds >= 3) {
-            clearInterval(pollId);
-            loadSavedLists();
-            setBar('<div style="display:flex;align-items:center;gap:12px">'
-              + '<span style="color:#10b981;font-weight:600">&#10003; Stage 1 done: ' + count + ' contacts found across ' + total + ' companies</span>'
-              + '<button onclick="startEnrichment(' + cListId + ',' + workspaceId + ');document.getElementById(\'search-status-bar\').remove()" style="background:#10b981;color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px">&#9654; Start Enrichment</button>'
-              + '<button onclick="document.getElementById(\'search-status-bar\').remove()" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:18px">&times;</button>'
-              + '</div>');
-          }
-        }).catch(function(){});
-    }, 5000);
-    setTimeout(function(){ clearInterval(pollId); loadSavedLists(); if(bar.parentNode) bar.remove(); }, 900000);
-  })
-  .catch(function(e) { setBar('<span style="color:red">Search failed: ' + e.message + '</span>'); });
-}
+
 
 function addBubble(id, name, type, count) {
   savedLists.push({ id: id, name: name, type: type, count: count });
