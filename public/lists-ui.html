@@ -1203,6 +1203,34 @@ function renderListCards() {
     grid.appendChild(card);
   });
 }
+function loadListCompanies(listId) {
+  var tbody = document.querySelector('#companies-table tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px">Loading...</td></tr>';
+  fetch('/api/lists/' + listId + '/companies?workspace_id=' + workspaceId + '&limit=999')
+    .then(function(r){ return r.json(); })
+    .then(function(d) {
+      var items = d.items || [];
+      if (!items.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px">No companies in this list</td></tr>'; return; }
+      tbody.innerHTML = items.map(function(c){
+        var url = c.li_company_url || '';
+        var name = c.company_name || url.split('/').pop();
+        var lid = c.company_linkedin_id || '—';
+        return '<tr>'
+          + '<td style="font-weight:500">' + name + '</td>'
+          + '<td>—</td><td>—</td>'
+          + '<td>' + lid + '</td>'
+          + '<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>'
+          + '<td>' + (url ? '<a href="' + url + '" target="_blank" style="color:#3b82f6">' + url.replace('https://www.linkedin.com/company/','') + '</a>' : '—') + '</td>'
+          + '</tr>';
+      }).join('');
+      // Update stats
+      var total = document.querySelector('.stat-badge[data-key="total"] .stat-value') || document.querySelector('.company-stat-badge');
+      var totalEl = document.getElementById('stat-total-companies');
+      if (totalEl) totalEl.textContent = items.length;
+    }).catch(function(e){ tbody.innerHTML = '<tr><td colspan="10">Error: ' + e.message + '</td></tr>'; });
+}
+
 function filterContacts(listIdOrAll, listName, listType) {
   const filterBar = document.getElementById('lists-filter-bar');
   const activeLabel = document.getElementById('filter-active-list');
@@ -1224,9 +1252,19 @@ function filterContacts(listIdOrAll, listName, listType) {
     activeLabel.textContent = (listType==='contacts'?'👥':'🏢') + ' ' + listName;
     clearBtn.style.display = '';
     allBtn.classList.remove('active');
-    // Filter the contacts table
-    if (typeof applyFilter === 'function') { currentListFilter = { id: listIdOrAll, type: listType }; applyFilter(); }
-    else { loadListContacts(listIdOrAll, listType); }
+    // Filter contacts OR show list companies
+    if (listType === 'companies') {
+      // Switch to Companies tab and load list_companies
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      var coTab = document.querySelector('.tab-btn[data-tab="companies"]') || document.querySelector('#tab-companies');
+      if (coTab) coTab.classList.add('active');
+      document.querySelectorAll('.tab-panel').forEach(function(p){ p.style.display='none'; });
+      var coPanel = document.getElementById('tab-companies') || document.querySelector('[data-tab-content="companies"]');
+      if (coPanel) coPanel.style.display='';
+      loadListCompanies(listIdOrAll);
+    } else if (typeof applyFilter === 'function') {
+      currentListFilter = { id: listIdOrAll, type: listType }; applyFilter();
+    } else { loadListContacts(listIdOrAll, listType); }
   }
   renderListCards();
 }
