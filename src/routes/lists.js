@@ -344,7 +344,7 @@ router.post('/:id/company-search', async (req, res) => {
             const looked = await lookupCompany(accountId, slug);
             companyId = looked?.id || null;
           }
-          const people = await searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20, location_id);
+          const people = await Promise.race([searchPeopleByCompany(accountId, companyId, co.company_name, job_titles, 20, location_id), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000))]).catch(() => []);
           let found = 0, added = 0;
           for (const p of people) {
             const pid = p.public_identifier || p.identifier;
