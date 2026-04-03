@@ -125,8 +125,7 @@ function init() {
       }
     });
     renderAll();
-    // Only scan companies that don't have cached results yet
-    companies.forEach(function(co){ if (!scanResults[co.id]) doScan(co); });
+    // Scanning handled by OppScraper (hourly background job)
   }).catch(function(e){ document.getElementById('status-text').textContent = 'Error: '+e.message; });
 }
 function renderAll() {
@@ -160,14 +159,14 @@ function renderBlock(co) {
   } else {
     var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
-      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'â');
+      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'Ã¢ÂÂ');
       var via = (c.connected_via||[]).map(function(v){ return '<span class="via-tag">via '+esc(v.name)+'</span>'; }).join(' ');
       return '<tr>'
         +'<td class="contact-name">'+nm+'</td>'
-        +'<td>'+esc(c.company||'â')+'</td>'
-        +'<td>'+esc(c.headline||'â')+'</td>'
-        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'â')+'</td>'
-        +'<td><div class="via-tags">'+(via||'â')+'</div></td>'
+        +'<td>'+esc(c.company||'Ã¢ÂÂ')+'</td>'
+        +'<td>'+esc(c.headline||'Ã¢ÂÂ')+'</td>'
+        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'Ã¢ÂÂ')+'</td>'
+        +'<td><div class="via-tags">'+(via||'Ã¢ÂÂ')+'</div></td>'
         +'<td><button class="btn-msg" onclick="openDM('+i+','+co.id+')">&#8594; Message</button></td>'
         +'</tr>';
     }).join('');
