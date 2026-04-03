@@ -328,4 +328,5 @@ module.exports = {
   sendCompanyFollowInvites,
   getCompanyProfile,
   searchPeopleAdvanced,
+  request,
 };
