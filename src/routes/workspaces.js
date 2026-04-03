@@ -8,7 +8,7 @@ const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
  * Hydrate avatar_url + full_name for a Unipile LinkedIn account.
  *
  * /api/v1/accounts/:id returns basic account metadata but NO profile picture.
- * The picture lives on the LinkedIn user profile — we get it via enrichProfile
+ * The picture lives on the LinkedIn user profile â we get it via enrichProfile
  * using the publicIdentifier from connection_params.im.publicIdentifier.
  */
 async function hydrateAccountProfile(accountId) {
@@ -23,7 +23,7 @@ async function hydrateAccountProfile(accountId) {
 
     if (!identifier) {
       console.warn('[Avatar] No publicIdentifier for account', accountId,
-        '— keys:', Object.keys(account || {}).join(', '));
+        'â keys:', Object.keys(account || {}).join(', '));
       // Still save name if we have it
       if (nameFromAccount) {
         await db.query(
@@ -51,7 +51,7 @@ async function hydrateAccountProfile(accountId) {
       'UPDATE unipile_accounts SET avatar_url = $1, full_name = $2 WHERE account_id = $3',
       [avatarUrl, fullName, accountId]
     );
-    console.log('[Avatar] Hydrated', accountId, '— name:', fullName, '— avatar:', avatarUrl ? 'YES' : 'NO');
+    console.log('[Avatar] Hydrated', accountId, 'â name:', fullName, 'â avatar:', avatarUrl ? 'YES' : 'NO');
   } catch (err) {
     console.warn('[Avatar] Could not hydrate', accountId, ':', err.message);
   }
@@ -142,11 +142,12 @@ router.post('/:id/accounts/:accountId/refresh-profile', async (req, res) => {
 // PATCH /api/workspaces/:id/accounts/:accountId/settings
 router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
   try {
-    const { limits, company_page_url } = req.body;
+    const { limits, company_page_url, company_page_urn } = req.body;
     if (!limits || typeof limits !== 'object')
       return res.status(400).json({ error: 'limits object required' });
     const settingsPatch = { limits };
     if (typeof company_page_url === 'string') settingsPatch.company_page_url = company_page_url.trim();
+    if (typeof company_page_urn === 'string') settingsPatch.company_page_urn = company_page_urn.trim();
     const { rows } = await db.query(
       `UPDATE unipile_accounts SET settings = settings || $1::jsonb
        WHERE workspace_id = $2 AND account_id = $3 RETURNING *`,
