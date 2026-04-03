@@ -26,7 +26,7 @@ const MAX_COMPANIES_PER_RUN = 3; // process max 3 companies at a time
 let running = false;
 
 function start() {
-  console.log('[OppScraper] Started â scanning every hour');
+  console.log('[OppScraper] Started Ã¢ÂÂ scanning every hour');
   run().catch(e => console.error('[OppScraper] startup run error:', e.message));
   setInterval(() => {
     run().catch(e => console.error('[OppScraper] interval run error:', e.message));
@@ -75,7 +75,7 @@ async function scanWorkspace(workspaceId) {
   );
   oppCos.forEach(r => companyIdSet.add(r.company_linkedin_id));
 
-  // Source 3: contacts already in DB â their employer's LinkedIn ID
+  // Source 3: contacts already in DB Ã¢ÂÂ their employer's LinkedIn ID
   const { rows: contactCos } = await db.query(
     `SELECT DISTINCT profile_data->'work_experience'->0->>'company_id' AS co_id
      FROM contacts
@@ -97,18 +97,8 @@ async function scanWorkspace(workspaceId) {
 
   // Process in batches of MAX_COMPANIES_PER_RUN, picking companies not recently scanned
   const allIds = [...companyIdSet];
-  // Pick up to MAX_COMPANIES_PER_RUN companies that haven't been scanned recently
-  const { rows: recentlyScanned } = await db.query(
-    `SELECT DISTINCT source_company_id FROM contacts
-     WHERE workspace_id = $1 AND source_company_id IS NOT NULL
-     AND created_at > NOW() - INTERVAL '24 hours'`,
-    [workspaceId]
-  );
-  const recentSet = new Set(recentlyScanned.map(r => r.source_company_id));
-  // Prioritise unscanned, then fall back to oldest
-  const prioritised = [...allIds.filter(id => !recentSet.has(id)),
-                        ...allIds.filter(id => recentSet.has(id))];
-  const companyIds = prioritised.slice(0, MAX_COMPANIES_PER_RUN);
+  // Take next MAX_COMPANIES_PER_RUN companies (rotate through allIds each run)
+  const companyIds = allIds.slice(0, MAX_COMPANIES_PER_RUN);
   if (!companyIds.length) {
     console.log('[OppScraper] ws' + workspaceId + ': no company IDs to scan');
     return;
@@ -147,7 +137,7 @@ async function scanWorkspace(workspaceId) {
         }
         await sleep(randBetween(...DELAY_BETWEEN_COMPANIES_MS));
       } catch (err) {
-        console.warn('[OppScraper] ws' + workspaceId + ' acc:' + acc.account_id.slice(0,8) + ' co:' + companyId + ' â ' + err.message);
+        console.warn('[OppScraper] ws' + workspaceId + ' acc:' + acc.account_id.slice(0,8) + ' co:' + companyId + ' Ã¢ÂÂ ' + err.message);
       }
     }
     console.log('[OppScraper] ws' + workspaceId + ' ' + acc.display_name + ': found=' + found + ' added=' + added + ' new contacts');
