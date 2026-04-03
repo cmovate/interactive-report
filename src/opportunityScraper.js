@@ -26,7 +26,7 @@ const MAX_COMPANIES_PER_RUN = 3; // process max 3 companies at a time
 let running = false;
 
 function start() {
-  console.log('[OppScraper] Started Ã¢ÂÂ scanning every hour');
+  console.log('[OppScraper] Started ÃÂ¢ÃÂÃÂ scanning every hour');
   run().catch(e => console.error('[OppScraper] startup run error:', e.message));
   setInterval(() => {
     run().catch(e => console.error('[OppScraper] interval run error:', e.message));
@@ -75,7 +75,7 @@ async function scanWorkspace(workspaceId) {
   );
   oppCos.forEach(r => companyIdSet.add(r.company_linkedin_id));
 
-  // Source 3: contacts already in DB Ã¢ÂÂ their employer's LinkedIn ID
+  // Source 3: contacts already in DB ÃÂ¢ÃÂÃÂ their employer's LinkedIn ID
   const { rows: contactCos } = await db.query(
     `SELECT DISTINCT profile_data->'work_experience'->0->>'company_id' AS co_id
      FROM contacts
@@ -123,12 +123,15 @@ async function scanWorkspace(workspaceId) {
           // Insert as opportunity contact
           const { rows: ins } = await db.query(
             `INSERT INTO contacts
+          const coUrl = 'https://www.linkedin.com/company/' + companyId;
+          const { rows: ins } = await db.query(
+            `INSERT INTO contacts
                (workspace_id, campaign_id, first_name, last_name, company, title,
-                li_profile_url, already_connected)
-             VALUES ($1, NULL, $2, $3, $4, $5, $6, true)
+                li_profile_url, li_company_url, already_connected)
+             VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true)
              RETURNING id`,
             [workspaceId, p.first_name||'', p.last_name||'',
-             p.company||p.current_company||'', p.headline||'', liUrl]
+             p.company||p.current_company||'', p.headline||'', liUrl, coUrl]
           );
           if (ins[0]?.id) {
             added++;
@@ -137,7 +140,7 @@ async function scanWorkspace(workspaceId) {
         }
         await sleep(randBetween(...DELAY_BETWEEN_COMPANIES_MS));
       } catch (err) {
-        console.warn('[OppScraper] ws' + workspaceId + ' acc:' + acc.account_id.slice(0,8) + ' co:' + companyId + ' Ã¢ÂÂ ' + err.message);
+        console.warn('[OppScraper] ws' + workspaceId + ' acc:' + acc.account_id.slice(0,8) + ' co:' + companyId + ' ÃÂ¢ÃÂÃÂ ' + err.message);
       }
     }
     console.log('[OppScraper] ws' + workspaceId + ' ' + acc.display_name + ': found=' + found + ' added=' + added + ' new contacts');
