@@ -33,6 +33,7 @@ const statsSnapshotter         = require('./src/statsSnapshotter');
 const profileViewer            = require('./src/profileViewer');
 const engagementScraper        = require('./src/engagementScraper');
 const companyEngagementScraper = require('./src/companyEngagementScraper');
+const likeSender              = require('./src/likeSender');
 const messageSender            = require('./src/messageSender');
 const conversationQueue        = require('./src/conversationQueue');
 
@@ -755,6 +756,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   profileViewer.start();
   engagementScraper.start();
   companyEngagementScraper.start();
+  likeSender.start();
   messageSender.start();
   await conversationQueue.start();
 })();
