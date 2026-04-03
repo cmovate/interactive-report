@@ -144,4 +144,28 @@ router.post('/send-test-message', async (req, res) => {
   }
 });
 
+
+
+// GET /api/unipile/chat-messages?account_id=&chat_id=&limit=5
+// Returns the last N messages from a chat — used to check if conversation has messages
+router.get('/chat-messages', async (req, res) => {
+  try {
+    const { account_id, chat_id, limit = '5' } = req.query;
+    if (!account_id || !chat_id) return res.status(400).json({ error: 'account_id and chat_id required' });
+    const params = new URLSearchParams({ account_id, limit });
+    const { status, data } = await rawGet(`/api/v1/chats/${encodeURIComponent(chat_id)}/messages?${params}`);
+    const items = data?.items || [];
+    // Return minimal info: did any message arrive, who sent it
+    const msgs = items.map(m => ({
+      sender_id: m.sender_id,
+      is_sender: m.is_sender,
+      text: (m.text || '').substring(0, 120),
+      timestamp: m.created_at || m.timestamp,
+    }));
+    res.json({ status, total: items.length, messages: msgs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
