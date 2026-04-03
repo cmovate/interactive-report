@@ -150,7 +150,7 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING *`,
       [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {}), list_id || null]);
     const campaign = rows[0];
-    // ── If list_id provided, copy contacts from the list into this campaign ──
+    // ââ If list_id provided, copy contacts from the list into this campaign ââ
     if (list_id) {
       await db.query(
         `INSERT INTO contacts (workspace_id, campaign_id, li_profile_url,
@@ -259,9 +259,9 @@ router.patch('/:id/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE campaign — optional cascades controlled by query params:
-//   ?delete_contacts=true   → also delete contacts (All Data)
-//   ?delete_companies=true  → also delete campaign_companies (Opportunities link)
+// DELETE campaign â optional cascades controlled by query params:
+//   ?delete_contacts=true   â also delete contacts (All Data)
+//   ?delete_companies=true  â also delete campaign_companies (Opportunities link)
 router.delete('/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -398,7 +398,7 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
   for (let batchIdx = startBatchIdx; batchIdx < totalBatches; batchIdx++) {
     const batch = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
     const keywords = buildKeywordsQuery(batch, titles, country);
-    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} â "${keywords.slice(0,100)}"`);
+    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} Ã¢ÂÂ "${keywords.slice(0,100)}"`);
     let cursor = null, page = 0;
     do {
       page++;
@@ -424,7 +424,7 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
     } while (page < BATCH_MAX_PAGES);
     if (batchIdx < totalBatches - 1) await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
   }
-  console.log(`[BatchFetch] Campaign ${campaignId}: complete â ${totalAdded} contacts added`);
+  console.log(`[BatchFetch] Campaign ${campaignId}: complete Ã¢ÂÂ ${totalAdded} contacts added`);
 }
 
 router.post('/:id/fetch-all-companies', async (req, res) => {
@@ -442,6 +442,48 @@ router.post('/:id/fetch-all-companies', async (req, res) => {
       .catch(e => console.error(`[BatchFetch] Campaign ${camp.id}:`, e.message));
     res.json({ status: 'started', mode: 'batched_keywords', remaining_batches: totalBatches - 1, total_companies: companyUrls.length });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+
+// PATCH /api/campaigns/:id/list — attach a list to an existing campaign + bulk-import contacts
+router.patch('/:id/list', async (req, res) => {
+  try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    const { list_id } = req.body;
+    if (!list_id) return res.status(400).json({ error: 'list_id required' });
+
+    // 1. Update campaign list_id
+    await db.query(
+      'UPDATE campaigns SET list_id = $1 WHERE id = $2 AND workspace_id = $3',
+      [list_id, camp.id, wsId]
+    );
+
+    // 2. Bulk-insert contacts from the list (skip duplicates)
+    const { rowCount } = await db.query(
+      `INSERT INTO contacts (workspace_id, campaign_id, li_profile_url,
+          first_name, last_name, company, title, provider_id, member_urn)
+        SELECT c.workspace_id, $1, c.li_profile_url,
+               c.first_name, c.last_name, c.company, c.title, c.provider_id, c.member_urn
+        FROM list_contacts lc
+        JOIN contacts c ON c.id = lc.contact_id
+        WHERE lc.list_id = $2
+          AND c.workspace_id = $3
+          AND NOT EXISTS (
+            SELECT 1 FROM contacts c2
+            WHERE c2.campaign_id = $1
+              AND c2.li_profile_url = c.li_profile_url
+              AND c2.workspace_id = $3
+          )`,
+      [camp.id, list_id, wsId]
+    );
+
+    res.json({ success: true, list_id, contacts_added: rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
