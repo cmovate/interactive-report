@@ -124,6 +124,12 @@ function init() {
         scanResults[co.id] = { scanning: false, contacts: byCoId[coId] };
       }
     });
+    // Sort: companies with connections first
+    companies.sort(function(a, b) {
+      var aCount = (scanResults[a.id] && scanResults[a.id].contacts) ? scanResults[a.id].contacts.length : 0;
+      var bCount = (scanResults[b.id] && scanResults[b.id].contacts) ? scanResults[b.id].contacts.length : 0;
+      return bCount - aCount;
+    });
     renderAll();
     // Scanning handled by OppScraper (hourly background job)
   }).catch(function(e){ document.getElementById('status-text').textContent = 'Error: '+e.message; });
@@ -159,14 +165,14 @@ function renderBlock(co) {
   } else {
     var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
-      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'Ã¢ÂÂ');
+      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'ÃÂ¢ÃÂÃÂ');
       var via = (c.connected_via||[]).map(function(v){ return '<span class="via-tag">via '+esc(v.name)+'</span>'; }).join(' ');
       return '<tr>'
         +'<td class="contact-name">'+nm+'</td>'
-        +'<td>'+esc(c.company||'Ã¢ÂÂ')+'</td>'
-        +'<td>'+esc(c.headline||'Ã¢ÂÂ')+'</td>'
-        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'Ã¢ÂÂ')+'</td>'
-        +'<td><div class="via-tags">'+(via||'Ã¢ÂÂ')+'</div></td>'
+        +'<td>'+esc(c.company||'ÃÂ¢ÃÂÃÂ')+'</td>'
+        +'<td>'+esc(c.headline||'ÃÂ¢ÃÂÃÂ')+'</td>'
+        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'ÃÂ¢ÃÂÃÂ')+'</td>'
+        +'<td><div class="via-tags">'+(via||'ÃÂ¢ÃÂÃÂ')+'</div></td>'
         +'<td><button class="btn-msg" onclick="openDM('+i+','+co.id+')">&#8594; Message</button></td>'
         +'</tr>';
     }).join('');
