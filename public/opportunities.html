@@ -101,11 +101,32 @@ function init() {
     sel.innerHTML = '';
     accounts.forEach(function(a) { var o=document.createElement('option'); o.value=a.account_id; o.textContent=a.display_name; sel.appendChild(o); });
   });
-  fetch('/api/lists/companies?workspace_id=' + workspaceId).then(function(r){return r.json();}).then(function(data){
+  Promise.all([
+    fetch('/api/lists/companies?workspace_id=' + workspaceId).then(function(r){return r.json();}),
+    fetch('/api/opportunities/cached-contacts?workspace_id=' + workspaceId).then(function(r){return r.json();}).catch(function(){return {contacts:[]};}) 
+  ]).then(function(results) {
+    var data = results[0]; var cachedData = results[1];
     companies = data.items || [];
     document.getElementById('status-text').textContent = companies.length + ' companies from your lists';
+    // Pre-populate scanResults from DB cache
+    var cachedContacts = cachedData.contacts || [];
+    var byCoId = {};
+    cachedContacts.forEach(function(c) {
+      var m = (c.li_company_url||'').match(/\/company\/([^\/\?#]+)/);
+      if (!m) return;
+      if (!byCoId[m[1]]) byCoId[m[1]] = [];
+      byCoId[m[1]].push(c);
+    });
+    companies.forEach(function(co) {
+      var coId = co.company_linkedin_id ||
+        ((co.li_company_url||'').match(/\/company\/([^\/\?#]+)/)||[])[1];
+      if (coId && byCoId[coId] && byCoId[coId].length) {
+        scanResults[co.id] = { scanning: false, contacts: byCoId[coId] };
+      }
+    });
     renderAll();
-    companies.forEach(function(co){ doScan(co); });
+    // Only scan companies that don't have cached results yet
+    companies.forEach(function(co){ if (!scanResults[co.id]) doScan(co); });
   }).catch(function(e){ document.getElementById('status-text').textContent = 'Error: '+e.message; });
 }
 function renderAll() {
@@ -139,14 +160,14 @@ function renderBlock(co) {
   } else {
     var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
-      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'—');
+      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'â');
       var via = (c.connected_via||[]).map(function(v){ return '<span class="via-tag">via '+esc(v.name)+'</span>'; }).join(' ');
       return '<tr>'
         +'<td class="contact-name">'+nm+'</td>'
-        +'<td>'+esc(c.company||'—')+'</td>'
-        +'<td>'+esc(c.headline||'—')+'</td>'
-        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'—')+'</td>'
-        +'<td><div class="via-tags">'+(via||'—')+'</div></td>'
+        +'<td>'+esc(c.company||'â')+'</td>'
+        +'<td>'+esc(c.headline||'â')+'</td>'
+        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'â')+'</td>'
+        +'<td><div class="via-tags">'+(via||'â')+'</div></td>'
         +'<td><button class="btn-msg" onclick="openDM('+i+','+co.id+')">&#8594; Message</button></td>'
         +'</tr>';
     }).join('');
