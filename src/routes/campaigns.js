@@ -150,7 +150,7 @@ router.post('/', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING *`,
       [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {}), list_id || null]);
     const campaign = rows[0];
-    // ââ If list_id provided, copy contacts from the list into this campaign ââ
+    // Ã¢ÂÂÃ¢ÂÂ If list_id provided, copy contacts from the list into this campaign Ã¢ÂÂÃ¢ÂÂ
     if (list_id) {
       await db.query(
         `INSERT INTO contacts (workspace_id, campaign_id, li_profile_url,
@@ -259,9 +259,9 @@ router.patch('/:id/settings', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// DELETE campaign â optional cascades controlled by query params:
-//   ?delete_contacts=true   â also delete contacts (All Data)
-//   ?delete_companies=true  â also delete campaign_companies (Opportunities link)
+// DELETE campaign Ã¢ÂÂ optional cascades controlled by query params:
+//   ?delete_contacts=true   Ã¢ÂÂ also delete contacts (All Data)
+//   ?delete_companies=true  Ã¢ÂÂ also delete campaign_companies (Opportunities link)
 router.delete('/:id', async (req, res) => {
   try {
     const wsId = req.query.workspace_id;
@@ -398,7 +398,7 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
   for (let batchIdx = startBatchIdx; batchIdx < totalBatches; batchIdx++) {
     const batch = companyUrls.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
     const keywords = buildKeywordsQuery(batch, titles, country);
-    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} Ã¢ÂÂ "${keywords.slice(0,100)}"`);
+    console.log(`[BatchFetch] Campaign ${campaignId}: b${batchIdx+1}/${totalBatches} ÃÂ¢ÃÂÃÂ "${keywords.slice(0,100)}"`);
     let cursor = null, page = 0;
     do {
       page++;
@@ -424,7 +424,7 @@ async function runKeywordsBatchFetch(campaignId, workspaceId, accountId, company
     } while (page < BATCH_MAX_PAGES);
     if (batchIdx < totalBatches - 1) await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
   }
-  console.log(`[BatchFetch] Campaign ${campaignId}: complete Ã¢ÂÂ ${totalAdded} contacts added`);
+  console.log(`[BatchFetch] Campaign ${campaignId}: complete ÃÂ¢ÃÂÃÂ ${totalAdded} contacts added`);
 }
 
 router.post('/:id/fetch-all-companies', async (req, res) => {
@@ -446,7 +446,7 @@ router.post('/:id/fetch-all-companies', async (req, res) => {
 
 
 
-// PATCH /api/campaigns/:id/list — attach a list to an existing campaign + bulk-import contacts
+// PATCH /api/campaigns/:id/list â attach a list to an existing campaign + bulk-import contacts
 router.patch('/:id/list', async (req, res) => {
   try {
     const wsId = req.body?.workspace_id || req.query.workspace_id;
@@ -464,9 +464,13 @@ router.patch('/:id/list', async (req, res) => {
     // 2. Bulk-insert contacts from the list (skip duplicates)
     const { rowCount } = await db.query(
       `INSERT INTO contacts (workspace_id, campaign_id, li_profile_url,
-          first_name, last_name, company, title, provider_id, member_urn)
+          first_name, last_name, company, title, provider_id, member_urn, already_connected,
+          msg_sequence, msg_sequence_started_at)
         SELECT c.workspace_id, $1, c.li_profile_url,
-               c.first_name, c.last_name, c.company, c.title, c.provider_id, c.member_urn
+               c.first_name, c.last_name, c.company, c.title, c.provider_id, c.member_urn,
+               c.already_connected,
+               CASE WHEN c.already_connected = true THEN 'existing_no_history' ELSE NULL END,
+               CASE WHEN c.already_connected = true THEN NOW() ELSE NULL END
         FROM list_contacts lc
         JOIN contacts c ON c.id = lc.contact_id
         WHERE lc.list_id = $2
