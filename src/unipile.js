@@ -329,4 +329,6 @@ module.exports = {
   getCompanyProfile,
   searchPeopleAdvanced,
   request,
+  request,
+
 };
