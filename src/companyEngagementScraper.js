@@ -18,8 +18,8 @@
  *   - Dedup via liked_ids JSONB
  *
  * Engagement levels (posts only):
- *   engaged         = ≥2 posts in last 14 days
- *   average_engaged = ≥1 post  in last 14 days
+ *   engaged         = â¥2 posts in last 14 days
+ *   average_engaged = â¥1 post  in last 14 days
  *   un_engaged      = 0 posts  in last 14 days
  *
  * Scheduled: once daily at 06:30.
@@ -40,18 +40,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let isRunning = false;
 
 function start() {
-  console.log('[CompanyScraper] Started — runs daily at 06:30');
-  scheduleDaily();
-}
-
-function scheduleDaily() {
-  const now  = new Date();
-  const next = new Date(now);
-  next.setHours(6, 30, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  const msUntil = next - now;
-  console.log(`[CompanyScraper] Next run in ${Math.round(msUntil / 3600000)}h`);
-  setTimeout(() => { run(); setInterval(run, 24 * 60 * 60 * 1000); }, msUntil);
+  console.log('[CompanyScraper] Scheduler started - runs every 60 min');
+  setTimeout(run, 3 * 60 * 1000);
+  setInterval(run, 60 * 60 * 1000);
 }
 
 async function run(campaignId = null) {
@@ -60,7 +51,7 @@ async function run(campaignId = null) {
   console.log('[CompanyScraper] Starting run...');
 
   try {
-    // ALL active campaigns with companies — scraping is unconditional
+    // ALL active campaigns with companies â scraping is unconditional
     let query = `
       SELECT DISTINCT c.id, c.account_id, c.name, c.settings
       FROM campaigns c
@@ -93,21 +84,23 @@ async function run(campaignId = null) {
 async function processCampaign(campaign) {
   console.log(`[CompanyScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
-  // Liking is optional — controlled by campaign settings
+  // Liking is optional â controlled by campaign settings
   const eng     = campaign.settings?.engagement || {};
-  const canLike = !!(eng.like_company_posts || eng.like_posts);
+  const canLike = !!(eng.company_like_posts || eng.company_like_comments);
 
   // Only fetch companies with NO engagement_data yet (never overwrite existing scraped data)
   const { rows: companies } = await db.query(
     `SELECT id, company_name, company_linkedin_id,
-            post_likes_sent, liked_ids, likes_sent_at
+            post_likes_sent, liked_ids, likes_sent_at,
+            engagement_data, engagement_level
      FROM campaign_companies
      WHERE campaign_id = $1
        AND company_linkedin_id IS NOT NULL
        AND company_linkedin_id != ''
-       AND engagement_level IS NULL
-       AND engagement_data IS NULL
-     ORDER BY RANDOM()
+       AND (engagement_data IS NULL
+         OR (engagement_level IN ('average_engaged','engaged')
+             AND (likes_sent_at IS NULL OR likes_sent_at < NOW() - INTERVAL '3 days')))
+     ORDER BY engagement_data IS NULL DESC, RANDOM()
      LIMIT $2`,
     [campaign.id, BATCH_SIZE]
   );
@@ -124,7 +117,15 @@ async function processCampaign(campaign) {
   for (const company of companies) {
     try {
       // Always scrape and save
-      const result = await scrapeCompany(company, campaign.account_id);
+      let result;
+      if (!company.engagement_data) {
+        result = await scrapeCompany(company, campaign.account_id);
+      } else {
+        const _cd = typeof company.engagement_data==='string'
+          ? JSON.parse(company.engagement_data) : company.engagement_data;
+        result = { engagement_level: company.engagement_level||'average_engaged',
+          posts14d: _cd.posts_14d_data||[] };
+      }
       scraped++;
 
       // Like only if campaign settings allow AND company has posts AND not on cooldown
@@ -141,7 +142,7 @@ async function processCampaign(campaign) {
         }
       }
     } catch (err) {
-      console.error(`[CompanyScraper] ✗ company ${company.id} (${company.company_name}): ${err.message}`);
+      console.error(`[CompanyScraper] â company ${company.id} (${company.company_name}): ${err.message}`);
     }
 
     if (scraped < companies.length) await sleep(rand(10000, 25000));
@@ -161,7 +162,7 @@ async function processCampaign(campaign) {
   return { companies_scraped: scraped, with_content: withContent, total_liked: totalLiked };
 }
 
-// ── Scrape a single company ────────────────────────────────────────────────────
+// ââ Scrape a single company ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function scrapeCompany(company, accountId) {
   const cutoff = new Date(Date.now() - DAYS_14);
 
@@ -193,11 +194,11 @@ async function scrapeCompany(company, accountId) {
     [level, JSON.stringify(engagementData), company.id]
   );
 
-  console.log(`[CompanyScraper] ✓ ${company.company_name} → ${level} (posts_14d=${posts14d.length})`);
+  console.log(`[CompanyScraper] â ${company.company_name} â ${level} (posts_14d=${posts14d.length})`);
   return { engagement_level: level, posts14d };
 }
 
-// ── Like company posts (only when campaign settings allow) ────────────────────
+// ââ Like company posts (only when campaign settings allow) ââââââââââââââââââââ
 async function likeCompanyPosts(company, posts14d, accountId) {
   const { rows } = await db.query(
     'SELECT liked_ids, post_likes_sent FROM campaign_companies WHERE id = $1',
@@ -226,10 +227,10 @@ async function likeCompanyPosts(company, posts14d, accountId) {
       await unipile.likePost(accountId, sid);
       newLikedIds.push(sid);
       liked++;
-      console.log(`[CompanyScraper] 👍 Liked post for ${company.company_name}`);
+      console.log(`[CompanyScraper] ð Liked post for ${company.company_name}`);
       if (liked < remaining && liked < newPosts.length) await sleep(rand(5000, 15000));
     } catch (err) {
-      console.error(`[CompanyScraper] ✗ Like failed for ${company.company_name}: ${err.message}`);
+      console.error(`[CompanyScraper] â Like failed for ${company.company_name}: ${err.message}`);
     }
   }
 
@@ -248,7 +249,7 @@ async function likeCompanyPosts(company, posts14d, accountId) {
   return liked;
 }
 
-// ── Re-classify from existing data (no API calls) ─────────────────────────────
+// ââ Re-classify from existing data (no API calls) âââââââââââââââââââââââââââââ
 async function reclassifyFromExistingData(campaignId) {
   const { rows } = await db.query(
     `SELECT id, company_name, engagement_data FROM campaign_companies
@@ -262,13 +263,13 @@ async function reclassifyFromExistingData(campaignId) {
     const oldLevel = d.engagement_level;
     d.engagement_level = newLevel;
     await db.query('UPDATE campaign_companies SET engagement_level = $1, engagement_data = $2 WHERE id = $3', [newLevel, JSON.stringify(d), row.id]);
-    if (newLevel !== oldLevel) console.log(`[CompanyScraper reclassify] ${row.company_name}: ${oldLevel} → ${newLevel}`);
+    if (newLevel !== oldLevel) console.log(`[CompanyScraper reclassify] ${row.company_name}: ${oldLevel} â ${newLevel}`);
     updated++;
   }
   return { reclassified: updated };
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ââ Helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function classifyEngagement(posts14dCount) {
   if (posts14dCount >= 2) return 'engaged';
