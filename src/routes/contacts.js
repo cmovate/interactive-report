@@ -71,8 +71,8 @@ router.post('/:id/re-analyze', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id Ã¢ÂÂ contact has not been messaged or replied yet' });
-    if (!contact.account_id) return res.status(400).json({ error: 'No account_id Ã¢ÂÂ campaign missing account' });
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂ¢ÃÂÃÂ contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂ¢ÃÂÃÂ campaign missing account' });
 
     // Run async, return immediately
     analyzeConversation(contactId, contact.account_id, contact.chat_id)
@@ -177,7 +177,7 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet Ã¢ÂÂ provider_id missing' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂ¢ÃÂÃÂ provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
     await sendInvitation(contact.account_id, contact.provider_id);
     await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
@@ -227,7 +227,7 @@ router.delete('/', async (req, res) => {
 
 
 
-// POST /api/contacts/bulk-update — update specific fields on a set of contact IDs
+// POST /api/contacts/bulk-update â update specific fields on a set of contact IDs
 // Body: { workspace_id, ids: [1,2,3], fields: { already_connected: true, msg_sequence: '...', ... } }
 router.post('/bulk-update', async (req, res) => {
   try {
@@ -248,8 +248,7 @@ router.post('/bulk-update', async (req, res) => {
     }
     if (!setClauses.length) return res.status(400).json({ error: 'No valid fields to update' });
     // Placeholders for ids
-    const idPlaceholders = ids.map((_, i) => '
- + (values.length + 1 + i)).join(',');
+    const idPlaceholders = ids.map((_, i) => '$' + (values.length + 1 + i)).join(',');
     ids.forEach(id => values.push(id));
     const { rowCount } = await db.query(
       `UPDATE contacts SET ${setClauses.join(', ')} WHERE workspace_id = $1 AND id IN (${idPlaceholders})`,
