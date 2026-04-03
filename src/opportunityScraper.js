@@ -14,18 +14,19 @@
  *  4. Skips contacts already in DB (dedup by li_profile_url + workspace).
  */
 const db = require('./db');
-const { searchPeopleByKeywords } = require('./unipile');
+const { searchPeopleByKeywords, request } = require('./unipile');
 const { enqueue } = require('./enrichment');
 
 const INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const DELAY_BETWEEN_COMPANIES_MS = [3000, 6000];
 const DELAY_BETWEEN_ACCOUNTS_MS  = [5000, 10000];
 const MAX_RESULTS_PER_COMPANY = 50;
+const MAX_COMPANIES_PER_RUN = 3; // process max 3 companies at a time
 
 let running = false;
 
 function start() {
-  console.log('[OppScraper] Started — scanning every hour');
+  console.log('[OppScraper] Started â scanning every hour');
   run().catch(e => console.error('[OppScraper] startup run error:', e.message));
   setInterval(() => {
     run().catch(e => console.error('[OppScraper] interval run error:', e.message));
@@ -74,7 +75,7 @@ async function scanWorkspace(workspaceId) {
   );
   oppCos.forEach(r => companyIdSet.add(r.company_linkedin_id));
 
-  // Source 3: contacts already in DB — their employer's LinkedIn ID
+  // Source 3: contacts already in DB â their employer's LinkedIn ID
   const { rows: contactCos } = await db.query(
     `SELECT DISTINCT profile_data->'work_experience'->0->>'company_id' AS co_id
      FROM contacts
@@ -84,12 +85,35 @@ async function scanWorkspace(workspaceId) {
   );
   contactCos.forEach(r => { if (r.co_id) companyIdSet.add(r.co_id); });
 
-  const companyIds = [...companyIdSet];
+  // Source 4: list_companies (companies added to any list in this workspace)
+  const { rows: listCos } = await db.query(
+    `SELECT DISTINCT lco.company_linkedin_id
+     FROM list_companies lco
+     JOIN lists l ON l.id = lco.list_id
+     WHERE l.workspace_id = $1 AND lco.company_linkedin_id IS NOT NULL AND lco.company_linkedin_id != ''`,
+    [workspaceId]
+  );
+  listCos.forEach(r => companyIdSet.add(r.company_linkedin_id));
+
+  // Process in batches of MAX_COMPANIES_PER_RUN, picking companies not recently scanned
+  const allIds = [...companyIdSet];
+  // Pick up to MAX_COMPANIES_PER_RUN companies that haven't been scanned recently
+  const { rows: recentlyScanned } = await db.query(
+    `SELECT DISTINCT source_company_id FROM contacts
+     WHERE workspace_id = $1 AND source_company_id IS NOT NULL
+     AND created_at > NOW() - INTERVAL '24 hours'`,
+    [workspaceId]
+  );
+  const recentSet = new Set(recentlyScanned.map(r => r.source_company_id));
+  // Prioritise unscanned, then fall back to oldest
+  const prioritised = [...allIds.filter(id => !recentSet.has(id)),
+                        ...allIds.filter(id => recentSet.has(id))];
+  const companyIds = prioritised.slice(0, MAX_COMPANIES_PER_RUN);
   if (!companyIds.length) {
     console.log('[OppScraper] ws' + workspaceId + ': no company IDs to scan');
     return;
   }
-  console.log('[OppScraper] ws' + workspaceId + ': scanning ' + companyIds.length + ' companies across ' + accounts.length + ' account(s)');
+  console.log('[OppScraper] ws' + workspaceId + ': scanning ' + companyIds.length + '/' + allIds.length + ' companies across ' + accounts.length + ' account(s)');
 
   for (const acc of accounts) {
     let found = 0, added = 0;
@@ -123,7 +147,7 @@ async function scanWorkspace(workspaceId) {
         }
         await sleep(randBetween(...DELAY_BETWEEN_COMPANIES_MS));
       } catch (err) {
-        console.warn('[OppScraper] ws' + workspaceId + ' acc:' + acc.account_id.slice(0,8) + ' co:' + companyId + ' — ' + err.message);
+        console.warn('[OppScraper] ws' + workspaceId + ' acc:' + acc.account_id.slice(0,8) + ' co:' + companyId + ' â ' + err.message);
       }
     }
     console.log('[OppScraper] ws' + workspaceId + ' ' + acc.display_name + ': found=' + found + ' added=' + added + ' new contacts');
@@ -136,8 +160,7 @@ async function scanWorkspace(workspaceId) {
  * Uses LinkedIn classic search with network_distance + currentCompany filters.
  */
 async function searchFirstDegreeAtCompany(accountId, companyId) {
-  const { searchFirstDegreeAtCompany: _search1st } = require('./unipile');
-  // We call request directly because searchPeopleByKeywords doesn't support network_distance filter
+  // Uses request() (imported at top) to call LinkedIn search with network_distance filter
   const data = await request(
     '/api/v1/linkedin/search?account_id=' + encodeURIComponent(accountId),
     {
