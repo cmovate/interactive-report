@@ -292,8 +292,14 @@ async function loadData() {
   document.getElementById('analytics-table').style.display = 'none';
   
   var campId = document.getElementById('campaign-select').value;
-  var url = '/api/contacts?workspace_id='+wsId+'&limit=5000';
-  if(campId) url += '&campaign_id='+campId;
+  if(!campId) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('analytics-table').style.display = '';
+    allContacts = [];
+    filterRows();
+    return;
+  }
+  var url = '/api/contacts?workspace_id='+wsId+'&campaign_id='+campId+'&limit=5000';
   
   var d = await fetch(url).then(r=>r.json());
   allContacts = d.items || [];
