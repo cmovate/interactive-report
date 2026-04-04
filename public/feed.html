@@ -150,6 +150,13 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
   border-top: 2px solid var(--acc, #52b788) !important;
   margin-top: 0 !important;
 }
+.comment-box{display:none;padding:12px 16px 14px;border-top:1px solid #F0EDE8;background:#FDFCFB;border-radius:0 0 12px 12px;}
+.comment-box textarea{width:100%;min-height:72px;border:1px solid #DED9D3;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .15s;}
+.comment-box textarea:focus{border-color:var(--acc,#52b788);}
+.comment-box-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
+.comment-cancel-btn{background:none;border:1px solid #DED9D3;color:#666;padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;}
+.comment-send-btn{background:var(--acc,#52b788);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
+.comment-send-btn:disabled{opacity:.5;cursor:not-allowed;}
 </style>
 </head>
 <body>
@@ -419,9 +426,10 @@ function renderPost(post) {
       ${statsBar}
       <div class="post-actions">
         <div class="action-btn"><span class="icon">&#128077;</span> Like</div>
-        <div class="action-btn"><span class="icon">&#128172;</span> Comment</div>
+        <div class="action-btn" onclick="toggleCommentBox("${post.id}","${encodeURIComponent(post.parent_post_urn||post.post_urn)}")"><span class="icon">&#128172;</span> Comment</div>
         <div class="action-btn"><span class="icon">&#8635;</span> Repost</div>
       </div>
+      <div class="comment-box" id="cb-${post.id}"><textarea id="ct-${post.id}" placeholder="Write a comment…"></textarea><div class="comment-box-actions"><button class="comment-cancel-btn" onclick="toggleCommentBox("${post.id}","")">Cancel</button><button class="comment-send-btn" id="cs-${post.id}" onclick="sendComment("${post.id}","${encodeURIComponent(post.parent_post_urn||post.post_urn)}")">Send</button></div></div>
       ${commentsHtml}
     </div>`;
 }
@@ -559,6 +567,47 @@ async function checkForNew() {
 // Start polling when on page 1
 setInterval(checkForNew, 60000);
 
+
+function toggleCommentBox(postId, encodedUrn) {
+  var box = document.getElementById('cb-' + postId);
+  if (!box) return;
+  var open = box.style.display === 'block';
+  box.style.display = open ? 'none' : 'block';
+  if (!open) setTimeout(function(){ var ta = document.getElementById('ct-' + postId); if(ta) ta.focus(); }, 50);
+}
+
+async function sendComment(postId, encodedUrn) {
+  var ta  = document.getElementById('ct-' + postId);
+  var btn = document.getElementById('cs-' + postId);
+  var text = ta ? ta.value.trim() : '';
+  if (!text) { if(ta) ta.focus(); return; }
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    var postUrn = decodeURIComponent(encodedUrn);
+    var r = await fetch('/api/feed/comment', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: workspaceId, post_urn: postUrn, text })
+    });
+    var d = await r.json();
+    if (d.success) {
+      ta.value = '';
+      btn.textContent = '✓ Sent!';
+      btn.style.background = '#2d7a5b';
+      setTimeout(function() {
+        var box = document.getElementById('cb-' + postId);
+        if(box) box.style.display = 'none';
+        btn.disabled = false; btn.textContent = 'Send'; btn.style.background = '';
+      }, 1500);
+    } else {
+      alert('Error: ' + (d.error || 'unknown'));
+      btn.disabled = false; btn.textContent = 'Send';
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Send';
+  }
+}
 </script>
 </body>
 </html>
