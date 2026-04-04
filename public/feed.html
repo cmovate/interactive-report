@@ -128,6 +128,28 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 
 .new-posts-bar{display:none;position:sticky;top:0;z-index:100;background:#1D9E75;color:white;text-align:center;padding:10px;font-size:13px;font-weight:600;cursor:pointer;border-radius:8px;margin-bottom:12px;box-shadow:0 2px 8px rgba(29,158,117,.3);}
 .new-posts-bar:hover{background:#178f68;}
+
+.parent-post-stub {
+  background: #f8f6f3;
+  border: 1px solid #E9E5DF;
+  border-radius: 12px 12px 0 0;
+  padding: 14px 16px;
+  margin-bottom: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.parent-post-stub .stub-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+.parent-post-stub .stub-body { flex: 1; min-width: 0; }
+.parent-post-stub .stub-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.parent-post-stub .stub-link { font-size: 13px; color: var(--acc, #52b788); font-weight: 500; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.parent-post-stub .stub-link:hover { text-decoration: underline; }
+.comment-as-post {
+  border-radius: 0 0 12px 12px !important;
+  border-top: 2px solid var(--acc, #52b788) !important;
+  margin-top: 0 !important;
+}
 </style>
 </head>
 <body>
@@ -309,6 +331,39 @@ async function loadFeed() {
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Render post ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 function renderPost(post) {
+  // If this is a comment (has parent_post_urn), render as "parent post stub + comment"
+  if (post.parent_post_urn) {
+    const liUrl = 'https://www.linkedin.com/feed/update/' + encodeURIComponent(post.parent_post_urn) + '/';
+    const av    = avatarHtml(post.author_avatar_url, post.author_name);
+    const name  = esc(post.author_name || 'Unknown');
+    const isIC  = !!post.contact_id;
+    const chip  = isIC ? '<span class="in-campaign-chip">&#127919; In campaign</span>' : '';
+    const body  = esc(post.content || '').replace(/\n/g, '<br>');
+    return `
+    <div style="margin-bottom:16px">
+      <div class="parent-post-stub">
+        <div class="stub-icon">📝</div>
+        <div class="stub-body">
+          <div class="stub-label">Commented on a post</div>
+          <a class="stub-link" href="${liUrl}" target="_blank" rel="noopener">
+            View original post on LinkedIn &rarr;
+          </a>
+        </div>
+      </div>
+      <div class="post-card comment-as-post">
+        <div class="post-header">
+          <div class="post-avatar">${av}</div>
+          <div class="post-author">
+            <div class="post-name">${name} ${chip}</div>
+            <div class="post-headline">${esc(post.author_title || '')}</div>
+            <div class="post-time">${formatDate(post.posted_at)}${post.posted_at ? ' &middot; <span class=\"globe-icon\">&#127760;</span>' : ''}</div>
+          </div>
+        </div>
+        <div class="post-body">${body}</div>
+      </div>
+    </div>`;
+  }
+
   const name        = esc(post.author_name || 'Unknown');
   const isInCampaign = !!post.contact_id;
   const profileHref = post.author_profile_url
