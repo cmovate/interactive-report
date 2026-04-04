@@ -172,14 +172,14 @@ function renderBlock(co) {
   } else {
     var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
-      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'ÃÂ¢ÃÂÃÂ');
+      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()||'');
       var via = (c.connected_via||[]).map(function(v){ return '<span class="via-tag">via '+esc(v.name)+'</span>'; }).join(' ');
       return '<tr>'
         +'<td class="contact-name">'+nm+'</td>'
-        +'<td>'+esc(c.company||'ÃÂ¢ÃÂÃÂ')+'</td>'
-        +'<td>'+esc(c.headline||'ÃÂ¢ÃÂÃÂ')+'</td>'
-        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'ÃÂ¢ÃÂÃÂ')+'</td>'
-        +'<td><div class="via-tags">'+(via||'ÃÂ¢ÃÂÃÂ')+'</div></td>'
+        +'<td>'+esc(fixEncoding(c.company)||'')+'</td>'
+        +'<td>'+esc(fixEncoding(c.headline)||'')+'</td>'
+        +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'')+'</td>'
+        +'<td><div class="via-tags">'+(via||'')+'</div></td>'
         +'<td><button class="btn-msg" onclick="openDM('+i+','+co.id+')">&#8594; Message</button></td>'
         +'</tr>';
     }).join('');
