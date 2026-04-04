@@ -235,14 +235,10 @@ async function evaluateAndSwitchMode(accountId, learningStart) {
 async function patchSettings(accountId, patch) {
   const entries = Object.entries(patch);
   if (!entries.length) return;
-  const args = [accountId], parts = [];
-  for (const [k, v] of entries) {
-    args.push(k, v === undefined ? null : v);
-    parts.push(`$${args.length-1}, $${args.length}`);
-  }
+  // Use jsonb cast to avoid PostgreSQL type-inference issues with parameterized queries
   await db.query(
-    `UPDATE unipile_accounts SET settings = settings || jsonb_build_object(${parts.join(', ')}) WHERE account_id=$1`,
-    args
+    `UPDATE unipile_accounts SET settings = settings || $2::jsonb WHERE account_id = $1`,
+    [accountId, JSON.stringify(patch)]
   );
 }
 
