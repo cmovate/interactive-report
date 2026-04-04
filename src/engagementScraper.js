@@ -1,18 +1,18 @@
 /**
- * Engagement Scraper â Contacts
+ * Engagement Scraper Ã¢ÂÂ Contacts
  *
  * Runs daily for ALL active campaigns regardless of settings.
  * Three distinct phases per campaign:
  *
- *   Phase 1 â Scrape (unconditional)
+ *   Phase 1 Ã¢ÂÂ Scrape (unconditional)
  *     Fetches posts + comments for unscraped contacts, saves JSONB to DB.
  *
- *   Phase 2 â Personal account likes (if enabled in campaign settings)
+ *   Phase 2 Ã¢ÂÂ Personal account likes (if enabled in campaign settings)
  *     Selects up to 20 contacts with content.
  *     Rule: skips contacts the company page already liked TODAY.
  *     Tracks in: likes_sent_at, liked_ids, post_likes_sent, comment_likes_sent
  *
- *   Phase 3 â Company page likes (if enabled in campaign settings)
+ *   Phase 3 Ã¢ÂÂ Company page likes (if enabled in campaign settings)
  *     Selects up to 20 DIFFERENT contacts with content.
  *     Rule: skips contacts the personal account liked TODAY (including Phase 2).
  *     Tracks in: company_likes_sent_at, company_liked_ids,
@@ -23,9 +23,9 @@
  *   (personal OR company page). Never both on the same day. No exceptions.
  *
  * Engagement levels (OR logic):
- *   un_engaged       â 0 non-employer posts AND 0 non-employer comments in 14d
- *   average_engaged  â â¥1 non-employer post OR â¥1 non-employer comment in 14d
- *   engaged          â â¥2 non-employer posts OR â¥2 non-employer comments in 14d
+ *   un_engaged       Ã¢ÂÂ 0 non-employer posts AND 0 non-employer comments in 14d
+ *   average_engaged  Ã¢ÂÂ Ã¢ÂÂ¥1 non-employer post OR Ã¢ÂÂ¥1 non-employer comment in 14d
+ *   engaged          Ã¢ÂÂ Ã¢ÂÂ¥2 non-employer posts OR Ã¢ÂÂ¥2 non-employer comments in 14d
  *
  * Cooldown: 3 days before re-liking the same contact (per identity)
  * Dedup: liked_ids / company_liked_ids track IDs already liked
@@ -49,18 +49,29 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 let isRunning = false;
 
 function start() {
-  console.log('[EngagementScraper] Started â runs daily at 06:00');
-  scheduleDaily();
+  console.log('[EngagementScraper] Started - runs twice daily at 09:00 and 21:00 (Israel time)');
+  scheduleTwiceDaily();
 }
 
-function scheduleDaily() {
-  const now = new Date();
-  const next = new Date(now);
-  next.setHours(6, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  const ms = next - now;
-  console.log(`[EngagementScraper] Next run in ${Math.round(ms / 3600000)}h`);
-  setTimeout(() => { run(); setInterval(run, 24 * 60 * 60 * 1000); }, ms);
+function scheduleTwiceDaily() {
+  const RUN_HOURS_UTC = [6, 18]; // 09:00 and 21:00 Israel (UTC+3)
+
+  function msUntilNext() {
+    const now = new Date();
+    const nowMinUTC = now.getUTCHours() * 60 + now.getUTCMinutes();
+    for (const h of RUN_HOURS_UTC) {
+      if (h * 60 > nowMinUTC) return (h * 60 - nowMinUTC) * 60 * 1000;
+    }
+    return ((24 * 60 - nowMinUTC) + RUN_HOURS_UTC[0] * 60) * 60 * 1000;
+  }
+
+  function scheduleNext() {
+    const ms = msUntilNext();
+    console.log('[EngagementScraper] Next run in ' + Math.round(ms / 3600000 * 10) / 10 + 'h');
+    setTimeout(function() { run(); scheduleNext(); }, ms);
+  }
+
+  scheduleNext();
 }
 
 async function run(campaignId = null) {
@@ -92,7 +103,7 @@ async function run(campaignId = null) {
   }
 }
 
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function processCampaign(campaign) {
   console.log(`[EngagementScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
@@ -117,10 +128,10 @@ async function processCampaign(campaign) {
   const canLikePersonal = personalFlags.doLikePosts || personalFlags.doLikeComments;
   const canLikeCompany  = companyFlags.doLikePosts  || companyFlags.doLikeComments;
 
-  // ââ Phase 1: Scrape new contacts (unconditional) ââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Phase 1: Scrape new contacts (unconditional) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   const scrapedCount = await scrapeNewContacts(campaign);
 
-  // ââ Phase 2: Personal account likes âââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Phase 2: Personal account likes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   // Returns IDs of contacts liked in this run (to exclude from Phase 3)
   let personalLikedIds = [];
   if (canLikePersonal) {
@@ -129,7 +140,7 @@ async function processCampaign(campaign) {
     );
   }
 
-  // ââ Phase 3: Company page likes ââââââââââââââââââââââââââââââ
+  // Ã¢ÂÂÃ¢ÂÂ Phase 3: Company page likes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
   // Excludes personalLikedIds + contacts personal liked today
   let companyLikedCount = 0;
   if (canLikeCompany) {
@@ -156,7 +167,7 @@ async function processCampaign(campaign) {
   };
 }
 
-// ââ Phase 1: Scrape new contacts ââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Phase 1: Scrape new contacts Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function scrapeNewContacts(campaign) {
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
@@ -182,14 +193,14 @@ async function scrapeNewContacts(campaign) {
       await scrapeContact(contact, campaign.account_id);
       scraped++;
     } catch (err) {
-      console.error(`[EngagementScraper] â scrape contact ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] Ã¢ÂÂ scrape contact ${contact.id}: ${err.message}`);
     }
     if (scraped < contacts.length) await sleep(rand(8000, 20000));
   }
   return scraped;
 }
 
-// ââ Phase 2: Personal account likes (up to LIKE_BATCH contacts) ââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Phase 2: Personal account likes (up to LIKE_BATCH contacts) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Returns array of contact IDs that were liked in this run.
 async function runPersonalLikes(campaignId, accountId, companyPageUrn, flags) {
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -225,7 +236,7 @@ async function runPersonalLikes(campaignId, accountId, companyPageUrn, flags) {
       const liked = await likeContactPersonal(contact, accountId, asOrgId, flags);
       if (liked > 0) likedContactIds.push(contact.id);
     } catch (err) {
-      console.error(`[EngagementScraper] â personal like contact ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] Ã¢ÂÂ personal like contact ${contact.id}: ${err.message}`);
     }
     await sleep(rand(5000, 15000));
   }
@@ -233,7 +244,7 @@ async function runPersonalLikes(campaignId, accountId, companyPageUrn, flags) {
   return likedContactIds;
 }
 
-// ââ Phase 3: Company page likes (up to LIKE_BATCH DIFFERENT contacts) âââââââ
+// Ã¢ÂÂÃ¢ÂÂ Phase 3: Company page likes (up to LIKE_BATCH DIFFERENT contacts) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // Excludes: contacts liked personally today + contacts just liked in Phase 2.
 async function runCompanyLikes(campaignId, accountId, asOrgId, flags, excludeContactIds) {
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
@@ -272,7 +283,7 @@ async function runCompanyLikes(campaignId, accountId, asOrgId, flags, excludeCon
       const liked = await likeContactAsCompany(contact, accountId, asOrgId, flags);
       if (liked > 0) likedCount++;
     } catch (err) {
-      console.error(`[EngagementScraper] â company like contact ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] Ã¢ÂÂ company like contact ${contact.id}: ${err.message}`);
     }
     await sleep(rand(5000, 15000));
   }
@@ -280,7 +291,7 @@ async function runCompanyLikes(campaignId, accountId, asOrgId, flags, excludeCon
   return likedCount;
 }
 
-// ââ Scrape one contact and save JSONB ââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Scrape one contact and save JSONB Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function scrapeContact(contact, accountId) {
   const cutoff = new Date(Date.now() - DAYS_7);
   const contactCompany = (contact.company || '').toLowerCase().trim();
@@ -331,14 +342,14 @@ async function scrapeContact(contact, accountId) {
   );
 
   console.log(
-    `[EngagementScraper] â ${contact.first_name} ${contact.last_name} â ${level}` +
+    `[EngagementScraper] Ã¢ÂÂ ${contact.first_name} ${contact.last_name} Ã¢ÂÂ ${level}` +
     ` (posts=${nonEmployerPosts.length} comments=${nonEmployerComments.length})`
   );
 
   return { engagement_level: level, engagementData };
 }
 
-// ââ Like as personal account âââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Like as personal account Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function likeContactPersonal(contact, accountId, asOrgId, flags) {
   const { rows } = await db.query('SELECT liked_ids FROM contacts WHERE id = $1', [contact.id]);
   const alreadyLiked = new Set(Array.isArray(rows[0]?.liked_ids) ? rows[0].liked_ids : []);
@@ -361,10 +372,10 @@ async function likeContactPersonal(contact, accountId, asOrgId, flags) {
       if (item.type === 'post')    postLikes++;
       if (item.type === 'comment') commentLikes++;
       sent++;
-      console.log(`[EngagementScraper] ð Personal: ${item.type} â ${contact.first_name} ${contact.last_name}`);
+      console.log(`[EngagementScraper] Ã°ÂÂÂ Personal: ${item.type} Ã¢ÂÂ ${contact.first_name} ${contact.last_name}`);
       if (sent < MAX_LIKES) await sleep(rand(5000, 15000));
     } catch (err) {
-      console.error(`[EngagementScraper] â personal like ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] Ã¢ÂÂ personal like ${contact.id}: ${err.message}`);
     }
   }
 
@@ -384,7 +395,7 @@ async function likeContactPersonal(contact, accountId, asOrgId, flags) {
   return sent;
 }
 
-// ââ Like as company page ââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Like as company page Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function likeContactAsCompany(contact, accountId, asOrgId, flags) {
   if (!asOrgId) return 0;
 
@@ -409,10 +420,10 @@ async function likeContactAsCompany(contact, accountId, asOrgId, flags) {
       if (item.type === 'post')    postLikes++;
       if (item.type === 'comment') commentLikes++;
       sent++;
-      console.log(`[EngagementScraper] ð Company page: ${item.type} â ${contact.first_name} ${contact.last_name}`);
+      console.log(`[EngagementScraper] Ã°ÂÂÂ Company page: ${item.type} Ã¢ÂÂ ${contact.first_name} ${contact.last_name}`);
       if (sent < MAX_LIKES) await sleep(rand(5000, 15000));
     } catch (err) {
-      console.error(`[EngagementScraper] â company like ${contact.id}: ${err.message}`);
+      console.error(`[EngagementScraper] Ã¢ÂÂ company like ${contact.id}: ${err.message}`);
     }
   }
 
@@ -432,7 +443,7 @@ async function likeContactAsCompany(contact, accountId, asOrgId, flags) {
   return sent;
 }
 
-// ââ Build list of likeable items not yet liked âââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Build list of likeable items not yet liked Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // isCompany=true: use doLikePosts/doLikeComments from company flags (same field names)
 function buildLikeItems(engData, alreadyLiked, flags, isCompany) {
   const items = [];
@@ -460,7 +471,7 @@ function buildLikeItems(engData, alreadyLiked, flags, isCompany) {
   return items;
 }
 
-// ââ Re-classify from existing data (no API calls) âââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Re-classify from existing data (no API calls) Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 async function reclassifyFromExistingData(campaignId) {
   const { rows } = await db.query(
     `SELECT id, first_name, last_name, engagement_data FROM contacts
@@ -474,13 +485,13 @@ async function reclassifyFromExistingData(campaignId) {
     const oldLevel = d.engagement_level;
     d.engagement_level = newLevel;
     await db.query('UPDATE contacts SET engagement_level = $1, engagement_data = $2 WHERE id = $3', [newLevel, JSON.stringify(d), row.id]);
-    if (newLevel !== oldLevel) console.log(`[Reclassify] ${row.first_name} ${row.last_name}: ${oldLevel} â ${newLevel}`);
+    if (newLevel !== oldLevel) console.log(`[Reclassify] ${row.first_name} ${row.last_name}: ${oldLevel} Ã¢ÂÂ ${newLevel}`);
     updated++;
   }
   return { reclassified: updated };
 }
 
-// ââ Helpers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 function classifyEngagement(nonEmployerPosts, nonEmployerComments) {
   if (nonEmployerPosts >= 2 || nonEmployerComments >= 2) return 'engaged';
