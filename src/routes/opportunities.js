@@ -648,8 +648,19 @@ router.post('/scan-company', async (req, res) => {
     for (const c of all.slice(0,20)) {
       try {
         const { rows:ex } = await db.query('SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',[workspace_id,c.li_profile_url]);
-        if (!ex.length) {
-          const { rows:ins } = await db.query('INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id) VALUES ($1,$2,$3,$4,$5,$6,NULL) ON CONFLICT DO NOTHING RETURNING id',[workspace_id,c.first_name,c.last_name,c.headline,company_name,c.li_profile_url]);
+        if (ex.length) {
+          // UPDATE existing contact with latest headline and connected_via
+          if (c.headline || c.connected_via?.length) {
+            await db.query(
+              `UPDATE contacts SET
+                title = COALESCE(NULLIF($2,''), title),
+                connected_via = $3::jsonb
+              WHERE id = $1`,
+              [ex[0].id, c.headline||null, JSON.stringify(c.connected_via||[])]
+            );
+          }
+        } else {
+          const { rows:ins } = await db.query('INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id,connected_via) VALUES ($1,$2,$3,$4,$5,$6,NULL,$7::jsonb) ON CONFLICT DO NOTHING RETURNING id',[workspace_id,c.first_name,c.last_name,c.headline,company_name,c.li_profile_url,JSON.stringify(c.connected_via||[])]);
           if (ins[0]?.id) { const {enqueue}=require('../enrichment'); enqueue(ins[0].id,accounts[0].account_id,c.li_profile_url); }
         }
       } catch(e) {}
