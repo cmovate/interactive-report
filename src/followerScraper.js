@@ -143,13 +143,13 @@ async function runScrape(forcedAccountId) {
       `UPDATE contacts c
        SET company_follow_confirmed = true,
            company_follow_confirmed_at = NOW()
-       FROM campaigns camp
-       JOIN company_followers cf ON cf.account_id = camp.account_id
+       FROM campaigns camp, company_followers cf
+       WHERE camp.id = c.campaign_id
+         AND cf.account_id = camp.account_id
          AND (
            lower(cf.profile_url) = lower(c.li_profile_url)
            OR cf.profile_url ILIKE '%' || split_part(c.li_profile_url, '/in/', 2) || '%'
          )
-       WHERE camp.id = c.campaign_id
          AND c.company_follow_invited = true
          AND (c.company_follow_confirmed = false OR c.company_follow_confirmed IS NULL)`
     );
