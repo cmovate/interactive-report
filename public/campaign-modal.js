@@ -23,10 +23,10 @@
 .lpc-check{color:#1D9E75;font-weight:700;font-size:16px;}
 /* === KPI tiles interactive === */\n.kpi-btn { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s; }\n.kpi-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.10); border-color: #1D9E75 !important; }\n.kpi-btn.kpi-active { background: #F0FBF7 !important; border-color: #1D9E75 !important; box-shadow: 0 0 0 2px rgba(29,158,117,.25); }\n.kpi-btn.kpi-active .overview-card-num { color: #0F6E56; }\n/* KPI drill panel */\n#cm-kpi-drill { background: white; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; }\n.kpi-drill-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: #F8FFFE; border-bottom: 1px solid #e5e5e5; }\n.kpi-drill-title { font-size: 13px; font-weight: 600; color: #0F6E56; }\n.kpi-drill-count { font-size: 12px; color: #888; background: #f0f0f0; border-radius: 10px; padding: 1px 8px; }\n.kpi-drill-close { margin-left: auto; font-size: 18px; cursor: pointer; color: #999; line-height: 1; }\n.kpi-drill-close:hover { color: #333; }\n.kpi-drill-table-wrap { overflow-x: auto; max-height: 280px; overflow-y: auto; }\n.kpi-drill-table { width: 100%; border-collapse: collapse; font-size: 13px; }\n.kpi-drill-table th { background: #fafafa; padding: 8px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #888; border-bottom: 1px solid #f0f0f0; position: sticky; top: 0; }\n.kpi-drill-table td { padding: 9px 12px; border-bottom: 1px solid #f5f5f5; color: #333; }\n.kpi-drill-table tr:last-child td { border-bottom: none; }\n.kpi-drill-table tr:hover td { background: #F8FFFE; }\n.kpi-drill-empty { padding: 24px; text-align: center; color: #aaa; font-size: 13px; }\n/* Smart column filters */\n.cm-th-sort { cursor: pointer; user-select: none; white-space: nowrap; }\n.cm-th-sort:hover { color: #1D9E75; }\n.cm-sort-icon { font-size: 10px; opacity: .5; margin-left: 3px; }\n.cm-filter-row td { padding: 4px 6px !important; background: #fafafa; }\n.cm-fi { width: 100%; border: 1px solid #e0e0e0; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-family: inherit; color: #333; background: white; outline: none; }\n.cm-fi:focus { border-color: #1D9E75; box-shadow: 0 0 0 2px rgba(29,158,117,.12); }\n";document.head.appendChild(s);})();
 
-// Campaign Edit Modal â loaded by campaigns.html
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Campaign Edit Modal Ã¢ÂÂ loaded by campaigns.html
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 // CAMPAIGN EDIT MODAL
-// ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 // State vars declared as globals in campaigns.html (var cmId, cmData, etc.)
 // Initialized here:
@@ -157,10 +157,10 @@ function buildCompaniesHTML(companies) {
     }).join('');
     tbl = `<div class="tbl-wrap"><table class="cm-table"><thead>
   <tr class="cm-th-row">
-    <th class="cm-th-sort" onclick="cmSortComp('company_name')">Company <span class="cm-sort-icon" id="comp-sort-name">â</span></th>
+    <th class="cm-th-sort" onclick="cmSortComp('company_name')">Company <span class="cm-sort-icon" id="comp-sort-name">Ã¢ÂÂ</span></th>
     <th>LinkedIn</th>
-    <th class="cm-th-sort" onclick="cmSortComp('contact_count')">Contacts <span class="cm-sort-icon" id="comp-sort-count">â</span></th>
-    <th class="cm-th-sort" onclick="cmSortComp('created_at')">Added <span class="cm-sort-icon" id="comp-sort-added">â</span></th>
+    <th class="cm-th-sort" onclick="cmSortComp('contact_count')">Contacts <span class="cm-sort-icon" id="comp-sort-count">Ã¢ÂÂ</span></th>
+    <th class="cm-th-sort" onclick="cmSortComp('created_at')">Added <span class="cm-sort-icon" id="comp-sort-added">Ã¢ÂÂ</span></th>
   </tr>
   <tr class="cm-filter-row">
     <td><select class="cm-fi" id="comp-fi-name" onchange="cmFilterComp()"><option value="">All companies</option></select></td>
@@ -203,61 +203,61 @@ async function addCMCompanies() {
   finally{btn.disabled=false;btn.innerHTML='&#128269; Search &amp; Add';}
 }
 
-// ── List banner + contacts loader ────────────────────────────
+// ââ List banner + contacts loader ââââââââââââââââââââââââââââ
 async function loadCMAudience() {
   const el = document.getElementById('cmb-audience');
   el.innerHTML = '<div class="tab-spin">Loading...</div>';
   try {
-    // Fetch lists for this workspace
     const [listsRes, contactsRes] = await Promise.all([
       fetch('/api/lists?workspace_id='+workspaceId).then(r=>r.json()),
       fetch('/api/campaigns/'+cmId+'/contacts?workspace_id='+workspaceId+'&page=1&limit=50').then(r=>r.json())
     ]);
-    const lists = (listsRes.items||[]).filter(l=>l.type==='contacts');
+    const lists = (listsRes.items||[]).filter(function(l){ return l.type==='contacts'; });
     const attached = cmData ? (cmData.list_id || null) : null;
     const attachedName = cmData ? (cmData.list_name || null) : null;
 
-    // Build list banner HTML
-    let bannerHtml = '';
+    // Banner
+    var bannerHtml;
     if (attached) {
-      bannerHtml = `<div class="list-banner list-banner-attached">
-        <span class="list-banner-icon">👥</span>
-        <div class="list-banner-text">
-          <div class="list-banner-label">Linked list</div>
-          <div class="list-banner-name">${esc(attachedName || 'List #'+attached)}</div>
-        </div>
-        <button class="list-change-btn" onclick="cmShowListPicker()">Change list</button>
-      </div>`;
+      bannerHtml = '<div class="list-banner list-banner-attached">'
+        + '<span class="list-banner-icon">👥</span>'
+        + '<div class="list-banner-text">'
+        + '<div class="list-banner-label">Linked list</div>'
+        + '<div class="list-banner-name">'+esc(attachedName || 'List #'+attached)+'</div>'
+        + '</div>'
+        + '<button class="list-change-btn" onclick="cmShowListPicker()">Change list</button>'
+        + '</div>';
     } else {
-      bannerHtml = `<div class="list-banner list-banner-empty">
-        <span class="list-banner-icon">📋</span>
-        <div class="list-banner-text">
-          <div class="list-banner-label">No list attached</div>
-          <div class="list-banner-sub">Attach a contact list to populate this campaign automatically</div>
-        </div>
-        <button class="list-change-btn primary" onclick="cmShowListPicker()">+ Attach list</button>
-      </div>`;
+      bannerHtml = '<div class="list-banner list-banner-empty">'
+        + '<span class="list-banner-icon">📋</span>'
+        + '<div class="list-banner-text">'
+        + '<div class="list-banner-label">No list attached</div>'
+        + '<div class="list-banner-sub">Attach a contact list to populate this campaign automatically</div>'
+        + '</div>'
+        + '<button class="list-change-btn primary" onclick="cmShowListPicker()">+ Attach list</button>'
+        + '</div>';
     }
 
-    // Build list picker (hidden initially)
-    const pickerHtml = `<div id="cm-list-picker" style="display:none;margin-bottom:16px;">
-      <div class="list-picker-title">Select a list</div>
-      <div class="list-picker-grid">${
-        lists.length ? lists.map(l=>`
-          <div class="list-picker-card ${l.id==attached?'selected':''}" onclick="cmAttachList(${l.id},'${esc(l.name)}')">
-            <div class="lpc-icon">👥</div>
-            <div class="lpc-info">
-              <div class="lpc-name">${esc(l.name)}</div>
-              <div class="lpc-count">${l.contact_count||0} contacts</div>
-            </div>
-            ${l.id==attached ? '<div class="lpc-check">✓</div>' : ''}
-          </div>`).join('')
-        : '<div style="color:#999;font-size:13px;">No contact lists found</div>'
-      }</div>
-      <div style="margin-top:10px;">
-        <button class="ghost-btn" onclick="document.getElementById('cm-list-picker').style.display='none'">Cancel</button>
-      </div>
-    </div>`;
+    // Picker cards
+    var cardsHtml = lists.length
+      ? lists.map(function(l) {
+          return '<div class="list-picker-card'+(l.id==attached?' selected':'')+'" onclick="cmAttachList('+l.id+',''+esc(l.name)+'')">'
+            + '<div class="lpc-icon">👥</div>'
+            + '<div class="lpc-info">'
+            + '<div class="lpc-name">'+esc(l.name)+'</div>'
+            + '<div class="lpc-count">'+(l.contact_count||0)+' contacts</div>'
+            + '</div>'
+            + (l.id==attached ? '<div class="lpc-check">✓</div>' : '')
+            + '</div>';
+        }).join('')
+      : '<div style="color:#999;font-size:13px;">No contact lists found</div>';
+
+    var pickerHtml = '<div id="cm-list-picker" style="display:none;margin-bottom:16px;">'
+      + '<div class="list-picker-title">Select a list</div>'
+      + '<div class="list-picker-grid">'+cardsHtml+'</div>'
+      + '<div style="margin-top:10px;">'
+      + '<button class="ghost-btn" onclick="document.getElementById('cm-list-picker').style.display='none'">Cancel</button>'
+      + '</div></div>';
 
     el.innerHTML = bannerHtml + pickerHtml + '<div id="cm-contacts-body"></div>';
     document.getElementById('cm-contacts-body').innerHTML = buildAudienceHTML(contactsRes);
@@ -281,7 +281,7 @@ async function cmAttachList(listId, listName) {
     // Update local cmData
     if(cmData) { cmData.list_id = listId; cmData.list_name = listName; }
     // Show success toast
-    showToast('List attached — ' + d.contacts_added + ' contacts added');
+    showToast('List attached â ' + d.contacts_added + ' contacts added');
     // Reload audience tab
     cmLoaded['audience'] = false;
     await loadCMAudience();
@@ -315,15 +315,15 @@ function buildAudienceHTML(data){
     const rows=items.map(c=>{const name=[c.first_name,c.last_name].filter(Boolean).join(' ')||'(unknown)';const nameEl=c.li_profile_url?`<a class="cell-link" href="${esc(safeUrl(c.li_profile_url))}" target="_blank" rel="noopener" style="font-weight:500;">${esc(name)}</a>`:`<span style="font-weight:500;">${esc(name)}</span>`;return`<tr><td>${nameEl}</td><td style="font-size:12px;color:#666;">${esc(c.title||'\u2014')}</td><td style="font-size:12px;color:#888;">${esc(c.company||'\u2014')}</td><td>${buildChips(c)}</td><td><button class="rm-btn" onclick="removeCMContact(${c.id})" title="Remove">&times;</button></td></tr>`;}).join('');
     tbl=`<div class="tbl-wrap"><table class="cm-table"><thead>
   <tr class="cm-th-row">
-    <th class="cm-th-sort" onclick="cmSortAud('name')">Name <span class="cm-sort-icon" id="aud-sort-name">â</span></th>
-    <th class="cm-th-sort" onclick="cmSortAud('title')">Title <span class="cm-sort-icon" id="aud-sort-title">â</span></th>
-    <th class="cm-th-sort" onclick="cmSortAud('company')">Company <span class="cm-sort-icon" id="aud-sort-company">â</span></th>
-    <th class="cm-th-sort" onclick="cmSortAud('status')">Status <span class="cm-sort-icon" id="aud-sort-status">â</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('name')">Name <span class="cm-sort-icon" id="aud-sort-name">Ã¢ÂÂ</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('title')">Title <span class="cm-sort-icon" id="aud-sort-title">Ã¢ÂÂ</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('company')">Company <span class="cm-sort-icon" id="aud-sort-company">Ã¢ÂÂ</span></th>
+    <th class="cm-th-sort" onclick="cmSortAud('status')">Status <span class="cm-sort-icon" id="aud-sort-status">Ã¢ÂÂ</span></th>
     <th></th>
   </tr>
   <tr class="cm-filter-row">
-    <td><input class="cm-fi" id="aud-fi-name" placeholder="Search nameâ¦" oninput="cmFilterAud()"></td>
-    <td><input class="cm-fi" id="aud-fi-title" placeholder="Search titleâ¦" oninput="cmFilterAud()"></td>
+    <td><input class="cm-fi" id="aud-fi-name" placeholder="Search nameÃ¢ÂÂ¦" oninput="cmFilterAud()"></td>
+    <td><input class="cm-fi" id="aud-fi-title" placeholder="Search titleÃ¢ÂÂ¦" oninput="cmFilterAud()"></td>
     <td><select class="cm-fi" id="aud-fi-company" onchange="cmFilterAud()"><option value="">All companies</option></select></td>
     <td>
       <select class="cm-fi" id="aud-fi-status" onchange="cmFilterAud()">
@@ -454,9 +454,9 @@ function safeUrl(u){u=(u||'').trim();return /^https?:\/\//i.test(u)?u:'https://'
 
 
 
-/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-   KPI DRILL-DOWN â click a KPI tile to see matching contacts below
-   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+   KPI DRILL-DOWN Ã¢ÂÂ click a KPI tile to see matching contacts below
+   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 
 window._cmKpiState = { key: null, contacts: [] };
 window._cmAudSort  = { col: null, dir: 1 };
@@ -488,7 +488,7 @@ function cmKpiClick(el, key) {
     return;
   }
 
-  // filter rows by KPI key â uses data attributes on each row
+  // filter rows by KPI key Ã¢ÂÂ uses data attributes on each row
   const filtered = key === 'all' ? allRows : allRows.filter(row => {
     const flags = {
       invite_sent:     row.dataset.inviteSent     === '1',
@@ -513,10 +513,10 @@ function cmKpiClick(el, key) {
   // build mini-table
   const rows = filtered.map(row => {
     const tds = [...row.querySelectorAll('td')];
-    const name    = tds[0]?.textContent.trim() || 'â';
-    const title   = tds[1]?.textContent.trim() || 'â';
-    const company = tds[2]?.textContent.trim() || 'â';
-    const status  = tds[3]?.textContent.trim() || 'â';
+    const name    = tds[0]?.textContent.trim() || 'Ã¢ÂÂ';
+    const title   = tds[1]?.textContent.trim() || 'Ã¢ÂÂ';
+    const company = tds[2]?.textContent.trim() || 'Ã¢ÂÂ';
+    const status  = tds[3]?.textContent.trim() || 'Ã¢ÂÂ';
     const href    = row.querySelector('a')?.href || '#';
     return `<tr>
       <td><a href="${href}" target="_blank" rel="noopener" style="color:#0A66C2;text-decoration:none">${esc(name)}</a></td>
@@ -541,18 +541,18 @@ function cmKpiClick(el, key) {
   drill.style.display = 'block';
 }
 
-/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-   AUDIENCE TABLE â sort + filter
-   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+   AUDIENCE TABLE Ã¢ÂÂ sort + filter
+   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 
 function cmSortAud(col) {
   const s = window._cmAudSort;
   s.dir = (s.col === col) ? -s.dir : 1;
   s.col = col;
   // update sort icons
-  document.querySelectorAll('[id^="aud-sort-"]').forEach(el => el.textContent = 'â');
+  document.querySelectorAll('[id^="aud-sort-"]').forEach(el => el.textContent = 'Ã¢ÂÂ');
   const icon = document.getElementById('aud-sort-' + col);
-  if (icon) icon.textContent = s.dir === 1 ? 'â' : 'â';
+  if (icon) icon.textContent = s.dir === 1 ? 'Ã¢ÂÂ' : 'Ã¢ÂÂ';
   _cmSortTable('cmb-audience', col, s.dir);
 }
 
@@ -596,18 +596,18 @@ function _cmPopulateCompanyDropdown(selectId, tbodyId, colIdx) {
   });
 }
 
-/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-   COMPANIES TABLE â sort + filter
-   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+   COMPANIES TABLE Ã¢ÂÂ sort + filter
+   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 
 function cmSortComp(col) {
   const s = window._cmCompSort;
   s.dir = (s.col === col) ? -s.dir : 1;
   s.col = col;
-  document.querySelectorAll('[id^="comp-sort-"]').forEach(el => el.textContent = 'â');
+  document.querySelectorAll('[id^="comp-sort-"]').forEach(el => el.textContent = 'Ã¢ÂÂ');
   const icons = { company_name: 'comp-sort-name', contact_count: 'comp-sort-count', created_at: 'comp-sort-added' };
   const icon = document.getElementById(icons[col]);
-  if (icon) icon.textContent = s.dir === 1 ? 'â' : 'â';
+  if (icon) icon.textContent = s.dir === 1 ? 'Ã¢ÂÂ' : 'Ã¢ÂÂ';
   _cmSortTable('cmb-companies', col, s.dir, col === 'contact_count');
 }
 
@@ -638,9 +638,9 @@ function _cmPopulateCompDropdown() {
   });
 }
 
-/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+/* Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
    SHARED SORT UTILITY
-   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 
 function _cmSortTable(bodyId, col, dir, numeric) {
   const tbody  = document.querySelector('#' + bodyId + ' tbody');
@@ -662,9 +662,9 @@ function _cmSortTable(bodyId, col, dir, numeric) {
   rows.forEach(r => tbody.appendChild(r));
 }
 
-/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+/* Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
    AUTO-INIT: populate dropdowns when tabs load
-   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+   Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 
 (function patchSwitchCMTab() {
   const orig = window.switchCMTab;
