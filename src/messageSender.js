@@ -5,7 +5,7 @@
  * Runs every 5 minutes. Respects campaign working hours.
  *
  * A/B/C VARIANTS
- * ——————————————
+ * ââââââââââââââ
  * Each step can define multiple variants:
  *   { delay: 3, unit: 'days', variants: [
  *     { label: 'A', text: 'Hi {{first_name}}...' },
@@ -71,15 +71,15 @@ async function runOnce() {
     for (const camp of campaigns) {
       const settings = typeof camp.settings === 'string'
         ? JSON.parse(camp.settings) : (camp.settings || {});
-      if (!isWithinWorkingHours(settings.hours)) continue;
-      await processCampaign(camp, settings.messages || {});
+      // Working hours only affect scheduling, not sending already-scheduled msgs
+      await processCampaign(camp, settings.messages || {}, settings.hours);
     }
   } catch (err) {
     console.error('[MsgSender] runOnce error:', err.message);
   }
 }
 
-async function processCampaign(camp, messages) {
+async function processCampaign(camp, messages, hours) {
   const SEQ = [
     { type: 'new',                   triggerCol: 'invite_approved_at',      condition: `invite_approved = true AND invite_approved_at IS NOT NULL` },
     { type: 'existing_no_history',   triggerCol: 'msg_sequence_started_at', condition: `msg_sequence_started_at IS NOT NULL` },
@@ -90,12 +90,12 @@ async function processCampaign(camp, messages) {
     const seqMsgs = messages[seq.type];
     if (!Array.isArray(seqMsgs) || seqMsgs.length === 0) continue;
 
-    const { rows: unscheduled } = await db.query(
+    const { rows: unscheduled } = isWithinWorkingHours(hours) ? await db.query(
       `SELECT * FROM contacts
        WHERE campaign_id = $1 AND msg_sequence = $2 AND msg_step < $3
          AND msg_scheduled_send_at IS NULL AND ${seq.condition}`,
       [camp.id, seq.type, seqMsgs.length]
-    );
+    ); : { rows: [] };
     for (const contact of unscheduled) {
       const stepIndex   = parseInt(contact.msg_step) || 0;
       const msg         = seqMsgs[stepIndex];
@@ -104,7 +104,7 @@ async function processCampaign(camp, messages) {
       if (!triggerTime) continue;
       const scheduledAt = computeScheduledAt(triggerTime, msg.delay, msg.unit);
       await db.query(`UPDATE contacts SET msg_scheduled_send_at = $1 WHERE id = $2`, [scheduledAt, contact.id]);
-      console.log(`[MsgSender] Scheduled contact ${contact.id} step ${stepIndex + 1} → ${scheduledAt.toISOString()}`);
+      console.log(`[MsgSender] Scheduled contact ${contact.id} step ${stepIndex + 1} â ${scheduledAt.toISOString()}`);
     }
 
     const { rows: ready } = await db.query(
@@ -144,7 +144,7 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
       chatId = result?.id || result?.chat_id || null;
       if (chatId) await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2', [chatId, contact.id]);
     } else {
-      console.warn(`[MsgSender] contact ${contact.id} — no chat_id or provider_id, skipping`);
+      console.warn(`[MsgSender] contact ${contact.id} â no chat_id or provider_id, skipping`);
       return;
     }
 
@@ -166,8 +166,8 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
 
     console.log(
       `[MsgSender] Sent step ${stepIndex + 1}/${seqMsgs.length}` +
-      ` → contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
-      ` · variant: ${variantLabel} · sequence: ${seqType}`
+      ` â contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
+      ` Â· variant: ${variantLabel} Â· sequence: ${seqType}`
     );
   } catch (err) {
     console.error(`[MsgSender] Failed contact ${contact.id}: ${err.message}`);
@@ -175,7 +175,7 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
 }
 
 function start() {
-  console.log(`[MsgSender] Starting — poll every ${INTERVAL_MS / 60000} min | jitter ±${MAX_JITTER_MS / 3600000}h | max slots: ${MAX_SLOTS} | A/B/C enabled`);
+  console.log(`[MsgSender] Starting â poll every ${INTERVAL_MS / 60000} min | jitter Â±${MAX_JITTER_MS / 3600000}h | max slots: ${MAX_SLOTS} | A/B/C enabled`);
   runOnce();
   timer = setInterval(runOnce, INTERVAL_MS);
 }
