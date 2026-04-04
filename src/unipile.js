@@ -305,6 +305,13 @@ async function searchPeopleAdvanced(accountId, opts) {
   };
 }
 
+
+async function getPost(accountId, postId) {
+  const params = new URLSearchParams({ account_id: accountId });
+  const data = await request(`/api/v1/posts/${encodeURIComponent(postId)}?${params}`);
+  return data;
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
@@ -331,4 +338,5 @@ module.exports = {
   request,
   request,
 
+  getPost,
 };
