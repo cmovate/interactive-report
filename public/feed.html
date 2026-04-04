@@ -574,6 +574,16 @@ async function checkForNew() {
 setInterval(checkForNew, 60000);
 
 
+function populateAccountSelect(sel) {
+  sel.innerHTML = '';
+  workspaceAccounts.forEach(function(acc) {
+    var opt = document.createElement('option');
+    opt.value = acc.account_id;
+    opt.textContent = acc.display_name || acc.account_id;
+    sel.appendChild(opt);
+  });
+}
+
 function toggleCommentBox(postId, encodedUrn) {
   var box = document.getElementById('cb-' + postId);
   if (!box) return;
@@ -581,14 +591,18 @@ function toggleCommentBox(postId, encodedUrn) {
   box.style.display = open ? 'none' : 'block';
   if (!open) {
     var sel = document.getElementById('ca-' + postId);
-    if (sel && workspaceAccounts.length > 0 && sel.options.length <= 1) {
-      sel.innerHTML = '';
-      workspaceAccounts.forEach(function(acc) {
-        var opt = document.createElement('option');
-        opt.value = acc.account_id;
-        opt.textContent = acc.display_name || acc.account_id;
-        sel.appendChild(opt);
-      });
+    if (sel) {
+      if (workspaceAccounts.length > 0) {
+        populateAccountSelect(sel);
+      } else {
+        sel.innerHTML = '<option value="">Loading…</option>';
+        fetch('/api/workspaces/' + workspaceId + '/accounts')
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            workspaceAccounts = d.items || [];
+            populateAccountSelect(sel);
+          });
+      }
     }
     setTimeout(function(){ var ta = document.getElementById('ct-' + postId); if(ta) ta.focus(); }, 50);
   }
