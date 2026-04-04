@@ -3,7 +3,7 @@ const router  = express.Router();
 const db      = require('../db');
 const { getUserPosts, getUserComments } = require('../unipile');
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function extractAvatar(obj) {
   return obj?.picture || obj?.avatar || obj?.profile_picture_url ||
@@ -52,7 +52,7 @@ function normaliseComment(item) {
   };
 }
 
-// ── Background scrape ─────────────────────────────────────────────────────────
+// ââ Background scrape âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 // Only fetches posts from the last 14 days
 
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
@@ -151,7 +151,7 @@ async function scrapeContactFeed(campaignId, workspaceId, accountId) {
   console.log('[Feed] Campaign ' + campaignId + ' done: ' + postsUpserted + ' posts, ' + commentsUpserted + ' comments');
 }
 
-// ── Routes ────────────────────────────────────────────────────────────────────
+// ââ Routes ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 /**
  * GET /api/feed?workspace_id=&campaign_id=&page=&limit=
@@ -247,6 +247,69 @@ router.post('/fetch', async (req, res) => {
   } catch (err) {
     console.error('[Feed] POST /fetch error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+// Sync posts from contacts.engagement_data → linkedin_posts (no extra Unipile calls)
+router.post('/sync-from-engagement', async (req, res) => {
+  try {
+    const workspace_id = req.body?.workspace_id;
+    const campaign_id  = req.body?.campaign_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Get all contacts with engagement_data
+    let sql = 'SELECT id, campaign_id, workspace_id, first_name, last_name, li_profile_url, engagement_data FROM contacts WHERE workspace_id = $1 AND engagement_data IS NOT NULL';
+    let params = [workspace_id];
+    if (campaign_id) { sql += ' AND campaign_id = $2'; params.push(campaign_id); }
+
+    const { rows: contacts } = await db.query(sql, params);
+    let inserted = 0, skipped = 0;
+
+    for (const contact of contacts) {
+      const ed = typeof contact.engagement_data === 'string' ? JSON.parse(contact.engagement_data) : contact.engagement_data;
+      const items = [...(ed.posts_14d_data || []), ...(ed.non_employer_comments_14d_data || ed.comments_14d_data || [])];
+
+      for (const item of items) {
+        if (!item.post_urn && !item.id) { skipped++; continue; }
+        const urn      = item.post_urn || ('urn:li:activity:' + item.id);
+        const postedAt = item.date ? new Date(item.date) : null;
+        if (!postedAt || isNaN(postedAt)) { skipped++; continue; }
+
+        const ad = item.author_details || {};
+        try {
+          await db.query(
+            `INSERT INTO linkedin_posts
+               (campaign_id, workspace_id, contact_id, post_urn,
+                author_name, author_title, author_profile_url, author_avatar_url,
+                content, likes_count, comments_count, shares_count, posted_at, post_type)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+             ON CONFLICT (post_urn) DO UPDATE SET
+               likes_count    = EXCLUDED.likes_count,
+               comments_count = EXCLUDED.comments_count,
+               fetched_at     = NOW()`,
+            [
+              contact.campaign_id, workspace_id, contact.id, urn,
+              item.author || (contact.first_name + ' ' + (contact.last_name||'')).trim(),
+              ad.headline || null,
+              ad.profile_url || contact.li_profile_url || null,
+              ad.profile_picture_url || null,
+              item.text || null,
+              item.reaction_counter || 0,
+              item.reply_counter || 0,
+              0,
+              postedAt.toISOString(),
+              item.object === 'Comment' ? 'comment' : 'post'
+            ]
+          );
+          inserted++;
+        } catch(e) { skipped++; }
+      }
+    }
+
+    res.json({ success: true, inserted, skipped, contacts_processed: contacts.length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
