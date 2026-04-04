@@ -62,13 +62,13 @@ router.get('/debug-unipile-profile', async (req, res) => {
 });
 
 
-// Manually trigger engagement scraper
-router.post('/run-engagement-scraper', async (req, res) => {
+// Manually trigger engagement scraper (GET for compatibility)
+router.get('/run-engagement-scraper', async (req, res) => {
   try {
-    const { campaign_id } = req.body;
+    const campaign_id = req.query.campaign_id ? parseInt(req.query.campaign_id) : null;
     const engagementScraper = require('../engagementScraper');
-    const result = await engagementScraper.run(campaign_id || null);
-    res.json({ success: true, result });
+    const result = await engagementScraper.run(campaign_id);
+    res.json({ success: true, campaign_id, result });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
