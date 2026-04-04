@@ -172,7 +172,7 @@ async function loadData(campId) {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
-function render() {
+async function render() {
   var range = getRange(rangeMode);
   var c = allContacts;
   var total = c.length;
@@ -224,7 +224,17 @@ function render() {
                       + sum('company_comment_likes_sent', 'company_likes_sent_at');
   
   // Company followers = total confirmed (not date-filtered since it's a running total)
-  var followers = cntBool('company_follow_confirmed');
+  // Fetch real follower count from company_followers table
+  var followers = 0;
+  try {
+    var tomer = (await fetch('/api/workspaces/' + wsId + '/accounts').then(function(r){return r.json();})).items
+      .find(function(a){ return a.settings && a.settings.company_page_urn; });
+    if (tomer) {
+      var stats = await fetch('/api/followers/stats?account_id=' + tomer.account_id).then(function(r){return r.json();});
+      followers = stats.total_followers || 0;
+      window._followerStats = stats;
+    }
+  } catch(e) { followers = cntBool('company_follow_confirmed'); }
 
   var content = document.getElementById('content');
 
@@ -240,7 +250,7 @@ function render() {
       '<div class="followers-body">' +
         '<div class="followers-label">Company Page Followers</div>' +
         '<div class="followers-value">'+followers.toLocaleString()+'</div>' +
-        '<div class="followers-sub">Contacts who follow the company page</div>' +
+        '<div class="followers-sub">' + (window._followerStats ? 'Invited: ' + window._followerStats.total_invited + ' · Confirmed: ' + window._followerStats.total_confirmed + ' · Rate: ' + window._followerStats.conversion_rate : 'Company page followers') + '</div>' +
       '</div>' +
     '</div>' +
 
