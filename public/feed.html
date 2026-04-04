@@ -157,6 +157,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .comment-cancel-btn{background:none;border:1px solid #DED9D3;color:#666;padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;}
 .comment-send-btn{background:var(--acc,#52b788);color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;}
 .comment-send-btn:disabled{opacity:.5;cursor:not-allowed;}
+.comment-account-select{width:100%;padding:7px 10px;border:1px solid #DED9D3;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;margin-bottom:8px;color:#333;cursor:pointer;outline:none;}
+.comment-account-select:focus{border-color:var(--acc,#52b788);}
+.comment-account-label{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;}
 </style>
 </head>
 <body>
@@ -207,6 +210,7 @@ let currentPage      = 1;
 const PAGE_SIZE      = 20;
 let totalPosts       = 0;
 let lastSeenAt       = null;
+let workspaceAccounts = [];
 
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Helpers ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
@@ -429,7 +433,7 @@ function renderPost(post) {
         <div class="action-btn" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}" onclick="toggleCommentBox(this.dataset.pid,this.dataset.urn)"><span class="icon">&#128172;</span> Comment</div>
         <div class="action-btn"><span class="icon">&#8635;</span> Repost</div>
       </div>
-      <div class="comment-box" id="cb-${post.id}" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}"><textarea id="ct-${post.id}" placeholder="Write a comment…"></textarea><div class="comment-box-actions"><button class="comment-cancel-btn" onclick="toggleCommentBox(this.closest('.comment-box').dataset.pid,'')">Cancel</button><button class="comment-send-btn" id="cs-${post.id}" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}" onclick="sendComment(this.dataset.pid, this.dataset.urn)">Send</button></div></div>
+      <div class="comment-box" id="cb-${post.id}" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}"><label class="comment-account-label">Comment as</label><select class="comment-account-select" id="ca-${post.id}"><option value="">Loading…</option></select><textarea id="ct-${post.id}" placeholder="Write a comment…"></textarea><div class="comment-box-actions"><button class="comment-cancel-btn" onclick="toggleCommentBox(this.closest('.comment-box').dataset.pid,'')">Cancel</button><button class="comment-send-btn" id="cs-${post.id}" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}" onclick="sendComment(this.dataset.pid, this.dataset.urn)">Send</button></div></div>
       ${commentsHtml}
     </div>`;
 }
@@ -543,6 +547,8 @@ function applyFeedListFilter() {
   const sel = document.getElementById('list-filter-feed');
   _feedListId = sel && sel.value ? parseInt(sel.value) : null;
   if (typeof loadFeed === 'function') loadFeed();
+  // Load workspace accounts for comment selector
+  fetch('/api/workspaces/' + workspaceId + '/accounts').then(function(r){return r.json();}).then(function(d){ workspaceAccounts = d.items || []; });
   else if (typeof init === 'function') init();
 }
 
@@ -573,7 +579,19 @@ function toggleCommentBox(postId, encodedUrn) {
   if (!box) return;
   var open = box.style.display === 'block';
   box.style.display = open ? 'none' : 'block';
-  if (!open) setTimeout(function(){ var ta = document.getElementById('ct-' + postId); if(ta) ta.focus(); }, 50);
+  if (!open) {
+    var sel = document.getElementById('ca-' + postId);
+    if (sel && workspaceAccounts.length > 0 && sel.options.length <= 1) {
+      sel.innerHTML = '';
+      workspaceAccounts.forEach(function(acc) {
+        var opt = document.createElement('option');
+        opt.value = acc.account_id;
+        opt.textContent = acc.display_name || acc.account_id;
+        sel.appendChild(opt);
+      });
+    }
+    setTimeout(function(){ var ta = document.getElementById('ct-' + postId); if(ta) ta.focus(); }, 50);
+  }
 }
 
 async function sendComment(postId, encodedUrn) {
@@ -587,7 +605,7 @@ async function sendComment(postId, encodedUrn) {
     var postUrn = decodeURIComponent(encodedUrn);
     var r = await fetch('/api/feed/comment', {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ workspace_id: workspaceId, post_urn: postUrn, text })
+      body: JSON.stringify({ workspace_id: workspaceId, post_urn: postUrn, text: text, account_id: (document.getElementById('ca-' + postId) || {}).value || null })
     });
     var d = await r.json();
     if (d.success) {
