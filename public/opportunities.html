@@ -87,6 +87,13 @@ textarea.msg-box:focus { outline: none; border-color: #1D9E75; }
 var params = new URLSearchParams(window.location.search);
 var workspaceId = params.get('workspace_id');
 var companies = [], scanResults = {}, accounts = [], dmTarget = null;
+// Fix double-encoded UTF-8 that sometimes comes from the LinkedIn API
+// (e.g. "CTOÃÂ·VP" → "CTO·VP")
+function fixEncoding(s) {
+  if (!s || typeof s !== 'string') return s;
+  try { return decodeURIComponent(escape(s)); } catch(e) { return s; }
+}
+
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function toggleCo(coId) {
   var block = document.getElementById('co-' + coId);
