@@ -107,6 +107,7 @@ app.use('/api/stats',              statsRouter);
 app.use('/api/opportunities',      opportunitiesRouter);
 app.use('/api/admin',              adminRouter);
 app.use('/api/feed',               feedRouter);
+app.use('/api/analytics',          require('./src/routes/analytics'));
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/cleanup',            cleanupRouter);
