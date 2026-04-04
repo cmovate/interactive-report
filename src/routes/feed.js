@@ -1,9 +1,9 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
-const { getUserPosts, getUserComments } = require('../unipile');
+const { getUserPosts, getUserComments, getPost } = require('../unipile');
 
-// Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Helpers ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 function extractAvatar(obj) {
   return obj?.picture || obj?.avatar || obj?.profile_picture_url ||
@@ -52,7 +52,7 @@ function normaliseComment(item) {
   };
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Background scrape Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Background scrape ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 // Only fetches posts from the last 14 days
 
 const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
@@ -151,7 +151,7 @@ async function scrapeContactFeed(campaignId, workspaceId, accountId) {
   console.log('[Feed] Campaign ' + campaignId + ' done: ' + postsUpserted + ' posts, ' + commentsUpserted + ' comments');
 }
 
-// Ã¢ÂÂÃ¢ÂÂ Routes Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Routes ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
 
 /**
  * GET /api/feed?workspace_id=&campaign_id=&page=&limit=
@@ -251,7 +251,7 @@ router.post('/fetch', async (req, res) => {
 });
 
 
-// Sync posts from contacts.engagement_data â linkedin_posts (no extra Unipile calls)
+// Sync posts from contacts.engagement_data Ã¢ÂÂ linkedin_posts (no extra Unipile calls)
 router.post('/sync-from-engagement', async (req, res) => {
   try {
     const workspace_id = req.body?.workspace_id;
@@ -272,7 +272,9 @@ router.post('/sync-from-engagement', async (req, res) => {
 
       for (const item of items) {
         if (!item.post_urn && !item.id) { skipped++; continue; }
-        const urn      = item.post_urn || ('urn:li:activity:' + item.id);
+        const isComment = item.object === 'Comment';
+        const urn      = isComment ? ('urn:li:comment:' + item.id) : (item.post_urn || ('urn:li:activity:' + item.id));
+        const parentUrn = isComment ? (item.post_urn || null) : null;
         const postedAt = item.date ? new Date(item.date) : null;
         if (!postedAt || isNaN(postedAt)) { skipped++; continue; }
 
@@ -280,16 +282,17 @@ router.post('/sync-from-engagement', async (req, res) => {
         try {
           await db.query(
             `INSERT INTO linkedin_posts
-               (campaign_id, workspace_id, contact_id, post_urn,
+               (campaign_id, workspace_id, contact_id, post_urn, parent_post_urn,
                 author_name, author_title, author_profile_url, author_avatar_url,
                 content, likes_count, comments_count, shares_count, posted_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
              ON CONFLICT (post_urn) DO UPDATE SET
                likes_count    = EXCLUDED.likes_count,
                comments_count = EXCLUDED.comments_count,
+               parent_post_urn = EXCLUDED.parent_post_urn,
                fetched_at     = NOW()`,
             [
-              contact.campaign_id, workspace_id, contact.id, urn,
+              contact.campaign_id, workspace_id, contact.id, urn, parentUrn,
               item.author || (contact.first_name + ' ' + (contact.last_name||'')).trim(),
               ad.headline || null,
               ad.profile_url || contact.li_profile_url || null,
@@ -308,6 +311,79 @@ router.post('/sync-from-engagement', async (req, res) => {
 
     res.json({ success: true, inserted, skipped, contacts_processed: contacts.length });
   } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// Ensure parent_post_urn column exists
+(async () => {
+  try {
+    await db.query("ALTER TABLE linkedin_posts ADD COLUMN IF NOT EXISTS parent_post_urn text");
+  } catch(e) { /* already exists */ }
+})();
+
+// Fetch parent posts for all comments — calls Unipile for each parent post_urn
+router.post('/fetch-parent-posts', async (req, res) => {
+  try {
+    const workspace_id = req.body?.workspace_id;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Get all comments that have a parent_post_urn but parent not yet stored
+    const { rows: comments } = await db.query(
+      `SELECT DISTINCT lp.parent_post_urn, lp.campaign_id, lp.workspace_id,
+                        ua.account_id
+         FROM linkedin_posts lp
+         JOIN campaigns c ON c.id = lp.campaign_id
+         JOIN unipile_accounts ua ON ua.account_id = c.account_id
+         WHERE lp.workspace_id = $1
+           AND lp.parent_post_urn IS NOT NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM linkedin_posts p2
+             WHERE p2.post_urn = lp.parent_post_urn
+               AND p2.workspace_id = $1
+           )
+         LIMIT 50`,
+      [workspace_id]
+    );
+
+    let fetched = 0, errors = 0;
+    for (const row of comments) {
+      try {
+        // Extract post ID from URN (urn:li:activity:ID)
+        const postId = row.parent_post_urn.split(':').pop();
+        const postData = await getPost(row.account_id, postId);
+
+        if (!postData || !postData.id) { errors++; continue; }
+
+        const ad = postData.author_details || {};
+        await db.query(
+          `INSERT INTO linkedin_posts
+               (campaign_id, workspace_id, contact_id, post_urn, parent_post_urn,
+                author_name, author_title, author_profile_url, author_avatar_url,
+                content, likes_count, comments_count, shares_count, posted_at)
+             VALUES ($1,$2,NULL,$3,NULL,$4,$5,$6,$7,$8,$9,$10,0,$11)
+             ON CONFLICT (post_urn) DO NOTHING`,
+          [
+            row.campaign_id, workspace_id,
+            row.parent_post_urn,
+            postData.author || ad.name || 'Unknown',
+            ad.headline || null,
+            ad.profile_url || null,
+            ad.profile_picture_url || null,
+            postData.text || postData.content || null,
+            postData.reaction_counter || 0,
+            postData.reply_counter || 0,
+            postData.date ? new Date(postData.date).toISOString() : new Date().toISOString()
+          ]
+        );
+        fetched++;
+        await new Promise(r => setTimeout(r, 1500));
+      } catch(e) { errors++; console.warn('[feed/fetch-parent-posts]', e.message); }
+    }
+
+    res.json({ success: true, fetched, errors, total_comments: comments.length });
+  } catch(e) {
     res.status(500).json({ error: e.message });
   }
 });
