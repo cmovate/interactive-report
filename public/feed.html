@@ -426,10 +426,10 @@ function renderPost(post) {
       ${statsBar}
       <div class="post-actions">
         <div class="action-btn"><span class="icon">&#128077;</span> Like</div>
-        <div class="action-btn" onclick="toggleCommentBox("${post.id}","${encodeURIComponent(post.parent_post_urn||post.post_urn)}")"><span class="icon">&#128172;</span> Comment</div>
+        <div class="action-btn" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}" onclick="toggleCommentBox(this.dataset.pid,this.dataset.urn)"><span class="icon">&#128172;</span> Comment</div>
         <div class="action-btn"><span class="icon">&#8635;</span> Repost</div>
       </div>
-      <div class="comment-box" id="cb-${post.id}"><textarea id="ct-${post.id}" placeholder="Write a comment…"></textarea><div class="comment-box-actions"><button class="comment-cancel-btn" onclick="toggleCommentBox("${post.id}","")">Cancel</button><button class="comment-send-btn" id="cs-${post.id}" onclick="sendComment("${post.id}","${encodeURIComponent(post.parent_post_urn||post.post_urn)}")">Send</button></div></div>
+      <div class="comment-box" id="cb-${post.id}" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}"><textarea id="ct-${post.id}" placeholder="Write a comment…"></textarea><div class="comment-box-actions"><button class="comment-cancel-btn" onclick="toggleCommentBox(this.closest('.comment-box').dataset.pid,'')">Cancel</button><button class="comment-send-btn" id="cs-${post.id}" data-pid="${post.id}" data-urn="${encodeURIComponent(post.parent_post_urn||post.post_urn)}" onclick="sendComment(this.dataset.pid, this.dataset.urn)">Send</button></div></div>
       ${commentsHtml}
     </div>`;
 }
