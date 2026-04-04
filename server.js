@@ -35,6 +35,7 @@ const engagementScraper        = require('./src/engagementScraper');
 const companyEngagementScraper = require('./src/companyEngagementScraper');
 const likeSender              = require('./src/likeSender');
 const messageSender            = require('./src/messageSender');
+const approvalChecker          = require('./src/approvalChecker');
 const conversationQueue        = require('./src/conversationQueue');
 
 const app  = express();
@@ -759,6 +760,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   companyEngagementScraper.start();
   likeSender.start();
   messageSender.start();
+  approvalChecker.start();
   await conversationQueue.start();
 })();
 
