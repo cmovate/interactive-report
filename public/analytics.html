@@ -190,16 +190,17 @@ function buildHeaders() {
   var allCols = GROUPS.flatMap(g => g.cols);
   var head = document.getElementById('table-head');
   var row1 = '<tr><th class="group-header" style="background:#888;color:#fff">#</th>';
-  var row2 = '<tr><th onclick="sortBy('id')" style="background:#555">ID</th>';
+    var row2 = '<tr><th data-k="id" style="background:#555;cursor:pointer">ID</th>';
   GROUPS.forEach(function(g) {
     row1 += '<th class="group-header" colspan="'+g.cols.length+'">'+g.label+'</th>';
     g.cols.forEach(function(col, ci) {
-      row2 += '<th onclick="sortBy(\'' + col.k + '\')" title="'+esc(col.k)+'">' + col.label + '</th>';
+            row2 += '<th data-k="'+esc(col.k)+'" title="'+esc(col.k)+'">'+esc(col.label)+'</th>';
     });
   });
   row1 += '</tr>';
   row2 += '</tr>';
   head.innerHTML = row1 + row2;
+  head.addEventListener('click', function(e) { var t = e.target.closest('th[data-k]'); if(t) sortBy(t.dataset.k); });
 }
 
 function buildStats(contacts) {
