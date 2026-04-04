@@ -451,7 +451,7 @@ function selectAccount(id) {
 function renderStepAudience(body) {
   body.innerHTML = `<div class="section-label">Select a contacts list</div>
     <p style="font-size:13px;color:#888;margin:-4px 0 14px">Choose which list to use. Create lists in the <strong>Lists</strong> tab.</p>
-    <div id="list-picker-grid" class="list-picker-grid"><div class="list-picker-loading">Loadingâ¦</div></div>`;
+    <div id="list-picker-grid" class="list-picker-grid"><div class="list-picker-loading">LoadingÃ¢ÂÂ¦</div></div>`;
   loadListsForPicker();
 }
 function selectAudience(type) { wizard.audienceType=type; renderStepAudience(document.getElementById('modal-body')); }
@@ -468,7 +468,7 @@ function renderAudienceDetail() {
         <textarea rows="4" placeholder="https://www.linkedin.com/company/bezeq\nhttps://www.linkedin.com/company/partner-communications" style="margin-bottom:12px;" oninput="wizard.companyUrls=this.value">${esc(wizard.companyUrls)}</textarea>
         <div class="field-label">Job titles to search for</div>
         <textarea rows="2" placeholder="VP R&D, Head of Engineering, CTO" style="margin-bottom:12px;" oninput="wizard.searchTitles=this.value">${esc(wizard.searchTitles)}</textarea>
-        <div class="field-label">Target country <span style="color:#aaa;font-weight:400;font-size:11px;">(optional â narrows LinkedIn geo-filter)</span></div>
+        <div class="field-label">Target country <span style="color:#aaa;font-weight:400;font-size:11px;">(optional Ã¢ÂÂ narrows LinkedIn geo-filter)</span></div>
         <input type="text" class="country-input" placeholder="e.g. Israel, United States" value="${esc(wizard.targetCountry)}" oninput="wizard.targetCountry=this.value">
         <p style="font-size:12px;color:#1D9E75;margin-top:12px;">&#9654; Click <strong>Continue</strong> to search across all companies at once.</p>`;
     } else if (wizard.searchStatus==='loading') {
@@ -605,7 +605,7 @@ function renderStepName(body) {
     ? `<div class="preview-notice" style="margin-top:12px;">&#9200; More contacts will be fetched automatically in the background after campaign creation.</div>`
     : '';
   const as = wizard.isPreview
-    ? `${wizard.contacts.length} contacts (${wizard.totalCompanies} companies${wizard.targetCountry?' Â· '+wizard.targetCountry:''})`
+    ? `${wizard.contacts.length} contacts (${wizard.totalCompanies} companies${wizard.targetCountry?' ÃÂ· '+wizard.targetCountry:''})`
     : wizard.audienceType==='people' ? countUrls(wizard.urlsPasted)+' profile URLs' : wizard.contacts.length+' contacts from search';
   const daysHtml=DAYS.map(d=>{const h=wizard.hours[d.key];return `<div class="day-card${h.on?'':' off'}" id="wdc-${d.key}"><div class="day-head"><span class="day-name">${d.label}</span><button class="day-toggle${h.on?' on':''}" id="wdt-${d.key}" onclick="wizToggleDay('${d.key}')"></button></div><div id="wdts-${d.key}" style="display:${h.on?'':'none'}"><div class="time-inputs"><div class="time-row"><span class="time-lbl">from</span><input class="time-input" type="time" value="${h.from}" onchange="wizUpdateHour('${d.key}','from',this.value)"></div><div class="time-row"><span class="time-lbl">to</span><input class="time-input" type="time" value="${h.to}" onchange="wizUpdateHour('${d.key}','to',this.value)"></div></div></div><div id="wdof-${d.key}" class="day-off-label" style="display:${h.on?'none':''}">off</div></div>`;}).join('');
   const ad=DAYS.filter(d=>wizard.hours[d.key].on).map(d=>d.label);
@@ -630,13 +630,13 @@ async function loadListsForPicker() {
     const data = await fetch('/api/lists?workspace_id=' + workspaceId).then(r=>r.json());
     const lists = (data.items || []).filter(l => l.type === 'contacts');
     if (!lists.length) {
-      grid.innerHTML = '<div class="list-picker-loading">No contact lists yet â go to <strong>Lists</strong> tab to create one.</div>';
+      grid.innerHTML = '<div class="list-picker-loading">No contact lists yet Ã¢ÂÂ go to <strong>Lists</strong> tab to create one.</div>';
       return;
     }
     grid.innerHTML = lists.map(l => {
       const sel = wizard.list_id === l.id;
       const cnt = l.contact_count || 0;
-      const desc = l.description ? ' Â· ' + l.description : '';
+      const desc = l.description ? ' ÃÂ· ' + l.description : '';
       return '<div class="list-picker-card' + (sel ? ' selected' : '') + '" data-id="' + l.id + '" data-name="' + (l.name||'').replace(/"/g,'&quot;') + '">' +
         '<div class="lpc-icon">&#128101;</div>' +
         '<div class="lpc-info">' +
@@ -729,7 +729,7 @@ function saveMsgDialog() {
 
 load();
 </script>
-<script src="campaign-modal.js?v=1775300037756">
+<script src="campaign-modal.js?v=1775323981451">
 async function loadListsForPicker() {
   const grid = document.getElementById('list-picker-grid');
   if (!grid) return;
@@ -743,10 +743,10 @@ async function loadListsForPicker() {
     grid.innerHTML = contactLists.map(l => {
       const isSel = wizard.list_id === l.id;
       return '<div class="list-picker-card' + (isSel?' selected':'') + '" onclick="selectList(' + l.id + ',' + JSON.stringify(l.name) + ')">' +
-        '<span class="lpc-icon">ð¥</span>' +
+        '<span class="lpc-icon">Ã°ÂÂÂ¥</span>' +
         '<div><div class="lpc-name">' + escHtml(l.name) + '</div>' +
         '<div class="lpc-count">' + (l.contact_count||0) + ' contacts</div></div>' +
-        '<span class="lpc-check">â</span>' +
+        '<span class="lpc-check">Ã¢ÂÂ</span>' +
         '</div>';
     }).join('');
   } catch(e) {
