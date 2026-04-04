@@ -505,6 +505,7 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     ['ct.cf_conf_at',              'contacts',            'company_follow_confirmed_at', 'TIMESTAMP'],
     ['cf.fsa',                     'company_followers',   'first_seen_at',               'TIMESTAMP DEFAULT NOW()'],
     ['cf.fsp',                     'company_followers',   'first_seen_position',         'INTEGER'],
+    ['c.cv',                      'contacts',            'connected_via',               'JSONB DEFAULT \'[]\' ::jsonb'],
     ['ds.profile_views',           'campaign_daily_stats','profile_views',               'INTEGER DEFAULT 0'],
     ['ct.eng_level',               'contacts',            'engagement_level',            'VARCHAR(30)'],
     ['ct.eng_scraped_at',          'contacts',            'engagement_scraped_at',       'TIMESTAMP'],
