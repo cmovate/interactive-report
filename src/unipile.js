@@ -312,6 +312,21 @@ async function getPost(accountId, postId) {
   return data;
 }
 
+
+async function commentPost(accountId, postId, text, commentId) {
+  const form = new URLSearchParams();
+  form.append('account_id', accountId);
+  form.append('text', text);
+  if (commentId) form.append('comment_id', commentId);
+
+  const data = await request(`/api/v1/posts/${encodeURIComponent(postId)}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  });
+  return data;
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
@@ -339,4 +354,5 @@ module.exports = {
   request,
 
   getPost,
+  commentPost,
 };
