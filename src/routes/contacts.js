@@ -71,8 +71,8 @@ router.post('/:id/re-analyze', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ contact has not been messaged or replied yet' });
-    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ campaign missing account' });
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ campaign missing account' });
 
     // Run async, return immediately
     analyzeConversation(contactId, contact.account_id, contact.chat_id)
@@ -144,9 +144,14 @@ router.post('/re-enrich', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const params = [workspace_id];
     let sql = `
-      SELECT c.id, c.li_profile_url, camp.account_id
+      SELECT c.id, c.li_profile_url,
+             COALESCE(camp.account_id, ua.account_id) AS account_id
       FROM contacts c
-      JOIN campaigns camp ON camp.id = c.campaign_id
+      LEFT JOIN campaigns camp ON camp.id = c.campaign_id
+      LEFT JOIN LATERAL (
+        SELECT account_id FROM unipile_accounts
+        WHERE workspace_id = c.workspace_id LIMIT 1
+      ) ua ON true
       WHERE c.workspace_id = $1
         AND c.li_profile_url IS NOT NULL AND c.li_profile_url != ''
         AND c.li_profile_url LIKE '%linkedin.com/in/%'
@@ -177,7 +182,7 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ provider_id missing' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
     await sendInvitation(contact.account_id, contact.provider_id);
     await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
@@ -227,7 +232,7 @@ router.delete('/', async (req, res) => {
 
 
 
-// POST /api/contacts/bulk-update Ã¢ÂÂ update specific fields on a set of contact IDs
+// POST /api/contacts/bulk-update ÃÂ¢ÃÂÃÂ update specific fields on a set of contact IDs
 // Body: { workspace_id, ids: [1,2,3], fields: { already_connected: true, msg_sequence: '...', ... } }
 router.post('/bulk-update', async (req, res) => {
   try {
