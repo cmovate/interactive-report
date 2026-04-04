@@ -1,15 +1,15 @@
 /**
  * Company Followers Scraper
  *
- * ═══ SCRAPE MODES ═══════════════════════════════════════════════════════════
+ * âââ SCRAPE MODES âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
  *
- * LEARNING (days 0–7):  Full scrape 3×/day.
+ * LEARNING (days 0â7):  Full scrape 3Ã/day.
  * INCREMENTAL:           Only top N pages, stops early if all known.
  * FULL:                  All pages once/day.
  *
  * Company ID read from unipile_accounts.settings.company_page_urn.
  *
- * ═══ AFTER EVERY SCRAPE ════════════════════════════════════════════════════
+ * âââ AFTER EVERY SCRAPE ââââââââââââââââââââââââââââââââââââââââââââââââââââ
  *   - Upserts followers into company_followers (first_seen_at set once)
  *   - Marks company_follow_confirmed=true + company_follow_confirmed_at=NOW()
  *     for contacts whose profile_url matches a scraped follower
@@ -23,8 +23,8 @@ const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
 const BATCH_LIMIT           = 100;
 const PAGE_DELAY_MS         = 4000;
 const LEARNING_DAYS         = 7;
-const LEARNING_INTERVAL_MS  = 8 * 60 * 60 * 1000;
-const FULL_INTERVAL_MS      = 24 * 60 * 60 * 1000;
+const LEARNING_INTERVAL_MS  = 30 * 60 * 1000;   // 30 minutes
+const FULL_INTERVAL_MS      = 30 * 60 * 1000;   // 30 minutes
 const INCREMENTAL_PAGES     = 3;
 const INCREMENTAL_THRESHOLD = 50;
 
@@ -73,7 +73,7 @@ async function runScrape(forcedAccountId) {
          LIMIT 1`
       );
       if (!rows.length) {
-        console.log('[FollowerScraper] No account with company_page_urn — skipping');
+        console.log('[FollowerScraper] No account with company_page_urn â skipping');
         isScraping = false;
         return { skipped: true, reason: 'no_company_page_urn' };
       }
@@ -162,7 +162,7 @@ async function runScrape(forcedAccountId) {
       total_fetched: followers.length, new_followers: newFollowers,
       newly_confirmed: confirmed, elapsed_seconds: parseFloat(elapsed),
     };
-    console.log(`[FollowerScraper] Done (${mode}) in ${elapsed}s — ${followers.length} fetched, ${newFollowers} new, ${confirmed} confirmed`);
+    console.log(`[FollowerScraper] Done (${mode}) in ${elapsed}s â ${followers.length} fetched, ${newFollowers} new, ${confirmed} confirmed`);
     return lastScrapeResult;
 
   } catch (err) {
@@ -201,7 +201,7 @@ async function fetchFollowers(accountId, companyId, mode) {
           [accountId, ids]
         );
         if (parseInt(rows[0].cnt) === ids.length) {
-          console.log('[FollowerScraper] All items known — stopping early');
+          console.log('[FollowerScraper] All items known â stopping early');
           break;
         }
       }
