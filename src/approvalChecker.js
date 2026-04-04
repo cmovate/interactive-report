@@ -13,7 +13,6 @@
  */
 
 const db      = require('./db');
-const fetch   = require('node-fetch');
 
 const UNIPILE_DSN     = process.env.UNIPILE_DSN;
 const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
