@@ -71,8 +71,8 @@ router.post('/:id/re-analyze', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ contact has not been messaged or replied yet' });
-    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ campaign missing account' });
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ campaign missing account' });
 
     // Run async, return immediately
     analyzeConversation(contactId, contact.account_id, contact.chat_id)
@@ -182,7 +182,7 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ provider_id missing' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
     await sendInvitation(contact.account_id, contact.provider_id);
     await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
@@ -232,7 +232,7 @@ router.delete('/', async (req, res) => {
 
 
 
-// POST /api/contacts/bulk-update ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ update specific fields on a set of contact IDs
+// POST /api/contacts/bulk-update ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ update specific fields on a set of contact IDs
 // Body: { workspace_id, ids: [1,2,3], fields: { already_connected: true, msg_sequence: '...', ... } }
 router.post('/bulk-update', async (req, res) => {
   try {
@@ -271,13 +271,69 @@ router.post('/run-engagement-scraper', async (req, res) => {
   try {
     const { campaign_id } = req.body;
     const engScraper = require('../engagementScraper');
-    // run without await — fire and forget so response returns immediately
+    // run without await â fire and forget so response returns immediately
     engScraper.run(campaign_id || null).then(r => {
       console.log('[Manual trigger] engagement scraper done:', JSON.stringify(r));
     }).catch(e => {
       console.error('[Manual trigger] engagement scraper error:', e.message);
     });
     res.json({ success: true, message: 'Engagement scraper started', campaign_id: campaign_id || 'all' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
+// POST /api/contacts/bulk-company-follow
+// Sends company page follow invitations to up to N random eligible contacts
+router.post('/bulk-company-follow', async (req, res) => {
+  try {
+    const { workspace_id, campaign_id, limit = 100, account_id, company_page_urn } = req.body;
+    if (!workspace_id || !account_id || !company_page_urn) {
+      return res.status(400).json({ error: 'workspace_id, account_id, company_page_urn required' });
+    }
+
+    // Fetch random eligible contacts (have provider_id, not yet invited)
+    let query = `
+      SELECT id, provider_id, first_name, last_name
+      FROM contacts
+      WHERE workspace_id = $1
+        AND provider_id IS NOT NULL AND provider_id != ''
+        AND company_follow_invited = false
+    `;
+    const params = [workspace_id];
+    if (campaign_id) { query += ` AND campaign_id = $${params.length + 1}`; params.push(campaign_id); }
+    query += ` ORDER BY RANDOM() LIMIT $${params.length + 1}`;
+    params.push(parseInt(limit));
+
+    const { rows: contacts } = await db.query(query, params);
+    if (!contacts.length) return res.json({ sent: 0, message: 'No eligible contacts found' });
+
+    // Send in batches of 20 (LinkedIn rate limit safety)
+    const BATCH = 20;
+    let totalSent = 0;
+    const unipile = require('../unipile');
+
+    for (let i = 0; i < contacts.length; i += BATCH) {
+      const batch = contacts.slice(i, i + BATCH);
+      const memberUrns = batch.map(c => `urn:li:fsd_profile:${c.provider_id}`);
+      try {
+        await unipile.sendCompanyFollowInvites(account_id, company_page_urn, memberUrns);
+        const ids = batch.map(c => c.id);
+        await db.query(
+          `UPDATE contacts SET company_follow_invited = true, company_follow_invited_at = NOW() WHERE id = ANY($1::int[])`,
+          [ids]
+        );
+        totalSent += batch.length;
+        console.log(`[BulkFollow] Batch ${Math.floor(i/BATCH)+1}: sent ${batch.length}, total: ${totalSent}`);
+      } catch (e) {
+        console.error(`[BulkFollow] Batch error: ${e.message}`);
+      }
+      // Small delay between batches
+      if (i + BATCH < contacts.length) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    res.json({ sent: totalSent, total_eligible: contacts.length });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
