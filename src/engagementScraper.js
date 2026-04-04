@@ -40,7 +40,7 @@ const DAYS_7        = 7 * 24 * 60 * 60 * 1000;
 const MAX_LIKES     = 3;
 const COOLDOWN_DAYS = 3;
 const BATCH_SIZE    = 30;
-const SCRAPE_LIMIT  = 50;
+const SCRAPE_LIMIT  = 5;
 const LIKE_BATCH    = 20;   // max contacts liked per identity per run
 
 const rand  = (min, max) => min + Math.random() * (max - min);
@@ -168,40 +168,55 @@ async function processCampaign(campaign) {
 }
 
 // ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Phase 1: Scrape new contacts ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
 async function scrapeNewContacts(campaign) {
-  const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const TARGET    = 30;
+  const cooldown  = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  let totalContent = 0;
+  let totalScraped = 0;
+  let attempts     = 0;
+  const MAX_ATTEMPTS = 150;
 
-  const { rows: contacts } = await db.query(
-    `SELECT id, first_name, last_name, company, provider_id
-     FROM contacts
-     WHERE campaign_id = $1
-       AND provider_id IS NOT NULL AND provider_id != ''
-       AND engagement_level IS NULL
-       AND engagement_data IS NULL
-       AND (likes_sent_at IS NULL OR likes_sent_at < $2)
-     ORDER BY RANDOM()
-     LIMIT $3`,
-    [campaign.id, cooldownCutoff, BATCH_SIZE]
-  );
+  console.log('[EngagementScraper] Campaign ' + campaign.id + ': targeting ' + TARGET + ' posts/comments');
 
-  if (!contacts.length) return 0;
-  console.log(`[EngagementScraper] Campaign ${campaign.id}: scraping ${contacts.length} contacts`);
+  while (totalContent < TARGET && attempts < MAX_ATTEMPTS) {
+    const { rows } = await db.query(
+      `SELECT id, first_name, last_name, company, provider_id
+       FROM contacts
+       WHERE campaign_id = $1
+         AND provider_id IS NOT NULL AND provider_id != ''
+         AND engagement_data IS NULL
+         AND (likes_sent_at IS NULL OR likes_sent_at < $2)
+       ORDER BY RANDOM()
+       LIMIT 1`,
+      [campaign.id, cooldown]
+    );
 
-  let scraped = 0;
-  for (const contact of contacts) {
-    try {
-      await scrapeContact(contact, campaign.account_id);
-      scraped++;
-    } catch (err) {
-      console.error(`[EngagementScraper] ÃÂ¢ÃÂÃÂ scrape contact ${contact.id}: ${err.message}`);
+    if (!rows.length) {
+      console.log('[EngagementScraper] Campaign ' + campaign.id + ': no more unscraped contacts');
+      break;
     }
-    if (scraped < contacts.length) await sleep(rand(8000, 20000));
-  }
-  return scraped;
-}
 
-// ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Phase 2: Personal account likes (up to LIKE_BATCH contacts) ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
-// Returns array of contact IDs that were liked in this run.
+    const contact = rows[0];
+    attempts++;
+
+    try {
+      const result = await scrapeContact(contact, campaign.account_id);
+      totalScraped++;
+      const ed = result.engagementData || {};
+      const found = (ed.non_employer_posts_14d || 0) + (ed.non_employer_comments_14d || 0);
+      totalContent += found;
+      console.log('[EngagementScraper] ' + contact.first_name + ' ' + contact.last_name + ': +' + found + ' (' + totalContent + '/' + TARGET + ')');
+    } catch (err) {
+      console.error('[EngagementScraper] contact ' + contact.id + ': ' + err.message);
+    }
+
+    if (totalContent < TARGET) await sleep(rand(5000, 12000));
+  }
+
+  console.log('[EngagementScraper] Campaign ' + campaign.id + ': scraped=' + totalScraped + ' content=' + totalContent);
+  return totalScraped;
+}
 async function runPersonalLikes(campaignId, accountId, companyPageUrn, flags) {
   const cooldownCutoff = new Date(Date.now() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
