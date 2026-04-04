@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F3F0; color: #1a1a1a; font-size: 13px; }
+
+/* Top bar */
+.top-bar { background: white; border-bottom: 1px solid #E9E5DF; padding: 14px 20px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; }
+.top-bar h1 { font-size: 16px; font-weight: 700; color: #1a3a2a; margin-right: 8px; }
+.filter-select { border: 1px solid #DED9D3; border-radius: 8px; padding: 6px 10px; font-size: 13px; background: #fff; color: #333; cursor: pointer; outline: none; min-width: 160px; }
+.filter-select:focus { border-color: #52b788; }
+.top-bar .spacer { flex: 1; }
+.count-badge { background: #f0f7f4; border: 1px solid #52b788; color: #1a3a2a; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+.search-input { border: 1px solid #DED9D3; border-radius: 8px; padding: 6px 10px; font-size: 13px; width: 200px; outline: none; }
+.search-input:focus { border-color: #52b788; }
+.export-btn { background: #1a3a2a; color: white; border: none; padding: 6px 14px; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.export-btn:hover { background: #2d5c40; }
+
+/* Stats cards */
+.stats-row { display: flex; gap: 10px; padding: 14px 20px 0; flex-wrap: wrap; }
+.stat-card { background: white; border: 1px solid #E9E5DF; border-radius: 10px; padding: 12px 16px; min-width: 130px; flex: 1; }
+.stat-card .label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #888; margin-bottom: 4px; }
+.stat-card .value { font-size: 22px; font-weight: 700; color: #1a3a2a; }
+.stat-card .pct { font-size: 11px; color: #52b788; font-weight: 600; margin-left: 4px; }
+
+/* Table wrapper */
+.table-wrap { overflow-x: auto; padding: 14px 20px 40px; }
+table { border-collapse: collapse; width: max-content; min-width: 100%; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+th, td { padding: 7px 10px; white-space: nowrap; border-bottom: 1px solid #F0EDE8; text-align: left; }
+th { background: #1a3a2a; color: white; font-size: 11px; font-weight: 600; position: sticky; top: 56px; cursor: pointer; user-select: none; }
+th:hover { background: #2d5c40; }
+th.group-header { background: #52b788; text-align: center; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; cursor: default; }
+tr:hover td { background: #f7f4f0; }
+tr:nth-child(even) td { background: #faf9f7; }
+tr:nth-child(even):hover td { background: #f0ede8; }
+
+/* Cell types */
+.cell-bool-yes  { color: #16a34a; font-weight: 600; }
+.cell-bool-no   { color: #ccc; }
+.cell-date      { color: #666; font-size: 11px; }
+.cell-level-highly_engaged { color: #16a34a; font-weight: 600; }
+.cell-level-average_engaged { color: #d97706; font-weight: 500; }
+.cell-level-un_engaged { color: #dc2626; }
+.cell-seq-new                   { background: #dcfce7; color: #15803d; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+.cell-seq-existing_no_history   { background: #dbeafe; color: #1d4ed8; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+.cell-seq-existing_with_history { background: #fef9c3; color: #92400e; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+.cell-stage { background: #f3e8ff; color: #7e22ce; padding: 2px 7px; border-radius: 10px; font-size: 11px; }
+.cell-score { font-weight: 700; }
+.cell-name a { color: #1a3a2a; text-decoration: none; font-weight: 500; }
+.cell-name a:hover { text-decoration: underline; }
+.cell-num { text-align: right; color: #333; }
+.cell-num-pos { text-align: right; color: #16a34a; font-weight: 600; }
+.loading { text-align: center; padding: 60px; color: #999; }
+.spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #e5e5e5; border-top-color: #52b788; border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>&#128202; Analytics</h1>
+  <select class="filter-select" id="campaign-select" onchange="onCampaignChange()">
+    <option value="">All campaigns</option>
+  </select>
+  <select class="filter-select" id="list-select" onchange="loadData()">
+    <option value="">All lists</option>
+  </select>
+  <input class="search-input" id="search-input" placeholder="Search name / company..." oninput="filterRows()">
+  <div class="spacer"></div>
+  <span class="count-badge" id="count-badge">—</span>
+  <button class="export-btn" onclick="exportCSV()">&#8595; Export CSV</button>
+</div>
+
+<div class="stats-row" id="stats-row"></div>
+
+<div class="table-wrap">
+  <div class="loading" id="loading"><div class="spinner"></div><p style="margin-top:12px;color:#aaa">Loading contacts…</p></div>
+  <table id="analytics-table" style="display:none">
+    <thead id="table-head"></thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</div>
+
+<script>
+const params  = new URLSearchParams(window.location.search);
+const wsId    = params.get('workspace_id');
+const wsName  = params.get('workspace_name') || '';
+let allContacts = [];
+let filteredContacts = [];
+let sortCol = null, sortDir = 1;
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtDate(d) { if(!d) return '—'; var dt = new Date(d); return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}); }
+function fmtBool(v) { return v ? '<span class="cell-bool-yes">&#10003;</span>' : '<span class="cell-bool-no">&#8212;</span>'; }
+function fmtNum(v, cls) { if(!v && v!==0) return '<span class="cell-bool-no">—</span>'; return '<span class="'+cls+'">'+v+'</span>'; }
+function fmtLevel(v) {
+  if(!v) return '<span class="cell-bool-no">—</span>';
+  return '<span class="cell-level-'+v+'">'+v.replace(/_/g,' ')+'</span>';
+}
+function fmtSeq(v) {
+  if(!v) return '<span class="cell-bool-no">—</span>';
+  return '<span class="cell-seq-'+v+'">'+v.replace(/_/g,' ')+'</span>';
+}
+function fmtStage(v) { if(!v) return '—'; return '<span class="cell-stage">'+esc(v)+'</span>'; }
+
+// Column groups definition
+const GROUPS = [
+  {
+    label: 'Identity',
+    cols: [
+      {k:'first_name', label:'First Name', fmt: (c)=>'<span class="cell-name">'+(c.li_profile_url?'<a href="'+esc(c.li_profile_url)+'" target="_blank">':'')+esc(c.first_name+' '+(c.last_name||''))+(c.li_profile_url?'</a>':'')+'</span>'},
+      {k:'company',    label:'Company',    fmt: (c)=>esc(c.company||'—')},
+      {k:'title',      label:'Title',      fmt: (c)=>esc(c.title||'—')},
+      {k:'location',   label:'Location',   fmt: (c)=>esc(c.location||'—')},
+      {k:'email',      label:'Email',      fmt: (c)=>c.email?'<a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a>':'—'},
+      {k:'campaign_name', label:'Campaign', fmt: (c)=>esc(c.campaign_name||'—')},
+      {k:'list_names',    label:'Lists',    fmt: (c)=>esc(c.list_names||'—')},
+      {k:'created_at', label:'Added',      fmt: (c)=>'<span class="cell-date">'+fmtDate(c.created_at)+'</span>'},
+    ]
+  },
+  {
+    label: 'Connection',
+    cols: [
+      {k:'invite_sent',     label:'Invite Sent',    fmt:(c)=>fmtBool(c.invite_sent)},
+      {k:'invite_sent_at',  label:'Sent At',        fmt:(c)=>'<span class="cell-date">'+fmtDate(c.invite_sent_at)+'</span>'},
+      {k:'invite_approved', label:'Approved',       fmt:(c)=>fmtBool(c.invite_approved)},
+      {k:'invite_approved_at',label:'Approved At',  fmt:(c)=>'<span class="cell-date">'+fmtDate(c.invite_approved_at)+'</span>'},
+      {k:'invite_withdrawn',label:'Withdrawn',      fmt:(c)=>fmtBool(c.invite_withdrawn)},
+      {k:'already_connected',label:'Already Connected',fmt:(c)=>fmtBool(c.already_connected)},
+      {k:'profile_view_count',label:'Profile Views',fmt:(c)=>fmtNum(c.profile_view_count,'cell-num')},
+      {k:'last_profile_view_at',label:'Last View',  fmt:(c)=>'<span class="cell-date">'+fmtDate(c.last_profile_view_at)+'</span>'},
+    ]
+  },
+  {
+    label: 'Messaging',
+    cols: [
+      {k:'msg_sequence',      label:'Sequence',       fmt:(c)=>fmtSeq(c.msg_sequence)},
+      {k:'msg_step',          label:'Step',           fmt:(c)=>fmtNum(c.msg_step,'cell-num')},
+      {k:'msg_scheduled_send_at',label:'Scheduled',   fmt:(c)=>'<span class="cell-date">'+fmtDate(c.msg_scheduled_send_at)+'</span>'},
+      {k:'msg_sent',          label:'Msg Sent',       fmt:(c)=>fmtBool(c.msg_sent)},
+      {k:'msg_sent_at',       label:'Sent At',        fmt:(c)=>'<span class="cell-date">'+fmtDate(c.msg_sent_at)+'</span>'},
+      {k:'msgs_sent_count',   label:'Total Msgs',     fmt:(c)=>fmtNum(c.msgs_sent_count,'cell-num')},
+      {k:'msg_replied',       label:'Replied',        fmt:(c)=>fmtBool(c.msg_replied)},
+      {k:'msg_replied_at',    label:'Replied At',     fmt:(c)=>'<span class="cell-date">'+fmtDate(c.msg_replied_at)+'</span>'},
+      {k:'reply_count',       label:'Reply Count',    fmt:(c)=>fmtNum(c.reply_count,'cell-num')},
+      {k:'positive_reply',    label:'Positive Reply', fmt:(c)=>fmtBool(c.positive_reply)},
+      {k:'positive_reply_at', label:'Positive At',   fmt:(c)=>'<span class="cell-date">'+fmtDate(c.positive_reply_at)+'</span>'},
+      {k:'has_chat_history',  label:'Has Chat',       fmt:(c)=>fmtBool(c.has_chat_history)},
+      {k:'conversation_stage',label:'Stage',          fmt:(c)=>fmtStage(c.conversation_stage)},
+      {k:'conversation_score',label:'Score',          fmt:(c)=>c.conversation_score?'<span class="cell-score">'+c.conversation_score+'</span>':'—'},
+    ]
+  },
+  {
+    label: 'Personal Engagement',
+    cols: [
+      {k:'engagement_level',   label:'Level',         fmt:(c)=>fmtLevel(c.engagement_level)},
+      {k:'engagement_scraped_at',label:'Scraped At',  fmt:(c)=>'<span class="cell-date">'+fmtDate(c.engagement_scraped_at)+'</span>'},
+      {k:'post_likes_sent',    label:'Post Likes',    fmt:(c)=>fmtNum(c.post_likes_sent,'cell-num-pos')},
+      {k:'comment_likes_sent', label:'Comment Likes', fmt:(c)=>fmtNum(c.comment_likes_sent,'cell-num-pos')},
+      {k:'likes_sent_at',      label:'Last Liked At', fmt:(c)=>'<span class="cell-date">'+fmtDate(c.likes_sent_at)+'</span>'},
+    ]
+  },
+  {
+    label: 'Company Page',
+    cols: [
+      {k:'company_follow_invited',  label:'Follow Invite',fmt:(c)=>fmtBool(c.company_follow_invited)},
+      {k:'company_follow_confirmed',label:'Follow Conf.',fmt:(c)=>fmtBool(c.company_follow_confirmed)},
+      {k:'company_follow_invited_at',label:'Invited At', fmt:(c)=>'<span class="cell-date">'+fmtDate(c.company_follow_invited_at)+'</span>'},
+      {k:'company_post_likes_sent',  label:'Co. Post Likes',fmt:(c)=>fmtNum(c.company_post_likes_sent,'cell-num-pos')},
+      {k:'company_comment_likes_sent',label:'Co. Cmt Likes',fmt:(c)=>fmtNum(c.company_comment_likes_sent,'cell-num-pos')},
+      {k:'company_likes_sent_at',   label:'Last Co. Like',fmt:(c)=>'<span class="cell-date">'+fmtDate(c.company_likes_sent_at)+'</span>'},
+    ]
+  },
+  {
+    label: 'OSINT',
+    cols: [
+      {k:'osint_confidence', label:'Confidence', fmt:(c)=>c.osint_confidence?'<span style="font-weight:600">'+Math.round(c.osint_confidence*100)+'%</span>':'—'},
+      {k:'osint_hobby',      label:'Hobby',      fmt:(c)=>esc(c.osint_hobby||'—')},
+      {k:'osint_reason',     label:'Reason',     fmt:(c)=>'<span title="'+esc(c.osint_reason||'')+'" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;display:inline-block;">'+esc((c.osint_reason||'').substring(0,50))+'</span>'},
+      {k:'osint_last_run',   label:'Last Run',   fmt:(c)=>'<span class="cell-date">'+fmtDate(c.osint_last_run)+'</span>'},
+    ]
+  }
+];
+
+function buildHeaders() {
+  var allCols = GROUPS.flatMap(g => g.cols);
+  var head = document.getElementById('table-head');
+  var row1 = '<tr><th class="group-header" style="background:#888;color:#fff">#</th>';
+  var row2 = '<tr><th onclick="sortBy('id')" style="background:#555">ID</th>';
+  GROUPS.forEach(function(g) {
+    row1 += '<th class="group-header" colspan="'+g.cols.length+'">'+g.label+'</th>';
+    g.cols.forEach(function(col, ci) {
+      row2 += '<th onclick="sortBy(\'' + col.k + '\')" title="'+esc(col.k)+'">' + col.label + '</th>';
+    });
+  });
+  row1 += '</tr>';
+  row2 += '</tr>';
+  head.innerHTML = row1 + row2;
+}
+
+function buildStats(contacts) {
+  var total = contacts.length;
+  if(!total) { document.getElementById('stats-row').innerHTML = ''; return; }
+  
+  var invSent    = contacts.filter(c=>c.invite_sent).length;
+  var invApproved= contacts.filter(c=>c.invite_approved).length;
+  var msgSent    = contacts.filter(c=>c.msg_sent).length;
+  var replied    = contacts.filter(c=>c.msg_replied).length;
+  var positive   = contacts.filter(c=>c.positive_reply).length;
+  var engaged    = contacts.filter(c=>c.engagement_level && c.engagement_level !== 'un_engaged').length;
+  var scrapped   = contacts.filter(c=>c.engagement_scraped_at).length;
+
+  function pct(n,d) { return d>0 ? ' <span class="pct">'+(n/d*100).toFixed(0)+'%</span>' : ''; }
+
+  document.getElementById('stats-row').innerHTML = [
+    {label:'Total Contacts', val:total, p:''},
+    {label:'Invites Sent',   val:invSent, p:pct(invSent,total)},
+    {label:'Connected',      val:invApproved, p:pct(invApproved,invSent)},
+    {label:'Msgs Sent',      val:msgSent, p:pct(msgSent,invApproved||1)},
+    {label:'Replied',        val:replied, p:pct(replied,msgSent||1)},
+    {label:'Positive',       val:positive, p:pct(positive,replied||1)},
+    {label:'Scraped',        val:scrapped, p:pct(scrapped,total)},
+    {label:'Engaged',        val:engaged, p:pct(engaged,scrapped||1)},
+  ].map(s=>'<div class="stat-card"><div class="label">'+s.label+'</div><div class="value">'+s.val+s.p+'</div></div>').join('');
+}
+
+function renderTable(contacts) {
+  var allCols = GROUPS.flatMap(g => g.cols);
+  var tbody = document.getElementById('table-body');
+  if(!contacts.length) {
+    tbody.innerHTML = '<tr><td colspan="'+(allCols.length+2)+'" style="text-align:center;padding:40px;color:#aaa">No contacts found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = contacts.map(function(c, i) {
+    var cells = '<td style="color:#aaa;text-align:center">'+(i+1)+'</td>';
+    allCols.forEach(function(col) { cells += '<td>' + col.fmt(c) + '</td>'; });
+    return '<tr>' + cells + '</tr>';
+  }).join('');
+}
+
+function filterRows() {
+  var q = (document.getElementById('search-input').value||'').toLowerCase();
+  filteredContacts = q ? allContacts.filter(c =>
+    (c.first_name||'').toLowerCase().includes(q) ||
+    (c.last_name||'').toLowerCase().includes(q) ||
+    (c.company||'').toLowerCase().includes(q)
+  ) : allContacts;
+  document.getElementById('count-badge').textContent = filteredContacts.length + ' contacts';
+  buildStats(filteredContacts);
+  renderTable(filteredContacts);
+}
+
+function sortBy(col) {
+  if(sortCol === col) sortDir = -sortDir;
+  else { sortCol = col; sortDir = 1; }
+  allContacts.sort(function(a,b) {
+    var av = a[col], bv = b[col];
+    if(av===null||av===undefined) av = '';
+    if(bv===null||bv===undefined) bv = '';
+    return av < bv ? -sortDir : av > bv ? sortDir : 0;
+  });
+  filterRows();
+}
+
+async function loadCampaigns() {
+  var d = await fetch('/api/campaigns?workspace_id='+wsId).then(r=>r.json());
+  var sel = document.getElementById('campaign-select');
+  (d.items||[]).forEach(function(c) {
+    sel.innerHTML += '<option value="'+c.id+'">'+c.name+'</option>';
+  });
+}
+
+async function loadLists() {
+  var campId = document.getElementById('campaign-select').value;
+  var sel = document.getElementById('list-select');
+  sel.innerHTML = '<option value="">All lists</option>';
+  if(!campId) return;
+  var d = await fetch('/api/lists?workspace_id='+wsId).then(r=>r.json());
+  (d.items||[]).filter(l=>l.type==='contacts').forEach(function(l) {
+    sel.innerHTML += '<option value="'+l.id+'">'+l.name+' ('+l.contact_count+')</option>';
+  });
+}
+
+function onCampaignChange() { loadLists(); loadData(); }
+
+async function loadData() {
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('analytics-table').style.display = 'none';
+  
+  var campId = document.getElementById('campaign-select').value;
+  var url = '/api/contacts?workspace_id='+wsId+'&limit=5000';
+  if(campId) url += '&campaign_id='+campId;
+  
+  var d = await fetch(url).then(r=>r.json());
+  allContacts = d.items || [];
+  
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('analytics-table').style.display = '';
+  filterRows();
+}
+
+function exportCSV() {
+  var allCols = GROUPS.flatMap(g => g.cols);
+  var headers = ['#','id',...allCols.map(c=>c.k)];
+  var rows = filteredContacts.map(function(c,i) {
+    return [i+1, c.id, ...allCols.map(function(col){
+      var v = c[col.k];
+      if(v===null||v===undefined) return '';
+      if(typeof v==='object') return JSON.stringify(v).replace(/,/g,';');
+      return String(v).replace(/,/g,';').replace(/\n/g,' ');
+    })];
+  });
+  var csv = [headers,...rows].map(r=>r.join(',')).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'analytics-'+wsName+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+// Init
+buildHeaders();
+loadCampaigns();
+loadData();
+</script>
+</body>
+</html>
