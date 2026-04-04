@@ -71,8 +71,8 @@ router.post('/:id/re-analyze', async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
-    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ contact has not been messaged or replied yet' });
-    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ campaign missing account' });
+    if (!contact.chat_id)    return res.status(400).json({ error: 'No chat_id ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ contact has not been messaged or replied yet' });
+    if (!contact.account_id) return res.status(400).json({ error: 'No account_id ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ campaign missing account' });
 
     // Run async, return immediately
     analyzeConversation(contactId, contact.account_id, contact.chat_id)
@@ -182,7 +182,7 @@ router.post('/:id/send-invite', async (req, res) => {
     if (!rows.length) return res.status(404).json({ error: 'Contact not found' });
     const contact = rows[0];
     if (!contact.li_profile_url) return res.status(400).json({ error: 'Contact has no LinkedIn URL' });
-    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ provider_id missing' });
+    if (!contact.provider_id)    return res.status(400).json({ error: 'Contact not enriched yet ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ provider_id missing' });
     if (contact.invite_sent)     return res.status(400).json({ error: 'Invite already sent' });
     await sendInvitation(contact.account_id, contact.provider_id);
     await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contactId]);
@@ -232,7 +232,7 @@ router.delete('/', async (req, res) => {
 
 
 
-// POST /api/contacts/bulk-update ÃÂ¢ÃÂÃÂ update specific fields on a set of contact IDs
+// POST /api/contacts/bulk-update ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ update specific fields on a set of contact IDs
 // Body: { workspace_id, ids: [1,2,3], fields: { already_connected: true, msg_sequence: '...', ... } }
 router.post('/bulk-update', async (req, res) => {
   try {
@@ -262,6 +262,24 @@ router.post('/bulk-update', async (req, res) => {
     res.json({ success: true, updated: rowCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+// Trigger engagement scraper manually
+router.post('/run-engagement-scraper', async (req, res) => {
+  try {
+    const { campaign_id } = req.body;
+    const engScraper = require('../engagementScraper');
+    // run without await — fire and forget so response returns immediately
+    engScraper.run(campaign_id || null).then(r => {
+      console.log('[Manual trigger] engagement scraper done:', JSON.stringify(r));
+    }).catch(e => {
+      console.error('[Manual trigger] engagement scraper error:', e.message);
+    });
+    res.json({ success: true, message: 'Engagement scraper started', campaign_id: campaign_id || 'all' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
