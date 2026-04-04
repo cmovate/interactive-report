@@ -9,19 +9,19 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #F3F2EF; color: #191919; font-size: 14px; }
 
-/* ââ Topbar ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Topbar Ã¢ÂÂÃ¢ÂÂ */
 .topbar { background: white; border-bottom: 1px solid #E9E5DF; padding: 0 24px; display: flex; align-items: center; gap: 14px; height: 54px; position: sticky; top: 0; z-index: 20; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .topbar-logo { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: #1D9E75; letter-spacing: -0.3px; }
 .topbar-logo-dot { width: 8px; height: 8px; border-radius: 50%; background: linear-gradient(135deg,#1D9E75,#0A66C2); display: inline-block; }
 .topbar-spacer { flex: 1; }
 .topbar-badge { font-size: 11px; font-weight: 600; background: #F0FBF7; color: #0F6E56; border: 1px solid #B7E4D2; border-radius: 20px; padding: 3px 10px; }
 
-/* ââ Layout ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Layout Ã¢ÂÂÃ¢ÂÂ */
 .page { display: flex; gap: 20px; max-width: 980px; margin: 0 auto; padding: 20px 16px; }
 .feed-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
 .sidebar-col { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
 
-/* ââ Filter bar ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Filter bar Ã¢ÂÂÃ¢ÂÂ */
 .filter-bar { background: white; border: 1px solid #E9E5DF; border-radius: 12px; padding: 10px 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 .filter-label { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; }
 .filter-select { border: 1px solid #DED9D3; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-family: inherit; color: #333; background: white; cursor: pointer; flex: 1; }
@@ -30,7 +30,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .fetch-btn:hover { opacity: .9; }
 .fetch-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-/* ââ Post card ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Post card Ã¢ÂÂÃ¢ÂÂ */
 .post-card { background: white; border: 1px solid #E9E5DF; border-radius: 12px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: box-shadow .15s; }
 .post-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
 
@@ -72,7 +72,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .action-btn:hover { background: #F3F2EF; color: #333; }
 .action-btn .icon { font-size: 16px; }
 
-/* ââ Comments ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Comments Ã¢ÂÂÃ¢ÂÂ */
 .comments-section { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #F3F2EF; padding-top: 12px; }
 .comment { display: flex; gap: 8px; }
 .comment-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#EDE9FE,#DBEAFE); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #5B21B6; flex-shrink: 0; overflow: hidden; position: relative; }
@@ -98,7 +98,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .reply-text { font-size: 12px; color: #444; line-height: 1.4; margin-top: 2px; }
 .reply-time { font-size: 10px; color: #bbb; margin-top: 3px; }
 
-/* ââ Loading / Empty ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Loading / Empty Ã¢ÂÂÃ¢ÂÂ */
 .loading-card { background: white; border: 1px solid #E9E5DF; border-radius: 12px; padding: 48px; text-align: center; }
 .spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid #E9E5DF; border-top-color: #1D9E75; border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -107,14 +107,14 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .empty-title { font-size: 16px; font-weight: 600; color: #333; margin-bottom: 8px; }
 .empty-sub { font-size: 13px; color: #888; line-height: 1.7; }
 
-/* ââ Pagination ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Pagination Ã¢ÂÂÃ¢ÂÂ */
 .pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 0 4px; }
 .pg-btn { background: white; border: 1px solid #DED9D3; border-radius: 8px; padding: 7px 16px; font-size: 13px; cursor: pointer; font-family: inherit; color: #555; transition: all .12s; }
 .pg-btn:hover:not(:disabled) { background: #F0FBF7; border-color: #1D9E75; color: #1D9E75; }
 .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
 .pg-info { font-size: 12px; color: #888; }
 
-/* ââ Sidebar widgets ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Sidebar widgets Ã¢ÂÂÃ¢ÂÂ */
 .widget { background: white; border: 1px solid #E9E5DF; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 .widget-title { font-size: 13px; font-weight: 700; color: #191919; margin-bottom: 12px; display: flex; align-items: center; gap: 7px; }
 .widget-title-icon { font-size: 16px; }
@@ -126,6 +126,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 
 #list-filter-feed { min-width: 140px; }
 
+.new-posts-bar{display:none;position:sticky;top:0;z-index:100;background:#1D9E75;color:white;text-align:center;padding:10px;font-size:13px;font-weight:600;cursor:pointer;border-radius:8px;margin-bottom:12px;box-shadow:0 2px 8px rgba(29,158,117,.3);}
+.new-posts-bar:hover{background:#178f68;}
 </style>
 </head>
 <body>
@@ -145,7 +147,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
     <!-- Filter bar -->
     
 
-    <div id="feed-wrap"></div>
+    <div id="new-posts-bar" class="new-posts-bar" onclick="loadFeed()"></div>
+<div id="feed-wrap"></div>
 
     <div class="pagination" id="pagination" style="display:none;">
       <button class="pg-btn" id="pg-prev" onclick="changePage(-1)" disabled>&#8592; Prev</button>
@@ -158,10 +161,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
     <div class="widget">
       <div class="widget-title"><span class="widget-title-icon">&#128200;</span> Feed stats</div>
       <div class="date-badge" id="cutoff-badge">&#128197; Showing posts from the last 14 days</div>
-      <div class="stat-row"><span class="stat-lbl">Posts</span><span class="stat-val" id="st-posts">â</span></div>
-      <div class="stat-row"><span class="stat-lbl">Comments</span><span class="stat-val" id="st-comments">â</span></div>
-      <div class="stat-row"><span class="stat-lbl">Contacts</span><span class="stat-val" id="st-contacts">â</span></div>
-      <div class="stat-row"><span class="stat-lbl">Avg likes/post</span><span class="stat-val" id="st-avg-likes">â</span></div>
+      <div class="stat-row"><span class="stat-lbl">Posts</span><span class="stat-val" id="st-posts">Ã¢ÂÂ</span></div>
+      <div class="stat-row"><span class="stat-lbl">Comments</span><span class="stat-val" id="st-comments">Ã¢ÂÂ</span></div>
+      <div class="stat-row"><span class="stat-lbl">Contacts</span><span class="stat-val" id="st-contacts">Ã¢ÂÂ</span></div>
+      <div class="stat-row"><span class="stat-lbl">Avg likes/post</span><span class="stat-val" id="st-avg-likes">Ã¢ÂÂ</span></div>
     </div>
   </div>
 </div>
@@ -174,8 +177,9 @@ let selectedCampaign = null;
 let currentPage      = 1;
 const PAGE_SIZE      = 20;
 let totalPosts       = 0;
+let lastSeenAt       = null;
 
-// ââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -224,7 +228,7 @@ function avatarHtml(url, name, size) {
   return inner + '<span class="ini">' + i + '</span>';
 }
 
-// ââ Data âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Data Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 async function loadCampaigns() {
   try {
@@ -251,16 +255,21 @@ function onCampaignChange() {
 
 async function loadFeed() {
   const wrap = document.getElementById('feed-wrap');
+  var bar=document.getElementById('new-posts-bar'); if(bar) bar.style.display='none';
   wrap.innerHTML = '<div class="loading-card"><div class="spinner"></div><p style="margin-top:14px;color:#aaa;font-size:13px;">Loading feed&hellip;</p></div>';
   document.getElementById('pagination').style.display = 'none';
 
   try {
     const params = new URLSearchParams({ workspace_id: workspaceId, page: currentPage, limit: PAGE_SIZE });
-    // no campaign filter — show all
+    // no campaign filter â show all
     const res  = await fetch('/api/feed?' + params);
     const data = await res.json();
     const posts = data.items || [];
     totalPosts  = data.total || 0;
+    // Track newest post for auto-refresh
+    if (currentPage === 1 && posts[0] && posts[0].posted_at) {
+      lastSeenAt = posts[0].posted_at;
+    }
 
     // Stats
     document.getElementById('st-posts').textContent = totalPosts.toLocaleString();
@@ -273,7 +282,7 @@ async function loadFeed() {
     });
     document.getElementById('st-comments').textContent = totalComments;
     document.getElementById('st-avg-likes').textContent = posts.length
-      ? (totalLikes / posts.length).toFixed(1) : 'â';
+      ? (totalLikes / posts.length).toFixed(1) : 'Ã¢ÂÂ';
 
     if (!posts.length) {
       wrap.innerHTML = '<div class="empty-card"><div class="empty-icon">&#128240;</div><div class="empty-title">No posts in the last 14 days</div><div class="empty-sub">Click "Fetch posts" to import recent LinkedIn activity<br>from your campaign contacts.</div></div>';
@@ -295,7 +304,7 @@ async function loadFeed() {
   }
 }
 
-// ââ Render post âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Render post Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 function renderPost(post) {
   const name        = esc(post.author_name || 'Unknown');
@@ -314,7 +323,7 @@ function renderPost(post) {
   const content = esc(post.content || '').replace(/\n/g, '<br>');
   const isLong  = (post.content || '').length > 350;
   const bodyHtml = isLong
-    ? '<div class="post-body clamped" id="pb-' + post.id + '">' + content + '</div><span class="see-more-btn" onclick="expandPost(' + post.id + ')">â¦see more</span>'
+    ? '<div class="post-body clamped" id="pb-' + post.id + '">' + content + '</div><span class="see-more-btn" onclick="expandPost(' + post.id + ')">Ã¢ÂÂ¦see more</span>'
     : '<div class="post-body">' + content + '</div>';
 
   const likes    = post.likes_count    || 0;
@@ -360,7 +369,7 @@ function renderPost(post) {
     </div>`;
 }
 
-// ââ Render comments âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Render comments Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 function renderComments(comments) {
   if (!comments.length) return '';
@@ -409,7 +418,7 @@ function renderReply(r) {
     </div>`;
 }
 
-// ââ Actions âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Actions Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
 function expandPost(id) {
   const el = document.getElementById('pb-' + id);
@@ -444,7 +453,7 @@ async function triggerFetch() {
   }
 }
 
-// ââ Init ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢ÂÂÃ¢ÂÂ Init Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 loadCampaigns().then(loadFeed);
 
 var _feedListId = null;
@@ -469,6 +478,27 @@ function applyFeedListFilter() {
   if (typeof loadFeed === 'function') loadFeed();
   else if (typeof init === 'function') init();
 }
+
+
+// Auto-refresh: poll every 60s for new posts
+async function checkForNew() {
+  if (!lastSeenAt || currentPage !== 1) return;
+  try {
+    var params = new URLSearchParams({ workspace_id: workspaceId, page: 1, limit: 1 });
+    var data = await fetch('/api/feed?' + params).then(function(r){ return r.json(); });
+    var items = data.items || [];
+    if (items[0] && items[0].posted_at && items[0].posted_at > lastSeenAt) {
+      var bar = document.getElementById('new-posts-bar');
+      if (bar) {
+        bar.textContent = '🔔 New posts available — click to refresh';
+        bar.style.display = 'block';
+      }
+    }
+  } catch(e) { /* silent */ }
+}
+
+// Start polling when on page 1
+setInterval(checkForNew, 60000);
 
 </script>
 </body>
