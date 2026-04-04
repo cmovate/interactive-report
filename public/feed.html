@@ -547,9 +547,9 @@ function applyFeedListFilter() {
   const sel = document.getElementById('list-filter-feed');
   _feedListId = sel && sel.value ? parseInt(sel.value) : null;
   if (typeof loadFeed === 'function') loadFeed();
+  else if (typeof init === 'function') init();
   // Load workspace accounts for comment selector
   fetch('/api/workspaces/' + workspaceId + '/accounts').then(function(r){return r.json();}).then(function(d){ workspaceAccounts = d.items || []; });
-  else if (typeof init === 'function') init();
 }
 
 
