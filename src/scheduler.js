@@ -88,7 +88,7 @@ async function scanListOpportunities(workspaceId, listId) {
               }
             } else {
               const { rows: ins } = await db.query(
-                "INSERT INTO contacts (workspace_id,campaign_id,first_name,last_name,title,company,li_profile_url,li_company_url,connected_via,already_connected) VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8::jsonb,true) ON CONFLICT (workspace_id,li_profile_url) DO UPDATE SET li_company_url=EXCLUDED.li_company_url, connected_via=EXCLUDED.connected_via, title=COALESCE(NULLIF(EXCLUDED.title,''), contacts.title) RETURNING id",
+                "INSERT INTO contacts (workspace_id,campaign_id,first_name,last_name,title,company,li_profile_url,li_company_url,connected_via,already_connected) VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8::jsonb,true) ON CONFLICT (workspace_id,li_profile_url) DO UPDATE SET li_company_url=EXCLUDED.li_company_url, connected_via=EXCLUDED.connected_via, first_name=COALESCE(NULLIF(EXCLUDED.first_name,''), contacts.first_name), last_name=COALESCE(NULLIF(EXCLUDED.last_name,''), contacts.last_name), title=COALESCE(NULLIF(EXCLUDED.title,''), contacts.title) RETURNING id",
                 [workspaceId, c.first_name, c.last_name, c.headline, c.company, c.li_profile_url, co.li_company_url || '', JSON.stringify(c.connected_via)]
               );
               if (ins[0]?.id) { enqueue(ins[0].id, accounts[0].account_id, c.li_profile_url); totalAdded++; }
