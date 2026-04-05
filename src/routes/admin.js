@@ -377,4 +377,59 @@ router.get('/test-get-post', async (req, res) => {
   } catch(e) { res.status(500).json({error: e.message}); }
 });
 
+// POST /api/admin/enrich-campaign
+// Fixes bad li_profile_url (missing https://) and queues all contacts
+// without provider_id for enrichment so invitationSender can process them.
+router.post('/enrich-campaign', async (req, res) => {
+  try {
+    const { campaign_id, workspace_id } = req.body;
+    if (!campaign_id || !workspace_id) return res.status(400).json({ error: 'campaign_id and workspace_id required' });
+
+    // Step 1: Fix URLs missing https://
+    const urlFix = await db.query(
+      `UPDATE contacts
+         SET li_profile_url = 'https://' || li_profile_url
+       WHERE campaign_id = $1
+         AND li_profile_url IS NOT NULL
+         AND li_profile_url != ''
+         AND li_profile_url NOT LIKE 'http%'`,
+      [campaign_id]
+    );
+
+    // Step 2: Get all contacts without provider_id
+    const { rows: contacts } = await db.query(
+      `SELECT id, li_profile_url FROM contacts
+        WHERE campaign_id = $1
+          AND (provider_id IS NULL OR provider_id = '')
+          AND li_profile_url LIKE '%linkedin.com/in/%'
+        ORDER BY id
+        LIMIT 2000`,
+      [campaign_id]
+    );
+
+    // Step 3: Get a workspace account for enrichment
+    const { rows: camp } = await db.query('SELECT account_id FROM campaigns WHERE id=$1', [campaign_id]);
+    if (!camp.length) return res.json({ error: 'campaign not found' });
+    const accountId = camp[0].account_id;
+
+    // Step 4: Enqueue all contacts
+    const { enqueue } = require('../enrichment');
+    let queued = 0;
+    for (const c of contacts) {
+      enqueue(c.id, accountId, c.li_profile_url);
+      queued++;
+    }
+
+    res.json({
+      url_fixes: urlFix.rowCount,
+      queued_for_enrichment: queued,
+      total_contacts: contacts.length,
+      account_id: accountId
+    });
+  } catch(e) {
+    console.error('[enrich-campaign]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
