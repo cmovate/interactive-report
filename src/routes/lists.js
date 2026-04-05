@@ -525,33 +525,27 @@ router.post('/:id/resolve-ids', async (req, res) => {
     );
     if (!companies.length) return res.json({ resolved: 0, message: 'All companies already have IDs' });
 
-    let resolved = 0, failed = 0;
-    const results = [];
+    // Fire-and-forget: respond immediately, resolve in background
+    res.json({ status: 'started', total: companies.length, message: 'Resolving LinkedIn IDs in background...' });
 
-    for (const comp of companies) {
-      try {
-        const slug = (comp.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || comp.company_name;
-        const companyId = await lookupCompany(accountId, slug, comp.company_name);
-        if (companyId) {
-          await db.query(
-            'UPDATE list_companies SET company_linkedin_id=$1 WHERE id=$2',
-            [companyId, comp.id]
-          );
-          resolved++;
-          results.push({ company: comp.company_name, id: companyId, ok: true });
-        } else {
+    (async () => {
+      let resolved = 0, failed = 0;
+      for (const comp of companies) {
+        try {
+          const slug = (comp.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || comp.company_name;
+          const companyId = await lookupCompany(accountId, slug, comp.company_name);
+          if (companyId) {
+            await db.query('UPDATE list_companies SET company_linkedin_id=$1 WHERE id=$2', [companyId, comp.id]);
+            resolved++;
+          } else { failed++; }
+          await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
           failed++;
-          results.push({ company: comp.company_name, ok: false, reason: 'lookup returned null' });
+          console.warn('[Lists] resolve-ids failed for', comp.company_name, e.message);
         }
-        // Small delay to respect rate limits
-        await new Promise(r => setTimeout(r, 400));
-      } catch (e) {
-        failed++;
-        results.push({ company: comp.company_name, ok: false, reason: e.message });
       }
-    }
-
-    res.json({ resolved, failed, total: companies.length, results });
+      console.log('[Lists] resolve-ids done: resolved=' + resolved + ' failed=' + failed + ' / ' + companies.length);
+    })().catch(e => console.error('[Lists] resolve-ids bg error:', e.message));
   } catch (e) {
     console.error('[Lists] resolve-ids error:', e.message);
     res.status(500).json({ error: e.message });
