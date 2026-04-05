@@ -222,6 +222,42 @@ router.get('/', async (req, res) => {
     }
 
     const items = posts.map(p => ({ ...p, comments: commentsByPost[p.id] || [] }));
+
+    // Background: fetch & cache parent posts that are missing from DB
+    const missingUrns = [...new Set(
+      posts.filter(p => p.parent_post_urn && !p.parent_author_name).map(p => p.parent_post_urn)
+    )];
+    if (missingUrns.length > 0) {
+      (async () => {
+        try {
+          const { rows: accs } = await db.query(
+            'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]
+          );
+          if (!accs.length) return;
+          const accountId = accs[0].account_id;
+          for (const urn of missingUrns) {
+            try {
+              const raw = await getPost(accountId, urn);
+              if (!raw) continue;
+              const np = normalisePost(raw, null);
+              if (!np.post_urn) continue;
+              await db.query(
+                `INSERT INTO linkedin_posts
+                   (campaign_id,workspace_id,contact_id,post_urn,author_name,author_title,
+                    author_profile_url,author_avatar_url,content,likes_count,comments_count,
+                    shares_count,posted_at)
+                 VALUES (NULL,$1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+                 ON CONFLICT (post_urn) DO NOTHING`,
+                [workspace_id, np.post_urn, np.author_name, np.author_title,
+                 np.author_profile_url, np.author_avatar_url, np.content,
+                 np.likes_count||0, np.comments_count||0, np.shares_count||0, np.posted_at]
+              );
+            } catch(e) { /* skip individual failures */ }
+          }
+        } catch(e) { /* skip all */ }
+      })();
+    }
+
     res.json({ items, total, page, limit, pages: Math.ceil(total / limit) || 1 });
   } catch (err) {
     console.error('[Feed] GET error:', err.message);
