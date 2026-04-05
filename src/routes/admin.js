@@ -491,7 +491,7 @@ router.post('/register-message-webhooks', async (req, res) => {
       `SELECT account_id, display_name FROM unipile_accounts WHERE msg_webhook_id IS NULL`
     );
 
-    let registered = 0, failed = 0;
+    let registered = 0, failed = 0, errors = [];
     for (const acc of accounts) {
       try {
         const wId = await createMessageWebhook(acc.account_id, SERVER_URL);
@@ -501,13 +501,28 @@ router.post('/register-message-webhooks', async (req, res) => {
           registered++;
         }
       } catch(e) {
-        console.warn('[Admin] msg webhook failed for', acc.account_id, ':', e.message);
+        console.warn('[Admin] msg webhook FAILED for', acc.account_id, ':', e.message);
+        errors.push({ account_id: acc.account_id, error: e.message });
         failed++;
       }
     }
-    res.json({ registered, failed, total: accounts.length });
+    res.json({ registered, failed, total: accounts.length, errors });
   } catch(e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/admin/test-create-msg-webhook?account_id=X — test single account
+router.get('/test-create-msg-webhook', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    if (!account_id) return res.status(400).json({ error: 'account_id required' });
+    const SERVER_URL = process.env.SERVER_URL || 'https://interactive-report-production-0c5d.up.railway.app';
+    const { createMessageWebhook } = require('../unipile');
+    const wId = await createMessageWebhook(account_id, SERVER_URL);
+    res.json({ webhook_id: wId, account_id });
+  } catch(e) {
+    res.status(500).json({ error: e.message, stack: e.stack?.split('\n').slice(0,3).join(' | ') });
   }
 });
 
