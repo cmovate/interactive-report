@@ -29,10 +29,10 @@ const { getChatMessages, sendMessage, startDirectMessage } = require('../unipile
  * Upserts into inbox_messages (dedup by unipile_msg_id).
  * Returns { added, total } counts.
  */
-async function syncThreadMessages(threadDbId, chatId, accountId) {
+async function syncThreadMessages(threadDbId, chatId, accountId, maxMessages = 20) {
   let messages;
   try {
-    messages = await getChatMessages(accountId, chatId, 200);
+    messages = await getChatMessages(accountId, chatId, maxMessages);
   } catch (err) {
     console.warn(`[Inbox] getChatMessages failed for chat ${chatId}: ${err.message}`);
     return { added: 0, total: 0 };
@@ -80,12 +80,14 @@ async function syncThreadMessages(threadDbId, chatId, accountId) {
  * Background sync: iterates all accounts in workspace, fetches their chat list,
  * matches chats to campaign contacts by provider_id, upserts threads + messages.
  */
-async function syncWorkspaceInbox(workspaceId) {
-  console.log(`[Inbox] Syncing workspace ${workspaceId}...`);
+async function syncWorkspaceInbox(workspaceId, specificAccountId = null) {
+  console.log(`[Inbox] Syncing workspace ${workspaceId}` + (specificAccountId ? ` account ${specificAccountId}` : '') + '...');
 
   const { rows: accounts } = await db.query(
-    'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1',
-    [workspaceId]
+    specificAccountId
+      ? 'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2'
+      : 'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1',
+    specificAccountId ? [workspaceId, specificAccountId] : [workspaceId]
   );
 
   for (const { account_id } of accounts) {
@@ -96,7 +98,7 @@ async function syncWorkspaceInbox(workspaceId) {
       const UNIPILE_DSN     = process.env.UNIPILE_DSN;
       const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
       const chatRes = await fetch(
-        `${UNIPILE_DSN}/api/v1/chats?account_id=${encodeURIComponent(account_id)}&limit=200`,
+        `${UNIPILE_DSN}/api/v1/chats?account_id=${encodeURIComponent(account_id)}&limit=50`,
         { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
       );
       if (!chatRes.ok) {
@@ -157,7 +159,7 @@ async function syncWorkspaceInbox(workspaceId) {
         if (!threadDbId) continue;
 
         // Sync messages for this thread
-        await syncThreadMessages(threadDbId, chatId, account_id);
+        await syncThreadMessages(threadDbId, chatId, account_id, 20);
 
         await new Promise(r => setTimeout(r, 800));
       }
@@ -184,8 +186,9 @@ router.get('/', async (req, res) => {
     const offset = (page - 1) * limit;
     const filter = req.query.filter || 'all'; // all | unread | replied
 
-    const conditions = ['t.workspace_id = $1',
-      'EXISTS (SELECT 1 FROM list_contacts lc WHERE lc.contact_id = t.contact_id)'];
+    const conditions = ['t.workspace_id = $1'];
+    const { account_id: accountFilter } = req.query;
+    if (accountFilter) { conditions.push(`t.account_id = ${params.length + 1}`); params.push(accountFilter); }
     const params     = [workspace_id];
 
     if (campaign_id) {
