@@ -223,4 +223,56 @@ router.post('/backfill-li-company-url', async (req, res) => {
   }
 });
 
+// POST /api/admin/backfill-names
+// Enriches contacts that have no first_name/last_name by calling enrichProfile.
+// Runs in background — responds immediately.
+router.post('/backfill-names', async (req, res) => {
+  try {
+    const { workspace_id, limit = 200 } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Get contacts without names
+    const { rows: contacts } = await db.query(
+      "SELECT id, li_profile_url FROM contacts WHERE workspace_id=$1 AND campaign_id IS NULL AND (first_name IS NULL OR first_name = '') AND li_profile_url IS NOT NULL AND li_profile_url != '' LIMIT $2",
+      [workspace_id, limit]
+    );
+
+    // Get one account for enrichment
+    const { rows: accounts } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',
+      [workspace_id]
+    );
+
+    if (!accounts.length) return res.json({ error: 'no accounts' });
+    const accountId = accounts[0].account_id;
+
+    res.json({ status: 'started', total: contacts.length });
+
+    const { enrichProfile } = require('../unipile');
+
+    (async () => {
+      let updated = 0, failed = 0;
+      for (const c of contacts) {
+        try {
+          const data = await enrichProfile(accountId, c.li_profile_url);
+          if (data && (data.first_name || data.last_name)) {
+            await db.query(
+              "UPDATE contacts SET first_name=COALESCE(NULLIF($2,''), first_name), last_name=COALESCE(NULLIF($3,''), last_name) WHERE id=$1",
+              [c.id, data.first_name || '', data.last_name || '']
+            );
+            updated++;
+          } else { failed++; }
+          await new Promise(r => setTimeout(r, 800));
+        } catch(e) {
+          failed++;
+          console.warn('[backfill-names] err:', e.message);
+        }
+      }
+      console.log('[backfill-names] done: updated=' + updated + ' failed=' + failed + ' / ' + contacts.length);
+    })().catch(e => console.error('[backfill-names] bg error:', e.message));
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
