@@ -111,7 +111,14 @@ async function sendBatch(accountId, contacts) {
       console.log(`[InvitationSender] ✓ Sent to ${contact.provider_id} (contact ${contact.id}, campaign ${contact.campaign_id})`);
       await sleep(30000 + Math.random() * 60000);
     } catch (err) {
-      console.error(`[InvitationSender] ✗ contact ${contact.id}: ${err.message}`);
+      const msg = err.message || '';
+      if (msg.includes('cannot_resend_yet') || msg.includes('already_connected')) {
+        // Already has pending invite or is connected — mark done to skip next time
+        await db.query('UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1', [contact.id]).catch(()=>{});
+        console.log(`[InvitationSender] contact ${contact.id} — already invited/connected, marking done`);
+      } else {
+        console.error(`[InvitationSender] ✗ contact ${contact.id}: ${msg}`);
+      }
     }
   }
 
