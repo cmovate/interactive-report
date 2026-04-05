@@ -328,7 +328,7 @@ router.post('/backfill-names-from-slug', async (req, res) => {
   }
 });
 
-// GET /api/admin/test-get-post?workspace_id=X&urn=Y
+// GET /api/admin/test-get-post?workspace_id=X&urn=Y  — also inserts parent post
 router.get('/test-get-post', async (req, res) => {
   try {
     const { workspace_id, urn } = req.query;
@@ -336,7 +336,44 @@ router.get('/test-get-post', async (req, res) => {
     if (!accs.length) return res.json({error:'no accounts'});
     const { getPost } = require('../unipile');
     const raw = await getPost(accs[0].account_id, urn);
-    res.json({ raw_keys: raw ? Object.keys(raw) : null, raw_sample: JSON.stringify(raw).substring(0,500) });
+    if (!raw) return res.json({error:'no raw data returned'});
+    
+    const postUrn    = raw.id || raw.social_id || urn;
+    const authorName = (raw.author && (raw.author.name ||
+                        ((raw.author.first_name||'') + ' ' + (raw.author.last_name||'')).trim())) || 'Unknown';
+    const authorTitle = (raw.author && (raw.author.headline || raw.author.occupation)) || '';
+    const authorPic   = (raw.author && (raw.author.picture_url || raw.author.profile_picture_url ||
+                          (Array.isArray(raw.author.profile_picture) ?
+                            raw.author.profile_picture[raw.author.profile_picture.length-1]?.url : null))) || '';
+    const authorUrl   = raw.author?.public_identifier
+                          ? 'https://www.linkedin.com/in/' + raw.author.public_identifier
+                          : (raw.author?.profile_url || '');
+    const content     = raw.text || raw.content || '';
+    const postedAt    = raw.date || raw.parsed_datetime || null;
+
+    let insertResult = 'skipped';
+    try {
+      const { rowCount } = await db.query(
+        `INSERT INTO linkedin_posts
+           (campaign_id,workspace_id,contact_id,post_urn,author_name,author_title,
+            author_profile_url,author_avatar_url,content,likes_count,comments_count,shares_count,posted_at)
+         VALUES (NULL,$1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (post_urn) DO UPDATE SET
+           author_name=EXCLUDED.author_name,
+           author_title=EXCLUDED.author_title,
+           author_avatar_url=EXCLUDED.author_avatar_url,
+           content=EXCLUDED.content`,
+        [workspace_id, postUrn, authorName, authorTitle, authorUrl, authorPic,
+         content, raw.reaction_counter||0, raw.comment_counter||0, raw.repost_counter||0, postedAt]
+      );
+      insertResult = 'ok rows=' + rowCount;
+    } catch(e2) { insertResult = 'INSERT ERROR: ' + e2.message; }
+
+    res.json({
+      postUrn, authorName, authorTitle, authorPic: authorPic?.substring(0,60),
+      authorUrl, content: content.substring(0,100), insertResult,
+      raw_author_keys: raw.author ? Object.keys(raw.author) : null
+    });
   } catch(e) { res.status(500).json({error: e.message}); }
 });
 
