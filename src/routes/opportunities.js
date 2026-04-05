@@ -686,7 +686,7 @@ router.get('/cached-contacts', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const { rows } = await db.query(
       `SELECT id, first_name, last_name, company, title, li_profile_url,
-              li_company_url, provider_id, already_connected
+              li_company_url, provider_id, already_connected, connected_via
        FROM contacts
        WHERE workspace_id = $1 AND campaign_id IS NULL
        AND li_company_url IS NOT NULL AND li_company_url != '' AND li_company_url LIKE '%/company/%'
