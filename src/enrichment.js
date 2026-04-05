@@ -113,6 +113,24 @@ async function processNext() {
     const fields  = extractFields(profile, item.contactId);
     await applyToDb(item.contactId, fields, profile);
     await upsertCampaignCompany(item.contactId, fields);
+    // Cross-campaign sync: copy provider_id to other contacts with same URL in same workspace
+    if (fields.providerId) {
+      try {
+        await db.query(`
+          UPDATE contacts AS t
+          SET    provider_id  = src.provider_id,
+                 member_urn   = COALESCE(t.member_urn,   src.member_urn),
+                 profile_data = COALESCE(t.profile_data, src.profile_data)
+          FROM   contacts AS src
+          WHERE  src.id          = $1
+            AND  t.id           != src.id
+            AND  t.workspace_id  = src.workspace_id
+            AND  (t.provider_id IS NULL OR t.provider_id = '')
+            AND  LOWER(REGEXP_REPLACE(t.li_profile_url,   '^https?://', '')) =
+                 LOWER(REGEXP_REPLACE(src.li_profile_url, '^https?://', ''))
+        `, [item.contactId]);
+      } catch(e) { /* non-critical — log but continue */ console.warn('[Enrichment] cross-sync failed:', e.message); }
+    }
 
     let hasChatHistory = false;
     if (fields.alreadyConnected && fields.providerId) {
