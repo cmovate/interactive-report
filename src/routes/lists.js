@@ -276,7 +276,19 @@ router.patch('/:id/companies/:companyId', async (req, res) => {
     const { workspace_id, company_linkedin_id, company_name } = req.body;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const sets = [], vals = [companyId, workspace_id];
-    if (company_linkedin_id !== undefined) { sets.push('company_linkedin_id=
+    if (company_linkedin_id !== undefined) { sets.push(`company_linkedin_id=${vals.push(company_linkedin_id) + 1}`); }
+    if (company_name !== undefined) { sets.push(`company_name=${vals.push(company_name) + 1}`); }
+    if (!sets.length) return res.json({ success: true });
+    await db.query(
+      `UPDATE list_companies SET ${sets.join(', ')} WHERE id=$1 AND workspace_id=$2`,
+      vals
+    );
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── DELETE /:id/companies/:companyId ─────────────────────────────────────────
+router.delete('/:id/companies/:companyId', async (req, res) => {
   try {
     const { workspace_id } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
