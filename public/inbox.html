@@ -315,7 +315,7 @@ async function triggerSync() {
   } catch(e) { btn.disabled=false; btn.textContent='↻ Sync'; }
 }
 
-loadCampaigns().then(loadThreads);
+loadCampaigns(); loadAccounts();
 </script>
 </body>
 </html>

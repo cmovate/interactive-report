@@ -221,7 +221,7 @@ router.get('/', async (req, res) => {
          camp.name   AS campaign_name
        FROM inbox_threads t
        JOIN contacts  c    ON c.id   = t.contact_id
-       JOIN campaigns camp ON camp.id = t.campaign_id
+       LEFT JOIN campaigns camp ON camp.id = t.campaign_id
        WHERE ${where}
        ORDER BY t.last_message_at DESC NULLS LAST, t.updated_at DESC
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
