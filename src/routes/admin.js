@@ -538,7 +538,7 @@ router.get('/test-create-msg-webhook', async (req, res) => {
   }
 });
 
-// POST /api/admin/enrich-inbox-contacts — enriches contacts in inbox with empty names
+// POST /api/admin/enrich-inbox-contacts — enriches inbox contacts with empty names
 router.post('/enrich-inbox-contacts', async (req, res) => {
   try {
     const { workspace_id } = req.body;
@@ -546,15 +546,14 @@ router.post('/enrich-inbox-contacts', async (req, res) => {
     
     const { enrichProfile } = require('../unipile');
     
-    // Find contacts with no name that have a provider_id and are in inbox threads
+    // Find contacts with no name that are in inbox threads — use li_profile_url
     const { rows: contacts } = await db.query(
-      `SELECT DISTINCT c.id, c.provider_id, c.li_profile_url, ua.account_id
+      `SELECT DISTINCT c.id, c.li_profile_url, t.account_id
        FROM contacts c
        JOIN inbox_threads t ON t.contact_id = c.id
-       JOIN unipile_accounts ua ON ua.workspace_id = t.workspace_id AND ua.account_id = t.account_id
        WHERE c.workspace_id = $1
          AND (c.first_name IS NULL OR c.first_name = '')
-         AND c.provider_id IS NOT NULL
+         AND c.li_profile_url IS NOT NULL AND c.li_profile_url != ''
        LIMIT 100`,
       [workspace_id]
     );
@@ -562,16 +561,21 @@ router.post('/enrich-inbox-contacts', async (req, res) => {
     let enriched = 0;
     for (const c of contacts) {
       try {
-        const profile = await enrichProfile(c.account_id, c.li_profile_url || ('https://www.linkedin.com/in/' + c.provider_id));
+        const profile = await enrichProfile(c.account_id, c.li_profile_url);
         if (profile && (profile.first_name || profile.full_name)) {
           const nameParts = (profile.full_name || '').split(' ');
           const fn = profile.first_name || nameParts[0] || '';
           const ln = profile.last_name || nameParts.slice(1).join(' ') || '';
-          await db.query('UPDATE contacts SET first_name=$1, last_name=$2, title=$3, provider_id=$4 WHERE id=$5',
-            [fn, ln, profile.headline || profile.title || null, c.provider_id, c.id]);
+          const title = profile.headline || profile.title || null;
+          const providerId = profile.provider_id || profile.id || null;
+          await db.query(
+            'UPDATE contacts SET first_name=$1, last_name=$2, title=$3, provider_id=COALESCE(provider_id,$4) WHERE id=$5',
+            [fn, ln, title, providerId, c.id]
+          );
           enriched++;
+          console.log('[Admin] enriched contact', c.id, fn, ln);
         }
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 700));
       } catch(e) { console.warn('[Admin] enrich contact', c.id, ':', e.message); }
     }
     res.json({ enriched, total: contacts.length });
