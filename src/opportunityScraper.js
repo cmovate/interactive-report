@@ -115,21 +115,34 @@ async function scanWorkspace(workspaceId) {
           const liUrl = p.public_profile_url || p.li_profile_url || '';
           if (!liUrl.includes('linkedin.com/in/')) continue;
           // Dedup: skip if already in DB for this workspace
+          const coUrl = 'https://www.linkedin.com/company/' + companyId;
+          const connVia = JSON.stringify([{ account_id: acc.account_id, name: acc.display_name }]);
           const { rows: dup } = await db.query(
-            'SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
+            'SELECT id, connected_via FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
             [workspaceId, liUrl]
           );
-          if (dup.length) continue;
-          // Insert as opportunity contact
-          const coUrl = 'https://www.linkedin.com/company/' + companyId;
+          if (dup.length) {
+            // Existing contact — update connected_via (add this account if not already there)
+            const existing = dup[0];
+            const existingVia = Array.isArray(existing.connected_via) ? existing.connected_via : [];
+            if (!existingVia.some(v => v.account_id === acc.account_id)) {
+              const merged = JSON.stringify([...existingVia, { account_id: acc.account_id, name: acc.display_name }]);
+              await db.query(
+                'UPDATE contacts SET connected_via = $2::jsonb WHERE id = $1',
+                [existing.id, merged]
+              );
+            }
+            continue;
+          }
+          // Insert as opportunity contact with connected_via
           const { rows: ins } = await db.query(
             `INSERT INTO contacts
                (workspace_id, campaign_id, first_name, last_name, company, title,
-                li_profile_url, li_company_url, already_connected)
-             VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true)
+                li_profile_url, li_company_url, already_connected, connected_via)
+             VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true, $8::jsonb)
              RETURNING id`,
             [workspaceId, p.first_name||'', p.last_name||'',
-             p.company||p.current_company||'', p.headline||'', liUrl, coUrl]
+             p.company||p.current_company||'', p.headline||'', liUrl, coUrl, connVia]
           );
           if (ins[0]?.id) {
             added++;
