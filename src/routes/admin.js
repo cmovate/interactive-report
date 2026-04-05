@@ -432,4 +432,48 @@ router.post('/enrich-campaign', async (req, res) => {
   }
 });
 
+// POST /api/admin/copy-provider-ids
+// Copies provider_id from contacts that already have it to contacts in a
+// target campaign that share the same li_profile_url (same person, different campaign).
+// Much faster than re-enriching when both campaigns use the same list.
+router.post('/copy-provider-ids', async (req, res) => {
+  try {
+    const { target_campaign_id, workspace_id } = req.body;
+    if (!target_campaign_id || !workspace_id)
+      return res.status(400).json({ error: 'target_campaign_id and workspace_id required' });
+
+    // UPDATE contacts in the target campaign by joining on normalised URL
+    // to any other contact in the same workspace that already has provider_id
+    const { rowCount } = await db.query(`
+      UPDATE contacts AS t
+      SET    provider_id  = src.provider_id,
+             member_urn   = src.member_urn,
+             profile_data = COALESCE(t.profile_data, src.profile_data)
+      FROM   contacts AS src
+      WHERE  t.campaign_id  = $1
+        AND  t.workspace_id = $2
+        AND  (t.provider_id IS NULL OR t.provider_id = '')
+        AND  src.workspace_id = $2
+        AND  (src.provider_id IS NOT NULL AND src.provider_id <> '')
+        AND  LOWER(REGEXP_REPLACE(t.li_profile_url,   '^https?://', '')) =
+             LOWER(REGEXP_REPLACE(src.li_profile_url, '^https?://', ''))
+    `, [target_campaign_id, workspace_id]);
+
+    // Count remaining contacts still missing provider_id
+    const { rows: remaining } = await db.query(`
+      SELECT COUNT(*) AS cnt FROM contacts
+      WHERE campaign_id = $1
+        AND (provider_id IS NULL OR provider_id = '')
+    `, [target_campaign_id]);
+
+    res.json({
+      copied: rowCount,
+      still_missing: parseInt(remaining[0].cnt, 10)
+    });
+  } catch(e) {
+    console.error('[copy-provider-ids]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
