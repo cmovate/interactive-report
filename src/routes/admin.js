@@ -538,47 +538,48 @@ router.get('/test-create-msg-webhook', async (req, res) => {
   }
 });
 
-// POST /api/admin/enrich-inbox-contacts — enriches inbox contacts with empty names
+// POST /api/admin/enrich-inbox-contacts — background enrichment of inbox contacts with empty names
 router.post('/enrich-inbox-contacts', async (req, res) => {
   try {
-    const { workspace_id } = req.body;
+    const workspace_id = req.body?.workspace_id || req.query.workspace_id;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     
-    const { enrichProfile } = require('../unipile');
+    // Respond immediately — run in background
+    res.json({ status: 'started', workspace_id });
     
-    // Find contacts with no name that are in inbox threads — use li_profile_url
-    const { rows: contacts } = await db.query(
-      `SELECT DISTINCT c.id, c.li_profile_url, t.account_id
-       FROM contacts c
-       JOIN inbox_threads t ON t.contact_id = c.id
-       WHERE c.workspace_id = $1
-         AND (c.first_name IS NULL OR c.first_name = '')
-         AND c.li_profile_url IS NOT NULL AND c.li_profile_url != ''
-       LIMIT 100`,
-      [workspace_id]
-    );
-    
-    let enriched = 0;
-    for (const c of contacts) {
-      try {
-        const profile = await enrichProfile(c.account_id, c.li_profile_url);
-        if (profile && (profile.first_name || profile.full_name)) {
-          const nameParts = (profile.full_name || '').split(' ');
-          const fn = profile.first_name || nameParts[0] || '';
-          const ln = profile.last_name || nameParts.slice(1).join(' ') || '';
-          const title = profile.headline || profile.title || null;
-          const providerId = profile.provider_id || profile.id || null;
-          await db.query(
-            'UPDATE contacts SET first_name=$1, last_name=$2, title=$3, provider_id=COALESCE(provider_id,$4) WHERE id=$5',
-            [fn, ln, title, providerId, c.id]
-          );
-          enriched++;
-          console.log('[Admin] enriched contact', c.id, fn, ln);
-        }
-        await new Promise(r => setTimeout(r, 700));
-      } catch(e) { console.warn('[Admin] enrich contact', c.id, ':', e.message); }
-    }
-    res.json({ enriched, total: contacts.length });
+    (async () => {
+      const { enrichProfile } = require('../unipile');
+      const { rows: contacts } = await db.query(
+        `SELECT DISTINCT c.id, c.li_profile_url, t.account_id
+         FROM contacts c
+         JOIN inbox_threads t ON t.contact_id = c.id
+         WHERE c.workspace_id = $1
+           AND (c.first_name IS NULL OR c.first_name = '')
+           AND c.li_profile_url IS NOT NULL AND c.li_profile_url != ''
+         LIMIT 150`,
+        [workspace_id]
+      );
+      let enriched = 0;
+      for (const c of contacts) {
+        try {
+          const profile = await enrichProfile(c.account_id, c.li_profile_url);
+          if (profile && (profile.first_name || profile.full_name)) {
+            const nameParts = (profile.full_name || '').split(' ');
+            const fn  = profile.first_name || nameParts[0] || '';
+            const ln  = profile.last_name  || nameParts.slice(1).join(' ') || '';
+            const ttl = profile.headline || profile.title || null;
+            const pid = profile.provider_id || profile.id || null;
+            await db.query(
+              'UPDATE contacts SET first_name=$1,last_name=$2,title=$3,provider_id=COALESCE(provider_id,$4) WHERE id=$5',
+              [fn, ln, ttl, pid, c.id]
+            );
+            enriched++;
+          }
+          await new Promise(r => setTimeout(r, 700));
+        } catch(e) { console.warn('[Admin] enrich contact', c.id, ':', e.message); }
+      }
+      console.log('[Admin] enrich-inbox-contacts done: '+enriched+'/'+contacts.length+' enriched for ws '+workspace_id);
+    })().catch(function(e){ console.error('[Admin] enrich background error:', e.message); });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
