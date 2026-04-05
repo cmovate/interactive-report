@@ -333,7 +333,7 @@ async function createMessageWebhook(accountId, serverUrl) {
   const data = await request('/api/v1/webhooks', {
     method: 'POST',
     body: JSON.stringify({
-      source: 'users',
+      source: 'messaging',
       name: `msg_received_${accountId}`,
       request_url: `${serverUrl}/api/webhooks/unipile`,
       account_ids: [accountId],
