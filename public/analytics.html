@@ -307,7 +307,7 @@ async function render() {
   var content = document.getElementById('content');
 
   function metricCard(label, value, denominator, hint, filterKey, filterVal) {
-    var p = denominator > 0 ? '<div class="metric-pct">'+(value/denominator*100).toFixed(0)+'% of '+(hint||'total')+'</div>' : '';
+    var p = '';  // percentages removed
     var clickAttr = filterKey ? ' onclick="openDrawer(\'' + label + '\',\'' + filterKey + '\',\'' + (filterVal||'true') + '\')" title="Click to see contacts"' : '';
     var hint2 = filterKey ? '<div class="metric-click-hint">&#128269; Click to explore</div>' : '';
     return '<div class="metric"' + clickAttr + '><div class="metric-label">'+label+'</div><div class="metric-value">'+value.toLocaleString()+'</div>'+p+hint2+'</div>';
