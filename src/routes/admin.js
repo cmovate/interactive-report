@@ -518,9 +518,21 @@ router.get('/test-create-msg-webhook', async (req, res) => {
     const { account_id } = req.query;
     if (!account_id) return res.status(400).json({ error: 'account_id required' });
     const SERVER_URL = process.env.SERVER_URL || 'https://interactive-report-production-0c5d.up.railway.app';
-    const { createMessageWebhook } = require('../unipile');
-    const wId = await createMessageWebhook(account_id, SERVER_URL);
-    res.json({ webhook_id: wId, account_id });
+    // Call Unipile directly to see raw response
+    const { request } = require('../unipile');
+    const raw = await request('/api/v1/webhooks', {
+      method: 'POST',
+      body: JSON.stringify({
+        source: 'messaging',
+        name: 'msg_received_' + account_id,
+        request_url: SERVER_URL + '/api/webhooks/unipile',
+        account_ids: [account_id],
+        events: ['message_received'],
+        format: 'json',
+        headers: [{ key: 'x-webhook-secret', value: process.env.WEBHOOK_SECRET || 'elvia-secret' }]
+      })
+    });
+    res.json({ raw_keys: Object.keys(raw || {}), raw: raw, account_id });
   } catch(e) {
     res.status(500).json({ error: e.message, stack: e.stack?.split('\n').slice(0,3).join(' | ') });
   }
