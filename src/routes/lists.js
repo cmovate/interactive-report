@@ -667,7 +667,7 @@ router.post('/:id/scan-opportunities', async (req, res) => {
                   if (!exVia.some(ev => ev.account_id === v.account_id)) { exVia.push(v); changed = true; }
                 });
                 if (changed || !existing.connected_via?.length) {
-                  await db.query('UPDATE contacts SET connected_via=$2::jsonb, li_company_url=COALESCE(NULLIF($3,''), li_company_url), title=COALESCE(NULLIF($4,''), title) WHERE id=$1',
+                  await db.query("UPDATE contacts SET connected_via=$2::jsonb, li_company_url=COALESCE(NULLIF($3,''), li_company_url), title=COALESCE(NULLIF($4,''), title) WHERE id=$1",
                     [dup[0].id, JSON.stringify(exVia), co.li_company_url||'', c.headline||'']);
                   totalUpdated++;
                 }
