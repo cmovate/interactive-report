@@ -538,4 +538,22 @@ router.get('/test-create-msg-webhook', async (req, res) => {
   }
 });
 
+// GET /api/admin/debug-chats?account_id=X — shows raw Unipile chat structure
+router.get('/debug-chats', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    if (!account_id) return res.status(400).json({ error: 'account_id required' });
+    const { request } = require('../unipile');
+    const data = await request('/api/v1/chats?account_id=' + encodeURIComponent(account_id) + '&limit=2');
+    const items = (data?.items || []).slice(0, 2);
+    // Return first chat with full attendees structure
+    res.json({ 
+      count: items.length,
+      sample: items[0] || null,
+      attendees_keys: items[0]?.attendees?.[0] ? Object.keys(items[0].attendees[0]) : [],
+      top_level_keys: items[0] ? Object.keys(items[0]) : []
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
