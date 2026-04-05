@@ -262,7 +262,7 @@ router.post('/backfill-names', async (req, res) => {
             );
             updated++;
           } else { failed++; }
-          await new Promise(r => setTimeout(r, 800));
+          await new Promise(r => setTimeout(r, 200));
         } catch(e) {
           failed++;
           console.warn('[backfill-names] err:', e.message);
