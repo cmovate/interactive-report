@@ -93,7 +93,15 @@ async function scanWorkspace(workspaceId) {
      WHERE l.workspace_id = $1 AND lco.company_linkedin_id IS NOT NULL AND lco.company_linkedin_id != ''`,
     [workspaceId]
   );
-  listCos.forEach(r => companyIdSet.add(r.company_linkedin_id));
+  listCos.forEach(r => {
+    let cid = r.company_linkedin_id;
+    if (!cid) return;
+    // Handle stored JSON object: {"id":"12345","name":"..."} → "12345"
+    if (typeof cid === 'string' && cid.startsWith('{')) {
+      try { cid = JSON.parse(cid).id || JSON.parse(cid).universalName || cid; } catch(e) {}
+    } else if (cid && typeof cid === 'object') { cid = cid.id; }
+    if (cid) companyIdSet.add(String(cid));
+  });
 
   // Process in batches of MAX_COMPANIES_PER_RUN, picking companies not recently scanned
   const allIds = [...companyIdSet];
