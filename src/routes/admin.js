@@ -328,4 +328,16 @@ router.post('/backfill-names-from-slug', async (req, res) => {
   }
 });
 
+// GET /api/admin/test-get-post?workspace_id=X&urn=Y
+router.get('/test-get-post', async (req, res) => {
+  try {
+    const { workspace_id, urn } = req.query;
+    const { rows: accs } = await db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',[workspace_id]);
+    if (!accs.length) return res.json({error:'no accounts'});
+    const { getPost } = require('../unipile');
+    const raw = await getPost(accs[0].account_id, urn);
+    res.json({ raw_keys: raw ? Object.keys(raw) : null, raw_sample: JSON.stringify(raw).substring(0,500) });
+  } catch(e) { res.status(500).json({error: e.message}); }
+});
+
 module.exports = router;
