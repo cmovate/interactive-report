@@ -240,20 +240,22 @@ router.get('/', async (req, res) => {
               const raw = await getPost(accountId, urn);
               if (!raw) continue;
               // Map Unipile raw fields to DB columns
-              const postUrn     = raw.id || raw.social_id || urn;
-              const authorName  = raw.author?.name ||
-                                  ((raw.author?.first_name||'') + ' ' + (raw.author?.last_name||'')).trim() ||
-                                  'Unknown';
-              const authorTitle = raw.author?.headline || raw.author?.occupation || '';
-              const authorPic   = raw.author?.picture_url || raw.author?.profile_picture_url ||
-                                  (Array.isArray(raw.author?.profile_picture)
+              // social_id has full URN (e.g. urn:li:ugcPost:...), id has only numeric
+              const postUrn     = raw.social_id || raw.id || urn;
+              const authorName  = (raw.author && (raw.author.name ||
+                                  ((raw.author.first_name||'') + ' ' + (raw.author.last_name||'')).trim())) || 'Unknown';
+              const authorTitle = (raw.author && (raw.author.headline || raw.author.occupation)) || '';
+              const authorPic   = (raw.author && (raw.author.profile_picture_url || raw.author.picture_url ||
+                                  (Array.isArray(raw.author.profile_picture)
                                     ? raw.author.profile_picture[raw.author.profile_picture.length-1]?.url
-                                    : null) || '';
+                                    : null))) || '';
               const authorUrl   = raw.author?.public_identifier
                                     ? 'https://www.linkedin.com/in/' + raw.author.public_identifier
                                     : (raw.author?.profile_url || '');
               const content     = raw.text || raw.content || '';
-              const postedAt    = raw.date || raw.parsed_datetime || null;
+              // raw.date may be relative ("2d") — use parsed_datetime (ISO) or null
+              const postedAt    = raw.parsed_datetime ||
+                                  (raw.date && !isNaN(Date.parse(raw.date)) ? new Date(raw.date).toISOString() : null);
               if (!postUrn) continue;
               await db.query(
                 `INSERT INTO linkedin_posts
