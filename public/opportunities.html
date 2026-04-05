@@ -172,10 +172,12 @@ function renderBlock(co) {
   } else {
     var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
-      var nm = esc(((c.first_name||'')+' '+(c.last_name||'')).trim()) || '<em style="color:#aaa">Unknown</em>';
+      var firstName = esc(c.first_name||'') || '<em style="color:#aaa">—</em>';
+        var lastName  = esc(c.last_name||'')  || '<em style="color:#aaa">—</em>';
       var via = (c.connected_via||[]).map(function(v){ return '<span class="via-tag">via '+esc(v.name)+'</span>'; }).join(' ');
       return '<tr>'
-        +'<td class="contact-name">'+nm+'</td>'
+        +'<td class="contact-name">'+firstName+'</td>'
+        +'<td class="contact-name">'+lastName+'</td>'
         +'<td>'+esc(fixEncoding(c.company)||'')+'</td>'
         +'<td>'+esc(fixEncoding(c.title||c.headline)||'')+'</td>'
         +'<td>'+(c.li_profile_url?'<a class="li-link" href="'+esc(c.li_profile_url)+'" target="_blank">View profile</a>':'')+'</td>'
@@ -184,7 +186,7 @@ function renderBlock(co) {
         +'</tr>';
     }).join('');
     body = '<div class="co-body"><div class="co-table-wrap"><table>'
-      +'<thead><tr><th>First + Last name</th><th>Company</th><th>Title</th><th>LinkedIn</th><th>Connected via</th><th></th></tr></thead>'
+      +'<thead><tr><th>First name</th><th>Last name</th><th>Company</th><th>Title</th><th>LinkedIn</th><th>Connected via</th><th></th></tr></thead>'
       +'<tbody>'+rows+'</tbody></table></div></div>';
   }
   return hdr + body;
