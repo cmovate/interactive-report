@@ -104,6 +104,7 @@ app.use('/api/contacts',           contactsRouter);
 app.use('/api/companies',          companiesRouter);
 app.use('/api/webhooks',           webhooksRouter);
 app.use('/api/followers',          followersRouter);
+app.use('/api/analytics',         require('./src/routes/analytics'));
 app.use('/api/stats',              statsRouter);
 app.use('/api/opportunities',      opportunitiesRouter);
 app.use('/api/admin',              adminRouter);
