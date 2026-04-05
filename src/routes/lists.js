@@ -501,4 +501,61 @@ router.post('/:id/bulk-import', async (req, res) => {
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /:id/resolve-ids
+// Resolves company_linkedin_id for all list_companies entries that have null ID.
+// Extracts slug from li_company_url, calls lookupCompany via Unipile, updates DB.
+router.post('/:id/resolve-ids', async (req, res) => {
+  try {
+    const listId = parseInt(req.params.id);
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Get a valid account for this workspace
+    const { rows: accts } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',
+      [workspace_id]
+    );
+    if (!accts.length) return res.status(400).json({ error: 'No LinkedIn accounts in workspace' });
+    const accountId = accts[0].account_id;
+
+    // Get companies without a resolved ID
+    const { rows: companies } = await db.query(
+      'SELECT id, company_name, li_company_url FROM list_companies WHERE list_id=$1 AND workspace_id=$2 AND (company_linkedin_id IS NULL OR company_linkedin_id = \'\')',
+      [listId, workspace_id]
+    );
+    if (!companies.length) return res.json({ resolved: 0, message: 'All companies already have IDs' });
+
+    let resolved = 0, failed = 0;
+    const results = [];
+
+    for (const comp of companies) {
+      try {
+        const slug = (comp.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || comp.company_name;
+        const companyId = await lookupCompany(accountId, slug, comp.company_name);
+        if (companyId) {
+          await db.query(
+            'UPDATE list_companies SET company_linkedin_id=$1 WHERE id=$2',
+            [companyId, comp.id]
+          );
+          resolved++;
+          results.push({ company: comp.company_name, id: companyId, ok: true });
+        } else {
+          failed++;
+          results.push({ company: comp.company_name, ok: false, reason: 'lookup returned null' });
+        }
+        // Small delay to respect rate limits
+        await new Promise(r => setTimeout(r, 400));
+      } catch (e) {
+        failed++;
+        results.push({ company: comp.company_name, ok: false, reason: e.message });
+      }
+    }
+
+    res.json({ resolved, failed, total: companies.length, results });
+  } catch (e) {
+    console.error('[Lists] resolve-ids error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
