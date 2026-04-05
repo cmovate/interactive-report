@@ -338,18 +338,18 @@ router.get('/test-get-post', async (req, res) => {
     const raw = await getPost(accs[0].account_id, urn);
     if (!raw) return res.json({error:'no raw data returned'});
     
-    const postUrn    = raw.id || raw.social_id || urn;
+    const postUrn    = raw.social_id || raw.id || urn;
     const authorName = (raw.author && (raw.author.name ||
                         ((raw.author.first_name||'') + ' ' + (raw.author.last_name||'')).trim())) || 'Unknown';
     const authorTitle = (raw.author && (raw.author.headline || raw.author.occupation)) || '';
-    const authorPic   = (raw.author && (raw.author.picture_url || raw.author.profile_picture_url ||
+    const authorPic   = (raw.author && (raw.author.profile_picture_url || raw.author.picture_url ||
                           (Array.isArray(raw.author.profile_picture) ?
                             raw.author.profile_picture[raw.author.profile_picture.length-1]?.url : null))) || '';
     const authorUrl   = raw.author?.public_identifier
                           ? 'https://www.linkedin.com/in/' + raw.author.public_identifier
                           : (raw.author?.profile_url || '');
     const content     = raw.text || raw.content || '';
-    const postedAt    = raw.date || raw.parsed_datetime || null;
+    const postedAt    = raw.parsed_datetime || (raw.date && !isNaN(Date.parse(raw.date)) ? new Date(raw.date).toISOString() : null);
 
     let insertResult = 'skipped';
     try {
