@@ -189,7 +189,7 @@ router.get('/', async (req, res) => {
     const conditions = ['t.workspace_id = $1'];
     const params     = [workspace_id];
     const accountFilter = req.query.account_id;
-    if (accountFilter) { conditions.push('t.account_id = 
+    if (accountFilter) { conditions.push('t.account_id = $' + (params.length + 1)); params.push(accountFilter); }
 
     if (campaign_id) {
       conditions.push(`t.campaign_id = $${params.length + 1}`);
