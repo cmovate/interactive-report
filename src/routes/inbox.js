@@ -20,7 +20,7 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
-const { getChatMessages, sendMessage, startDirectMessage } = require('../unipile');
+const { getChatMessages, sendMessage, startDirectMessage, enrichProfile } = require('../unipile');
 
 // Ã¢ÂÂÃ¢ÂÂ Helpers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
 
@@ -131,17 +131,25 @@ async function syncWorkspaceInbox(workspaceId, specificAccountId = null) {
           contact = byUrl[0];
         }
         if (!contact) {
-          // Create new contact from chat attendee data
-          const attendee = chat.attendees && chat.attendees[0];
-          const fullName = (attendee && (attendee.name || attendee.display_name)) || '';
-          const nameParts = fullName.trim().split(' ');
+          // Create new contact from chat — name fetched via enrichProfile later
           const { rows: newC } = await db.query(
-            `INSERT INTO contacts (workspace_id, first_name, last_name, li_profile_url, campaign_id)
-             VALUES ($1, $2, $3, $4, NULL)
+            `INSERT INTO contacts (workspace_id, first_name, last_name, li_profile_url, campaign_id, provider_id)
+             VALUES ($1, $2, $3, $4, NULL, $5)
              ON CONFLICT DO NOTHING RETURNING id, campaign_id`,
-            [workspaceId, nameParts[0] || '', nameParts.slice(1).join(' ') || '',
-             'https://www.linkedin.com/in/' + providerId]
+            [workspaceId, '', '', 'https://www.linkedin.com/in/' + providerId, providerId]
           );
+          // Fire-and-forget enrichment to populate name, title, company
+          if (newC[0]) {
+            enrichProfile(account_id, 'https://www.linkedin.com/in/' + providerId).then(function(profile) {
+              if (profile && (profile.first_name || profile.full_name)) {
+                const nameParts = (profile.full_name || '').split(' ');
+                const fn = profile.first_name || nameParts[0] || '';
+                const ln = profile.last_name || nameParts.slice(1).join(' ') || '';
+                db.query('UPDATE contacts SET first_name=$1, last_name=$2, title=$3 WHERE id=$4',
+                  [fn, ln, profile.headline || profile.title || null, newC[0].id]).catch(function(){});
+              }
+            }).catch(function(){});
+          }
           contact = newC[0];
         }
         if (!contact) continue; // Could not resolve or create contact
