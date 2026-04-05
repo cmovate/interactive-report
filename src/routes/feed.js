@@ -450,6 +450,28 @@ router.post('/fetch-parent-posts', async (req, res) => {
 
 
 // Comment on a post via Unipile
+
+// POST /api/feed/like  — like a LinkedIn post via Unipile
+router.post('/like', async (req, res) => {
+  try {
+    const { workspace_id, post_urn } = req.body;
+    if (!workspace_id || !post_urn) return res.status(400).json({ error: 'workspace_id and post_urn required' });
+
+    // Get a workspace account to like from
+    const { rows: accs } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]
+    );
+    if (!accs.length) return res.status(400).json({ error: 'no accounts' });
+
+    const { likePost } = require('../unipile');
+    await likePost(accs[0].account_id, post_urn);
+    res.json({ ok: true });
+  } catch(e) {
+    console.error('[feed/like]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/comment', async (req, res) => {
   try {
     const { workspace_id, post_urn, text, comment_id, account_id: bodyAccountId } = req.body;
