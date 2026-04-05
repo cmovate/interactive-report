@@ -533,9 +533,12 @@ router.post('/:id/resolve-ids', async (req, res) => {
       for (const comp of companies) {
         try {
           const slug = (comp.li_company_url || '').match(/\/company\/([^\/\?#]+)/)?.[1] || comp.company_name;
-          const companyId = await lookupCompany(accountId, slug, comp.company_name);
+          const companyData = await lookupCompany(accountId, slug, comp.company_name);
+          // lookupCompany may return an object {id, name} or a string — extract numeric ID
+          let companyId = companyData;
+          if (companyData && typeof companyData === 'object') companyId = companyData.id || companyData.universalName;
           if (companyId) {
-            await db.query('UPDATE list_companies SET company_linkedin_id=$1 WHERE id=$2', [companyId, comp.id]);
+            await db.query('UPDATE list_companies SET company_linkedin_id=$1 WHERE id=$2', [String(companyId), comp.id]);
             resolved++;
           } else { failed++; }
           await new Promise(r => setTimeout(r, 500));
