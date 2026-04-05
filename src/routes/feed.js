@@ -181,9 +181,16 @@ router.get('/', async (req, res) => {
     const { rows: posts } = await db.query(
       `SELECT p.*,
               c.li_profile_url AS contact_li_url,
-              c.first_name || ' ' || COALESCE(c.last_name,'') AS contact_full_name
+              c.first_name || ' ' || COALESCE(c.last_name,'') AS contact_full_name,
+              pp.author_name        AS parent_author_name,
+              pp.author_title       AS parent_author_title,
+              pp.author_avatar_url  AS parent_author_avatar_url,
+              pp.author_profile_url AS parent_author_profile_url,
+              pp.content            AS parent_content,
+              pp.posted_at          AS parent_posted_at
        FROM linkedin_posts p
        LEFT JOIN contacts c ON c.id = p.contact_id
+       LEFT JOIN linkedin_posts pp ON pp.post_urn = p.parent_post_urn AND pp.workspace_id = p.workspace_id
        WHERE ${where}
        ORDER BY p.posted_at DESC NULLS LAST
        LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,

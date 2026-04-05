@@ -160,7 +160,45 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; back
 .comment-account-select{width:100%;padding:7px 10px;border:1px solid #DED9D3;border-radius:8px;font-size:13px;font-family:inherit;background:#fff;margin-bottom:8px;color:#333;cursor:pointer;outline:none;}
 .comment-account-select:focus{border-color:var(--acc,#52b788);}
 .comment-account-label{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block;}
-</style>
+
+    /* Original post card (shown above comment) */
+    .original-post-card {
+      background: #f8fafb;
+      border: 1px solid #e5e7eb;
+      border-left: 3px solid #1a7a4a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 0;
+    }
+    .original-post-card .post-body {
+      color: #374151;
+      font-size: 0.9rem;
+      margin-top: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .stub-link-inline {
+      margin-left: auto;
+      font-size: 1.1rem;
+      color: #1a7a4a;
+      text-decoration: none;
+      flex-shrink: 0;
+      padding: 4px;
+    }
+    .stub-link-inline:hover { color: #15633c; }
+    .comment-connector {
+      font-size: 0.78rem;
+      color: #9ca3af;
+      padding: 4px 0 4px 16px;
+      font-style: italic;
+    }
+    .comment-as-post {
+      border-left: 3px solid #d1d5db;
+      background: #fff;
+    }
+    </style>
 </head>
 <body>
 
@@ -344,33 +382,63 @@ async function loadFeed() {
 function renderPost(post) {
   // If this is a comment (has parent_post_urn), render as "parent post stub + comment"
   if (post.parent_post_urn) {
-    const liUrl = 'https://www.linkedin.com/feed/update/' + encodeURIComponent(post.parent_post_urn) + '/';
-    const av    = avatarHtml(post.author_avatar_url, post.author_name);
-    const name  = esc(post.author_name || 'Unknown');
-    const isIC  = !!post.contact_id;
-    const chip  = isIC ? '<span class="in-campaign-chip">&#127919; In campaign</span>' : '';
-    const body  = esc(post.content || '').replace(/\n/g, '<br>');
-    return `
-    <div style="margin-bottom:16px">
+    const liUrl     = 'https://www.linkedin.com/feed/update/' + encodeURIComponent(post.parent_post_urn) + '/';
+    const avComment = avatarHtml(post.author_avatar_url, post.author_name);
+    const avParent  = avatarHtml(post.parent_author_avatar_url, post.parent_author_name);
+    const commenterName = esc(post.author_name || 'Unknown');
+    const isIC          = !!post.contact_id;
+    const chip          = isIC ? '<span class="in-campaign-chip">&#127919; In campaign</span>' : '';
+    const commentBody   = esc(post.content || '').replace(/\n/g, '<br>');
+
+    // Original post block (if we have the data)
+    let originalPostHtml = '';
+    if (post.parent_author_name) {
+      const parentName  = esc(post.parent_author_name);
+      const parentTitle = esc(post.parent_author_title || '');
+      const parentBody  = esc(post.parent_content || '').replace(/\n/g, '<br>');
+      const parentTime  = post.parent_posted_at ? formatDate(post.parent_posted_at) : '';
+      const parentHref  = post.parent_author_profile_url
+        ? `href="${esc(post.parent_author_profile_url)}" target="_blank" rel="noopener"`
+        : '';
+      const parentNameTag = parentHref ? `<a ${parentHref}>${parentName}</a>` : parentName;
+      originalPostHtml = `
+      <div class="post-card original-post-card">
+        <div class="post-header">
+          <div class="post-avatar">${avParent}</div>
+          <div class="post-author">
+            <div class="post-name">${parentNameTag}</div>
+            <div class="post-headline">${parentTitle}</div>
+            <div class="post-time">${parentTime}${parentTime ? ' &middot; <span class="globe-icon">&#127760;</span>' : ''}</div>
+          </div>
+          <a class="stub-link-inline" href="${liUrl}" target="_blank" rel="noopener" title="View on LinkedIn">&#8599;</a>
+        </div>
+        <div class="post-body">${parentBody}</div>
+      </div>`;
+    } else {
+      originalPostHtml = `
       <div class="parent-post-stub">
         <div class="stub-icon">📝</div>
         <div class="stub-body">
           <div class="stub-label">Commented on a post</div>
-          <a class="stub-link" href="${liUrl}" target="_blank" rel="noopener">
-            View original post on LinkedIn &rarr;
-          </a>
+          <a class="stub-link" href="${liUrl}" target="_blank" rel="noopener">View original post on LinkedIn &rarr;</a>
         </div>
-      </div>
+      </div>`;
+    }
+
+    return `
+    <div style="margin-bottom:16px">
+      ${originalPostHtml}
+      <div class="comment-connector">&#x21B3; commented</div>
       <div class="post-card comment-as-post">
         <div class="post-header">
-          <div class="post-avatar">${av}</div>
+          <div class="post-avatar">${avComment}</div>
           <div class="post-author">
-            <div class="post-name">${name} ${chip}</div>
+            <div class="post-name">${commenterName} ${chip}</div>
             <div class="post-headline">${esc(post.author_title || '')}</div>
             <div class="post-time">${formatDate(post.posted_at)}${post.posted_at ? ' &middot; <span class=\"globe-icon\">&#127760;</span>' : ''}</div>
           </div>
         </div>
-        <div class="post-body">${body}</div>
+        <div class="post-body">${commentBody}</div>
       </div>
     </div>`;
   }
