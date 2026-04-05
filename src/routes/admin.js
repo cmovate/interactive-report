@@ -275,4 +275,58 @@ router.post('/backfill-names', async (req, res) => {
   }
 });
 
+// POST /api/admin/backfill-names-from-slug
+// Extracts first/last name from the LinkedIn URL slug for contacts with missing names.
+// e.g. /in/ran-rubinstein-1a2b3c  → first="Ran" last="Rubinstein"
+// Fast: pure SQL, no external API calls.
+router.post('/backfill-names-from-slug', async (req, res) => {
+  try {
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    const result = await db.query(`
+      UPDATE contacts
+      SET
+        first_name = INITCAP(
+          COALESCE(
+            split_part(
+              regexp_replace(
+                (regexp_match(li_profile_url, 'linkedin\\.com/in/([^/?#]+)'))[1],
+                '-[a-z0-9]{3,12}
+, '', 'i'
+              ),
+              '-', 1
+            ), ''
+          )
+        ),
+        last_name = INITCAP(
+          COALESCE(
+            array_to_string(
+              (string_to_array(
+                regexp_replace(
+                  (regexp_match(li_profile_url, 'linkedin\\.com/in/([^/?#]+)'))[1],
+                  '-[a-z0-9]{3,12}
+, '', 'i'
+                ),
+                '-'
+              ))[2:],
+              ' '
+            ), ''
+          )
+        )
+      WHERE workspace_id = $1
+        AND campaign_id IS NULL
+        AND (first_name IS NULL OR first_name = '')
+        AND li_profile_url IS NOT NULL
+        AND li_profile_url != ''
+        AND li_profile_url LIKE '%linkedin.com/in/%'
+    `, [workspace_id]);
+
+    res.json({ updated: result.rowCount, workspace_id });
+  } catch(e) {
+    console.error('[backfill-names-from-slug]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
