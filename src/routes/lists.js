@@ -694,4 +694,7 @@ router.post('/:id/scan-opportunities', async (req, res) => {
   }
 });
 
+// Auto-start background scan scheduler
+try { require('../scheduler').startScheduler(); } catch(e) { console.warn('[Lists] scheduler load err:', e.message); }
+
 module.exports = router;
