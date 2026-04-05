@@ -667,14 +667,14 @@ router.post('/:id/scan-opportunities', async (req, res) => {
                   if (!exVia.some(ev => ev.account_id === v.account_id)) { exVia.push(v); changed = true; }
                 });
                 if (changed || !existing.connected_via?.length) {
-                  await db.query('UPDATE contacts SET connected_via=$2::jsonb, title=COALESCE(NULLIF($3,\'\'\'), title) WHERE id=$1',
-                    [dup[0].id, JSON.stringify(exVia), c.headline||'']);
+                  await db.query('UPDATE contacts SET connected_via=$2::jsonb, li_company_url=COALESCE(NULLIF($3,''), li_company_url), title=COALESCE(NULLIF($4,''), title) WHERE id=$1',
+                    [dup[0].id, JSON.stringify(exVia), co.li_company_url||'', c.headline||'']);
                   totalUpdated++;
                 }
               } else {
                 const { rows: ins } = await db.query(
-                  'INSERT INTO contacts (workspace_id,campaign_id,first_name,last_name,title,company,li_profile_url,connected_via,already_connected) VALUES ($1,NULL,$2,$3,$4,$5,$6,$7::jsonb,true) ON CONFLICT DO NOTHING RETURNING id',
-                  [workspace_id, c.first_name, c.last_name, c.headline, c.company, c.li_profile_url, connVia]
+                  'INSERT INTO contacts (workspace_id,campaign_id,first_name,last_name,title,company,li_profile_url,li_company_url,connected_via,already_connected) VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,$8::jsonb,true) ON CONFLICT (workspace_id,li_profile_url) DO UPDATE SET li_company_url=EXCLUDED.li_company_url, connected_via=EXCLUDED.connected_via, title=COALESCE(NULLIF(EXCLUDED.title,''), contacts.title) RETURNING id',
+                  [workspace_id, c.first_name, c.last_name, c.headline, c.company, c.li_profile_url, co.li_company_url||'', connVia]
                 );
                 if (ins[0]?.id) { enqueue(ins[0].id, accounts[0].account_id, c.li_profile_url); totalAdded++; }
               }
