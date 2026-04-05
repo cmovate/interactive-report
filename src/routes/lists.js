@@ -575,4 +575,123 @@ router.post('/:id/resolve-ids', async (req, res) => {
   }
 });
 
+// POST /:id/scan-opportunities
+// Scan all companies in this list for 1st-degree connections across all workspace accounts.
+// Runs in background — returns immediately with {status:'started', total: N}.
+// Each found contact is saved to contacts table with connected_via populated.
+router.post('/:id/scan-opportunities', async (req, res) => {
+  try {
+    const listId = parseInt(req.params.id);
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Get all companies in this list that have a resolved LinkedIn ID
+    const { rows: companies } = await db.query(
+      'SELECT id, company_name, li_company_url, company_linkedin_id FROM list_companies WHERE list_id=$1 AND workspace_id=$2 AND company_linkedin_id IS NOT NULL AND company_linkedin_id != \'\'',
+      [listId, workspace_id]
+    );
+    if (!companies.length) return res.json({ status:'nothing_to_do', message:'No companies with resolved IDs in this list' });
+
+    // Get accounts
+    const { rows: accounts } = await db.query('SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id=$1', [workspace_id]);
+    if (!accounts.length) return res.json({ status:'no_accounts', message:'No LinkedIn accounts in workspace' });
+
+    res.json({ status:'started', total: companies.length, accounts: accounts.length });
+
+    // Background scan — use searchPeopleByCompany + filter for DISTANCE_1 (same as scan-company)
+    const { lookupCompany, searchPeopleByCompany, enrichProfile } = require('../unipile');
+    const { enqueue } = require('../enrichment');
+
+    (async () => {
+      let totalFound = 0, totalAdded = 0, totalUpdated = 0;
+
+      for (const co of companies) {
+        try {
+          // Parse company ID (may be JSON string or plain string)
+          let companyId = co.company_linkedin_id;
+          if (typeof companyId === 'string' && companyId.startsWith('{')) {
+            try { companyId = JSON.parse(companyId).id || companyId; } catch(e) {}
+          }
+          if (!companyId) continue;
+
+          const allContacts = []; // merge across accounts
+
+          for (const acc of accounts) {
+            try {
+              const allPeople = await searchPeopleByCompany(acc.account_id, companyId, co.company_name, [], 50);
+              const people = allPeople.filter(p => !p.member_distance || p.member_distance === 'DISTANCE_1' || p.distance === 1 || p.distance === '1');
+
+              for (const p of people) {
+                const pid = p.public_identifier || p.identifier;
+                if (!pid) continue;
+                const url = 'https://www.linkedin.com/in/' + pid;
+                const ex = allContacts.find(c => c.li_profile_url === url);
+                if (ex) {
+                  if (!ex.connected_via.find(v => v.account_id === acc.account_id)) {
+                    ex.connected_via.push({ account_id: acc.account_id, name: acc.display_name });
+                  }
+                } else {
+                  allContacts.push({
+                    li_profile_url: url,
+                    first_name: p.first_name || '',
+                    last_name: p.last_name || '',
+                    headline: p.headline || '',
+                    company: co.company_name,
+                    provider_id: pid,
+                    connected_via: [{ account_id: acc.account_id, name: acc.display_name }]
+                  });
+                }
+              }
+              await new Promise(r => setTimeout(r, 1500));
+            } catch(e) {
+              console.warn('[ListScan] acc', acc.display_name, 'co', co.company_name, e.message);
+            }
+          }
+
+          totalFound += allContacts.length;
+
+          // Upsert contacts with connected_via
+          for (const c of allContacts) {
+            try {
+              const { rows: dup } = await db.query(
+                'SELECT id, connected_via FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
+                [workspace_id, c.li_profile_url]
+              );
+              const connVia = JSON.stringify(c.connected_via);
+              if (dup.length) {
+                // Update connected_via
+                const existing = dup[0];
+                const exVia = Array.isArray(existing.connected_via) ? existing.connected_via : [];
+                let changed = false;
+                c.connected_via.forEach(v => {
+                  if (!exVia.some(ev => ev.account_id === v.account_id)) { exVia.push(v); changed = true; }
+                });
+                if (changed || !existing.connected_via?.length) {
+                  await db.query('UPDATE contacts SET connected_via=$2::jsonb, title=COALESCE(NULLIF($3,\'\'\'), title) WHERE id=$1',
+                    [dup[0].id, JSON.stringify(exVia), c.headline||'']);
+                  totalUpdated++;
+                }
+              } else {
+                const { rows: ins } = await db.query(
+                  'INSERT INTO contacts (workspace_id,campaign_id,first_name,last_name,title,company,li_profile_url,connected_via,already_connected) VALUES ($1,NULL,$2,$3,$4,$5,$6,$7::jsonb,true) ON CONFLICT DO NOTHING RETURNING id',
+                  [workspace_id, c.first_name, c.last_name, c.headline, c.company, c.li_profile_url, connVia]
+                );
+                if (ins[0]?.id) { enqueue(ins[0].id, accounts[0].account_id, c.li_profile_url); totalAdded++; }
+              }
+            } catch(e) { console.warn('[ListScan] upsert err:', e.message); }
+          }
+
+          await new Promise(r => setTimeout(r, 2000));
+        } catch(e) {
+          console.warn('[ListScan] company err:', co.company_name, e.message);
+        }
+      }
+      console.log('[ListScan] Done ws' + workspace_id + ' list' + listId + ': found=' + totalFound + ' added=' + totalAdded + ' updated=' + totalUpdated);
+    })().catch(e => console.error('[ListScan] bg error:', e.message));
+
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
