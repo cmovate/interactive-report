@@ -20,11 +20,11 @@ const feedRouter               = require('./src/routes/feed');
 const inboxRouter              = require('./src/routes/inbox');
 const hotOpportunitiesRouter   = require('./src/routes/hot-opportunities');
 const cleanupRouter            = require('./src/routes/cleanup');
-// [removed: file not found] const enrichCompaniesRouter   
-// [removed: file not found] const industrySearchRouter    
-// [removed: file not found] const enrichListRouter        
-// [removed: file not found] const enrichJobRouter         
-// [removed: file not found] const companyIdJobRouter      
+const enrichCompaniesRouter    = require('./src/routes/enrichCompanies');
+const industrySearchRouter     = require('./src/routes/industrySearch');
+const enrichListRouter         = require('./src/routes/enrichList');
+const enrichJobRouter          = require('./src/routes/enrichJob');
+const companyIdJobRouter       = require('./src/routes/companyIdJob');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
@@ -109,15 +109,15 @@ app.use('/api/stats',              statsRouter);
 app.use('/api/opportunities',      opportunitiesRouter);
 app.use('/api/admin',              adminRouter);
 app.use('/api/feed',               feedRouter);
-// [removed: duplicate analytics route]
+app.use('/api/analytics',          require('./src/routes/analytics'));
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/cleanup',            cleanupRouter);
-// [removed: route not found] app.use('/api/enrich-comp
-// [removed: route not found] app.use('/api/industry-se
-// [removed: route not found] app.use('/api/enrich-list
-// [removed: route not found] app.use('/api/enrich-job'
-// [removed: route not found] app.use('/api/company-id-
+app.use('/api/enrich-companies',   enrichCompaniesRouter);
+app.use('/api/industry-search',    industrySearchRouter);
+app.use('/api/enrich-list',        enrichListRouter);
+app.use('/api/enrich-job',         enrichJobRouter);
+app.use('/api/company-id-job',     companyIdJobRouter);
 
 async function s(label, fn) {
   try { await fn(); }
