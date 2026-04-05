@@ -239,8 +239,22 @@ router.get('/', async (req, res) => {
             try {
               const raw = await getPost(accountId, urn);
               if (!raw) continue;
-              const np = normalisePost(raw, null);
-              if (!np.post_urn) continue;
+              // Map Unipile raw fields to DB columns
+              const postUrn     = raw.id || raw.social_id || urn;
+              const authorName  = raw.author?.name ||
+                                  ((raw.author?.first_name||'') + ' ' + (raw.author?.last_name||'')).trim() ||
+                                  'Unknown';
+              const authorTitle = raw.author?.headline || raw.author?.occupation || '';
+              const authorPic   = raw.author?.picture_url || raw.author?.profile_picture_url ||
+                                  (Array.isArray(raw.author?.profile_picture)
+                                    ? raw.author.profile_picture[raw.author.profile_picture.length-1]?.url
+                                    : null) || '';
+              const authorUrl   = raw.author?.public_identifier
+                                    ? 'https://www.linkedin.com/in/' + raw.author.public_identifier
+                                    : (raw.author?.profile_url || '');
+              const content     = raw.text || raw.content || '';
+              const postedAt    = raw.date || raw.parsed_datetime || null;
+              if (!postUrn) continue;
               await db.query(
                 `INSERT INTO linkedin_posts
                    (campaign_id,workspace_id,contact_id,post_urn,author_name,author_title,
@@ -248,9 +262,9 @@ router.get('/', async (req, res) => {
                     shares_count,posted_at)
                  VALUES (NULL,$1,NULL,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
                  ON CONFLICT (post_urn) DO NOTHING`,
-                [workspace_id, np.post_urn, np.author_name, np.author_title,
-                 np.author_profile_url, np.author_avatar_url, np.content,
-                 np.likes_count||0, np.comments_count||0, np.shares_count||0, np.posted_at]
+                [workspace_id, postUrn, authorName, authorTitle,
+                 authorUrl, authorPic, content,
+                 raw.reaction_counter||0, raw.comment_counter||0, raw.repost_counter||0, postedAt]
               );
             } catch(e) { /* skip individual failures */ }
           }
