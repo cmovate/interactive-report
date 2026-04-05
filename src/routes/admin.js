@@ -192,4 +192,35 @@ router.get('/analytics', async (req, res) => {
   }
 });
 
+// POST /api/admin/backfill-li-company-url
+// Backfill li_company_url on contacts that were saved without it,
+// by matching company name against list_companies.
+router.post('/backfill-li-company-url', async (req, res) => {
+  try {
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Update contacts that have connected_via but no li_company_url
+    // by joining to list_companies on matching company name
+    const result = await db.query(
+      `UPDATE contacts c
+        SET li_company_url = lc.li_company_url
+        FROM list_companies lc
+        JOIN lists l ON l.id = lc.list_id
+        WHERE c.workspace_id = $1
+          AND l.workspace_id = $1
+          AND c.campaign_id IS NULL
+          AND (c.li_company_url IS NULL OR c.li_company_url = '')
+          AND (
+            LOWER(c.company) = LOWER(lc.company_name)
+            OR lc.li_company_url ILIKE '%/' || LOWER(REPLACE(c.company, ' ', '-')) || '%'
+          )`,
+      [workspace_id]
+    );
+    res.json({ updated: result.rowCount, workspace_id });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;
