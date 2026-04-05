@@ -77,6 +77,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .modal-close-btn { width: 100%; background: #f0ede8; color: #555; border: none; padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 500; }
 .modal-close-btn:hover { background: #e5e1db; }
 .modal-note { font-size: 11px; color: #aaa; margin-top: 12px; text-align: center; }
+
+/* Drill-down drawer */
+.drawer-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:500; }
+.drawer-overlay.open { display:block; }
+.drawer { position:fixed; right:0; top:0; bottom:0; width:520px; background:white;
+  box-shadow:-4px 0 24px rgba(0,0,0,.12); z-index:501; display:flex; flex-direction:column;
+  transform:translateX(100%); transition:transform .25s cubic-bezier(.4,0,.2,1); }
+.drawer.open { transform:translateX(0); }
+.drawer-header { padding:18px 20px; border-bottom:1px solid #E9E5DF; display:flex; align-items:center; gap:12px; }
+.drawer-title { font-size:15px; font-weight:700; color:#1a3a2a; flex:1; }
+.drawer-subtitle { font-size:12px; color:#888; }
+.drawer-close { width:32px; height:32px; border:none; background:#f0ede8; border-radius:8px;
+  cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; }
+.drawer-close:hover { background:#e5e1db; }
+.drawer-search { padding:10px 20px; border-bottom:1px solid #E9E5DF; }
+.drawer-search input { width:100%; border:1px solid #DED9D3; border-radius:8px; padding:7px 12px;
+  font-size:13px; outline:none; }
+.drawer-search input:focus { border-color:#52b788; }
+.drawer-body { flex:1; overflow-y:auto; }
+.drawer-table { width:100%; border-collapse:collapse; font-size:12px; }
+.drawer-table th { position:sticky; top:0; background:#1a3a2a; color:white; padding:8px 12px;
+  text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+.drawer-table td { padding:8px 12px; border-bottom:1px solid #F0EDE8; vertical-align:middle; }
+.drawer-table tr:hover td { background:#f7f4f0; }
+.drawer-table .td-name { font-weight:600; color:#1a3a2a; }
+.drawer-table .td-name a { color:#1a3a2a; text-decoration:none; }
+.drawer-table .td-name a:hover { text-decoration:underline; }
+.drawer-table .td-sub { font-size:11px; color:#888; }
+.drawer-table .td-date { color:#999; font-size:11px; white-space:nowrap; }
+.drawer-empty { text-align:center; padding:48px 20px; color:#aaa; }
+.drawer-footer { padding:12px 20px; border-top:1px solid #E9E5DF; font-size:11px; color:#999; display:flex; justify-content:space-between; align-items:center; }
+.metric { cursor:pointer; transition:box-shadow .15s, border-color .15s; }
+.metric:hover { box-shadow:0 2px 8px rgba(82,183,136,.25); border-color:#52b788 !important; }
+.metric-click-hint { font-size:10px; color:#bbb; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -272,9 +306,11 @@ async function render() {
 
   var content = document.getElementById('content');
 
-  function metricCard(label, value, denominator, hint) {
+  function metricCard(label, value, denominator, hint, filterKey, filterVal) {
     var p = denominator > 0 ? '<div class="metric-pct">'+(value/denominator*100).toFixed(0)+'% of '+(hint||'total')+'</div>' : '';
-    return '<div class="metric"><div class="metric-label">'+label+'</div><div class="metric-value">'+value.toLocaleString()+'</div>'+p+'</div>';
+    var clickAttr = filterKey ? ' onclick="openDrawer(\'' + label + '\',\'' + filterKey + '\',\'' + (filterVal||'true') + '\')" title="Click to see contacts"' : '';
+    var hint2 = filterKey ? '<div class="metric-click-hint">&#128269; Click to explore</div>' : '';
+    return '<div class="metric"' + clickAttr + '><div class="metric-label">'+label+'</div><div class="metric-value">'+value.toLocaleString()+'</div>'+p+hint2+'</div>';
   }
 
   content.innerHTML = '' +
@@ -292,11 +328,11 @@ async function render() {
     '<div class="section">' +
       '<div class="section-header"><span class="section-icon">&#128228;</span><span class="section-title">Outbound</span></div>' +
       '<div class="section-body">' +
-        metricCard('Invitations Sent',     invSent,     total,       'contacts') +
-        metricCard('Invitations Approved', invApproved, invSent,     'sent') +
-        metricCard('Messages Sent',        msgSent,     invApproved, 'connected') +
-        metricCard('Replies',              replied,     msgSent,     'sent') +
-        metricCard('Positive Replies',     positive,    replied,     'replies') +
+        metricCard('Invitations Sent',     invSent,     total,       'contacts',    'invite_sent',    'true') +
+        metricCard('Invitations Approved', invApproved, invSent,     'sent',        'invite_approved','true') +
+        metricCard('Messages Sent',        msgSent,     invApproved, 'connected',   'msg_sent',       'true') +
+        metricCard('Replies',              replied,     msgSent,     'sent',        'msg_replied',    'true') +
+        metricCard('Positive Replies',     positive,    replied,     'replies',     'positive_reply', 'true') +
       '</div>' +
     '</div>' +
 
@@ -304,11 +340,11 @@ async function render() {
     '<div class="section">' +
       '<div class="section-header"><span class="section-icon">&#128293;</span><span class="section-title">Engagement Activities</span></div>' +
       '<div class="section-body">' +
-        metricCard('Profile Views',             profileViews, total, 'contacts') +
-        metricCard('Post Likes',                postLikes,    0, '') +
-        metricCard('Comment Likes',             commentLikes, 0, '') +
-        metricCard('Company Follow Invited',    followInvite,   invApproved||total, 'connected') +
-        metricCard('Company Follow Confirmed',  followConfirm,  followInvite, 'invited') +
+        metricCard('Profile Views',             profileViews, total, 'contacts',   'profile_viewed', 'true') +
+        metricCard('Post Likes',                postLikes,    0, '',             'post_liked',     'true') +
+        metricCard('Comment Likes',             commentLikes, 0, '',             'comment_liked',  'true') +
+        metricCard('Company Follow Invited',    followInvite,   invApproved||total, 'connected',    'company_follow_invited', 'true') +
+        metricCard('Company Follow Confirmed',  followConfirm,  followInvite, 'invited',         'company_follow_confirmed', 'true') +
       '</div>' +
     '</div>' +
 
@@ -317,8 +353,8 @@ async function render() {
       '<div class="section-header"><span class="section-icon">&#127968;</span><span class="section-title">Company Engagement Activities</span></div>' +
       '<div class="section-body">' +
         '<div class="metric"><div class="metric-label">Co. Post + Comment Likes</div><div class="metric-value">'+coLikes.toLocaleString()+'</div><div class="metric-total">Likes sent from company page</div></div>' +
-        metricCard('Co. Post Likes',    sum('company_post_likes_sent',    'company_likes_sent_at'), 0, '') +
-        metricCard('Co. Comment Likes', sum('company_comment_likes_sent', 'company_likes_sent_at'), 0, '') +
+        metricCard('Co. Post Likes',    sum('company_post_likes_sent','company_likes_sent_at'), 0, '', 'co_post_liked', 'true') +
+        metricCard('Co. Comment Likes', sum('company_comment_likes_sent','company_likes_sent_at'), 0, '', 'co_comment_liked', 'true') +
       '</div>' +
     '</div>';
 }
@@ -365,8 +401,143 @@ function copyShareUrl() {
   setTimeout(function(){ btn.textContent = 'Copy link'; btn.classList.remove('copied'); }, 2500);
 }
 
+// ── Drill-down drawer ─────────────────────────────────────────────────────
+var _drawerContacts = [];
+var _drawerRange    = null;
+
+function fmtDate(d) {
+  if (!d) return '';
+  var dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'2-digit'});
+}
+
+// Map filterKey → which contacts belong + columns to show
+function getDrawerContacts(filterKey, range) {
+  var c = allContacts;
+  switch(filterKey) {
+    case 'invite_sent':    return c.filter(function(x){ return range.from||range.to ? inRange(x.invite_sent_at, range) : x.invite_sent_at; });
+    case 'invite_approved':return c.filter(function(x){ return range.from||range.to ? inRange(x.invite_approved_at, range) : x.invite_approved; });
+    case 'msg_sent':       return c.filter(function(x){ return range.from||range.to ? inRange(x.msg_sent_at, range) : x.msg_sent_at; });
+    case 'msg_replied':    return c.filter(function(x){ return range.from||range.to ? inRange(x.msg_replied_at, range) : x.msg_replied; });
+    case 'positive_reply': return c.filter(function(x){ return range.from||range.to ? inRange(x.positive_reply_at, range) : x.positive_reply; });
+    case 'profile_viewed': return c.filter(function(x){ return range.from||range.to ? inRange(x.last_profile_view_at, range) : x.last_profile_view_at; });
+    case 'post_liked':     return c.filter(function(x){ return range.from||range.to ? inRange(x.likes_sent_at, range) : x.post_likes_sent > 0; });
+    case 'comment_liked':  return c.filter(function(x){ return range.from||range.to ? inRange(x.likes_sent_at, range) : x.comment_likes_sent > 0; });
+    case 'company_follow_invited':   return c.filter(function(x){ return range.from||range.to ? inRange(x.company_follow_invited_at, range) : x.company_follow_invited; });
+    case 'company_follow_confirmed': return c.filter(function(x){ return range.from||range.to ? inRange(x.company_follow_confirmed_at, range) : x.company_follow_confirmed; });
+    case 'co_post_liked':    return c.filter(function(x){ return range.from||range.to ? inRange(x.company_likes_sent_at, range) : x.company_post_likes_sent > 0; });
+    case 'co_comment_liked': return c.filter(function(x){ return range.from||range.to ? inRange(x.company_likes_sent_at, range) : x.company_comment_likes_sent > 0; });
+    default: return c;
+  }
+}
+
+function getDateCol(filterKey) {
+  var map = {
+    'invite_sent':'invite_sent_at','invite_approved':'invite_approved_at',
+    'msg_sent':'msg_sent_at','msg_replied':'msg_replied_at','positive_reply':'positive_reply_at',
+    'profile_viewed':'last_profile_view_at','post_liked':'likes_sent_at',
+    'comment_liked':'likes_sent_at','company_follow_invited':'company_follow_invited_at',
+    'company_follow_confirmed':'company_follow_confirmed_at',
+    'co_post_liked':'company_likes_sent_at','co_comment_liked':'company_likes_sent_at'
+  };
+  return map[filterKey] || null;
+}
+
+function openDrawer(label, filterKey, filterVal) {
+  var range = getRange(rangeMode);
+  _drawerRange   = range;
+  _drawerContacts = getDrawerContacts(filterKey, range);
+  window._drawerFilterKey = filterKey;
+
+  document.getElementById('drawer-title').textContent = label;
+  document.getElementById('drawer-subtitle').textContent = _drawerContacts.length + ' contacts';
+  document.getElementById('drawer-search').value = '';
+  document.getElementById('drawer-count').textContent = _drawerContacts.length + ' contacts';
+
+  renderDrawerTable(_drawerContacts, filterKey);
+
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('drawer-search').focus();
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+function renderDrawerTable(contacts, filterKey) {
+  var dateCol = getDateCol(filterKey);
+  var thead   = document.getElementById('drawer-thead');
+  var tbody   = document.getElementById('drawer-tbody');
+  var empty   = document.getElementById('drawer-empty');
+
+  thead.innerHTML = '<tr><th>Name</th><th>Company</th><th>Title</th>' + (dateCol ? '<th>Date</th>' : '') + '<th>LinkedIn</th></tr>';
+
+  if (!contacts.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = contacts.map(function(c) {
+    var name  = ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || '—';
+    var nameCell = c.li_profile_url
+      ? '<a href="' + c.li_profile_url + '" target="_blank">' + name + '</a>'
+      : name;
+    var dateVal = dateCol ? fmtDate(c[dateCol]) : '';
+    return '<tr>' +
+      '<td class="td-name">' + nameCell + '</td>' +
+      '<td><div>' + (c.company||'—') + '</div></td>' +
+      '<td><div class="td-sub">' + (c.title||'—') + '</div></td>' +
+      (dateCol ? '<td class="td-date">' + dateVal + '</td>' : '') +
+      '<td>' + (c.li_profile_url ? '<a href="' + c.li_profile_url + '" target="_blank" style="color:#52b788;font-size:11px">View &#8599;</a>' : '') + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function filterDrawer() {
+  var q = (document.getElementById('drawer-search').value||'').toLowerCase();
+  var filtered = !q ? _drawerContacts : _drawerContacts.filter(function(c) {
+    return ((c.first_name||'')+(c.last_name||'')+(c.company||'')+(c.title||'')).toLowerCase().includes(q);
+  });
+  document.getElementById('drawer-count').textContent = filtered.length + ' contacts' + (q ? ' (filtered)' : '');
+  document.getElementById('drawer-subtitle').textContent = filtered.length + ' contacts';
+  renderDrawerTable(filtered, window._drawerFilterKey || '');
+}
+
+// Close drawer on Escape
+document.addEventListener('keydown', function(e) { if(e.key==='Escape') closeDrawer(); });
+
 // Init
 loadCampaigns();
 </script>
+
+<!-- Drill-down drawer -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title" id="drawer-title">Contacts</div>
+      <div class="drawer-subtitle" id="drawer-subtitle"></div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">&#x2715;</button>
+  </div>
+  <div class="drawer-search">
+    <input type="text" id="drawer-search" placeholder="Search name or company…" oninput="filterDrawer()">
+  </div>
+  <div class="drawer-body">
+    <table class="drawer-table">
+      <thead id="drawer-thead"></thead>
+      <tbody id="drawer-tbody"></tbody>
+    </table>
+    <div class="drawer-empty" id="drawer-empty" style="display:none">No contacts found</div>
+  </div>
+  <div class="drawer-footer">
+    <span id="drawer-count"></span>
+  </div>
+</div>
+
 </body>
 </html>
