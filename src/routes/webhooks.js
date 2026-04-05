@@ -34,35 +34,8 @@ router.post('/unipile', async (req, res) => {
 
   try {
     if (payload?.event === 'new_relation')  await handleNewRelation(payload);
-    if (payload?.event === 'new_message')   await handleNewMessage(payload);
-  
-  // Sync incoming message to inbox for real-time Inbox tab
-  try {
-    const chatId = payload.chat_id || payload.object_id || '';
-    const msgId  = payload.message_id || payload.id || ('wh_' + Date.now());
-    const text   = payload.text || payload.body || payload.content || '';
-    if (chatId && text && rows.length) {
-      const wsId  = rows[0].workspace_id;
-      const accId = rows[0].camp_account_id || null;
-      const upsertQ = 'INSERT INTO inbox_threads'
-        + ' (workspace_id, account_id, thread_id, last_message_at, last_message_preview, unread_count, updated_at)'
-        + ' VALUES ($1,$2,$3,NOW(),$4,1,NOW())'
-        + ' ON CONFLICT (thread_id) DO UPDATE SET'
-        + ' unread_count = inbox_threads.unread_count + 1,'
-        + ' last_message_at = NOW(), last_message_preview = $4, updated_at = NOW()'
-        + ' RETURNING id';
-      const tRes = await db.query(upsertQ, [wsId, accId, chatId, text.slice(0, 120)]);
-      const threadId = tRes.rows[0] && tRes.rows[0].id;
-      if (threadId) {
-        const insertQ = 'INSERT INTO inbox_messages'
-          + ' (thread_id, unipile_msg_id, direction, content, sent_at)'
-          + ' VALUES ($1,$2,$3,$4,NOW()) ON CONFLICT (unipile_msg_id) DO NOTHING';
-        await db.query(insertQ, [threadId, msgId, 'received', text]);
-      }
-    }
-  } catch (inboxErr) {
-    console.warn('[Webhook] inbox sync failed:', inboxErr.message);
-  }
+    if (payload?.event === 'message_received')   await handleNewMessage(payload);
+
 } catch (err) {
     console.error('[Webhook] Error processing event:', err.message);
   }
@@ -112,27 +85,35 @@ async function handleNewRelation(payload) {
 // ── new_message ────────────────────────────────────────────────────────────────────
 
 async function handleNewMessage(payload) {
-  const { account_id, chat_id, sender_id, is_sender } = payload;
+  // Unipile sends event: 'message_received'
+  // payload.sender.attendee_provider_id = sender LinkedIn member ID
+  // payload.account_info.user_id        = our account LinkedIn member ID
+  const account_id  = payload.account_id;
+  const chat_id     = payload.chat_id;
+  const senderPrId  = payload.sender?.attendee_provider_id;
+  const ourUserId   = payload.account_info?.user_id;
+  const msgText     = payload.message || payload.text || '';
 
-  // Only process incoming messages (not messages we sent)
-  if (is_sender === true || is_sender === 'true') return;
-  if (!account_id || !sender_id) {
-    console.warn('[Webhook] new_message: missing account_id or sender_id');
+  // Skip messages sent by us (from another device or API)
+  if (ourUserId && senderPrId && ourUserId === senderPrId) return;
+  if (!account_id || !senderPrId) {
+    console.warn('[Webhook] message_received: missing account_id or sender.attendee_provider_id');
     return;
   }
 
   const { rows: contacts } = await db.query(
-    `SELECT c.id, c.first_name, c.last_name, c.campaign_id, c.chat_id, c.reply_count
+    `SELECT c.id, c.first_name, c.last_name, c.campaign_id, c.chat_id, c.reply_count,
+            c.msg_replied
      FROM contacts c
      INNER JOIN campaigns camp ON camp.id = c.campaign_id
      WHERE camp.account_id = $1
        AND c.msg_sent = true
        AND (c.provider_id = $2 OR c.chat_id = $3)`,
-    [account_id, sender_id, chat_id || '']
+    [account_id, senderPrId, chat_id || '']
   );
 
   if (!contacts.length) {
-    console.log(`[Webhook] new_message: no matching contact for sender ${sender_id}`);
+    console.log(`[Webhook] message_received: no campaign contact for sender ${senderPrId}`);
     return;
   }
 

@@ -476,4 +476,39 @@ router.post('/copy-provider-ids', async (req, res) => {
   }
 });
 
+// POST /api/admin/register-message-webhooks
+// Registers message_received webhooks for all existing accounts that don't have one yet.
+// Safe to run multiple times — skips accounts that already have msg_webhook_id.
+router.post('/register-message-webhooks', async (req, res) => {
+  try {
+    // Ensure msg_webhook_id column exists (idempotent migration)
+    await db.query(`ALTER TABLE unipile_accounts ADD COLUMN IF NOT EXISTS msg_webhook_id VARCHAR`).catch(()=>{});
+
+    const SERVER_URL = process.env.SERVER_URL || 'https://interactive-report-production-0c5d.up.railway.app';
+    const { createMessageWebhook } = require('../unipile');
+
+    const { rows: accounts } = await db.query(
+      `SELECT account_id, display_name FROM unipile_accounts WHERE msg_webhook_id IS NULL`
+    );
+
+    let registered = 0, failed = 0;
+    for (const acc of accounts) {
+      try {
+        const wId = await createMessageWebhook(acc.account_id, SERVER_URL);
+        if (wId) {
+          await db.query('UPDATE unipile_accounts SET msg_webhook_id=$1 WHERE account_id=$2', [wId, acc.account_id]);
+          console.log('[Admin] msg webhook', wId, 'registered for', acc.display_name || acc.account_id);
+          registered++;
+        }
+      } catch(e) {
+        console.warn('[Admin] msg webhook failed for', acc.account_id, ':', e.message);
+        failed++;
+      }
+    }
+    res.json({ registered, failed, total: accounts.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

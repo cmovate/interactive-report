@@ -327,6 +327,27 @@ async function commentPost(accountId, postId, text, commentId) {
   return data;
 }
 
+
+// Creates a per-account 'message_received' webhook (separate from the new_relation webhook)
+async function createMessageWebhook(accountId, serverUrl) {
+  const data = await request('/api/v1/webhooks', {
+    method: 'POST',
+    body: JSON.stringify({
+      source: 'users',
+      name: `msg_received_${accountId}`,
+      request_url: `${serverUrl}/api/webhooks/unipile`,
+      account_ids: [accountId],
+      events: ['message_received'],
+      format: 'json',
+      headers: [
+        { key: 'Content-Type',     value: 'application/json' },
+        { key: 'x-webhook-secret', value: process.env.WEBHOOK_SECRET || 'elvia-secret' }
+      ]
+    })
+  });
+  return data?.id || null;
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
@@ -342,6 +363,7 @@ module.exports = {
   likePost,
   createRelationWebhook,
   deleteWebhook,
+  createMessageWebhook,
   sendInvitation,
   withdrawInvitation,
   sendMessage,

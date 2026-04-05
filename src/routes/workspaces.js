@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { createRelationWebhook, deleteWebhook, getAccountInfo, enrichProfile } = require('../unipile');
+const { createRelationWebhook, createMessageWebhook, deleteWebhook, getAccountInfo, enrichProfile } = require('../unipile');
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
 /**
@@ -80,9 +80,10 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { rows: accounts } = await db.query(
-      'SELECT account_id, webhook_id FROM unipile_accounts WHERE workspace_id = $1', [req.params.id]);
+      'SELECT account_id, webhook_id, msg_webhook_id FROM unipile_accounts WHERE workspace_id = $1', [req.params.id]);
     for (const acc of accounts) {
-      if (acc.webhook_id) await deleteWebhook(acc.webhook_id);
+      if (acc.webhook_id)     await deleteWebhook(acc.webhook_id);
+      if (acc.msg_webhook_id) await deleteWebhook(acc.msg_webhook_id);
     }
     await db.query('DELETE FROM workspaces WHERE id = $1', [req.params.id]);
     res.json({ success: true });
@@ -115,10 +116,19 @@ router.post('/:id/accounts', async (req, res) => {
     } catch (err) {
       console.warn('[Workspace] Could not create webhook for', account_id, ':', err.message);
     }
+    // Create separate message_received webhook per account
+    let msgWebhookId = null;
+    try {
+      msgWebhookId = await createMessageWebhook(account_id, SERVER_URL);
+      console.log('[Workspace] Created msg webhook', msgWebhookId, 'for account', account_id);
+    } catch (err) {
+      console.warn('[Workspace] Could not create msg webhook for', account_id, ':', err.message);
+    }
+
     const { rows } = await db.query(
-      `INSERT INTO unipile_accounts (workspace_id, account_id, display_name, provider, status, webhook_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.params.id, account_id, display_name || account_id, provider || 'linkedin', status || 'connected', webhookId]);
+      `INSERT INTO unipile_accounts (workspace_id, account_id, display_name, provider, status, webhook_id, msg_webhook_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [req.params.id, account_id, display_name || account_id, provider || 'linkedin', status || 'connected', webhookId, msgWebhookId]);
     const saved = rows[0];
     hydrateAccountProfile(account_id); // fire-and-forget
     res.status(201).json(saved);
@@ -162,9 +172,10 @@ router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
 router.delete('/:id/accounts/:accountId', async (req, res) => {
   try {
     const { rows } = await db.query(
-      'SELECT webhook_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
+      'SELECT webhook_id, msg_webhook_id FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
       [req.params.id, req.params.accountId]);
-    if (rows.length > 0 && rows[0].webhook_id) await deleteWebhook(rows[0].webhook_id);
+    if (rows.length > 0 && rows[0].webhook_id)     await deleteWebhook(rows[0].webhook_id);
+    if (rows.length > 0 && rows[0].msg_webhook_id) await deleteWebhook(rows[0].msg_webhook_id);
     await db.query(
       'DELETE FROM unipile_accounts WHERE workspace_id = $1 AND account_id = $2',
       [req.params.id, req.params.accountId]);
