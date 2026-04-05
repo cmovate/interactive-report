@@ -21,7 +21,7 @@ const INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const DELAY_BETWEEN_COMPANIES_MS = [3000, 6000];
 const DELAY_BETWEEN_ACCOUNTS_MS  = [5000, 10000];
 const MAX_RESULTS_PER_COMPANY = 50;
-const MAX_COMPANIES_PER_RUN = 3; // process max 3 companies at a time
+const MAX_COMPANIES_PER_RUN = 50; // process max 50 companies at a time
 
 let running = false;
 
