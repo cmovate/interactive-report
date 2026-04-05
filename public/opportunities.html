@@ -125,8 +125,8 @@ function init() {
       byCoId[m[1]].push(c);
     });
     companies.forEach(function(co) {
-      var coId = co.company_linkedin_id ||
-        ((co.li_company_url||'').match(/\/company\/([^\/\?#]+)/)||[])[1];
+      var coId = ((co.li_company_url||'').match(/\/company\/([^\/\?#]+)/)||[])[1] ||
+        co.company_linkedin_id;
       if (coId && byCoId[coId] && byCoId[coId].length) {
         scanResults[co.id] = { scanning: false, contacts: byCoId[coId] };
       }
