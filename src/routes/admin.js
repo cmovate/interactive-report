@@ -822,3 +822,59 @@ router.post('/bulk-insert-contacts', async (req, res) => {
 });
 
 module.exports = router;
+// GET /api/admin/enrich-list?list_id=23&workspace_id=4
+// Trigger background enrichment for all contacts in a list (no POST body needed)
+router.get('/enrich-list', async (req, res) => {
+  const { list_id, workspace_id } = req.query;
+  if (!list_id || !workspace_id) return res.status(400).json({ error: 'list_id and workspace_id required' });
+  try {
+    // Get contacts in this list that have a LinkedIn URL but no provider_id yet
+    const { rows: contacts } = await db.query(`
+      SELECT c.id, c.li_profile_url, c.provider_id
+      FROM contacts c
+      JOIN list_contacts lc ON lc.contact_id = c.id
+      WHERE lc.list_id = $1
+        AND c.workspace_id = $2
+        AND c.li_profile_url IS NOT NULL
+        AND c.li_profile_url LIKE '%linkedin.com/in/%'
+      ORDER BY c.id
+    `, [list_id, workspace_id]);
+
+    // Get first available account in workspace
+    const { rows: accounts } = await db.query(`
+      SELECT DISTINCT ua.account_id
+      FROM campaigns c
+      JOIN unipile_accounts ua ON ua.account_id = c.account_id
+      WHERE c.workspace_id = $1
+      LIMIT 1
+    `, [workspace_id]);
+
+    // Fall back to any account linked to workspace via campaigns
+    const { rows: campAccounts } = await db.query(`
+      SELECT DISTINCT account_id FROM campaigns WHERE workspace_id = $1 LIMIT 1
+    `, [workspace_id]);
+
+    const accountId = (accounts[0] || campAccounts[0])?.account_id;
+    if (!accountId) return res.status(400).json({ error: 'No Unipile account found for workspace' });
+
+    const { enqueue } = require('../enrichment');
+    let queued = 0, already = 0;
+    for (const c of contacts) {
+      if (c.provider_id) { already++; continue; }
+      enqueue(c.id, accountId, c.li_profile_url);
+      queued++;
+    }
+
+    res.json({
+      total_in_list: contacts.length,
+      queued_for_enrichment: queued,
+      already_enriched: already,
+      account_id: accountId
+    });
+  } catch(e) {
+    console.error('[enrich-list GET]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+module.exports = router;
