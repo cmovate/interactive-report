@@ -29,7 +29,7 @@ const { getChatMessages, sendMessage, startDirectMessage, enrichProfile } = requ
  * Upserts into inbox_messages (dedup by unipile_msg_id).
  * Returns { added, total } counts.
  */
-async function syncThreadMessages(threadDbId, chatId, accountId, maxMessages = 20) {
+async function syncThreadMessages(threadDbId, chatId, accountId, maxMessages = 20, accountProviderId = null) {
   let messages;
   try {
     messages = await getChatMessages(accountId, chatId, maxMessages);
@@ -44,7 +44,10 @@ async function syncThreadMessages(threadDbId, chatId, accountId, maxMessages = 2
     if (!msgId) continue;
 
     // direction: 'sent' if from_me / is_me flag, else 'received'
-    const direction = (msg.from_me || msg.is_me || msg.sender_type === 'me') ? 'sent' : 'received';
+    // Detect direction: compare sender's provider_id with our account's provider_id
+    const senderPid = msg.sender?.attendee_provider_id || msg.sender_id || null;
+    const isOurMsg  = accountProviderId && senderPid && senderPid === accountProviderId;
+    const direction = (isOurMsg || msg.from_me || msg.is_me || msg.sender_type === 'me') ? 'sent' : 'received';
     const content   = msg.text || msg.body || msg.content || '';
     const sentAt    = msg.created_at || msg.timestamp || msg.sent_at || null;
 
@@ -106,6 +109,7 @@ async function syncWorkspaceInbox(workspaceId, specificAccountId = null) {
         continue;
       }
       const chatData = await chatRes.json();
+      let accountSelfId = null; // lazy-fetched own provider_id for direction detection
       const chats    = Array.isArray(chatData?.items) ? chatData.items : [];
 
       for (const chat of chats) {
@@ -167,7 +171,15 @@ async function syncWorkspaceInbox(workspaceId, specificAccountId = null) {
         if (!threadDbId) continue;
 
         // Sync messages for this thread
-        await syncThreadMessages(threadDbId, chatId, account_id, 20);
+        // Get account's own provider_id for direction detection (lazy-fetched once per account)
+        if (!accountSelfId) {
+          try {
+            const { getAccountInfo } = require('../unipile');
+            const info = await getAccountInfo(account_id);
+            accountSelfId = info?.user_id || info?.provider_id || null;
+          } catch(e) { /* ignore */ }
+        }
+        await syncThreadMessages(threadDbId, chatId, account_id, 20, accountSelfId);
 
         await new Promise(r => setTimeout(r, 800));
       }
