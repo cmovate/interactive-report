@@ -841,6 +841,39 @@ app.use(function(req, res, next) {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
+// GET /api/enrich-list-get?list_id=23&workspace_id=4
+// Triggers enrichment for a list without needing POST body
+app.get('/api/enrich-list-get', async (req, res) => {
+  const { list_id, workspace_id } = req.query;
+  if (!list_id || !workspace_id) return res.status(400).json({ error: 'list_id and workspace_id required' });
+  try {
+    // Get account
+    const accRes = await db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]);
+    if (!accRes.rows.length) return res.json({ error: 'No LinkedIn account found for workspace' });
+    const accountId = accRes.rows[0].account_id;
+
+    // Get contacts without provider_id
+    const { rows: contacts } = await db.query(`
+      SELECT c.id, c.li_profile_url, c.first_name, c.provider_id
+      FROM contacts c
+      JOIN list_contacts lc ON lc.contact_id = c.id
+      WHERE lc.list_id=$1 AND c.li_profile_url LIKE '%linkedin.com/in/%'
+      ORDER BY c.id
+    `, [list_id]);
+
+    const { enqueue } = require('./src/enrichment');
+    let queued = 0, skipped = 0;
+    for (const c of contacts) {
+      if (c.provider_id) { skipped++; continue; }
+      enqueue(c.id, accountId, c.li_profile_url);
+      queued++;
+    }
+    res.json({ total: contacts.length, queued, already_enriched: skipped, account_id: accountId });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -875,3 +908,4 @@ app.post('/api/lists/:id/bulk-contacts', async (req, res) => {
   }
   res.json({ inserted, skipped, total: urls.length });
 });
+
