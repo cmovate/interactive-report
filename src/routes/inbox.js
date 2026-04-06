@@ -369,7 +369,7 @@ router.get('/by-provider', async (req, res) => {
       `SELECT 
           t.id, t.thread_id, t.account_id, t.workspace_id,
           c.first_name, c.last_name, c.title as contact_title, 
-          c.contact_company, c.li_profile_url, c.provider_id,
+          c.company_name, c.li_profile_url, c.provider_id,
           t.last_message_at, t.last_message_preview,
           camp.name as campaign_name
         FROM inbox_threads t
@@ -392,7 +392,7 @@ router.get('/by-provider', async (req, res) => {
       `SELECT 
           t.id, t.thread_id, t.account_id, t.workspace_id,
           c.first_name, c.last_name, c.title as contact_title,
-          c.contact_company, c.li_profile_url, c.provider_id,
+          c.company_name, c.li_profile_url, c.provider_id,
           t.last_message_at, t.last_message_preview
         FROM inbox_threads t
         LEFT JOIN contacts c ON t.contact_id = c.id
