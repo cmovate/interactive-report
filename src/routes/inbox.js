@@ -358,15 +358,17 @@ router.post('/sync', async (req, res) => {
   }
 });
 
-// GET /api/inbox/by-provider?provider_id=X&workspace_id=Y
+// GET /api/inbox/by-provider?provider_id=X&workspace_id=Y&account_id=Z
+// Finds inbox thread for a contact by provider_id.
+// Strategy: 1) DB lookup by contacts.provider_id or li_profile_url
+//           2) Unipile direct chat lookup by attendee_provider_id
 router.get('/by-provider', async (req, res) => {
-  const { provider_id, workspace_id } = req.query;
+  const { provider_id, workspace_id, account_id } = req.query;
   if (!provider_id || !workspace_id) return res.status(400).json({ error: 'provider_id and workspace_id required' });
   try {
-    // Search by provider_id in contacts table
+    // Step 1: DB lookup via contacts table
     const { rows } = await db.query(
-      `SELECT 
-          t.id, t.thread_id, t.account_id, t.workspace_id,
+      `SELECT t.id, t.thread_id, t.account_id, t.workspace_id,
           c.first_name, c.last_name,
           c.title AS contact_title,
           c.company AS contact_company,
@@ -379,7 +381,7 @@ router.get('/by-provider', async (req, res) => {
         WHERE t.workspace_id = $1
           AND (
             c.provider_id = $2
-            OR LOWER(c.li_profile_url) = LOWER($3)
+            OR c.li_profile_url = $3
             OR c.li_profile_url LIKE $4
           )
         LIMIT 1`,
@@ -387,9 +389,63 @@ router.get('/by-provider', async (req, res) => {
        'https://www.linkedin.com/in/' + provider_id,
        '%/' + provider_id + '%']
     );
-    res.json({ thread: rows[0] || null });
+    if (rows.length > 0) return res.json({ thread: rows[0] });
+
+    // Step 2: Unipile direct lookup — find chat with this contact
+    const DSN = process.env.UNIPILE_DSN;
+    const KEY = process.env.UNIPILE_API_KEY;
+
+    // Get accounts for this workspace
+    const { rows: accounts } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1', [workspace_id]
+    );
+    const accountIds = account_id ? [account_id] : accounts.map(a => a.account_id);
+
+    for (const accId of accountIds) {
+      try {
+        // Fetch chats and look for this attendee_provider_id
+        const chatRes = await fetch(
+          DSN + '/api/v1/chats?account_id=' + encodeURIComponent(accId) + '&limit=100',
+          { headers: { 'X-API-KEY': KEY, 'accept': 'application/json' } }
+        );
+        if (!chatRes.ok) continue;
+        const chatData = await chatRes.json();
+        const chats = Array.isArray(chatData?.items) ? chatData.items : [];
+
+        // Find chat with this attendee
+        const chat = chats.find(c =>
+          c.attendee_provider_id === provider_id ||
+          (c.attendees && c.attendees.some(a => a.provider_id === provider_id || a.attendee_provider_id === provider_id))
+        );
+        if (!chat) continue;
+
+        // Check if we have this thread in DB
+        const { rows: threadRows } = await db.query(
+          `SELECT t.id, t.thread_id, t.account_id, t.workspace_id,
+              c.first_name, c.last_name,
+              c.title AS contact_title,
+              c.company AS contact_company,
+              c.li_profile_url, c.provider_id,
+              t.last_message_at, t.last_message_preview
+            FROM inbox_threads t
+            LEFT JOIN contacts c ON t.contact_id = c.id
+            WHERE t.workspace_id = $1 AND t.thread_id = $2
+            LIMIT 1`,
+          [workspace_id, chat.id]
+        );
+
+        if (threadRows.length > 0) {
+          return res.json({ thread: threadRows[0] });
+        }
+        // Thread not in DB yet - return chat_id so frontend can sync
+        return res.json({ thread: null, unipile_chat_id: chat.id, account_id: accId });
+      } catch(e) { /* try next account */ }
+    }
+
+    return res.json({ thread: null });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
 
 
 module.exports = router;
