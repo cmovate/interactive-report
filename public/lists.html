@@ -522,6 +522,10 @@ function buildContactsHeader() {
     ['', 'Invite sent', '100px', true],
     ['', 'Invite approved', '110px', true],
     ['', '# Msgs sent', '90px', true, 'Total messages sent to this contact'],
+    ['', 'Conference', '200px', false],
+    ['', 'Conf. Date', '120px', false],
+    ['', 'Conf. Location', '160px', false],
+    ['', 'Conf. Website', '180px', false],
   ];
   let html = '';
   fixed.forEach(([cls, label, w, center, title]) => {
@@ -737,7 +741,7 @@ function renderContactStats() {
 }
 
 // Total = 1 + 21 + MAX_MSG_SLOTS*3 + 4(replied/pos/views/follow) + 3(stage/score/analyze) + 1(del)
-const TOTAL_COLS = 1 + 21 + MAX_MSG_SLOTS * 3 + 4 + 3 + 1;
+const TOTAL_COLS = 1 + 21 + MAX_MSG_SLOTS * 3 + 4 + 3 + 1 + 4; // +4 conference cols
 
 function renderContactsTable(flashIds) {
   const tbody=document.getElementById('contacts-body');
@@ -785,6 +789,7 @@ function renderContactsTable(flashIds) {
       +'<td style="text-align:center;">'+stageBadge(r.conversation_stage)+'</td>'
       +'<td style="text-align:center;">'+scoreBadge(r.conversation_score)+'</td>'
       +'<td style="text-align:center;"><button class="analyze-btn" onclick="openConvPopup('+r.id+')" title="View conversation analysis">\uD83D\uDCAC View</button></td>'
+      +'<td>'+(r.conference_name||'<span class="cell-muted">—</span>')+'</td>'+'<td class="cell-title">'+(r.conference_date||'<span class="cell-muted">—</span>')+'</td>'+'<td class="cell-loc">'+(r.conference_location||'<span class="cell-muted">—</span>')+'</td>'+'<td>'+(r.conference_website?'<a class="cell-link" href="'+esc(r.conference_website)+'" target="_blank" rel="noopener">Website</a>':'<span class="cell-muted">—</span>')+'</td>'
       +'<td><button class="row-del-btn" onclick="askDeleteOne(\''+r.id+'\')" title="Delete">&times;</button></td></tr>';
   }).join('');
 }
