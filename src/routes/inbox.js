@@ -47,7 +47,7 @@ async function syncThreadMessages(threadDbId, chatId, accountId, maxMessages = 2
     // Detect direction: compare sender's provider_id with our account's provider_id
     const senderPid = msg.sender?.attendee_provider_id || msg.sender_id || null;
     const isOurMsg  = accountProviderId && senderPid && senderPid === accountProviderId;
-    const direction = (isOurMsg || msg.from_me || msg.is_me || msg.sender_type === 'me') ? 'sent' : 'received';
+    const direction = (msg.is_sender === 1 || msg.is_sender === true || isOurMsg || msg.from_me || msg.is_me) ? 'sent' : 'received';
     const content   = msg.text || msg.body || msg.content || '';
     const sentAt    = msg.created_at || msg.timestamp || msg.sent_at || null;
 
