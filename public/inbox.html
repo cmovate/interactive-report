@@ -333,7 +333,7 @@ window.addEventListener('message', function(ev) {
   if (!providerId && !liUrl) return;
 
   setTimeout(function() {
-    // Step 1: Search loaded threads in memory
+    // Step 1: search loaded threads in memory
     var found = threads.find(function(t){
       if (!t.li_profile_url && !t.provider_id) return false;
       var pidInUrl = providerId && t.li_profile_url && t.li_profile_url.includes(providerId);
@@ -341,7 +341,6 @@ window.addEventListener('message', function(ev) {
       var urlExact = liUrl && t.li_profile_url === liUrl;
       return pidInUrl || pidDirect || urlExact;
     });
-
     if (found) {
       openThread(found.id);
       var el = document.getElementById('ti-' + found.id);
@@ -349,51 +348,36 @@ window.addEventListener('message', function(ev) {
       return;
     }
 
-    // Step 2: Query DB by provider_id directly (handles all URL format mismatches)
+    // Step 2: DB + Unipile lookup
+    var accParam = selectedAccount ? '&account_id=' + encodeURIComponent(selectedAccount) : '';
     fetch('/api/inbox/by-provider?provider_id=' + encodeURIComponent(providerId||'') +
-          '&workspace_id=' + encodeURIComponent(wsId))
+          '&workspace_id=' + encodeURIComponent(wsId) + accParam)
     .then(r=>r.json()).then(function(res){
       if (res.thread && res.thread.id) {
-        var dbThread = res.thread;
         loadThreads().then(function(){
-          openThread(dbThread.id);
+          openThread(res.thread.id);
           setTimeout(function(){
-            var el = document.getElementById('ti-' + dbThread.id);
+            var el = document.getElementById('ti-' + res.thread.id);
             if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
           }, 300);
         });
         return;
       }
-
-      // Step 3: No thread found — show empty conversation panel
-      var nm = ((ev.data.first_name||'')+' '+(ev.data.last_name||'')).trim() || 'Contact';
-      var conv = document.getElementById('conversation');
-      if (!conv) return;
-      conv.innerHTML =
-        '<div class="conv-header">' +
-          '<div class="conv-avatar">' + esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase()) + '</div>' +
-          '<div class="conv-header-info">' +
-            '<div class="conv-name">' + esc(nm) + '</div>' +
-            '<div class="conv-meta">' + esc(ev.data.headline || '') + '</div>' +
-          '</div>' +
-          (liUrl ? '<a href="' + esc(liUrl) + '" target="_blank" class="li-link">LinkedIn ↗</a>' : '') +
-        '</div>' +
-        '<div class="messages" id="messages">' +
-          '<div class="msg-loading" style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div>' +
-        '</div>' +
-        '<div class="reply-area">' +
-          '<textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea>' +
-          '<div class="reply-actions">' +
-            '<button class="ai-btn" disabled>🤖 AI Suggest</button>' +
-            '<div class="reply-actions-spacer"></div>' +
-            '<button class="send-btn" onclick="sendNewDM(' + JSON.stringify(providerId) + ', ' + JSON.stringify(wsId) + ')">Send ▶</button>' +
-          '</div>' +
-        '</div>';
-      currentThread = { id: null, provider_id: providerId, li_profile_url: liUrl, first_name: ev.data.first_name, last_name: ev.data.last_name, _newContact: true };
-    }).catch(function(){
-      // API failed — show empty panel as fallback
-      currentThread = { id: null, provider_id: providerId, _newContact: true };
-    });
+      if (res.unipile_chat_id) {
+        var msg = document.getElementById('messages');
+        if (msg) msg.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px;">Loading conversation...</div>';
+        fetch('/api/inbox/sync?workspace_id=' + wsId, {method:'POST'})
+        .then(function(){ return new Promise(function(r){ setTimeout(r, 2500); }); })
+        .then(function(){ return loadThreads(); })
+        .then(function(){
+          var synced = threads.find(function(t){ return t.li_profile_url && t.li_profile_url.includes(providerId); });
+          if (synced) openThread(synced.id);
+          else showEmptyChat(ev.data, providerId, liUrl, wsId);
+        });
+        return;
+      }
+      showEmptyChat(ev.data, providerId, liUrl, wsId);
+    }).catch(function(){ showEmptyChat(ev.data, providerId, liUrl, wsId); });
   }, 400);
 });
 
@@ -411,6 +395,14 @@ function sendNewDM(providerId, wsId) {
     // Reload threads to show the new conversation
     loadThreads();
   });
+}
+
+function showEmptyChat(data, providerId, liUrl, wsId) {
+  var nm = ((data.first_name||'')+' '+(data.last_name||'')).trim() || 'Contact';
+  var conv = document.getElementById('conversation');
+  if (!conv) return;
+  conv.innerHTML = '<div class="conv-header"><div class="conv-avatar">'+esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase())+'</div><div class="conv-header-info"><div class="conv-name">'+esc(nm)+'</div><div class="conv-meta">'+esc(data.headline||'')+'</div></div>'+(liUrl?'<a href="'+esc(liUrl)+'" target="_blank" class="li-link">LinkedIn ↗</a>':'')+'</div><div class="messages" id="messages"><div style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div></div><div class="reply-area"><textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea><div class="reply-actions"><button class="ai-btn" disabled>🤖 AI Suggest</button><div class="reply-actions-spacer"></div><button class="send-btn" onclick="sendNewDM('+JSON.stringify(providerId)+', '+JSON.stringify(wsId)+')">Send ▶</button></div></div>';
+  currentThread = { id: null, provider_id: providerId, li_profile_url: liUrl, first_name: data.first_name, last_name: data.last_name, _newContact: true };
 }
 </script>
 </body>
