@@ -118,6 +118,7 @@ app.use('/api/industry-search',    industrySearchRouter);
 app.use('/api/enrich-list',        enrichListRouter);
 app.use('/api/enrich-job',         enrichJobRouter);
 app.use('/api/company-id-job',     companyIdJobRouter);
+app.use('/api/instantly',          require('./src/routes/instantly'));
 
 async function s(label, fn) {
   try { await fn(); }

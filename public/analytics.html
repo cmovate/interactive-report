@@ -111,6 +111,45 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .metric { cursor:pointer; transition:box-shadow .15s, border-color .15s; }
 .metric:hover { box-shadow:0 2px 8px rgba(82,183,136,.25); border-color:#52b788 !important; }
 .metric-click-hint { font-size:10px; color:#bbb; margin-top:4px; }
+
+/* Tab bar */
+.tab-bar { background:white; border-bottom:1px solid #E9E5DF; padding:0 20px; display:flex; gap:0; }
+.tab-btn { padding:10px 20px; border:none; background:transparent; font-size:13px; font-weight:500;
+  color:#888; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-1px; transition:all .15s; white-space:nowrap; }
+.tab-btn:hover { color:var(--dark); }
+.tab-btn.active { color:var(--dark); border-bottom-color:var(--green); font-weight:700; }
+
+/* Email tab */
+.email-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:16px; }
+.email-stat { background:white; border:1px solid #E9E5DF; border-radius:10px; padding:12px 14px; }
+.email-stat-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:6px; }
+.email-stat-value { font-size:26px; font-weight:800; color:var(--dark); line-height:1; }
+.email-stat-sub { font-size:11px; color:var(--green); font-weight:600; margin-top:3px; }
+.email-stat.highlight .email-stat-value { color:var(--green); }
+
+/* Email contacts table */
+.email-table-wrap { background:white; border:1px solid #E9E5DF; border-radius:12px; overflow:hidden; }
+.email-table-header { padding:12px 16px; border-bottom:1px solid #E9E5DF; display:flex; align-items:center; gap:10px; background:#f8f6f3; flex-wrap:wrap; }
+.email-table-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--dark); }
+.email-search { flex:1; min-width:180px; border:1px solid #DED9D3; border-radius:7px; padding:6px 10px; font-size:12px; outline:none; }
+.email-search:focus { border-color:var(--green); }
+.email-status-filter { border:1px solid #DED9D3; border-radius:7px; padding:6px 10px; font-size:12px; background:white; outline:none; cursor:pointer; }
+.email-table { width:100%; border-collapse:collapse; font-size:12px; }
+.email-table th { background:var(--dark); color:white; padding:8px 12px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; position:sticky; top:0; }
+.email-table td { padding:7px 12px; border-bottom:1px solid #F0EDE8; vertical-align:middle; }
+.email-table tr:hover td { background:#f7f4f0; }
+.email-table-body-wrap { max-height:520px; overflow-y:auto; }
+.email-pagination { padding:10px 16px; display:flex; align-items:center; gap:10px; border-top:1px solid #E9E5DF; background:#f8f6f3; }
+.page-btn { padding:5px 12px; border:1px solid #DED9D3; border-radius:6px; background:white; font-size:12px; cursor:pointer; }
+.page-btn:hover { border-color:var(--green); }
+.page-btn.active { background:var(--dark); color:white; border-color:var(--dark); }
+.email-loading-bar { height:3px; background:linear-gradient(90deg,var(--green) 0%,#a8dfc9 50%,var(--green) 100%); background-size:200% 100%; animation:slide 1.2s linear infinite; }
+@keyframes slide { from{background-position:200% 0} to{background-position:0 0} }
+.status-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; }
+.status-interested { background:#d1fae5; color:#065f46; }
+.status-not-interested { background:#fee2e2; color:#991b1b; }
+.status-ooo { background:#fef3c7; color:#92400e; }
+.status-default { background:#f3f4f6; color:#6b7280; }
 </style>
 </head>
 <body>
@@ -141,8 +180,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </div>
 </div>
 
-<div class="date-bar">
-  <span class="date-label">PERIOD</span>
+<!-- Tab bar — only shown for Datatailr (wsId=4) -->
+<div class="tab-bar" id="tab-bar" style="display:none">
+  <button class="tab-btn active" id="tab-campaign" onclick="switchTab('campaign',this)">&#128202; Campaign</button>
+  <button class="tab-btn" id="tab-email" onclick="switchTab('email',this)">&#9993;&#65039; Email — HF Quants</button>
+</div>
+
+<div class="date-bar" id="date-bar">
   <button class="range-btn active" data-range="total" onclick="setRange('total', this)">Total</button>
   <button class="range-btn" data-range="day"   onclick="setRange('day', this)">Today</button>
   <button class="range-btn" data-range="week"  onclick="setRange('week', this)">Last 7 days</button>
@@ -159,6 +203,55 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 <div class="content" id="content">
   <div class="empty-state">&#128202; Select a campaign to view analytics</div>
+</div>
+
+<!-- Email (Instantly) Tab — only for workspace_id=4 -->
+<div class="content" id="email-content" style="display:none">
+  <div id="email-loading-bar" class="email-loading-bar" style="display:none"></div>
+
+  <!-- KPI Stats -->
+  <div class="email-stats" id="email-stats">
+    <div class="email-stat"><div class="email-stat-label">Leads</div><div class="email-stat-value" id="e-leads">—</div></div>
+    <div class="email-stat"><div class="email-stat-label">Contacted</div><div class="email-stat-value" id="e-contacted">—</div></div>
+    <div class="email-stat"><div class="email-stat-label">Emails Sent</div><div class="email-stat-value" id="e-sent">—</div></div>
+    <div class="email-stat highlight"><div class="email-stat-label">Replies</div><div class="email-stat-value" id="e-replies">—</div><div class="email-stat-sub" id="e-reply-rate">—</div></div>
+    <div class="email-stat"><div class="email-stat-label">Bounced</div><div class="email-stat-value" id="e-bounced">—</div></div>
+    <div class="email-stat highlight"><div class="email-stat-label">Opportunities</div><div class="email-stat-value" id="e-opps">—</div></div>
+    <div class="email-stat"><div class="email-stat-label">Completed</div><div class="email-stat-value" id="e-completed">—</div></div>
+    <div class="email-stat"><div class="email-stat-label">Interested</div><div class="email-stat-value" id="e-interested">—</div></div>
+  </div>
+
+  <!-- Leads Table -->
+  <div class="email-table-wrap">
+    <div class="email-table-header">
+      <span class="email-table-title">&#128101; Contacts</span>
+      <input class="email-search" id="email-search" placeholder="Search name, email, company…" oninput="filterEmailTable()">
+      <select class="email-status-filter" id="email-status-filter" onchange="filterEmailTable()">
+        <option value="">All statuses</option>
+        <option value="1">Interested</option>
+        <option value="-1">Not interested</option>
+        <option value="-2">Unsubscribed</option>
+        <option value="none">Contacted</option>
+      </select>
+      <span id="email-count-badge" style="font-size:11px;color:#888;white-space:nowrap"></span>
+    </div>
+    <div class="email-table-body-wrap">
+      <table class="email-table">
+        <thead><tr>
+          <th>#</th><th>Name</th><th>Email</th><th>Company</th><th>Title</th>
+          <th>Status</th><th>Opens</th><th>Replies</th><th>Last Contact</th>
+        </tr></thead>
+        <tbody id="email-tbody"></tbody>
+      </table>
+    </div>
+    <div class="email-pagination" id="email-pagination" style="display:none">
+      <button class="page-btn" id="page-prev" onclick="emailPage(-1)">&#8592; Prev</button>
+      <span id="page-info" style="font-size:12px;color:#666"></span>
+      <button class="page-btn" id="page-next" onclick="emailPage(1)">Next &#8594;</button>
+      <span style="flex:1"></span>
+      <span id="email-total-loaded" style="font-size:11px;color:#aaa"></span>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -211,6 +304,162 @@ function applyCustom() {
   rangeFrom = document.getElementById('date-from').value;
   rangeTo   = document.getElementById('date-to').value;
   if (allContacts.length) render();
+}
+
+// ── Email tab (Instantly / HF Quants) ─────────────────────────────────────
+const INSTANTLY_CAMPAIGN_ID = 'd3b8ee99-d5f5-4bc5-a3d3-23e4c286ed01';
+var _emailLeads = [];        // all loaded leads
+var _emailFiltered = [];     // after search/filter
+var _emailPage = 1;
+const EMAIL_PAGE_SIZE = 50;
+var _emailLoading = false;
+var _emailLoaded = false;
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  var isEmail = tab === 'email';
+  document.getElementById('content').style.display       = isEmail ? 'none' : '';
+  document.getElementById('email-content').style.display = isEmail ? '' : 'none';
+  document.getElementById('campaign-select').closest
+    ? null : null; // keep select visible always
+  // Date bar only relevant for campaign tab
+  document.getElementById('date-bar').style.display = isEmail ? 'none' : '';
+  if (isEmail && !_emailLoaded) loadEmailTab();
+}
+
+async function loadEmailTab() {
+  if (_emailLoading) return;
+  _emailLoading = true;
+  _emailLoaded  = false;
+  document.getElementById('email-loading-bar').style.display = '';
+  document.getElementById('email-tbody').innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#aaa">Loading contacts…</td></tr>';
+
+  // Load analytics
+  try {
+    var anRes = await fetch('/api/instantly/campaigns/analytics?campaign_id='+INSTANTLY_CAMPAIGN_ID+'&workspace_id='+wsId).then(function(r){return r.json();});
+    var an = Array.isArray(anRes) ? anRes.find(function(a){ return a.campaign_id === INSTANTLY_CAMPAIGN_ID; }) : null;
+    if (an) {
+      document.getElementById('e-leads').textContent     = (an.leads_count||0).toLocaleString();
+      document.getElementById('e-contacted').textContent = (an.contacted_count||0).toLocaleString();
+      document.getElementById('e-sent').textContent      = (an.emails_sent_count||0).toLocaleString();
+      document.getElementById('e-replies').textContent   = (an.reply_count||0).toLocaleString();
+      document.getElementById('e-reply-rate').textContent = an.emails_sent_count
+        ? ((an.reply_count/an.emails_sent_count)*100).toFixed(1)+'% reply rate' : '';
+      document.getElementById('e-bounced').textContent   = (an.bounced_count||0).toLocaleString();
+      document.getElementById('e-opps').textContent      = (an.total_opportunities||0).toLocaleString();
+      document.getElementById('e-completed').textContent = (an.completed_count||0).toLocaleString();
+      document.getElementById('e-interested').textContent = (an.total_interested||0).toLocaleString();
+    }
+  } catch(e) { console.warn('analytics err', e); }
+
+  // Load all leads progressively
+  _emailLeads = [];
+  var cursor = null;
+  while(true) {
+    try {
+      var body = { limit: 100 };
+      if (cursor) body.starting_after = cursor;
+      var d = await fetch('/api/instantly/campaigns/'+INSTANTLY_CAMPAIGN_ID+'/leads?workspace_id='+wsId, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      }).then(function(r){return r.json();});
+      var items = d.items || [];
+      _emailLeads = _emailLeads.concat(items);
+      document.getElementById('email-total-loaded').textContent = _emailLeads.length.toLocaleString() + ' leads loaded';
+      filterEmailTable();
+      if (items.length < 100) break;
+      cursor = d.next_starting_after || items[items.length-1].id;
+    } catch(e) { console.warn('leads page err', e); break; }
+  }
+
+  _emailLoaded  = true;
+  _emailLoading = false;
+  document.getElementById('email-loading-bar').style.display = 'none';
+  filterEmailTable();
+}
+
+function filterEmailTable() {
+  var q       = (document.getElementById('email-search').value||'').toLowerCase();
+  var statusF = document.getElementById('email-status-filter').value;
+  _emailFiltered = _emailLeads.filter(function(l) {
+    var matchQ = !q || (
+      ((l.first_name||'')+(l.last_name||'')).toLowerCase().includes(q) ||
+      (l.email||'').toLowerCase().includes(q) ||
+      (l.company_name||'').toLowerCase().includes(q) ||
+      (l.job_title||'').toLowerCase().includes(q)
+    );
+    var lStatus = l.lt_interest_status != null ? String(l.lt_interest_status) : 'none';
+    var matchS = !statusF || lStatus === statusF;
+    return matchQ && matchS;
+  });
+  _emailPage = 1;
+  document.getElementById('email-count-badge').textContent = _emailFiltered.length.toLocaleString() + ' contacts';
+  renderEmailPage();
+}
+
+function statusBadge(status) {
+  if (status == 1)  return '<span class="status-badge status-interested">Interested</span>';
+  if (status == -1) return '<span class="status-badge status-not-interested">Not Interested</span>';
+  if (status == -2) return '<span class="status-badge status-ooo">Unsubscribed</span>';
+  if (status == 2)  return '<span class="status-badge status-interested">Meeting Booked</span>';
+  return '<span class="status-badge status-default">Contacted</span>';
+}
+
+function fmtEmailDate(d) {
+  if (!d) return '';
+  var dt = new Date(d);
+  return dt.toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'2-digit'});
+}
+
+function renderEmailPage() {
+  var start = (_emailPage - 1) * EMAIL_PAGE_SIZE;
+  var end   = Math.min(start + EMAIL_PAGE_SIZE, _emailFiltered.length);
+  var page  = _emailFiltered.slice(start, end);
+  var totalPages = Math.ceil(_emailFiltered.length / EMAIL_PAGE_SIZE);
+
+  document.getElementById('page-info').textContent =
+    'Page ' + _emailPage + ' of ' + (totalPages||1) + ' (' + start+1 + '–' + end + ')';
+  document.getElementById('email-pagination').style.display = _emailFiltered.length ? '' : 'none';
+  document.getElementById('page-prev').disabled = _emailPage <= 1;
+  document.getElementById('page-next').disabled = _emailPage >= totalPages;
+
+  if (!page.length) {
+    document.getElementById('email-tbody').innerHTML =
+      '<tr><td colspan="9" style="text-align:center;padding:40px;color:#aaa">' +
+      (_emailLeads.length ? 'No contacts match your filter.' : 'Loading…') + '</td></tr>';
+    return;
+  }
+
+  document.getElementById('email-tbody').innerHTML = page.map(function(l, i) {
+    var name = ((l.first_name||'') + ' ' + (l.last_name||'')).trim() || '—';
+    var rowNum = start + i + 1;
+    return '<tr>' +
+      '<td style="color:#aaa;font-size:11px">' + rowNum + '</td>' +
+      '<td style="font-weight:600;color:#1a3a2a;white-space:nowrap">' + name + '</td>' +
+      '<td style="color:#555;font-size:11px">' + (l.email||'—') + '</td>' +
+      '<td style="color:#555">' + (l.company_name||'—') + '</td>' +
+      '<td style="color:#888;font-size:11px">' + (l.job_title||'—') + '</td>' +
+      '<td>' + statusBadge(l.lt_interest_status) + '</td>' +
+      '<td style="text-align:center;color:#888">' + (l.email_open_count||0) + '</td>' +
+      '<td style="text-align:center;color:#888">' + (l.email_reply_count||0) + '</td>' +
+      '<td style="color:#aaa;font-size:11px;white-space:nowrap">' + fmtEmailDate(l.timestamp_last_contact) + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function emailPage(dir) {
+  var totalPages = Math.ceil(_emailFiltered.length / EMAIL_PAGE_SIZE);
+  _emailPage = Math.max(1, Math.min(_emailPage + dir, totalPages));
+  renderEmailPage();
+  document.querySelector('.email-table-body-wrap').scrollTop = 0;
+}
+
+// Init tabs if wsId === '4'
+function initTabs() {
+  if (wsId === '4') {
+    document.getElementById('tab-bar').style.display = '';
+  }
 }
 
 // ── Campaign loading ──────────────────────────────────────────────────────
@@ -511,6 +760,7 @@ function filterDrawer() {
 document.addEventListener('keydown', function(e) { if(e.key==='Escape') closeDrawer(); });
 
 // Init
+initTabs();
 loadCampaigns();
 </script>
 
