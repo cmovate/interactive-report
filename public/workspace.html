@@ -149,24 +149,21 @@ init();
 // Listen for cross-iframe messages
 window.addEventListener('message', function(ev) {
   if (!ev.data || ev.data.type !== 'open-inbox-contact') return;
-  // Switch to inbox tab
+  var data = ev.data;
+  // Switch to inbox tab first
   showScreen('inbox');
-  // Forward contact info to inbox iframe
-  var inboxFrame = document.querySelector('#screen-inbox iframe');
-  var send = function() {
+  // Retry sending until inbox iframe is ready (up to 3 seconds)
+  var attempts = 0;
+  var trySend = function() {
+    var inboxFrame = document.querySelector('#screen-inbox iframe');
     if (inboxFrame && inboxFrame.contentWindow) {
-      inboxFrame.contentWindow.postMessage(ev.data, '*');
+      inboxFrame.contentWindow.postMessage(data, '*');
+    } else if (attempts++ < 15) {
+      setTimeout(trySend, 200);
     }
   };
-  // If inbox not yet loaded, wait for it
-  if (!inboxFrame) {
-    setTimeout(function() {
-      inboxFrame = document.querySelector('#screen-inbox iframe');
-      send();
-    }, 800);
-  } else {
-    send();
-  }
+  // Small initial delay to let inbox iframe start loading
+  setTimeout(trySend, 400);
 });
 </script>
 </body>
