@@ -149,7 +149,7 @@ function renderAccountSwitcher() {
   sw.innerHTML = accounts.map(function(a) {
     const ini2 = (a.display_name||'?').split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase();
     const active = selectedAccount === a.account_id;
-    return '<div class="account-tab'+(active?' active':'')+'" onclick="setAccount('+JSON.stringify(a.account_id)+')">' +
+    return '<div class="account-tab'+(active?' active':'')+'" onclick="setAccount(\'' + a.account_id + '\')">' +
       '<div class="acc-avatar">'+esc(ini2)+'</div>' +
       esc(a.display_name||a.account_id) +
     '</div>';
