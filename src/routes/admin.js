@@ -648,4 +648,108 @@ router.post('/fix-message-directions', async (req, res) => {
   } catch(e) { console.error('[Admin] fix-message-directions error:', e.message); }
 });
 
+// POST /api/admin/sync-opp-contacts-to-inbox
+// Finds all opportunities contacts with provider_id, fetches their Unipile chat, 
+// creates inbox thread + syncs 20 messages for each.
+router.post('/sync-opp-contacts-to-inbox', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  res.json({ status: 'started', workspace_id });
+
+  try {
+    const DSN = process.env.UNIPILE_DSN;
+    const KEY = process.env.UNIPILE_API_KEY;
+
+    // Get all accounts in workspace
+    const { rows: accounts } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1', [workspace_id]
+    );
+
+    // Get all opportunity contacts with provider_id
+    const { rows: contacts } = await db.query(
+      `SELECT DISTINCT c.id, c.first_name, c.last_name, c.provider_id, c.li_profile_url, c.campaign_id
+       FROM contacts c
+       INNER JOIN campaigns camp ON camp.id = c.campaign_id
+       WHERE camp.workspace_id = $1
+         AND c.provider_id IS NOT NULL AND c.provider_id != ''
+         AND NOT EXISTS (SELECT 1 FROM inbox_threads it WHERE it.contact_id = c.id)`,
+      [workspace_id]
+    );
+
+    console.log('[Admin] sync-opp-contacts: found', contacts.length, 'contacts without inbox thread');
+    let synced = 0;
+
+    for (const contact of contacts) {
+      // Find the account for this contact's campaign
+      const { rows: campAcc } = await db.query(
+        'SELECT account_id FROM campaigns WHERE id = $1', [contact.campaign_id]
+      );
+      const accountId = campAcc[0]?.account_id || accounts[0]?.account_id;
+      if (!accountId) continue;
+
+      try {
+        // Find chat with this contact on Unipile
+        const chatRes = await fetch(
+          `${DSN}/api/v1/chats?account_id=${encodeURIComponent(accountId)}&limit=50`,
+          { headers: { 'X-API-KEY': KEY, 'accept': 'application/json' } }
+        );
+        if (!chatRes.ok) continue;
+        const chatData = await chatRes.json();
+        const chats = Array.isArray(chatData?.items) ? chatData.items : [];
+
+        // Find chat matching this contact's provider_id
+        const chat = chats.find(function(c) {
+          return c.attendee_provider_id === contact.provider_id;
+        });
+        if (!chat) continue;
+
+        const chatId = chat.id;
+
+        // Upsert inbox thread
+        const { rows: threadRows } = await db.query(
+          `INSERT INTO inbox_threads (campaign_id, workspace_id, contact_id, account_id, thread_id, updated_at)
+           VALUES ($1,$2,$3,$4,$5,NOW())
+           ON CONFLICT (thread_id) DO UPDATE SET updated_at=NOW()
+           RETURNING id`,
+          [contact.campaign_id, workspace_id, contact.id, accountId, chatId]
+        );
+        const threadDbId = threadRows[0]?.id;
+        if (!threadDbId) continue;
+
+        // Sync last 20 messages
+        const msgRes = await fetch(
+          `${DSN}/api/v1/chats/${encodeURIComponent(chatId)}/messages?account_id=${encodeURIComponent(accountId)}&limit=20`,
+          { headers: { 'X-API-KEY': KEY, 'accept': 'application/json' } }
+        );
+        if (msgRes.ok) {
+          const msgData = await msgRes.json();
+          const msgs = Array.isArray(msgData?.items) ? msgData.items.reverse() : [];
+          let lastMsg = null;
+          for (const msg of msgs) {
+            if (!msg.id) continue;
+            const dir = (msg.is_sender === 1 || msg.is_sender === true) ? 'sent' : 'received';
+            const content = msg.text || msg.body || '';
+            const sentAt  = msg.timestamp || msg.created_at || null;
+            await db.query(
+              `INSERT INTO inbox_messages (thread_id, unipile_msg_id, direction, content, sent_at)
+               VALUES ($1,$2,$3,$4,$5) ON CONFLICT (unipile_msg_id) DO NOTHING`,
+              [threadDbId, msg.id, dir, content, sentAt]
+            );
+            lastMsg = { content: content.slice(0,120), sentAt };
+          }
+          if (lastMsg) {
+            await db.query(
+              'UPDATE inbox_threads SET last_message_at=$1, last_message_preview=$2, updated_at=NOW() WHERE id=$3',
+              [lastMsg.sentAt, lastMsg.content, threadDbId]
+            );
+          }
+        }
+        synced++;
+        await new Promise(r => setTimeout(r, 300));
+      } catch(e) { console.warn('[Admin] sync-opp contact', contact.id, e.message); }
+    }
+    console.log('[Admin] sync-opp-contacts-to-inbox: synced', synced, '/', contacts.length, 'for ws', workspace_id);
+  } catch(e) { console.error('[Admin] sync-opp-contacts-to-inbox error:', e.message); }
+});
+
 module.exports = router;
