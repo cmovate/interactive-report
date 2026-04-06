@@ -145,6 +145,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .page-btn.active { background:var(--dark); color:white; border-color:var(--dark); }
 .email-loading-bar { height:3px; background:linear-gradient(90deg,var(--green) 0%,#a8dfc9 50%,var(--green) 100%); background-size:200% 100%; animation:slide 1.2s linear infinite; }
 @keyframes slide { from{background-position:200% 0} to{background-position:0 0} }
+
+/* Overlap tab */
+.overlap-summary { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-bottom:16px; }
+.overlap-stat { background:white; border:1px solid #E9E5DF; border-radius:10px; padding:12px 14px; }
+.overlap-stat-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#888; margin-bottom:6px; }
+.overlap-stat-value { font-size:26px; font-weight:800; color:var(--dark); }
+.overlap-stat.green .overlap-stat-value { color:#1a7a5e; }
+.overlap-stat.amber .overlap-stat-value { color:#d97706; }
+.overlap-stat.orange .overlap-stat-value { color:#ea580c; }
+.confidence-bar { display:flex; gap:3px; margin-bottom:16px; height:8px; border-radius:4px; overflow:hidden; }
+.conf-seg { height:100%; transition:width .3s; }
+.conf-high   { background:#1a7a5e; }
+.conf-medium { background:#f59e0b; }
+.conf-low    { background:#ea580c; }
+.conf-legend { display:flex; gap:16px; margin-bottom:14px; font-size:11px; }
+.conf-dot { width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:4px; vertical-align:middle; }
+.overlap-filter-row { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
+.sync-btn { background:var(--dark); color:white; border:none; border-radius:7px; padding:7px 14px; font-size:12px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; }
+.sync-btn:hover { background:#2d5c40; }
+.sync-btn:disabled { background:#aaa; cursor:not-allowed; }
+.overlap-table-wrap { background:white; border:1px solid #E9E5DF; border-radius:12px; overflow:hidden; }
+.overlap-table { width:100%; border-collapse:collapse; font-size:12px; }
+.overlap-table th { background:var(--dark); color:white; padding:8px 12px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; white-space:nowrap; }
+.overlap-table td { padding:7px 12px; border-bottom:1px solid #F0EDE8; vertical-align:middle; }
+.overlap-table tr:hover td { background:#f7f4f0; }
+.badge-high   { display:inline-block; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; background:#d1fae5; color:#065f46; }
+.badge-medium { display:inline-block; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; background:#fef3c7; color:#92400e; }
+.badge-low    { display:inline-block; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:700; background:#fee2e2; color:#991b1b; }
+.overlap-empty { text-align:center; padding:60px 20px; color:#aaa; }
+.list-filter-chips { display:flex; gap:6px; flex-wrap:wrap; }
+.chip { padding:4px 12px; border:1px solid #DED9D3; border-radius:999px; font-size:11px; cursor:pointer; background:white; transition:all .15s; }
+.chip:hover { border-color:var(--green); }
+.chip.active { background:var(--dark); color:white; border-color:var(--dark); }
+
 .status-badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700; }
 .status-interested { background:#d1fae5; color:#065f46; }
 .status-not-interested { background:#fee2e2; color:#991b1b; }
@@ -184,6 +218,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <div class="tab-bar" id="tab-bar" style="display:none">
   <button class="tab-btn active" id="tab-campaign" onclick="switchTab('campaign',this)">&#128202; Campaign</button>
   <button class="tab-btn" id="tab-email" onclick="switchTab('email',this)">&#9993;&#65039; Email — HF Quants</button>
+  <button class="tab-btn" id="tab-overlap" onclick="switchTab('overlap',this)">&#128101; Overlap</button>
 </div>
 
 <div class="date-bar" id="date-bar">
@@ -205,7 +240,78 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="empty-state">&#128202; Select a campaign to view analytics</div>
 </div>
 
-<!-- Email (Instantly) Tab — only for workspace_id=4 -->
+<!-- Overlap Tab — LinkedIn × Email cross-reference -->
+<div class="content" id="overlap-content" style="display:none">
+
+  <!-- Top controls -->
+  <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+    <button class="sync-btn" id="sync-btn" onclick="syncLeads()">
+      &#8635; Sync from Instantly
+    </button>
+    <span id="sync-status" style="font-size:11px; color:#888"></span>
+    <div style="flex:1"></div>
+    <input id="overlap-search" class="email-search" style="max-width:260px" placeholder="Search name, email, company…" oninput="filterOverlap()">
+  </div>
+
+  <!-- Summary KPIs -->
+  <div class="overlap-summary" id="overlap-summary" style="display:none">
+    <div class="overlap-stat green">
+      <div class="overlap-stat-label">Total Overlap</div>
+      <div class="overlap-stat-value" id="ov-total">—</div>
+      <div style="font-size:11px;color:#888;margin-top:3px" id="ov-pct"></div>
+    </div>
+    <div class="overlap-stat green">
+      <div class="overlap-stat-label">&#9989; Email Match</div>
+      <div class="overlap-stat-value" id="ov-email">—</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">High confidence</div>
+    </div>
+    <div class="overlap-stat amber">
+      <div class="overlap-stat-label">&#128269; Name + Domain</div>
+      <div class="overlap-stat-value" id="ov-namedomain">—</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">Medium confidence</div>
+    </div>
+    <div class="overlap-stat orange">
+      <div class="overlap-stat-label">&#128100; Name Only</div>
+      <div class="overlap-stat-value" id="ov-nameonly">—</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">Low confidence</div>
+    </div>
+    <div class="overlap-stat">
+      <div class="overlap-stat-label">Email Leads (DB)</div>
+      <div class="overlap-stat-value" id="ov-synced">—</div>
+      <div style="font-size:10px;color:#888;margin-top:2px">Synced to DB</div>
+    </div>
+  </div>
+
+  <!-- List filter chips -->
+  <div id="list-chips-wrap" style="margin-bottom:12px; display:none">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:6px">Filter by LinkedIn list</div>
+    <div class="list-filter-chips" id="list-chips"></div>
+  </div>
+
+  <!-- Results table -->
+  <div class="overlap-table-wrap" id="overlap-table-wrap" style="display:none">
+    <div style="padding:10px 14px; background:#f8f6f3; border-bottom:1px solid #E9E5DF; display:flex; align-items:center; gap:8px;">
+      <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--dark)">&#128101; Matched Contacts</span>
+      <span id="ov-count" style="font-size:11px;color:#888;margin-left:4px"></span>
+    </div>
+    <div style="max-height:540px;overflow-y:auto">
+      <table class="overlap-table">
+        <thead><tr>
+          <th>#</th><th>Name</th><th>Company</th><th>LinkedIn Email</th>
+          <th>Instantly Email</th><th>Match</th><th>LI Status</th>
+          <th>Opens</th><th>Replies</th><th>Last Contact</th>
+        </tr></thead>
+        <tbody id="overlap-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="overlap-empty" class="overlap-empty" style="display:none">
+    <div style="font-size:32px;margin-bottom:12px">&#128101;</div>
+    <div>Run "Sync from Instantly" first, then overlaps will appear here.</div>
+  </div>
+
+</div>
 <div class="content" id="email-content" style="display:none">
   <div id="email-loading-bar" class="email-loading-bar" style="display:none"></div>
 
@@ -229,9 +335,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <select class="email-status-filter" id="email-status-filter" onchange="filterEmailTable()">
         <option value="">All statuses</option>
         <option value="1">Interested</option>
-        <option value="-1">Not interested</option>
+        <option value="2">Meeting Booked</option>
+        <option value="-1">Not Interested</option>
         <option value="-2">Unsubscribed</option>
-        <option value="none">Contacted</option>
+        <option value="0">Opted Out</option>
+        <option value="none">Contacted (no status)</option>
       </select>
       <span id="email-count-badge" style="font-size:11px;color:#888;white-space:nowrap"></span>
     </div>
@@ -315,19 +423,6 @@ const EMAIL_PAGE_SIZE = 50;
 var _emailLoading = false;
 var _emailLoaded = false;
 
-function switchTab(tab, btn) {
-  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  var isEmail = tab === 'email';
-  document.getElementById('content').style.display       = isEmail ? 'none' : '';
-  document.getElementById('email-content').style.display = isEmail ? '' : 'none';
-  document.getElementById('campaign-select').closest
-    ? null : null; // keep select visible always
-  // Date bar only relevant for campaign tab
-  document.getElementById('date-bar').style.display = isEmail ? 'none' : '';
-  if (isEmail && !_emailLoaded) loadEmailTab();
-}
-
 async function loadEmailTab() {
   if (_emailLoading) return;
   _emailLoading = true;
@@ -373,9 +468,12 @@ async function loadEmailTab() {
     } catch(e) { console.warn('leads page err', e); break; }
   }
 
-  _emailLoaded  = true;
+    _emailLoaded  = true;
   _emailLoading = false;
   document.getElementById('email-loading-bar').style.display = 'none';
+  // Update Interested from actual leads data
+  var interested = _emailLeads.filter(function(l){ return l.lt_interest_status === 1 || l.lt_interest_status === 2; }).length;
+  document.getElementById('e-interested').textContent = interested.toLocaleString();
   filterEmailTable();
 }
 
@@ -455,7 +553,173 @@ function emailPage(dir) {
   document.querySelector('.email-table-body-wrap').scrollTop = 0;
 }
 
-// Init tabs if wsId === '4'
+// ── Overlap Tab ────────────────────────────────────────────────────────────
+const OV_CAMPAIGN_ID = 'd3b8ee99-d5f5-4bc5-a3d3-23e4c286ed01';
+var _overlapData     = null;
+var _overlapFiltered = [];
+var _overlapListId   = '';
+var _overlapLoaded   = false;
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  document.getElementById('content').style.display        = tab === 'campaign' ? '' : 'none';
+  document.getElementById('email-content').style.display  = tab === 'email'    ? '' : 'none';
+  document.getElementById('overlap-content').style.display= tab === 'overlap'  ? '' : 'none';
+  document.getElementById('date-bar').style.display       = tab === 'campaign' ? '' : 'none';
+  if (tab === 'email'   && !_emailLoaded)   loadEmailTab();
+  if (tab === 'overlap' && !_overlapLoaded) checkSyncStatus();
+}
+
+async function checkSyncStatus() {
+  try {
+    var d = await fetch('/api/instantly/sync-status/'+OV_CAMPAIGN_ID+'?workspace_id='+wsId).then(function(r){return r.json();});
+    var el = document.getElementById('sync-status');
+    if (d.count > 0) {
+      var dt = d.last_sync ? new Date(d.last_sync).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      el.textContent = d.count.toLocaleString() + ' leads in DB · Last sync: ' + dt;
+      loadOverlap();
+    } else {
+      el.textContent = 'Not synced yet — click "Sync from Instantly" to start';
+      document.getElementById('overlap-empty').style.display = '';
+    }
+  } catch(e) {
+    document.getElementById('sync-status').textContent = 'Error checking sync: ' + e.message;
+  }
+}
+
+async function syncLeads() {
+  var btn = document.getElementById('sync-btn');
+  var status = document.getElementById('sync-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Syncing…';
+  status.textContent = 'Pulling all leads from Instantly…';
+  try {
+    var d = await fetch('/api/instantly/sync/'+OV_CAMPAIGN_ID+'?workspace_id='+wsId, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: wsId })
+    }).then(function(r){return r.json();});
+    if (d.ok) {
+      status.textContent = '✓ Synced ' + d.synced.toLocaleString() + ' leads from "' + d.campaign + '"';
+      _overlapLoaded = false;
+      loadOverlap();
+    } else {
+      status.textContent = 'Error: ' + (d.error||'unknown');
+    }
+  } catch(e) {
+    status.textContent = 'Sync failed: ' + e.message;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '&#8635; Sync from Instantly';
+}
+
+async function loadOverlap() {
+  _overlapLoaded = true;
+  document.getElementById('overlap-empty').style.display = 'none';
+  document.getElementById('overlap-summary').style.display = '';
+  document.getElementById('ov-total').textContent = '…';
+  try {
+    var url = '/api/instantly/overlap?workspace_id='+wsId+'&campaign_id='+OV_CAMPAIGN_ID;
+    if (_overlapListId) url += '&list_id=' + _overlapListId;
+    var d = await fetch(url).then(function(r){return r.json();});
+    if (!d.ok) { document.getElementById('sync-status').textContent = 'Error: '+(d.error||'unknown'); return; }
+
+    _overlapData = d;
+
+    // KPIs
+    document.getElementById('ov-total').textContent      = d.total_overlap.toLocaleString();
+    document.getElementById('ov-email').textContent      = d.by_confidence.email.toLocaleString();
+    document.getElementById('ov-namedomain').textContent = d.by_confidence.name_domain.toLocaleString();
+    document.getElementById('ov-nameonly').textContent   = d.by_confidence.name_only.toLocaleString();
+    document.getElementById('ov-synced').textContent     = d.instantly_leads_synced.toLocaleString();
+    document.getElementById('ov-pct').textContent        = d.instantly_leads_synced
+      ? ((d.total_overlap / d.instantly_leads_synced)*100).toFixed(1)+'% of email leads'  : '';
+
+    // List chips
+    if (d.lists && d.lists.length) {
+      var chips = document.getElementById('list-chips');
+      chips.innerHTML = '<span class="chip active" onclick="filterByList(\'\',this)">All lists</span>';
+      d.lists.forEach(function(l) {
+        chips.innerHTML += '<span class="chip" onclick="filterByList(\''+l.id+'\',this)">'+l.name+' ('+l.contact_count+')</span>';
+      });
+      document.getElementById('list-chips-wrap').style.display = '';
+    }
+
+    if (d.total_overlap > 0) {
+      document.getElementById('overlap-table-wrap').style.display = '';
+      document.getElementById('overlap-empty').style.display = 'none';
+    } else {
+      document.getElementById('overlap-table-wrap').style.display = 'none';
+      document.getElementById('overlap-empty').style.display = '';
+    }
+
+    filterOverlap();
+  } catch(e) {
+    document.getElementById('ov-total').textContent = 'Error';
+    document.getElementById('sync-status').textContent = e.message;
+  }
+}
+
+function filterByList(listId, chip) {
+  _overlapListId = listId;
+  document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('active'); });
+  chip.classList.add('active');
+  _overlapLoaded = false;
+  loadOverlap();
+}
+
+function filterOverlap() {
+  if (!_overlapData) return;
+  var q = (document.getElementById('overlap-search').value||'').toLowerCase();
+  _overlapFiltered = !q ? _overlapData.matches : _overlapData.matches.filter(function(r) {
+    return ((r.first_name||'')+(r.last_name||'')+(r.company||'')+(r.instantly_email||'')+(r.li_email||'')).toLowerCase().includes(q);
+  });
+  document.getElementById('ov-count').textContent = _overlapFiltered.length.toLocaleString() + ' matches';
+  renderOverlapTable();
+}
+
+function renderOverlapTable() {
+  var rows = _overlapFiltered;
+  if (!rows.length) {
+    document.getElementById('overlap-tbody').innerHTML =
+      '<tr><td colspan="10" style="text-align:center;padding:30px;color:#aaa">No matches found</td></tr>';
+    return;
+  }
+
+  document.getElementById('overlap-tbody').innerHTML = rows.map(function(r, i) {
+    var name = ((r.first_name||'')+' '+(r.last_name||'')).trim() || '—';
+    var nameCell = r.li_profile_url
+      ? '<a href="'+r.li_profile_url+'" target="_blank" style="color:#1a3a2a;font-weight:600">'+name+'</a>'
+      : '<strong>'+name+'</strong>';
+    var matchBadge = r.match_type === 'email'
+      ? '<span class="badge-high">&#9989; Email</span>'
+      : r.match_type === 'name+domain'
+      ? '<span class="badge-medium">&#128269; Name+Domain</span>'
+      : '<span class="badge-low">&#128100; Name only</span>';
+    var interestBadge = r.lt_interest_status == 1
+      ? '<span style="color:#1a7a5e;font-weight:700;font-size:11px">&#9733; Interested</span>'
+      : r.lt_interest_status == -1
+      ? '<span style="color:#dc2626;font-size:11px">Not interested</span>'
+      : '';
+    var lastContact = r.last_contact
+      ? new Date(r.last_contact).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'})
+      : '—';
+    return '<tr>' +
+      '<td style="color:#aaa;font-size:11px">'+(i+1)+'</td>' +
+      '<td>'+nameCell+'<div style="font-size:10px;color:#888">'+((r.title||r.instantly_title)||'')+'</div></td>' +
+      '<td style="font-size:12px;color:#555">'+(r.company||'—')+'</td>' +
+      '<td style="font-size:11px;color:#555">'+(r.li_email||'<span style="color:#ccc">—</span>')+'</td>' +
+      '<td style="font-size:11px;color:#1a7a5e">'+(r.instantly_email||'—')+'</td>' +
+      '<td>'+matchBadge+'</td>' +
+      '<td>'+interestBadge+'</td>' +
+      '<td style="text-align:center;color:#888">'+(r.email_open_count||0)+'</td>' +
+      '<td style="text-align:center;color:#888">'+(r.email_reply_count||0)+'</td>' +
+      '<td style="color:#aaa;font-size:11px;white-space:nowrap">'+lastContact+'</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// ── Init tabs if wsId === '4' ──────────────────────────────────────────────
 function initTabs() {
   if (wsId === '4') {
     document.getElementById('tab-bar').style.display = '';
