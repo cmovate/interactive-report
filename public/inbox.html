@@ -333,66 +333,67 @@ window.addEventListener('message', function(ev) {
   if (!providerId && !liUrl) return;
 
   setTimeout(function() {
-    // Search loaded threads first
+    // Step 1: Search loaded threads in memory
     var found = threads.find(function(t){
-      if (!t.li_profile_url) return false;
-      return (providerId && t.li_profile_url.includes(providerId)) ||
-             (liUrl && t.li_profile_url === liUrl);
+      if (!t.li_profile_url && !t.provider_id) return false;
+      var pidInUrl = providerId && t.li_profile_url && t.li_profile_url.includes(providerId);
+      var pidDirect = providerId && t.provider_id === providerId;
+      var urlExact = liUrl && t.li_profile_url === liUrl;
+      return pidInUrl || pidDirect || urlExact;
     });
 
     if (found) {
-      // Thread in memory — open it
       openThread(found.id);
       var el = document.getElementById('ti-' + found.id);
       if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
-    } else {
-      // Fetch from API with higher limit
-      fetch('/api/inbox?workspace_id=' + wsId + '&limit=500').then(r=>r.json()).then(function(d){
-        var allThreads = d.items || [];
-        var thread = allThreads.find(function(t){
-          if (!t.li_profile_url) return false;
-          return (providerId && t.li_profile_url.includes(providerId)) ||
-                 (liUrl && t.li_profile_url === liUrl);
-        });
-
-        if (thread) {
-          // Found in DB — reload threads list then open
-          loadThreads().then(function(){
-            openThread(thread.id);
-            setTimeout(function(){
-              var el = document.getElementById('ti-' + thread.id);
-              if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
-            }, 300);
-          });
-        } else {
-          // No thread yet — show empty conversation panel
-          var nm = ((ev.data.first_name||'')+' '+(ev.data.last_name||'')).trim() || 'Contact';
-          var conv = document.getElementById('conversation');
-          if (!conv) return;
-          conv.innerHTML =
-            '<div class="conv-header">' +
-              '<div class="conv-avatar">' + esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase()) + '</div>' +
-              '<div class="conv-header-info">' +
-                '<div class="conv-name">' + esc(nm) + '</div>' +
-                '<div class="conv-meta">' + esc(ev.data.headline || '') + '</div>' +
-              '</div>' +
-              (liUrl ? '<a href="' + esc(liUrl) + '" target="_blank" class="li-link">LinkedIn ↗</a>' : '') +
-            '</div>' +
-            '<div class="messages" id="messages">' +
-              '<div class="msg-loading" style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div>' +
-            '</div>' +
-            '<div class="reply-area">' +
-              '<textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea>' +
-              '<div class="reply-actions">' +
-                '<button class="ai-btn" disabled>🤖 AI Suggest</button>' +
-                '<div class="reply-actions-spacer"></div>' +
-                '<button class="send-btn" onclick="sendNewDM(' + JSON.stringify(providerId) + ', ' + JSON.stringify(wsId) + ')">Send ▶</button>' +
-              '</div>' +
-            '</div>';
-          currentThread = { id: null, provider_id: providerId, li_profile_url: liUrl, first_name: ev.data.first_name, last_name: ev.data.last_name, _newContact: true };
-        }
-      });
+      return;
     }
+
+    // Step 2: Query DB by provider_id directly (handles all URL format mismatches)
+    fetch('/api/inbox/by-provider?provider_id=' + encodeURIComponent(providerId||'') +
+          '&workspace_id=' + encodeURIComponent(wsId))
+    .then(r=>r.json()).then(function(res){
+      if (res.thread && res.thread.id) {
+        var dbThread = res.thread;
+        loadThreads().then(function(){
+          openThread(dbThread.id);
+          setTimeout(function(){
+            var el = document.getElementById('ti-' + dbThread.id);
+            if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+          }, 300);
+        });
+        return;
+      }
+
+      // Step 3: No thread found — show empty conversation panel
+      var nm = ((ev.data.first_name||'')+' '+(ev.data.last_name||'')).trim() || 'Contact';
+      var conv = document.getElementById('conversation');
+      if (!conv) return;
+      conv.innerHTML =
+        '<div class="conv-header">' +
+          '<div class="conv-avatar">' + esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase()) + '</div>' +
+          '<div class="conv-header-info">' +
+            '<div class="conv-name">' + esc(nm) + '</div>' +
+            '<div class="conv-meta">' + esc(ev.data.headline || '') + '</div>' +
+          '</div>' +
+          (liUrl ? '<a href="' + esc(liUrl) + '" target="_blank" class="li-link">LinkedIn ↗</a>' : '') +
+        '</div>' +
+        '<div class="messages" id="messages">' +
+          '<div class="msg-loading" style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div>' +
+        '</div>' +
+        '<div class="reply-area">' +
+          '<textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea>' +
+          '<div class="reply-actions">' +
+            '<button class="ai-btn" disabled>🤖 AI Suggest</button>' +
+            '<div class="reply-actions-spacer"></div>' +
+            '<button class="send-btn" onclick="sendNewDM(' + JSON.stringify(providerId) + ', ' + JSON.stringify(wsId) + ')">Send ▶</button>' +
+          '</div>' +
+        '</div>';
+      currentThread = { id: null, provider_id: providerId, li_profile_url: liUrl, first_name: ev.data.first_name, last_name: ev.data.last_name, _newContact: true };
+    }).catch(function(){
+      // API failed — show empty panel as fallback
+      currentThread = { id: null, provider_id: providerId, _newContact: true };
+    });
   }, 400);
 });
 
