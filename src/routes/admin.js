@@ -752,4 +752,73 @@ router.post('/sync-opp-contacts-to-inbox', async (req, res) => {
   } catch(e) { console.error('[Admin] sync-opp-contacts-to-inbox error:', e.message); }
 });
 
+// POST /api/admin/run-migration — runs schema_migration.sql statements
+router.post('/run-migration', async (req, res) => {
+  const { sql } = req.body;
+  if (!sql) return res.status(400).json({ error: 'sql required' });
+  try {
+    const statements = sql.split(';').map(s => s.trim()).filter(s => s.length > 0);
+    const results = [];
+    for (const stmt of statements) {
+      try {
+        await db.query(stmt);
+        results.push({ stmt: stmt.substring(0,60), ok: true });
+      } catch(e) {
+        results.push({ stmt: stmt.substring(0,60), ok: false, err: e.message });
+      }
+    }
+    res.json({ results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/admin/bulk-insert-contacts — insert multiple contacts at once
+router.post('/bulk-insert-contacts', async (req, res) => {
+  const { contacts, list_id, workspace_id } = req.body;
+  if (!contacts || !Array.isArray(contacts)) return res.status(400).json({ error: 'contacts array required' });
+  try {
+    let inserted = 0, skipped = 0;
+    for (const c of contacts) {
+      const { rows: existing } = await db.query(
+        'SELECT id FROM contacts WHERE workspace_id=$1 AND LOWER(TRIM(first_name))=LOWER(TRIM($2)) AND LOWER(TRIM(last_name))=LOWER(TRIM($3)) AND LOWER(TRIM(company))=LOWER(TRIM($4))',
+        [workspace_id, c.first_name||'', c.last_name||'', c.company||'']
+      );
+      let contactId;
+      if (existing.length > 0) {
+        contactId = existing[0].id;
+        await db.query(
+          `UPDATE contacts SET 
+            title=COALESCE($1,title), li_profile_url=COALESCE($2,li_profile_url),
+            website=COALESCE($3,website), location=COALESCE($4,location),
+            conference_name=COALESCE($5,conference_name), conference_date=COALESCE($6,conference_date),
+            conference_location=COALESCE($7,conference_location), conference_website=COALESCE($8,conference_website)
+            WHERE id=$9`,
+          [c.title,c.li_profile_url,c.website,c.location,
+           c.conference_name,c.conference_date,c.conference_location,c.conference_website, contactId]
+        );
+        skipped++;
+      } else {
+        const { rows: ins } = await db.query(
+          `INSERT INTO contacts 
+            (workspace_id, first_name, last_name, company, title, li_profile_url, website, location,
+             conference_name, conference_date, conference_location, conference_website)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+          [workspace_id, c.first_name||'', c.last_name||'', c.company||'', c.title||'',
+           c.li_profile_url||'', c.website||'', c.location||'',
+           c.conference_name||'', c.conference_date||'', c.conference_location||'', c.conference_website||'']
+        );
+        contactId = ins[0].id;
+        inserted++;
+      }
+      // Add to list
+      if (list_id && contactId) {
+        await db.query(
+          'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+          [list_id, contactId]
+        );
+      }
+    }
+    res.json({ inserted, skipped, total: contacts.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
