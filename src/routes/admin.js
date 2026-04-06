@@ -610,4 +610,42 @@ router.get('/debug-messages', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/admin/fix-message-directions — fixes direction for all existing messages
+router.post('/fix-message-directions', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  res.json({ status: 'started', workspace_id });
+  try {
+    const { rows: threads } = await db.query(
+      'SELECT t.id, t.thread_id, t.account_id FROM inbox_threads t WHERE t.workspace_id = $1 ORDER BY t.updated_at DESC',
+      [workspace_id]
+    );
+    const DSN = process.env.UNIPILE_DSN;
+    const KEY = process.env.UNIPILE_API_KEY;
+    let fixed = 0;
+    for (const thread of threads) {
+      try {
+        const r = await fetch(
+          DSN+'/api/v1/chats/'+encodeURIComponent(thread.thread_id)+'/messages?account_id='+encodeURIComponent(thread.account_id)+'&limit=20',
+          { headers: { 'X-API-KEY': KEY, 'accept': 'application/json' } }
+        );
+        if (!r.ok) continue;
+        const data = await r.json();
+        const msgs = Array.isArray(data?.items) ? data.items : [];
+        for (const msg of msgs) {
+          if (!msg.id) continue;
+          const dir = (msg.is_sender === 1 || msg.is_sender === true) ? 'sent' : 'received';
+          await db.query(
+            'UPDATE inbox_messages SET direction=$1 WHERE thread_id=$2 AND unipile_msg_id=$3',
+            [dir, thread.id, msg.id]
+          );
+        }
+        fixed++;
+        await new Promise(r=>setTimeout(r,150));
+      } catch(e) {}
+    }
+    console.log('[Admin] fix-message-directions: fixed', fixed, '/', threads.length, 'threads for ws', workspace_id);
+  } catch(e) { console.error('[Admin] fix-message-directions error:', e.message); }
+});
+
 module.exports = router;
