@@ -359,55 +359,35 @@ router.post('/sync', async (req, res) => {
 });
 
 // GET /api/inbox/by-provider?provider_id=X&workspace_id=Y
-// Find inbox thread by contact's provider_id (LinkedIn member ID)
 router.get('/by-provider', async (req, res) => {
   const { provider_id, workspace_id } = req.query;
   if (!provider_id || !workspace_id) return res.status(400).json({ error: 'provider_id and workspace_id required' });
   try {
-    // First try direct match via contacts table
+    // Search by provider_id in contacts table
     const { rows } = await db.query(
       `SELECT 
           t.id, t.thread_id, t.account_id, t.workspace_id,
-          c.first_name, c.last_name, c.title as contact_title, 
-          c.company_name, c.li_profile_url, c.provider_id,
+          c.first_name, c.last_name,
+          c.title AS contact_title,
+          c.company AS contact_company,
+          c.li_profile_url, c.provider_id,
           t.last_message_at, t.last_message_preview,
-          camp.name as campaign_name
+          camp.name AS campaign_name
         FROM inbox_threads t
         INNER JOIN contacts c ON t.contact_id = c.id
         LEFT JOIN campaigns camp ON t.campaign_id = camp.id
         WHERE t.workspace_id = $1
           AND (
             c.provider_id = $2
-            OR c.li_profile_url LIKE $3
-            OR c.li_profile_url = $4
+            OR LOWER(c.li_profile_url) = LOWER($3)
+            OR c.li_profile_url LIKE $4
           )
         LIMIT 1`,
-      [workspace_id, provider_id, '%' + provider_id + '%', 
-       'https://www.linkedin.com/in/' + provider_id]
+      [workspace_id, provider_id,
+       'https://www.linkedin.com/in/' + provider_id,
+       '%/' + provider_id + '%']
     );
-    if (rows.length > 0) return res.json({ thread: rows[0] });
-    
-    // Also search by li_profile_url containing provider_id in thread table itself
-    const { rows: rows2 } = await db.query(
-      `SELECT 
-          t.id, t.thread_id, t.account_id, t.workspace_id,
-          c.first_name, c.last_name, c.title as contact_title,
-          c.company_name, c.li_profile_url, c.provider_id,
-          t.last_message_at, t.last_message_preview
-        FROM inbox_threads t
-        LEFT JOIN contacts c ON t.contact_id = c.id
-        WHERE t.workspace_id = $1
-          AND (
-            t.thread_id LIKE $2
-            OR (c.li_profile_url IS NOT NULL AND LOWER(c.li_profile_url) = LOWER($3))
-          )
-        LIMIT 1`,
-      [workspace_id, '%' + provider_id + '%',
-       'https://www.linkedin.com/in/' + provider_id]
-    );
-    if (rows2.length > 0) return res.json({ thread: rows2[0] });
-    
-    return res.json({ thread: null });
+    res.json({ thread: rows[0] || null });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
