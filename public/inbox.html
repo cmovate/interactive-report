@@ -191,7 +191,7 @@ async function loadThreads() {
 }
 
 function renderThread(t) {
-  const name = ((t.first_name||'')+' '+(t.last_name||'')).trim() || 'Unknown';
+  const name = ((t.first_name||'')+' '+(t.last_name||'')).trim() || 'LinkedIn';
   const isActive = currentThread && currentThread.id===t.id;
   return `<div class="thread-item${isActive?' active':''}${t.unread_count>0?' unread':''}" onclick="openThread(${t.id})" id="ti-${t.id}">
     <div class="thread-avatar">${esc(ini(name))}</div>
@@ -244,7 +244,7 @@ async function loadMessages(threadId) {
     const d = await r.json();
     const msgs = d.messages || [];
     if (!msgs.length) { el.innerHTML='<div class="msg-loading">No messages yet.</div>'; return; }
-    const contactName = currentThread ? ((currentThread.first_name||'')+' '+(currentThread.last_name||'')).trim() || 'Contact' : 'Contact';
+    const contactName = currentThread ? ((currentThread.first_name||'')+' '+(currentThread.last_name||'')).trim() || 'LinkedIn' : 'LinkedIn';
     const senderAccName = accounts.find(function(a){ return a.account_id === selectedAccount; });
     const accLabel = senderAccName ? senderAccName.display_name.split(' ').slice(0,1).join('') : 'Me';
     el.innerHTML = msgs.map(m=>`
