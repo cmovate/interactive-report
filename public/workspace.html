@@ -145,6 +145,29 @@ function loadScreen(name) {
 }
 
 init();
+
+// Listen for cross-iframe messages
+window.addEventListener('message', function(ev) {
+  if (!ev.data || ev.data.type !== 'open-inbox-contact') return;
+  // Switch to inbox tab
+  showScreen('inbox');
+  // Forward contact info to inbox iframe
+  var inboxFrame = document.querySelector('#screen-inbox iframe');
+  var send = function() {
+    if (inboxFrame && inboxFrame.contentWindow) {
+      inboxFrame.contentWindow.postMessage(ev.data, '*');
+    }
+  };
+  // If inbox not yet loaded, wait for it
+  if (!inboxFrame) {
+    setTimeout(function() {
+      inboxFrame = document.querySelector('#screen-inbox iframe');
+      send();
+    }, 800);
+  } else {
+    send();
+  }
+});
 </script>
 </body>
 </html>

@@ -323,6 +323,55 @@ async function triggerSync() {
 }
 
 loadCampaigns(); loadAccounts();
+
+// Listen for "open-inbox-contact" from workspace parent (triggered from Opportunities)
+window.addEventListener('message', function(ev) {
+  if (!ev.data || ev.data.type !== 'open-inbox-contact') return;
+  var providerId = ev.data.provider_id;
+  var liUrl      = ev.data.li_profile_url;
+  var wsId       = ev.data.workspace_id || workspaceId;
+  if (!providerId && !liUrl) return;
+
+  // Ensure inbox tab is loaded/visible first
+  var tabFn = function() {
+    // Search existing threads for this contact
+    fetch('/api/inbox?workspace_id=' + wsId + '&limit=200').then(r=>r.json()).then(function(d){
+      var threads = d.items || [];
+      // Match by provider_id (li profile url contains the provider_id)
+      var thread = threads.find(function(t){
+        if (!t.li_profile_url) return false;
+        return (providerId && t.li_profile_url.includes(providerId)) ||
+               (liUrl && t.li_profile_url === liUrl);
+      });
+
+      if (thread) {
+        // Thread exists — open it directly
+        openThread(thread.id);
+        // Scroll thread into view in left panel
+        var el = document.getElementById('ti-' + thread.id);
+        if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+      } else {
+        // No thread yet — show empty chat panel with contact info
+        currentThread = {
+          id: null,
+          first_name: ev.data.first_name || '',
+          last_name: ev.data.last_name || '',
+          contact_title: ev.data.headline || '',
+          li_profile_url: liUrl || '',
+          provider_id: providerId,
+          _newContact: true
+        };
+        renderConversationHeader(currentThread);
+        var el = document.getElementById('messages');
+        if (el) el.innerHTML = '<div class="msg-loading" style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div>';
+        document.querySelector('.reply-area').style.display = 'flex';
+        document.querySelector('.reply-area').style.flexDirection = 'column';
+      }
+    });
+  };
+  // Small delay to ensure inbox is ready
+  setTimeout(tabFn, 300);
+});
 </script>
 </body>
 </html>

@@ -215,17 +215,17 @@ function doScan(co) {
 }
 function openDM(i, coId) {
   var res = scanResults[coId]; if (!res||!res.contacts) return;
-  dmTarget = res.contacts[i]; dmTarget._coId = coId;
-  var nm = ((dmTarget.first_name||'')+' '+(dmTarget.last_name||'')).trim()||'this person';
-  document.getElementById('dm-sub').textContent = 'To: '+nm+(dmTarget.headline?' \u00b7 '+dmTarget.headline:'');
-  document.getElementById('dm-text').value = '';
-  document.getElementById('dm-result').textContent = '';
-  document.getElementById('dm-send-btn').disabled = false;
-  document.getElementById('dm-send-btn').textContent = 'Send';
-  var via = dmTarget.connected_via && dmTarget.connected_via[0] && dmTarget.connected_via[0].account_id;
-  if (via) document.getElementById('dm-from-sel').value = via;
-  document.getElementById('dm-overlay').classList.add('open');
-  setTimeout(function(){ document.getElementById('dm-text').focus(); }, 50);
+  var contact = res.contacts[i];
+  // Navigate parent to inbox and open this contact's thread
+  window.parent.postMessage({
+    type: 'open-inbox-contact',
+    provider_id: contact.provider_id,
+    li_profile_url: contact.li_profile_url,
+    first_name: contact.first_name,
+    last_name: contact.last_name,
+    headline: contact.headline,
+    workspace_id: workspaceId
+  }, '*');
 }
 function closeDM() { document.getElementById('dm-overlay').classList.remove('open'); dmTarget = null; }
 function sendDM() {
