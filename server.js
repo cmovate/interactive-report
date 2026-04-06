@@ -874,6 +874,41 @@ app.get('/api/enrich-list-get', async (req, res) => {
   }
 });
 
+
+// POST /api/apollo/bulk-match — server-side proxy to Apollo (avoids browser CORS)
+app.post('/api/apollo/bulk-match', async (req, res) => {
+  const { details, api_key } = req.body;
+  if (!details || !api_key) return res.status(400).json({ error: 'details and api_key required' });
+  try {
+    const https = require('https');
+    const payload = JSON.stringify({ details });
+    const options = {
+      hostname: 'api.apollo.io',
+      path: '/api/v1/people/bulk_match',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'x-api-key': api_key,
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+    const result = await new Promise((resolve, reject) => {
+      const req2 = https.request(options, (resp) => {
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch(e) { resolve({ error: 'parse_error', raw: data.substring(0,200) }); }
+        });
+      });
+      req2.on('error', reject);
+      req2.write(payload);
+      req2.end();
+    });
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -909,3 +944,37 @@ app.post('/api/lists/:id/bulk-contacts', async (req, res) => {
   res.json({ inserted, skipped, total: urls.length });
 });
 
+
+// POST /api/apollo/bulk-match — server-side proxy to Apollo (avoids CORS)
+app.post('/api/apollo/bulk-match', async (req, res) => {
+  const { details, api_key } = req.body;
+  if (!details || !api_key) return res.status(400).json({ error: 'details and api_key required' });
+  try {
+    const https = require('https');
+    const payload = JSON.stringify({ details });
+    const options = {
+      hostname: 'api.apollo.io',
+      path: '/api/v1/people/bulk_match',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'x-api-key': api_key,
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+    const result = await new Promise((resolve, reject) => {
+      const req2 = https.request(options, (resp) => {
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => {
+          try { resolve(JSON.parse(data)); } catch(e) { resolve({ error: 'parse_error', raw: data.substring(0,200) }); }
+        });
+      });
+      req2.on('error', reject);
+      req2.write(payload);
+      req2.end();
+    });
+    res.json(result);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
