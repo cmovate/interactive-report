@@ -583,4 +583,31 @@ router.post('/enrich-inbox-contacts', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/admin/debug-messages?account_id=X&chat_id=Y — raw Unipile messages structure
+router.get('/debug-messages', async (req, res) => {
+  try {
+    const { account_id, chat_id } = req.query;
+    if (!account_id || !chat_id) return res.status(400).json({ error: 'account_id and chat_id required' });
+    const { request } = require('../unipile');
+    const data = await request('/api/v1/chats/' + encodeURIComponent(chat_id) + '/messages?account_id=' + encodeURIComponent(account_id) + '&limit=5');
+    const items = (data?.items || []).slice(0, 3);
+    res.json({ 
+      count: items.length,
+      fields: items[0] ? Object.keys(items[0]) : [],
+      samples: items.map(function(m) {
+        return { 
+          id: m.id, 
+          from_me: m.from_me, 
+          is_sender: m.is_sender,
+          sender_type: m.sender_type,
+          is_me: m.is_me,
+          role: m.role,
+          sender: m.sender ? { id: m.sender.attendee_provider_id, name: m.sender.attendee_name } : null,
+          text_preview: (m.text || m.body || '').substring(0,40)
+        };
+      })
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
