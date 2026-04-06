@@ -32,9 +32,12 @@ router.get('/campaigns/:id/analytics', async (req, res) => {
   try {
     const key = await getKey(req.query.workspace_id || 4);
     if (!key) return res.status(403).json({ error: 'No Instantly key for this workspace' });
-    const r = await fetch(`${INSTANTLY_BASE}/campaigns/analytics?campaign_id=${req.params.id}`, { headers: proxyHeaders(key) });
+    const r = await fetch(`${INSTANTLY_BASE}/campaigns/analytics`, { headers: proxyHeaders(key) });
     const d = await r.json();
-    res.json(d);
+    // Return the specific campaign's analytics
+    const items = Array.isArray(d) ? d : (d.items || d.data || []);
+    const campaign = items.find(c => c.campaign_id === req.params.id);
+    res.json(campaign || { error: 'Campaign not found', campaign_id: req.params.id });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -337,8 +337,8 @@ async function loadEmailTab() {
 
   // Load analytics
   try {
-    var anRes = await fetch('/api/instantly/campaigns/analytics?campaign_id='+INSTANTLY_CAMPAIGN_ID+'&workspace_id='+wsId).then(function(r){return r.json();});
-    var an = Array.isArray(anRes) ? anRes.find(function(a){ return a.campaign_id === INSTANTLY_CAMPAIGN_ID; }) : null;
+    var anRes = await fetch('/api/instantly/campaigns/'+INSTANTLY_CAMPAIGN_ID+'/analytics?workspace_id='+wsId).then(function(r){return r.json();});
+    var an = anRes && !anRes.error ? anRes : null;
     if (an) {
       document.getElementById('e-leads').textContent     = (an.leads_count||0).toLocaleString();
       document.getElementById('e-contacted').textContent = (an.contacted_count||0).toLocaleString();
