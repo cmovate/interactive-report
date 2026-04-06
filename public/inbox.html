@@ -333,6 +333,8 @@ window.addEventListener('message', function(ev) {
   if (!providerId && !liUrl) return;
 
   setTimeout(function() {
+    var accountId = ev.data.account_id || null;
+    // Step 1: search loaded threads in memory
     var found = threads.find(function(t){
       if (!t.li_profile_url && !t.provider_id) return false;
       return (providerId && t.li_profile_url && t.li_profile_url.includes(providerId)) ||
@@ -340,19 +342,27 @@ window.addEventListener('message', function(ev) {
              (liUrl && t.li_profile_url === liUrl);
     });
     if (found) {
-      openThread(found.id);
-      var el = document.getElementById('ti-' + found.id);
-      if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+      if (accountId && accountId !== selectedAccount) setAccount(accountId);
+      setTimeout(function(){
+        openThread(found.id);
+        var el = document.getElementById('ti-' + found.id);
+        if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+      }, accountId && accountId !== selectedAccount ? 300 : 0);
       return;
     }
-    var accParam = selectedAccount ? '&account_id=' + encodeURIComponent(selectedAccount) : '';
+
+    // Step 2: DB + Unipile lookup
+    var accParam = (accountId||selectedAccount) ? '&account_id=' + encodeURIComponent(accountId||selectedAccount) : '';
     fetch('/api/inbox/by-provider?provider_id=' + encodeURIComponent(providerId||'') + '&workspace_id=' + encodeURIComponent(wsId) + accParam)
     .then(r=>r.json()).then(function(res){
       if (res.thread && res.thread.id) {
-        loadThreads().then(function(){
-          openThread(res.thread.id);
-          setTimeout(function(){var el=document.getElementById('ti-'+res.thread.id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},300);
-        });
+        if (accountId && accountId !== selectedAccount) setAccount(accountId);
+        setTimeout(function(){
+          loadThreads().then(function(){
+            openThread(res.thread.id);
+            setTimeout(function(){var el=document.getElementById('ti-'+res.thread.id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},300);
+          });
+        }, accountId && accountId !== selectedAccount ? 300 : 0);
         return;
       }
       if (res.unipile_chat_id) {
@@ -363,12 +373,13 @@ window.addEventListener('message', function(ev) {
         .then(function(){return loadThreads();})
         .then(function(){
           var s=threads.find(function(t){return t.li_profile_url&&t.li_profile_url.includes(providerId);});
-          if(s)openThread(s.id); else showEmptyChat(ev.data,providerId,liUrl,wsId);
+          if(s){ if(accountId&&accountId!==selectedAccount)setAccount(accountId); setTimeout(function(){openThread(s.id);},accountId?300:0); }
+          else showEmptyChat(ev.data, providerId, liUrl, wsId, accountId);
         });
         return;
       }
-      showEmptyChat(ev.data, providerId, liUrl, wsId);
-    }).catch(function(){ showEmptyChat(ev.data, providerId, liUrl, wsId); });
+      showEmptyChat(ev.data, providerId, liUrl, wsId, accountId);
+    }).catch(function(){ showEmptyChat(ev.data, providerId, liUrl, wsId, accountId); });
   }, 400);
 });
 
@@ -388,12 +399,41 @@ function sendNewDM(providerId, wsId) {
   });
 }
 
-function showEmptyChat(data, providerId, liUrl, wsId) {
+function showEmptyChat(data, pid, url, wid, accountId) {
   var nm = ((data.first_name||'')+' '+(data.last_name||'')).trim() || 'Contact';
-  var conv = document.getElementById('conversation');
-  if (!conv) return;
-  conv.innerHTML = '<div class="conv-header"><div class="conv-avatar">'+esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase())+'</div><div class="conv-header-info"><div class="conv-name">'+esc(nm)+'</div><div class="conv-meta">'+esc(data.headline||'')+'</div></div>'+(liUrl?'<a href="'+esc(liUrl)+'" target="_blank" class="li-link">LinkedIn ↗</a>':'')+'</div><div class="messages" id="messages"><div style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div></div><div class="reply-area"><textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea><div class="reply-actions"><button class="ai-btn" disabled>🤖 AI Suggest</button><div class="reply-actions-spacer"></div><button class="send-btn" onclick="sendNewDM('+JSON.stringify(providerId)+', '+JSON.stringify(wsId)+')">Send ▶</button></div></div>';
-  currentThread = { id: null, provider_id: providerId, li_profile_url: liUrl, first_name: data.first_name, last_name: data.last_name, _newContact: true };
+  // Pre-select the account that is connected to this contact
+  if (accountId && accountId !== selectedAccount) {
+    setAccount(accountId);
+    // Give setAccount time to switch, then show the panel
+    setTimeout(function(){ renderEmpty(); }, 300);
+  } else {
+    renderEmpty();
+  }
+  function renderEmpty() {
+    var conv = document.getElementById('conversation');
+    if (!conv) return;
+    conv.innerHTML =
+      '<div class="conv-header">' +
+        '<div class="conv-avatar">' + esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase()) + '</div>' +
+        '<div class="conv-header-info">' +
+          '<div class="conv-name">' + esc(nm) + '</div>' +
+          '<div class="conv-meta">' + esc(data.headline || data.title || data.company || '') + '</div>' +
+        '</div>' +
+        (url ? '<a href="' + esc(url) + '" target="_blank" class="li-link">LinkedIn ↗</a>' : '') +
+      '</div>' +
+      '<div class="messages" id="messages">' +
+        '<div style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div>' +
+      '</div>' +
+      '<div class="reply-area">' +
+        '<textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea>' +
+        '<div class="reply-actions">' +
+          '<button class="ai-btn" disabled>🤖 AI Suggest</button>' +
+          '<div class="reply-actions-spacer"></div>' +
+          '<button class="send-btn" onclick="sendNewDM(' + JSON.stringify(pid) + ',' + JSON.stringify(wid) + ')">Send ▶</button>' +
+        '</div>' +
+      '</div>';
+    currentThread = { id: null, provider_id: pid, li_profile_url: url, first_name: data.first_name, last_name: data.last_name, _newContact: true };
+  }
 }
 
 function showEmptyChat(data,pid,url,wid){var nm=((data.first_name||'')+' '+(data.last_name||'')).trim()||'Contact';var conv=document.getElementById('conversation');if(!conv)return;conv.innerHTML='<div class="conv-header"><div class="conv-avatar">'+esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase())+'</div><div class="conv-header-info"><div class="conv-name">'+esc(nm)+'</div><div class="conv-meta">'+esc(data.headline||'')+'</div></div>'+(url?'<a href="'+esc(url)+'" target="_blank" class="li-link">LinkedIn ↗</a>':'')+'</div><div class="messages" id="messages"><div style="color:#aaa;text-align:center;padding:40px">No messages yet. Start the conversation!</div></div><div class="reply-area"><textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea><div class="reply-actions"><button class="ai-btn" disabled>🤖 AI Suggest</button><div class="reply-actions-spacer"></div><button class="send-btn" onclick="sendNewDM('+JSON.stringify(pid)+','+JSON.stringify(wid)+')">Send ▶</button></div></div>';currentThread={id:null,provider_id:pid,li_profile_url:url,first_name:data.first_name,last_name:data.last_name,_newContact:true};}
