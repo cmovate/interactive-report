@@ -192,9 +192,9 @@ router.get('/overlap', async (req, res) => {
       JOIN instantly_leads il
         ON LOWER(COALESCE(c.email,'x_no_email_x')) = il.email_lower
         AND il.campaign_id = $1
-      WHERE lc.workspace_id = $2 ${listFilter}
+      WHERE 1=1 ${listFilter}
       AND c.email IS NOT NULL AND c.email <> ''
-    `, [campaignId, wsId]);
+    `, [campaignId]);
 
     // Name + domain match (medium confidence)
     const nameMatches = await pool.query(`
@@ -226,9 +226,9 @@ router.get('/overlap', async (req, res) => {
           c.li_profile_url ILIKE '%' || il.company_domain || '%'
           OR LOWER(c.company) ILIKE '%' || SPLIT_PART(il.company_domain,'.',1) || '%'
         )
-      WHERE lc.workspace_id = $2 ${listFilter}
+      WHERE 1=1 ${listFilter}
       AND (c.email IS NULL OR c.email = '' OR LOWER(c.email) <> il.email_lower)
-    `, [campaignId, wsId]);
+    `, [campaignId]);
 
     // Name only match (low confidence)
     const nameOnlyMatches = await pool.query(`
@@ -255,7 +255,7 @@ router.get('/overlap', async (req, res) => {
         ON LOWER(c.first_name) = LOWER(il.first_name)
         AND LOWER(c.last_name)  = LOWER(il.last_name)
         AND il.campaign_id = $1
-      WHERE lc.workspace_id = $2 ${listFilter}
+      WHERE 1=1 ${listFilter}
       AND (c.email IS NULL OR c.email = '' OR LOWER(c.email) <> il.email_lower)
       AND NOT (
         il.company_domain IS NOT NULL
@@ -264,7 +264,7 @@ router.get('/overlap', async (req, res) => {
           OR LOWER(c.company) ILIKE '%' || SPLIT_PART(il.company_domain,'.',1) || '%'
         )
       )
-    `, [campaignId, wsId]);
+    `, [campaignId]);
 
     // Combine, dedup by contact_id keeping highest confidence
     const seen = new Map();
