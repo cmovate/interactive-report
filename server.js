@@ -120,6 +120,18 @@ app.use('/api/enrich-job',         enrichJobRouter);
 app.use('/api/company-id-job',     companyIdJobRouter);
 app.use('/api/instantly',          require('./src/routes/instantly'));
 
+// POST /api/inbox/poll — manual trigger for inbox poller (for testing/debugging)
+app.post('/api/inbox/poll', async (req, res) => {
+  const { workspace_id } = req.body;
+  const poller = require('./src/inboxPoller');
+  if (workspace_id) {
+    poller.pollWorkspace(workspace_id).catch(e => console.error('[InboxPoller] manual trigger error:', e.message));
+  } else {
+    poller.pollAllWorkspaces().catch(e => console.error('[InboxPoller] manual trigger error:', e.message));
+  }
+  res.json({ ok: true, status: 'polling started', workspace_id: workspace_id || 'all' });
+});
+
 async function s(label, fn) {
   try { await fn(); }
   catch (err) { console.error(`[DB] ${label}: ${err.message}`); }
@@ -765,6 +777,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   messageSender.start();
   approvalChecker.start();
   await conversationQueue.start();
+  require('./src/inboxPoller').start();
 })();
 
 
