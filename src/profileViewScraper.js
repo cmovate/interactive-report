@@ -199,16 +199,26 @@ async function processAccount(workspaceId, accountId) {
 
     // ── Mark contact in list_contacts if they're in a list ────────────────────
     if (contactId) {
-      await db.query(
+      const { rowCount } = await db.query(
         `UPDATE list_contacts
          SET viewed_our_profile=true, viewed_our_profile_at=COALESCE(viewed_our_profile_at,$1)
          WHERE contact_id=$2`,
         [v.viewedAt || new Date(), contactId]
       );
-
-      // Also update contacts.last_profile_view_at if we viewed THEM (different concept —
-      // this is THEY viewed US, so we store on profile_view_events only; we do NOT
-      // overwrite last_profile_view_at which tracks when WE viewed THEM)
+      // Contact exists but not in any list -> add to Profile Viewers list
+      if (rowCount === 0) {
+        const listId = await getOrCreateViewersList(workspaceId);
+        await db.query(
+          `INSERT INTO list_contacts (list_id, contact_id, viewed_our_profile, viewed_our_profile_at)
+           VALUES ($1,$2,true,$3)
+           ON CONFLICT (list_id, contact_id) DO UPDATE
+             SET viewed_our_profile=true,
+                 viewed_our_profile_at=COALESCE(list_contacts.viewed_our_profile_at,$3)`,
+          [listId, contactId, v.viewedAt || new Date()]
+        );
+        added++;
+        console.log(`[ProfileViewScraper] ws=${workspaceId} existing contact -> Profile Viewers: ${v.name}`);
+      }
     } else {
       // ── Not in any list — create contact and add to "Profile Viewers" list ──
       const listId = await getOrCreateViewersList(workspaceId);
