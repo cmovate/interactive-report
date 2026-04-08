@@ -191,66 +191,40 @@ app.post('/api/profile-views/enrich', async (req, res) => {
         fromContact++;
       }
 
-      // 2. Parse from title: "Role at Company" or "Role | Company"
-      if (!company && viewer.viewer_title) {
-        const atMatch = viewer.viewer_title.match(/\bat\s+([A-Z][^|\n,]{2,50})(?:\s*[|,]|$)/);
-        if (atMatch) {
-          company = atMatch[1].trim();
-          fromTitle++;
-        }
+      // 2. Parse from title / viewer_name fields: "Role at Company"
+      const titleSrc = viewer.viewer_title || '';
+      if (!company && titleSrc) {
+        // Pattern: "... at Company Name" (at preceded by space/comma/pipe)
+        const atMatch = titleSrc.match(/(?:^|[\s,|])at\s+([A-Z][^|\n,&]{2,60}?)(?:\s*[|,]|$)/);
+        if (atMatch) { company = atMatch[1].trim(); fromTitle++; }
+      }
+      // viewer_name sometimes has "Someone at Company" for anon viewers
+      if (!company && viewer.viewer_name) {
+        const nameAtM = viewer.viewer_name.match(/^Someone at\s+(.+)$/i);
+        if (nameAtM) { company = nameAtM[1].trim(); fromTitle++; }
       }
 
-      // 3. Fetch from Unipile LinkedIn profile API
-      if (!company && viewer.viewer_provider_id && defaultAccountId && UNIPILE_DSN) {
+      // 3. Fetch from Unipile GET /api/v1/users/{identifier} endpoint
+      if (!company && viewer.viewer_li_url && defaultAccountId && UNIPILE_DSN) {
         try {
-          // Extract publicIdentifier from provider_id or li_url
-          const pid = viewer.viewer_li_url?.split('/in/')?.[1]?.replace(/\/.*/, '') || null;
+          const pid = (viewer.viewer_li_url || '').split('/in/')[1]?.replace(/\/.*/, '').trim();
           if (pid) {
-            const profileRes = await fetch(`${UNIPILE_DSN}/api/v1/linkedin`, {
-              method: 'POST',
-              headers: {
-                'X-API-KEY': UNIPILE_API_KEY,
-                'accept': 'application/json',
-                'content-type': 'application/json'
-              },
-              body: JSON.stringify({
-                account_id: viewer.account_id || defaultAccountId,
-                method: 'GET',
-                request_url: `https://www.linkedin.com/voyager/api/identity/profiles/${pid}`,
-                encoding: false
-              })
-            });
-
+            const profileRes = await fetch(
+              `${UNIPILE_DSN}/api/v1/users/${pid}?account_id=${viewer.account_id || defaultAccountId}`,
+              { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
+            );
             if (profileRes.ok) {
-              const profileData = await profileRes.json();
-              // Try multiple paths for company
-              const profile = profileData?.data?.data?.identityDashProfilesByMemberIdentity?.elements?.[0]
-                           || profileData?.data?.miniProfile
-                           || profileData?.data;
-
-              // Try to get current company from experience or headline
-              const headline = profile?.headline?.text || profile?.occupation || '';
-              const atInHeadline = headline.match(/\bat\s+([A-Z][^|\n,]{2,50})/);
-              if (atInHeadline) {
-                company = atInHeadline[1].trim();
+              const profile = await profileRes.json();
+              const headline = profile.headline || '';
+              // Try "Role at Company" pattern
+              const atM = headline.match(/\bat\s+([A-Z][^|\n,&]{2,60}?)(?:\s*[|,]|$)/);
+              if (atM) {
+                company = atM[1].trim();
                 fromApi++;
               }
-
-              // Try experience sections
-              if (!company) {
-                const experiences = profile?.profileView?.positionView?.elements ||
-                  profileData?.data?.data?.positionGroupView?.elements || [];
-                if (experiences.length > 0) {
-                  const latestExp = experiences[0];
-                  company = latestExp?.companyName
-                         || latestExp?.company?.miniCompany?.name
-                         || latestExp?.position?.company?.name || null;
-                  if (company) fromApi++;
-                }
-              }
+              // If no company yet, try location as hint (skip — not reliable)
             }
-            // Rate limit
-            await new Promise(r => setTimeout(r, 300));
+            await new Promise(r => setTimeout(r, 350));
           }
         } catch(e) {
           console.warn(`[Enrich] viewer ${viewer.id}:`, e.message);

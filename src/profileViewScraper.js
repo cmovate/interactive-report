@@ -487,45 +487,25 @@ async function enrichProfileViewers(workspaceId, limit = 30) {
       if (m) company = m[1].trim();
     }
 
-    // 3. Unipile profile API
+    // 3. Unipile GET /api/v1/users/{identifier} — correct native endpoint
     if (!company && viewer.viewer_li_url && accountId && UNIPILE_DSN) {
       try {
-        const pid = viewer.viewer_li_url.split('/in/')[1]?.replace(/\/.*/, '').trim();
+        const pid = (viewer.viewer_li_url || '').split('/in/')[1]?.replace(/\/.*/, '').trim();
         if (pid) {
-          const r = await fetch(`${UNIPILE_DSN}/api/v1/linkedin`, {
-            method: 'POST',
-            headers: {
-              'X-API-KEY': UNIPILE_API_KEY,
-              'accept': 'application/json',
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-              account_id: viewer.account_id || accountId,
-              method: 'GET',
-              request_url: `https://www.linkedin.com/voyager/api/identity/profiles/${pid}`,
-              encoding: false,
-            }),
-          });
+          const useAcct = viewer.account_id || accountId;
+          const r = await fetch(
+            `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}?account_id=${useAcct}`,
+            { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
+          );
           if (r.ok) {
-            const data = await r.json();
-            const raw  = JSON.stringify(data);
-            // Try headline "at Company"
-            const hMatch = raw.match(/"occupation":"([^"]+)"/);
-            if (hMatch) {
-              const atM = hMatch[1].match(/at\s+([A-Z][^"]{2,60})/);
-              if (atM) company = atM[1].trim();
-            }
-            // Try company name in positions
-            if (!company) {
-              const coMatch = raw.match(/"companyName"\s*:\s*"([^"]{2,60})"/);
-              if (coMatch) company = coMatch[1];
-            }
+            const profile = await r.json();
+            const headline = profile.headline || '';
+            const atM = headline.match(/(?:^|\s)at\s+([A-Z][^|,\n&]{2,60}?)(?:\s*[|,]|$)/);
+            if (atM) company = atM[1].trim();
           }
-          await new Promise(r => setTimeout(r, 400)); // rate limit
+          await new Promise(r => setTimeout(r, 400));
         }
-      } catch(e) {
-        // silent
-      }
+      } catch(e) { /* silent */ }
     }
 
     if (company) {
