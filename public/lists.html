@@ -414,6 +414,10 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
           <th style="min-width:150px;text-align:center;">Last scraped</th>
           <th style="min-width:120px;text-align:center;">Post likes &#128077;</th>
           <th style="min-width:150px;text-align:center;">Last liked</th>
+          <th style="min-width:110px;text-align:center;background:#f0faf5;color:#1a3a2a;" title="Profile views received from contacts at this company">&#128065; Profile Views</th>
+          <th style="min-width:110px;text-align:center;background:#f0faf5;color:#1a3a2a;" title="Likes received on our posts">&#128077; Post Likes</th>
+          <th style="min-width:110px;text-align:center;background:#f0faf5;color:#1a3a2a;" title="Comments on our content">&#128172; Comments</th>
+          <th style="min-width:120px;text-align:center;background:#f0faf5;color:#1a3a2a;" title="Company page visits">&#127968; Co. Views</th>
           <th style="min-width:160px;">LinkedIn company</th>
         </tr></thead>
         <tbody id="companies-body"></tbody>
@@ -1017,6 +1021,7 @@ async function loadCompanies() {
     const data = await fetch('/api/companies?workspace_id='+workspaceId+(cid?'&campaign_id='+cid:'')).then(r=>r.json());
     allCompanies = Array.isArray(data.items) ? data.items : [];
     applyCompanyFilters();
+    loadCompanyInboundData(); // load profile views in background
   } catch(e) { console.error(e); }
 }
 function applyCompanyFilters() {
@@ -1045,9 +1050,43 @@ function renderCompanyStats() {
   ].map(s=>'<div class="stat-chip"><strong>'+s.val+'</strong>'+s.label+'</div>').join('');
   document.getElementById('company-stats-row').innerHTML = chips;
 }
+// ── Inbound Signals for companies ─────────────────────────────────────────────
+let _pvByCompany = {}; // company name (normalized) → profile view count
+
+function normalizeCoName(name) {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function inboundBadge(value, type) {
+  if (type === 'soon') {
+    return '<span style="color:#ccc;font-size:10px;">—</span>';
+  }
+  if (value == null || value === 0) {
+    return '<span style="color:#ddd;font-size:11px;">0</span>';
+  }
+  return '<span style="background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">' + value + '</span>';
+}
+
+async function loadCompanyInboundData() {
+  if (!workspaceId) return;
+  try {
+    const d = await fetch('/api/profile-views?workspace_id=' + workspaceId + '&limit=500').then(r => r.json());
+    const viewers = d.viewers || [];
+    // Build map: normalized company name → view count
+    const map = {};
+    viewers.forEach(v => {
+      const co = normalizeCoName(v.company || '');
+      if (co) map[co] = (map[co] || 0) + 1;
+    });
+    _pvByCompany = map;
+    // Re-render if companies already loaded
+    if (filteredCompanies.length) renderCompaniesTable();
+  } catch(e) { /* silent — just no data */ }
+}
+
 function renderCompaniesTable() {
   const tbody = document.getElementById('companies-body');
-  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="10">No companies found \u2014 contacts need to be enriched first</td></tr>'; return; }
+  if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="14">No companies found \u2014 contacts need to be enriched first</td></tr>'; return; }
   tbody.innerHTML = filteredCompanies.map(c => {
     const camp = campaigns.find(camp => String(camp.id) === String(c.campaign_id));
     const liUrl = c.li_company_url || (c.company_linkedin_id ? 'https://www.linkedin.com/company/'+c.company_linkedin_id : '');
@@ -1062,17 +1101,22 @@ function renderCompaniesTable() {
       +'<td style="text-align:center;">'+fmtDate(c.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(c.post_likes_sent)+'</td>'
       +'<td style="text-align:center;">'+cooldownBadge(c.likes_sent_at)+'</td>'
+      +'<td style="text-align:center;background:#fafff8;">'+inboundBadge(_pvByCompany[normalizeCoName(c.company_name)], 'pv')+'</td>'
+      +'<td style="text-align:center;background:#fafff8;">'+inboundBadge(null, 'soon')+'</td>'
+      +'<td style="text-align:center;background:#fafff8;">'+inboundBadge(null, 'soon')+'</td>'
+      +'<td style="text-align:center;background:#fafff8;">'+inboundBadge(null, 'soon')+'</td>'
       +'<td>'+liLink+'</td></tr>';
   }).join('');
 }
 function exportCompaniesCSV() {
-  const labels=['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked','LinkedIn URL'];
+  const labels=['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked','Profile Views','Post Likes (inbound)','Comments (inbound)','Co. Views (inbound)','LinkedIn URL'];
   const rows = filteredCompanies.map(c => {
     const camp=campaigns.find(camp=>String(camp.id)===String(c.campaign_id));
     const d=c.engagement_data?(typeof c.engagement_data==='string'?JSON.parse(c.engagement_data):c.engagement_data):{};
     return [c.company_name||'',camp?.name||c.campaign_name||'',parseInt(c.contact_count)||1,c.company_linkedin_id||'',
       c.engagement_level||'',d.posts_14d??'',c.engagement_scraped_at||'',
-      parseInt(c.post_likes_sent)||0,c.likes_sent_at||'',c.li_company_url||'',
+      parseInt(c.post_likes_sent)||0,c.likes_sent_at||'',
+      _pvByCompany[normalizeCoName(c.company_name)]||0,'','','',c.li_company_url||'',
     ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
   downloadCSV('companies-data.csv', labels, rows);
