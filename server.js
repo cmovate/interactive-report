@@ -149,6 +149,63 @@ app.post('/api/profile-views/scrape', async (req, res) => {
   res.json({ ok: true, status: 'scrape started', workspace_id: workspace_id || 'all' });
 });
 
+// GET /api/profile-views?workspace_id=&from=&to=&limit=
+// Returns aggregate stats + recent identified viewers from profile_view_events
+app.get('/api/profile-views', async (req, res) => {
+  try {
+    const { workspace_id, from, to, limit = 50 } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Ensure table exists
+    await require('./src/profileViewScraper').ensureTable().catch(()=>{});
+
+    const dateFilter = from && to
+      ? `AND scraped_at BETWEEN '${from}'::date AND '${to}'::date + INTERVAL '1 day'`
+      : from ? `AND scraped_at >= '${from}'::date`
+      : to   ? `AND scraped_at <  '${to}'::date + INTERVAL '1 day'`
+      : '';
+
+    // Aggregate stats
+    const { rows: stats } = await db.query(`
+      SELECT
+        COUNT(*)                                           AS total_views,
+        COUNT(*) FILTER (WHERE is_anonymous = false)      AS identified_views,
+        COUNT(*) FILTER (WHERE is_anonymous = true)       AS anonymous_views,
+        COUNT(DISTINCT viewer_li_url) FILTER (WHERE is_anonymous = false) AS unique_viewers
+      FROM profile_view_events
+      WHERE workspace_id = $1 ${dateFilter}
+    `, [workspace_id]);
+
+    // Recent identified viewers with contact info
+    const { rows: viewers } = await db.query(`
+      SELECT
+        pve.id, pve.viewer_name, pve.viewer_title, pve.viewer_li_url,
+        pve.viewer_provider_id, pve.viewed_at, pve.scraped_at,
+        pve.is_anonymous, pve.raw_caption, pve.account_id,
+        c.id           AS contact_id,
+        c.first_name, c.last_name, c.company, c.title,
+        c.li_profile_url
+      FROM profile_view_events pve
+      LEFT JOIN contacts c ON c.id = pve.contact_id
+      WHERE pve.workspace_id = $1 ${dateFilter}
+      ORDER BY pve.scraped_at DESC
+      LIMIT $2
+    `, [workspace_id, parseInt(limit)]);
+
+    res.json({
+      stats: stats[0],
+      viewers,
+      // Stub placeholders — will be populated once API details received
+      post_likes:     null,
+      post_comments:  null,
+      company_views:  null,
+    });
+  } catch (e) {
+    console.error('[GET /api/profile-views]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 async function s(label, fn) {
   try { await fn(); }
   catch (err) { console.error(`[DB] ${label}: ${err.message}`); }

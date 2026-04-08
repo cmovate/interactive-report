@@ -78,6 +78,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .modal-close-btn:hover { background: #e5e1db; }
 .modal-note { font-size: 11px; color: #aaa; margin-top: 12px; text-align: center; }
 
+/* ── Inbound Signals ────────────────────────────────────────────────── */
+.inbound-wrap { padding: 14px 20px 0; max-width: 1100px; }
+.inbound-section { background: white; border: 1px solid #D4EDDA; border-radius: 12px; margin-bottom: 0; overflow: hidden; }
+.inbound-header { background: linear-gradient(135deg, #1a3a2a 0%, #2d5c40 100%); padding: 13px 18px; display: flex; align-items: center; gap: 10px; }
+.inbound-header-icon { font-size: 17px; }
+.inbound-header-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: white; flex: 1; }
+.inbound-header-sub { font-size: 10px; color: rgba(255,255,255,.55); font-style: italic; }
+.inbound-kpis { display: grid; grid-template-columns: repeat(4, 1fr); padding: 14px 16px 10px; gap: 10px; border-bottom: 1px solid #f0ede8; }
+@media (max-width: 700px) { .inbound-kpis { grid-template-columns: repeat(2,1fr); } }
+.inbound-kpi { background: #f8f6f3; border: 1px solid #ede9e3; border-radius: 10px; padding: 12px 14px; position: relative; transition: box-shadow .15s; }
+.inbound-kpi:hover { box-shadow: 0 2px 10px rgba(26,58,42,.08); }
+.inbound-kpi-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #888; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+.inbound-kpi-value { font-size: 28px; font-weight: 800; color: #1a3a2a; line-height: 1; }
+.inbound-kpi-sub { font-size: 10px; color: #aaa; margin-top: 3px; }
+.inbound-kpi-soon { position: absolute; top: 10px; right: 10px; background: #f0ede8; color: #bbb; font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 8px; }
+.inbound-kpi-live { position: absolute; top: 10px; right: 10px; background: #d1fae5; color: #065f46; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 8px; }
+.inbound-body { padding: 12px 16px 14px; }
+.inbound-table-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.inbound-table-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #888; flex: 1; }
+.inbound-scrape-btn { background: #f0ede8; color: #555; border: none; padding: 5px 12px; border-radius: 7px; font-size: 11px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 5px; transition: all .15s; white-space: nowrap; }
+.inbound-scrape-btn:hover { background: #1a3a2a; color: white; }
+.inbound-scrape-btn.loading { opacity: .6; pointer-events: none; }
+.inbound-viewers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.inbound-viewers-table th { background: #f0ede8; color: #777; padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.inbound-viewers-table td { padding: 7px 10px; border-bottom: 1px solid #f5f3f0; vertical-align: middle; }
+.inbound-viewers-table tr:last-child td { border-bottom: none; }
+.inbound-viewers-table tr:hover td { background: #faf9f7; }
+.inbound-viewer-name { font-weight: 600; color: #1a3a2a; }
+.inbound-viewer-name a { color: #1a3a2a; text-decoration: none; }
+.inbound-viewer-name a:hover { text-decoration: underline; }
+.inbound-viewer-sub { font-size: 10px; color: #999; margin-top: 1px; }
+.inbound-anon { display: inline-block; background: #f3f4f6; color: #9ca3af; font-size: 10px; padding: 2px 8px; border-radius: 8px; font-style: italic; }
+.inbound-empty { text-align: center; padding: 24px; color: #bbb; font-size: 12px; }
+
 /* Drill-down drawer */
 .drawer-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:500; }
 .drawer-overlay.open { display:block; }
@@ -233,6 +267,58 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <input type="date" class="date-input" id="date-from" onchange="applyCustom()">
     <span style="color:#aaa">—</span>
     <input type="date" class="date-input" id="date-to" onchange="applyCustom()">
+  </div>
+</div>
+
+<!-- ── Inbound Signals — always visible ─────────────────────────────── -->
+<div class="inbound-wrap">
+  <div class="inbound-section" id="inbound-section">
+    <div class="inbound-header">
+      <span class="inbound-header-icon">&#128268;</span>
+      <span class="inbound-header-title">Inbound Signals</span>
+      <span class="inbound-header-sub">Actions your audience took on your profiles &amp; content</span>
+    </div>
+
+    <!-- KPI row -->
+    <div class="inbound-kpis" id="inbound-kpis">
+      <div class="inbound-kpi">
+        <div class="inbound-kpi-label"><span>&#128065;</span> Profile Views</div>
+        <div class="inbound-kpi-value" id="ib-pv-total">—</div>
+        <div class="inbound-kpi-sub" id="ib-pv-sub">Loading…</div>
+        <span class="inbound-kpi-live">&#9679; Live</span>
+      </div>
+      <div class="inbound-kpi">
+        <div class="inbound-kpi-label"><span>&#128077;</span> Post Likes</div>
+        <div class="inbound-kpi-value" id="ib-likes">—</div>
+        <div class="inbound-kpi-sub">Likes on your posts</div>
+        <span class="inbound-kpi-soon">Coming soon</span>
+      </div>
+      <div class="inbound-kpi">
+        <div class="inbound-kpi-label"><span>&#128172;</span> Comments</div>
+        <div class="inbound-kpi-value" id="ib-comments">—</div>
+        <div class="inbound-kpi-sub">Comments on your content</div>
+        <span class="inbound-kpi-soon">Coming soon</span>
+      </div>
+      <div class="inbound-kpi">
+        <div class="inbound-kpi-label"><span>&#127968;</span> Company Views</div>
+        <div class="inbound-kpi-value" id="ib-co-views">—</div>
+        <div class="inbound-kpi-sub">Company page visits</div>
+        <span class="inbound-kpi-soon">Coming soon</span>
+      </div>
+    </div>
+
+    <!-- Recent viewers table -->
+    <div class="inbound-body">
+      <div class="inbound-table-header">
+        <span class="inbound-table-title">&#128065; Recent Profile Viewers</span>
+        <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()">
+          &#8635; Refresh now
+        </button>
+      </div>
+      <div id="inbound-viewers-wrap">
+        <div class="inbound-empty">Loading…</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1026,6 +1112,117 @@ document.addEventListener('keydown', function(e) { if(e.key==='Escape') closeDra
 // Init
 initTabs();
 loadCampaigns();
+loadInboundSignals();
+
+// ── Inbound Signals ────────────────────────────────────────────────────────
+
+async function loadInboundSignals() {
+  try {
+    var range = getRange(rangeMode);
+    var params = new URLSearchParams({ workspace_id: wsId, limit: 20 });
+    if (range.from) params.set('from', range.from.toISOString().slice(0,10));
+    if (range.to)   params.set('to',   range.to.toISOString().slice(0,10));
+
+    var d = await fetch('/api/profile-views?' + params.toString()).then(function(r){ return r.json(); });
+
+    // KPIs
+    var s = d.stats || {};
+    document.getElementById('ib-pv-total').textContent = (parseInt(s.total_views)||0).toLocaleString();
+    document.getElementById('ib-pv-sub').textContent =
+      (parseInt(s.identified_views)||0) + ' identified · ' +
+      (parseInt(s.anonymous_views)||0) + ' anonymous';
+    // Post likes + comments: stubs until API wired
+    document.getElementById('ib-likes').textContent    = d.post_likes    != null ? d.post_likes    : '—';
+    document.getElementById('ib-comments').textContent = d.post_comments != null ? d.post_comments : '—';
+    document.getElementById('ib-co-views').textContent = d.company_views != null ? d.company_views : '—';
+
+    // Viewers table
+    renderInboundViewers(d.viewers || []);
+  } catch(e) {
+    document.getElementById('inbound-viewers-wrap').innerHTML =
+      '<div class="inbound-empty">&#9888; Could not load data: ' + e.message + '</div>';
+  }
+}
+
+function renderInboundViewers(viewers) {
+  var wrap = document.getElementById('inbound-viewers-wrap');
+  if (!viewers.length) {
+    wrap.innerHTML = '<div class="inbound-empty">No profile views recorded yet.<br><span style="font-size:11px">Click "Refresh now" to scrape latest viewers.</span></div>';
+    return;
+  }
+
+  var rows = viewers.slice(0, 15).map(function(v) {
+    var viewedAt = v.viewed_at || v.scraped_at;
+    var dateStr  = viewedAt ? new Date(viewedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+    var account  = v.account_id ? v.account_id.substring(0,8)+'…' : '—';
+
+    if (v.is_anonymous) {
+      return '<tr>' +
+        '<td><span class="inbound-anon">' + (v.viewer_name || 'Anonymous viewer') + '</span></td>' +
+        '<td style="color:#ccc">—</td>' +
+        '<td style="color:#ccc">—</td>' +
+        '<td style="color:#aaa;font-size:11px">' + dateStr + '</td>' +
+        '<td style="color:#ccc">—</td>' +
+      '</tr>';
+    }
+
+    var name     = (v.first_name||v.viewer_name||'Unknown').trim();
+    var lastName = (v.last_name||'').trim();
+    var fullName = lastName ? name + ' ' + lastName : name;
+    var liUrl    = v.li_profile_url || v.viewer_li_url;
+    var nameCell = liUrl
+      ? '<a href="' + liUrl + '" target="_blank">' + fullName + '</a>'
+      : fullName;
+    var sub      = v.title || v.viewer_title || '';
+    var company  = v.company || '';
+    var isNew    = !v.contact_id ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 6px;border-radius:6px;margin-left:5px;font-weight:700">NEW</span>' : '';
+
+    return '<tr>' +
+      '<td><div class="inbound-viewer-name">' + nameCell + isNew + '</div><div class="inbound-viewer-sub">' + sub + '</div></td>' +
+      '<td style="font-size:11px;color:#555">' + (company||'—') + '</td>' +
+      '<td><div class="inbound-viewer-sub" style="font-size:11px">' + (v.raw_caption||'—') + '</div></td>' +
+      '<td style="color:#aaa;font-size:11px;white-space:nowrap">' + dateStr + '</td>' +
+      '<td>' + (liUrl ? '<a href="' + liUrl + '" target="_blank" style="color:#52b788;font-size:11px">View &#8599;</a>' : '') + '</td>' +
+    '</tr>';
+  }).join('');
+
+  wrap.innerHTML = '<div style="max-height:320px;overflow-y:auto;border-radius:8px;border:1px solid #f0ede8">' +
+    '<table class="inbound-viewers-table">' +
+      '<thead><tr><th>Viewer</th><th>Company</th><th>When</th><th>Date</th><th></th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>' +
+  '</div>' +
+  (viewers.length > 15 ? '<div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Showing 15 of ' + viewers.length + ' viewers</div>' : '');
+}
+
+async function triggerScrape() {
+  var btn = document.getElementById('inbound-scrape-btn');
+  btn.classList.add('loading');
+  btn.textContent = '⏳ Scraping…';
+  try {
+    await fetch('/api/profile-views/scrape', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: parseInt(wsId) })
+    });
+    // Wait a bit for scrape to complete, then reload
+    setTimeout(function() {
+      loadInboundSignals();
+      btn.classList.remove('loading');
+      btn.innerHTML = '&#8635; Refresh now';
+    }, 4000);
+  } catch(e) {
+    btn.classList.remove('loading');
+    btn.innerHTML = '&#8635; Refresh now';
+  }
+}
+
+// Reload inbound signals when date range changes
+var _origSetRange = setRange;
+setRange = function(mode, el) {
+  _origSetRange(mode, el);
+  loadInboundSignals();
+};
 </script>
 
 <!-- Drill-down drawer -->
