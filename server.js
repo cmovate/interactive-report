@@ -316,9 +316,9 @@ app.post('/api/profile-views/bulk-import', async (req, res) => {
 
           totalFetched += elems.length;
 
-          // Parse + insert each element (reuse scraper's parseViewer)
+          // Parse + insert each element
           for (const elem of elems) {
-            const v = scraper._parseViewer ? scraper._parseViewer(elem) : null;
+            const v = scraper._parseViewer(elem);
             if (!v) continue;
 
             // Dedup: skip if already in DB (same li_url or viewer_name in last 90 days)
