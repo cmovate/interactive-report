@@ -1075,15 +1075,25 @@ function soonCell() {
 function buildInboundCells(companyName) {
   const co = normalizeCoName(companyName);
   let html = '';
+  // Per-user: Profile Views | Post Likes | Comments
   _wsAccounts.forEach(acc => {
     const pvMap = _pvByAcctCo[acc.id] || {};
     const pvCount = pvMap[co] || 0;
     html += '<td style="text-align:center;background:#fafff8;">' + inboundBadge(pvCount) + '</td>';
-    html += soonCell(); // Post Likes
-    html += soonCell(); // Comments
-    html += soonCell(); // Co. Views
+    html += soonCell(); // Post Likes (coming soon)
+    html += soonCell(); // Comments (coming soon)
   });
+  // Company page columns: Co. Views | Co. Post Likes | Co. Comments (shared, not per-user)
+  // Co. Views = sum of profile views across ALL accounts for this company (company page visits proxy)
+  const totalCoViews = Object.values(_pvByAcctCo).reduce((sum, map) => sum + (map[co] || 0), 0);
+  html += '<td style="text-align:center;background:#fff7ed;border-left:2px solid #fcd34d;">' + inboundBadge(totalCoViews) + '</td>';
+  html += '<td style="text-align:center;background:#fff7ed;">' + soonCellInner() + '</td>'; // Co. Post Likes
+  html += '<td style="text-align:center;background:#fff7ed;">' + soonCellInner() + '</td>'; // Co. Comments
   return html;
+}
+
+function soonCellInner() {
+  return '<span style="color:#ccc;font-size:10px;">—</span>';
 }
 
 // Inject dynamic <th> columns into the companies thead
@@ -1102,7 +1112,6 @@ function buildInboundHeaders() {
       { icon: '&#128065;', label: 'Profile Views', title: 'Profile views of ' + acc.name + ''s profile' },
       { icon: '&#128077;', label: 'Post Likes', title: 'Likes on ' + acc.name + ''s posts (coming soon)' },
       { icon: '&#128172;', label: 'Comments', title: 'Comments on ' + acc.name + ''s content (coming soon)' },
-      { icon: '&#127968;', label: 'Co. Views', title: 'Company page visits via ' + acc.name + ' (coming soon)' },
     ];
     actions.forEach(a => {
       const th = document.createElement('th');
@@ -1114,9 +1123,25 @@ function buildInboundHeaders() {
     });
   });
 
-  // Also update colspan on empty row if any
+  // Company page columns (shared — not per user)
+  const coActions = [
+    { icon: '&#127968;', label: 'Co. Views',      bg: '#fff7ed', color: '#92400e', title: 'Company page visits from contacts at this company' },
+    { icon: '&#128077;', label: 'Co. Post Likes', bg: '#fff7ed', color: '#92400e', title: 'Likes on company page posts (coming soon)' },
+    { icon: '&#128172;', label: 'Co. Comments',   bg: '#fff7ed', color: '#92400e', title: 'Comments on company page posts (coming soon)' },
+  ];
+  coActions.forEach((a, i) => {
+    const th = document.createElement('th');
+    th.className = 'inbound-user-col';
+    th.style.cssText = 'min-width:100px;text-align:center;background:' + a.bg + ';color:' + a.color + ';white-space:nowrap;'
+      + (i === 0 ? 'border-left:2px solid #fcd34d;' : '');
+    th.title = a.title;
+    th.innerHTML = a.icon + ' ' + a.label;
+    theadRow.insertBefore(th, lastTh);
+  });
+
+  // Update colspan on empty row
   const emptyRow = document.querySelector('#companies-table tbody tr.empty-row td');
-  if (emptyRow) emptyRow.colSpan = 10 + (_wsAccounts.length * 4);
+  if (emptyRow) emptyRow.colSpan = 10 + (_wsAccounts.length * 3) + 3;
 }
 
 async function loadCompanyInboundData() {
@@ -1166,8 +1191,9 @@ function exportCompaniesCSV() {
   const inboundLabels = [];
   _wsAccounts.forEach(acc => {
     const sn = shortName(acc.name);
-    inboundLabels.push(sn + ' Profile Views', sn + ' Post Likes', sn + ' Comments', sn + ' Co. Views');
+    inboundLabels.push(sn + ' Profile Views', sn + ' Post Likes', sn + ' Comments');
   });
+  inboundLabels.push('Co. Views', 'Co. Post Likes', 'Co. Comments');
   const labels=['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked',...inboundLabels,'LinkedIn URL'];
   const rows = filteredCompanies.map(c => {
     const camp=campaigns.find(camp=>String(camp.id)===String(c.campaign_id));
@@ -1177,8 +1203,9 @@ function exportCompaniesCSV() {
       parseInt(c.post_likes_sent)||0,c.likes_sent_at||'',
       ...(_wsAccounts.flatMap(acc => {
         const pvMap = _pvByAcctCo[acc.id] || {};
-        return [pvMap[normalizeCoName(c.company_name)]||0, '', '', ''];
+        return [pvMap[normalizeCoName(c.company_name)]||0, '', ''];
       })),
+      Object.values(_pvByAcctCo).reduce((s, m) => s + (m[normalizeCoName(c.company_name)]||0), 0), '', '',
       c.li_company_url||'',
     ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
