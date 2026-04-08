@@ -87,8 +87,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .inbound-header-sub { font-size: 10px; color: rgba(255,255,255,.55); font-style: italic; }
 .inbound-kpis { display: grid; grid-template-columns: repeat(4, 1fr); padding: 14px 16px 10px; gap: 10px; border-bottom: 1px solid #f0ede8; }
 @media (max-width: 700px) { .inbound-kpis { grid-template-columns: repeat(2,1fr); } }
-.inbound-kpi { background: #f8f6f3; border: 1px solid #ede9e3; border-radius: 10px; padding: 12px 14px; position: relative; transition: box-shadow .15s; }
-.inbound-kpi:hover { box-shadow: 0 2px 10px rgba(26,58,42,.08); }
+.inbound-kpi { background: #f8f6f3; border: 1px solid #ede9e3; border-radius: 10px; padding: 12px 14px; position: relative; transition: all .15s; cursor: pointer; user-select: none; }
+.inbound-kpi:hover { box-shadow: 0 2px 10px rgba(26,58,42,.12); border-color: #52b788; }
+.inbound-kpi.active { background: #1a3a2a; border-color: #1a3a2a; box-shadow: 0 2px 12px rgba(26,58,42,.25); }
+.inbound-kpi.active .inbound-kpi-label { color: rgba(255,255,255,.7); }
+.inbound-kpi.active .inbound-kpi-value { color: white; }
+.inbound-kpi.active .inbound-kpi-sub { color: rgba(255,255,255,.5); }
+.inbound-kpi.active .inbound-kpi-live { background: rgba(255,255,255,.2); color: #a7f3d0; }
+.inbound-kpi.active .inbound-kpi-soon { background: rgba(255,255,255,.1); color: rgba(255,255,255,.4); }
+.inbound-activity-type { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 8px; margin-left: 5px; text-transform: uppercase; letter-spacing: .04em; }
+.activity-pv { background: #d1fae5; color: #065f46; }
+.activity-co { background: #fef3c7; color: #92400e; }
+.activity-like { background: #dbeafe; color: #1e40af; }
+.activity-comment { background: #ede9fe; color: #5b21b6; }
 .inbound-kpi-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #888; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
 .inbound-kpi-value { font-size: 28px; font-weight: 800; color: #1a3a2a; line-height: 1; }
 .inbound-kpi-sub { font-size: 10px; color: #aaa; margin-top: 3px; }
@@ -279,38 +290,38 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <span class="inbound-header-sub">Actions your audience took on your profiles &amp; content</span>
     </div>
 
-    <!-- KPI row -->
+    <!-- KPI row — clickable to filter activity -->
     <div class="inbound-kpis" id="inbound-kpis">
-      <div class="inbound-kpi">
+      <div class="inbound-kpi" data-type="pv" onclick="toggleInboundFilter('pv')" title="Click to filter by Profile Views">
         <div class="inbound-kpi-label"><span>&#128065;</span> Profile Views</div>
         <div class="inbound-kpi-value" id="ib-pv-total">—</div>
         <div class="inbound-kpi-sub" id="ib-pv-sub">Loading…</div>
         <span class="inbound-kpi-live">&#9679; Live</span>
       </div>
-      <div class="inbound-kpi">
+      <div class="inbound-kpi" data-type="co" onclick="toggleInboundFilter('co')" title="Click to filter by Company Views">
+        <div class="inbound-kpi-label"><span>&#127968;</span> Company Views</div>
+        <div class="inbound-kpi-value" id="ib-co-views">—</div>
+        <div class="inbound-kpi-sub" id="ib-co-sub">Company page visits</div>
+        <span class="inbound-kpi-live">&#9679; Live</span>
+      </div>
+      <div class="inbound-kpi" data-type="like" onclick="toggleInboundFilter('like')" title="Click to filter by Post Likes">
         <div class="inbound-kpi-label"><span>&#128077;</span> Post Likes</div>
         <div class="inbound-kpi-value" id="ib-likes">—</div>
         <div class="inbound-kpi-sub">Likes on your posts</div>
         <span class="inbound-kpi-soon">Coming soon</span>
       </div>
-      <div class="inbound-kpi">
+      <div class="inbound-kpi" data-type="comment" onclick="toggleInboundFilter('comment')" title="Click to filter by Comments">
         <div class="inbound-kpi-label"><span>&#128172;</span> Comments</div>
         <div class="inbound-kpi-value" id="ib-comments">—</div>
         <div class="inbound-kpi-sub">Comments on your content</div>
         <span class="inbound-kpi-soon">Coming soon</span>
       </div>
-      <div class="inbound-kpi">
-        <div class="inbound-kpi-label"><span>&#127968;</span> Company Views</div>
-        <div class="inbound-kpi-value" id="ib-co-views">—</div>
-        <div class="inbound-kpi-sub">Company page visits</div>
-        <span class="inbound-kpi-soon">Coming soon</span>
-      </div>
     </div>
 
-    <!-- Recent viewers table -->
+    <!-- Recent Engagement Activity -->
     <div class="inbound-body">
       <div class="inbound-table-header">
-        <span class="inbound-table-title">&#128065; Recent Profile Viewers</span>
+        <span class="inbound-table-title" id="inbound-activity-title">&#9889; Recent Engagement Activity</span>
         <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()">
           &#8635; Refresh now
         </button>
@@ -1116,14 +1127,54 @@ loadInboundSignals();
 
 // ── Inbound Signals ────────────────────────────────────────────────────────
 
+var _inboundData    = { viewers: [], coViewers: [] }; // cached API data
+var _activeFilter   = null; // 'pv' | 'co' | 'like' | 'comment' | null
+
+var FILTER_META = {
+  pv:      { label: '&#128065; Profile Views',   emptyMsg: 'No profile views recorded yet.' },
+  co:      { label: '&#127968; Company Views',    emptyMsg: 'No company page visits recorded yet.' },
+  like:    { label: '&#128077; Post Likes',        emptyMsg: 'Post likes coming soon.' },
+  comment: { label: '&#128172; Comments',          emptyMsg: 'Comments coming soon.' },
+};
+
+function toggleInboundFilter(type) {
+  // Toggle: if already active, clear; otherwise set
+  var next = (_activeFilter === type) ? null : type;
+  _activeFilter = next;
+
+  // Update KPI card styles
+  document.querySelectorAll('.inbound-kpi').forEach(function(el) {
+    if (next && el.dataset.type === next) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  });
+
+  // Update table title
+  var titleEl = document.getElementById('inbound-activity-title');
+  if (next && FILTER_META[next]) {
+    titleEl.innerHTML = FILTER_META[next].label + ' <span style="font-size:10px;color:#888;font-weight:400">(click again to show all)</span>';
+  } else {
+    titleEl.innerHTML = '&#9889; Recent Engagement Activity';
+  }
+
+  // Re-render with filter
+  renderInboundActivity();
+}
+
 async function loadInboundSignals() {
   try {
     var range = getRange(rangeMode);
-    var params = new URLSearchParams({ workspace_id: wsId, limit: 20 });
+    var params = new URLSearchParams({ workspace_id: wsId, limit: 50 });
     if (range.from) params.set('from', range.from.toISOString().slice(0,10));
     if (range.to)   params.set('to',   range.to.toISOString().slice(0,10));
 
     var d = await fetch('/api/profile-views?' + params.toString()).then(function(r){ return r.json(); });
+
+    // Cache data
+    _inboundData.viewers   = d.viewers   || [];
+    _inboundData.coViewers = d.coViewers || [];
 
     // KPIs
     var s = d.stats || {};
@@ -1131,81 +1182,109 @@ async function loadInboundSignals() {
     document.getElementById('ib-pv-sub').textContent =
       (parseInt(s.identified_views)||0) + ' identified · ' +
       (parseInt(s.anonymous_views)||0) + ' anonymous';
-    // Post likes + comments: stubs until API wired
+
+    // Company views total
+    var coTotal = Object.values(d.companyViewsByAccount || {}).reduce(function(s, v) { return s + (v.total_views||0); }, 0);
+    document.getElementById('ib-co-views').textContent = coTotal > 0 ? coTotal.toLocaleString() : '—';
+    var coIdentified = _inboundData.coViewers.filter(function(v){ return !v.is_anonymous; }).length;
+    document.getElementById('ib-co-sub').textContent = coIdentified + ' identified · ' + (_inboundData.coViewers.length - coIdentified) + ' anonymous';
+
+    // Stubs
     document.getElementById('ib-likes').textContent    = d.post_likes    != null ? d.post_likes    : '—';
     document.getElementById('ib-comments').textContent = d.post_comments != null ? d.post_comments : '—';
-    document.getElementById('ib-co-views').textContent = d.company_views != null ? d.company_views : '—';
 
-    // Viewers table
-    renderInboundViewers(d.viewers || []);
+    renderInboundActivity();
   } catch(e) {
     document.getElementById('inbound-viewers-wrap').innerHTML =
       '<div class="inbound-empty">&#9888; Could not load data: ' + e.message + '</div>';
   }
 }
 
-function renderInboundViewers(viewers) {
-  var wrap = document.getElementById('inbound-viewers-wrap');
-  if (!viewers.length) {
-    wrap.innerHTML = '<div class="inbound-empty">No profile views recorded yet.<br><span style="font-size:11px">Click "Refresh now" to scrape latest viewers.</span></div>';
-    return;
-  }
+function buildActivityRows(items, type) {
+  if (!items.length) return null;
+  return items.map(function(v) {
+    var ts       = v.viewed_at || v.scraped_at;
+    var dateStr  = ts ? new Date(ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+    var isAnon   = v.is_anonymous;
+    var typeBadge = '<span class="inbound-activity-type activity-' + type + '">' +
+      (type === 'pv' ? '&#128065; Profile' : type === 'co' ? '&#127968; Company' : type === 'like' ? '&#128077; Like' : '&#128172; Comment') +
+      '</span>';
 
-  var rows = viewers.slice(0, 15).map(function(v) {
-    var viewedAt = v.viewed_at || v.scraped_at;
-    var dateStr  = viewedAt ? new Date(viewedAt).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
-    var account  = v.account_id ? v.account_id.substring(0,8)+'…' : '—';
-
-    if (v.is_anonymous) {
+    if (isAnon) {
+      var anonLabel = v.viewer_name || v.visitor_title || 'Anonymous viewer';
       return '<tr>' +
-        '<td><span class="inbound-anon">' + (v.viewer_name || 'Anonymous viewer') + '</span></td>' +
-        '<td style="color:#ccc">—</td>' +
+        '<td><span class="inbound-anon">' + anonLabel + '</span>' + typeBadge + '</td>' +
         '<td style="color:#ccc">—</td>' +
         '<td style="color:#aaa;font-size:11px">' + dateStr + '</td>' +
-        '<td style="color:#ccc">—</td>' +
+        '<td></td>' +
       '</tr>';
     }
 
-    var name     = (v.first_name||v.viewer_name||'Unknown').trim();
-    var lastName = (v.last_name||'').trim();
-    var fullName = lastName ? name + ' ' + lastName : name;
-    var liUrl    = v.li_profile_url || v.viewer_li_url;
-    var nameCell = liUrl
-      ? '<a href="' + liUrl + '" target="_blank">' + fullName + '</a>'
-      : fullName;
-    var sub      = v.title || v.viewer_title || '';
+    var name     = ((v.first_name||v.viewer_name||v.visitor_title||'Unknown') + ' ' + (v.last_name||'')).trim();
+    var liUrl    = v.li_profile_url || v.viewer_li_url || v.visitor_li_url;
+    var nameCell = liUrl ? '<a href="' + liUrl + '" target="_blank">' + name + '</a>' : name;
+    var sub      = v.title || v.viewer_title || v.visitor_title || '';
     var company  = v.company || '';
-    var isNew    = !v.contact_id ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 6px;border-radius:6px;margin-left:5px;font-weight:700">NEW</span>' : '';
+    var isNew    = !v.contact_id ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:700">NEW</span>' : '';
 
     return '<tr>' +
-      '<td><div class="inbound-viewer-name">' + nameCell + isNew + '</div><div class="inbound-viewer-sub">' + sub + '</div></td>' +
+      '<td><div class="inbound-viewer-name">' + nameCell + isNew + typeBadge + '</div>' +
+           '<div class="inbound-viewer-sub">' + sub + '</div></td>' +
       '<td style="font-size:11px;color:#555">' + (company||'—') + '</td>' +
-      '<td><div class="inbound-viewer-sub" style="font-size:11px">' + (v.raw_caption||'—') + '</div></td>' +
       '<td style="color:#aaa;font-size:11px;white-space:nowrap">' + dateStr + '</td>' +
       '<td>' + (liUrl ? '<a href="' + liUrl + '" target="_blank" style="color:#52b788;font-size:11px">View &#8599;</a>' : '') + '</td>' +
     '</tr>';
-  }).join('');
+  });
+}
 
-  wrap.innerHTML = '<div style="max-height:320px;overflow-y:auto;border-radius:8px;border:1px solid #f0ede8">' +
+function renderInboundActivity() {
+  var wrap = document.getElementById('inbound-viewers-wrap');
+  var filter = _activeFilter;
+
+  var allRows = [];
+
+  if (!filter || filter === 'pv') {
+    var pvRows = buildActivityRows(_inboundData.viewers, 'pv');
+    if (pvRows) allRows = allRows.concat(pvRows);
+  }
+  if (!filter || filter === 'co') {
+    var coRows = buildActivityRows(_inboundData.coViewers, 'co');
+    if (coRows) allRows = allRows.concat(coRows);
+  }
+  // Like / Comment stubs — show placeholder only when filtered
+  if (filter === 'like' || filter === 'comment') {
+    wrap.innerHTML = '<div class="inbound-empty">' + FILTER_META[filter].emptyMsg + '</div>';
+    return;
+  }
+
+  // Sort all rows by date desc — already sorted from API, just show first 15
+  var rows = allRows.slice(0, 15);
+
+  if (!rows.length) {
+    var emptyMsg = filter ? FILTER_META[filter].emptyMsg : 'No engagement activity recorded yet.<br><span style="font-size:11px">Click "Refresh now" to scrape latest data.</span>';
+    wrap.innerHTML = '<div class="inbound-empty">' + emptyMsg + '</div>';
+    return;
+  }
+
+  wrap.innerHTML = '<div style="max-height:340px;overflow-y:auto;border-radius:8px;border:1px solid #f0ede8">' +
     '<table class="inbound-viewers-table">' +
-      '<thead><tr><th>Viewer</th><th>Company</th><th>When</th><th>Date</th><th></th></tr></thead>' +
-      '<tbody>' + rows + '</tbody>' +
+      '<thead><tr><th>Person</th><th>Company</th><th>Date</th><th></th></tr></thead>' +
+      '<tbody>' + rows.join('') + '</tbody>' +
     '</table>' +
   '</div>' +
-  (viewers.length > 15 ? '<div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Showing 15 of ' + viewers.length + ' viewers</div>' : '');
+  (allRows.length > 15 ? '<div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Showing 15 of ' + allRows.length + ' activities</div>' : '');
 }
 
 async function triggerScrape() {
   var btn = document.getElementById('inbound-scrape-btn');
   btn.classList.add('loading');
-  btn.textContent = '⏳ Scraping…';
+  btn.innerHTML = '&#8987; Scraping…';
   try {
     await fetch('/api/profile-views/scrape', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ workspace_id: parseInt(wsId) })
     });
-    // Wait a bit for scrape to complete, then reload
     setTimeout(function() {
       loadInboundSignals();
       btn.classList.remove('loading');
