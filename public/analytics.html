@@ -1201,7 +1201,7 @@ function renderViewsRow() {
   // Compute totals per account (personal profile views)
   var pvTotals = {};
   _inboundAccounts.forEach(function(acc) {
-    pvTotals[acc.id] = (vba[acc.id]?.people || []).reduce(function(s, p) { return s + p.count; }, 0);
+    pvTotals[acc.id] = ((vba[acc.id] || {}).people || []).reduce(function(s, p) { return s + p.count; }, 0);
   });
 
   // Company page total
@@ -1221,7 +1221,7 @@ function renderViewsRow() {
   var tabs = '';
 
   // Total tab (leftmost)
-  tabs += '<div class="inbound-tab total" data-tab="total" onclick="selectViewTab('total')">' +
+  tabs += '<div class="inbound-tab total" data-tab="total">' +
     '<span class="inbound-tab-count">' + grandTotal + '</span>' +
     '<span class="inbound-tab-label">Total</span>' +
   '</div>';
@@ -1230,7 +1230,7 @@ function renderViewsRow() {
   // Per-user tabs
   _inboundAccounts.forEach(function(acc) {
     var cnt = pvTotals[acc.id] || 0;
-    tabs += '<div class="inbound-tab" data-tab="pv-' + acc.id + '" onclick="selectViewTab('pv-' + acc.id + '')">' +
+    tabs += '<div class="inbound-tab" data-tab="pv-' + acc.id + '" >' +
       '<span class="inbound-tab-badge live">&#9679;</span>' +
       '<span class="inbound-tab-count">' + cnt + '</span>' +
       '<span class="inbound-tab-label">&#128100; ' + acc.shortName + '</span>' +
@@ -1239,13 +1239,17 @@ function renderViewsRow() {
 
   // Company page tab (rightmost, separated)
   if (_inboundAccounts.length > 0) tabs += '<div class="inbound-tab-sep"></div>';
-  tabs += '<div class="inbound-tab company-tab" data-tab="co" onclick="selectViewTab('co')">' +
+  tabs += '<div class="inbound-tab company-tab" data-tab="co"">' +
     '<span class="inbound-tab-badge live">&#9679;</span>' +
     '<span class="inbound-tab-count">' + coTotal + '</span>' +
     '<span class="inbound-tab-label">&#127968; Company</span>' +
   '</div>';
 
   document.getElementById('inbound-tabs-views').innerHTML = tabs;
+  // Add click listeners (avoids quote escaping issues)
+  document.querySelectorAll('#inbound-tabs-views .inbound-tab').forEach(function(el) {
+    el.addEventListener('click', function() { selectViewTab(el.dataset.tab); });
+  });
 
   // Restore active tab if any
   if (_activeViewTab) {
@@ -1280,7 +1284,7 @@ function selectViewTab(tabKey) {
   if (tabKey === 'total') {
     // Aggregate all personal profile views
     _inboundAccounts.forEach(function(acc) {
-      (vba[acc.id]?.people || []).forEach(function(p) {
+      ((vba[acc.id] || {}).people || []).forEach(function(p) {
         var existing = people.find(function(x) { return x.name === p.name && x.company === p.company; });
         if (existing) { existing.count += p.count; }
         else           { people.push(Object.assign({}, p)); }
@@ -1311,7 +1315,7 @@ function selectViewTab(tabKey) {
   } else if (tabKey.startsWith('pv-')) {
     // Specific user personal profile
     var accId = tabKey.substring(3);
-    people    = (vba[accId]?.people || []).slice();
+    people    = ((vba[accId] || {}).people || []).slice();
     companies = Object.assign({}, vba[accId]?.companies || {});
   }
 
