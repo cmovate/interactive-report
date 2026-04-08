@@ -250,6 +250,144 @@ app.post('/api/profile-views/enrich', async (req, res) => {
   }
 });
 
+// POST /api/profile-views/bulk-import
+// For every account in every workspace: fetch up to 100 viewers in batches of 10
+// Then auto-enrich all newly imported viewers
+app.post('/api/profile-views/bulk-import', async (req, res) => {
+  const { workspace_id } = req.body || {}; // optional: limit to one ws
+
+  try {
+    const scraper     = require('./src/profileViewScraper');
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    await scraper.ensureTable();
+
+    // Get accounts to process
+    const wsFilter = workspace_id ? `WHERE ua.workspace_id = ${parseInt(workspace_id)}` : '';
+    const { rows: accounts } = await db.query(`
+      SELECT ua.workspace_id, ua.account_id, ua.display_name
+      FROM unipile_accounts ua
+      ${wsFilter}
+      ORDER BY ua.workspace_id, ua.account_id
+    `);
+
+    const summary = {};
+    const BATCH_SIZE = 10;
+    const TOTAL_PER_USER = 100;
+    const BATCHES = TOTAL_PER_USER / BATCH_SIZE; // = 10 batches
+
+    for (const acc of accounts) {
+      const { workspace_id: wsId, account_id: accId, display_name: name } = acc;
+      const key = `ws${wsId}/${name || accId.substring(0,8)}`;
+      let totalFetched = 0, totalAdded = 0, batchErrors = 0;
+
+      for (let batch = 0; batch < BATCHES; batch++) {
+        const start = batch * BATCH_SIZE;
+
+        // Build paginated Voyager URL
+        const voyagerUrl = 
+          'https://www.linkedin.com/voyager/api/graphql' +
+          `?variables=(start:\${start},count:\${BATCH_SIZE},query:(),analyticsEntityUrn:(activityUrn:urn%3Ali%3Adummy%3A-1),surfaceType:WVMP)` +
+          '&queryId=voyagerPremiumDashAnalyticsObject.c31102e906e7098910f44e0cecaa5b5c';
+
+        try {
+          const resp = await fetch(`\${UNIPILE_DSN}/api/v1/linkedin`, {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': UNIPILE_API_KEY,
+              'accept': 'application/json',
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              account_id:  accId,
+              method:      'GET',
+              request_url: voyagerUrl,
+              encoding:    false,
+            }),
+          });
+
+          if (!resp.ok) { batchErrors++; break; } // stop if API fails
+
+          const data = await resp.json();
+          const elems = data?.data?.data?.premiumDashAnalyticsObjectByAnalyticsEntity?.elements || [];
+
+          if (!elems.length) break; // no more data — stop early
+
+          totalFetched += elems.length;
+
+          // Parse + insert each element (reuse scraper's parseViewer)
+          for (const elem of elems) {
+            const v = scraper._parseViewer ? scraper._parseViewer(elem) : null;
+            if (!v) continue;
+
+            // Dedup: skip if already in DB (same li_url or viewer_name in last 90 days)
+            const dupCheck = v.liUrl
+              ? await db.query(
+                  `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_li_url=$3 LIMIT 1`,
+                  [wsId, accId, v.liUrl]
+                )
+              : await db.query(
+                  `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_name=$3 AND is_anonymous=true AND scraped_at > NOW() - INTERVAL '90 days' LIMIT 1`,
+                  [wsId, accId, v.name || '']
+                );
+
+            if (dupCheck.rows.length) continue;
+
+            // Try to match contact
+            let contactId = null;
+            if (!v.isAnonymous && v.liUrl) {
+              const { rows } = await db.query(
+                `SELECT id FROM contacts WHERE workspace_id=$1 AND (li_profile_url=$2 OR provider_id=$3) LIMIT 1`,
+                [wsId, v.liUrl, v.publicIdentifier || '']
+              );
+              contactId = rows[0]?.id || null;
+            }
+
+            await db.query(
+              `INSERT INTO profile_view_events
+                (workspace_id, account_id, viewed_at, is_anonymous, viewer_name, viewer_title,
+                 viewer_provider_id, viewer_li_url, contact_id, raw_caption)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [wsId, accId, v.viewedAt, v.isAnonymous, v.name,
+               v.title || '', v.publicIdentifier, v.liUrl, contactId, v.caption || '']
+            );
+            totalAdded++;
+          }
+
+          await new Promise(r => setTimeout(r, 600)); // rate limit between batches
+        } catch(e) {
+          console.warn(`[BulkImport] \${key} batch\${batch}: \${e.message}`);
+          batchErrors++;
+          break;
+        }
+      }
+
+      summary[key] = { fetched: totalFetched, added: totalAdded, errors: batchErrors };
+      console.log(`[BulkImport] \${key}: fetched=\${totalFetched} added=\${totalAdded} errors=\${batchErrors}`);
+
+      await new Promise(r => setTimeout(r, 1000)); // rate limit between accounts
+    }
+
+    // Auto-enrich all workspaces
+    const wsIds = [...new Set(accounts.map(a => a.workspace_id))];
+    const enrichSummary = {};
+    for (const wsId of wsIds) {
+      try {
+        const enrichResult = await require('./src/profileViewScraper').enrichProfileViewers(wsId, 200);
+        enrichSummary[wsId] = enrichResult;
+      } catch(e) {
+        enrichSummary[wsId] = { error: e.message };
+      }
+    }
+
+    res.json({ ok: true, accounts: accounts.length, summary, enrichSummary });
+  } catch(e) {
+    console.error('[BulkImport]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {

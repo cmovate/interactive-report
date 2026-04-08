@@ -618,4 +618,4 @@ function start() {
   }, STARTUP_DELAY_MS);
 }
 
-module.exports = { start, runAllWorkspaces, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable };
+module.exports = { start, runAllWorkspaces, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable, _parseViewer: parseViewer };
