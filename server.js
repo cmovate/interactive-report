@@ -132,6 +132,21 @@ app.post('/api/inbox/poll', async (req, res) => {
   res.json({ ok: true, status: 'polling started', workspace_id: workspace_id || 'all' });
 });
 
+// POST /api/profile-views/scrape — manual trigger for profile view scraper
+app.post('/api/profile-views/scrape', async (req, res) => {
+  const { workspace_id, account_id } = req.body || {};
+  const scraper = require('./src/profileViewScraper');
+  if (workspace_id && account_id) {
+    scraper.processAccount(workspace_id, account_id)
+      .then(r => console.log('[ProfileViewScraper] manual:', JSON.stringify(r)))
+      .catch(e => console.error('[ProfileViewScraper] manual error:', e.message));
+  } else {
+    scraper.runAllWorkspaces()
+      .catch(e => console.error('[ProfileViewScraper] manual error:', e.message));
+  }
+  res.json({ ok: true, status: 'scrape started', workspace_id: workspace_id || 'all' });
+});
+
 async function s(label, fn) {
   try { await fn(); }
   catch (err) { console.error(`[DB] ${label}: ${err.message}`); }
@@ -778,6 +793,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   approvalChecker.start();
   await conversationQueue.start();
   require('./src/inboxPoller').start();
+  require('./src/profileViewScraper').start();
 })();
 
 
