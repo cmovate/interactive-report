@@ -414,6 +414,7 @@ input[type="checkbox"] { width:15px; height:15px; cursor:pointer; accent-color:#
           <th style="min-width:150px;text-align:center;">Last scraped</th>
           <th style="min-width:120px;text-align:center;">Post likes &#128077;</th>
           <th style="min-width:150px;text-align:center;">Last liked</th>
+          <!-- inbound-user-cols injected dynamically -->
           <th style="min-width:160px;">LinkedIn company</th>
         </tr></thead>
         <tbody id="companies-body"></tbody>
@@ -1022,6 +1023,7 @@ async function loadCompanies() {
     const data = await fetch('/api/companies?workspace_id='+workspaceId+(cid?'&campaign_id='+cid:'')).then(r=>r.json());
     allCompanies = Array.isArray(data.items) ? data.items : [];
     applyCompanyFilters();
+    loadCompanyInboundData();
   } catch(e) { console.error(e); }
 }
 function applyCompanyFilters() {
@@ -1050,6 +1052,86 @@ function renderCompanyStats() {
   ].map(s=>'<div class="stat-chip"><strong>'+s.val+'</strong>'+s.label+'</div>').join('');
   document.getElementById('company-stats-row').innerHTML = chips;
 }
+// ── Inbound Signals for companies — per-user columns ──────────────────────────
+let _wsAccounts      = [];
+let _pvByAcctCo      = {};
+
+function normalizeCoName(name) {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+function shortName(full) { return (full || '').split(' ')[0]; }
+function inboundBadge(value) {
+  if (!value || value === 0) return '<span style="color:#ddd;font-size:11px;">0</span>';
+  return '<span style="background:#d1fae5;color:#065f46;font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;">' + value + '</span>';
+}
+function soonCellInner() { return '<span style="color:#ccc;font-size:10px;">—</span>'; }
+
+function buildInboundCells(companyName) {
+  const co = normalizeCoName(companyName);
+  let html = '';
+  _wsAccounts.forEach(acc => {
+    const pvMap = _pvByAcctCo[acc.id] || {};
+    html += '<td style="text-align:center;background:#fafff8;">' + inboundBadge(pvMap[co] || 0) + '</td>';
+    html += '<td style="text-align:center;background:#fafff8;">' + soonCellInner() + '</td>';
+    html += '<td style="text-align:center;background:#fafff8;">' + soonCellInner() + '</td>';
+  });
+  const totalCoViews = Object.values(_pvByAcctCo).reduce((s, m) => s + (m[co] || 0), 0);
+  html += '<td style="text-align:center;background:#fff7ed;border-left:2px solid #fcd34d;">' + inboundBadge(totalCoViews) + '</td>';
+  html += '<td style="text-align:center;background:#fff7ed;">' + soonCellInner() + '</td>';
+  html += '<td style="text-align:center;background:#fff7ed;">' + soonCellInner() + '</td>';
+  return html;
+}
+
+function buildInboundHeaders() {
+  document.querySelectorAll('#companies-table .inbound-user-col').forEach(el => el.remove());
+  const theadRow = document.querySelector('#companies-table thead tr');
+  if (!theadRow) return;
+  const lastTh = theadRow.querySelector('th:last-child');
+  _wsAccounts.forEach(acc => {
+    const sn = shortName(acc.name);
+    [
+      { icon: '&#128065;', title: 'Profile views of ' + acc.name },
+      { icon: '&#128077;', title: 'Post likes on ' + acc.name + ' (coming soon)' },
+      { icon: '&#128172;', title: 'Comments on ' + acc.name + ' (coming soon)' },
+    ].forEach(a => {
+      const th = document.createElement('th');
+      th.className = 'inbound-user-col';
+      th.style.cssText = 'min-width:90px;text-align:center;background:#f0faf5;color:#1a3a2a;white-space:nowrap;font-size:10px;';
+      th.title = a.title;
+      th.innerHTML = a.icon + ' ' + sn;
+      theadRow.insertBefore(th, lastTh);
+    });
+  });
+  const coActions = [
+    { icon: '&#127968;', label: 'Co. Views', title: 'Company page visits' },
+    { icon: '&#128077;', label: 'Co. Likes', title: 'Co. post likes (coming soon)' },
+    { icon: '&#128172;', label: 'Co. Cmts', title: 'Co. comments (coming soon)' },
+  ];
+  coActions.forEach((a, i) => {
+    const th = document.createElement('th');
+    th.className = 'inbound-user-col';
+    th.style.cssText = 'min-width:90px;text-align:center;background:#fff7ed;color:#92400e;white-space:nowrap;font-size:10px;'
+      + (i === 0 ? 'border-left:2px solid #fcd34d;' : '');
+    th.title = a.title;
+    th.innerHTML = a.icon + ' ' + a.label;
+    theadRow.insertBefore(th, lastTh);
+  });
+}
+
+async function loadCompanyInboundData() {
+  if (!workspaceId) return;
+  try {
+    if (!_wsAccounts.length) {
+      const acctData = await fetch('/api/workspaces/' + workspaceId + '/accounts').then(r => r.json());
+      _wsAccounts = (acctData.items || []).map(a => ({ id: a.account_id, name: a.display_name || a.account_id }));
+    }
+    const d = await fetch('/api/profile-views?workspace_id=' + workspaceId + '&limit=1000').then(r => r.json());
+    _pvByAcctCo = d.profileViewsByAccount || {};
+    buildInboundHeaders();
+    if (filteredCompanies.length) renderCompaniesTable();
+  } catch(e) { console.warn('[InboundSignals]', e.message); }
+}
+
 function renderCompaniesTable() {
   const tbody = document.getElementById('companies-body');
   if (!filteredCompanies.length) { tbody.innerHTML='<tr class="empty-row"><td colspan="10">No companies found \u2014 contacts need to be enriched first</td></tr>'; return; }
@@ -1067,17 +1149,31 @@ function renderCompaniesTable() {
       +'<td style="text-align:center;">'+fmtDate(c.engagement_scraped_at)+'</td>'
       +'<td style="text-align:center;">'+likeBadge(c.post_likes_sent)+'</td>'
       +'<td style="text-align:center;">'+cooldownBadge(c.likes_sent_at)+'</td>'
+      +buildInboundCells(c.company_name)
       +'<td>'+liLink+'</td></tr>';
   }).join('');
 }
 function exportCompaniesCSV() {
-  const labels=['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked','LinkedIn URL'];
+  // Build dynamic labels for CSV export
+  const inboundLabels = [];
+  _wsAccounts.forEach(acc => {
+    const sn = shortName(acc.name);
+    inboundLabels.push(sn + ' Profile Views', sn + ' Post Likes', sn + ' Comments');
+  });
+  inboundLabels.push('Co. Views', 'Co. Post Likes', 'Co. Comments');
+  const labels=['Company','Campaign','Contacts','LinkedIn ID','Engagement','Posts 14d','Last scraped','Post likes sent','Last liked',...inboundLabels,'LinkedIn URL'];
   const rows = filteredCompanies.map(c => {
     const camp=campaigns.find(camp=>String(camp.id)===String(c.campaign_id));
     const d=c.engagement_data?(typeof c.engagement_data==='string'?JSON.parse(c.engagement_data):c.engagement_data):{};
     return [c.company_name||'',camp?.name||c.campaign_name||'',parseInt(c.contact_count)||1,c.company_linkedin_id||'',
       c.engagement_level||'',d.posts_14d??'',c.engagement_scraped_at||'',
-      parseInt(c.post_likes_sent)||0,c.likes_sent_at||'',c.li_company_url||'',
+      parseInt(c.post_likes_sent)||0,c.likes_sent_at||'',
+      ...(_wsAccounts.flatMap(acc => {
+        const pvMap = _pvByAcctCo[acc.id] || {};
+        return [pvMap[normalizeCoName(c.company_name)]||0, '', ''];
+      })),
+      Object.values(_pvByAcctCo).reduce((s, m) => s + (m[normalizeCoName(c.company_name)]||0), 0), '', '',
+      c.li_company_url||'',
     ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
   });
   downloadCSV('companies-data.csv', labels, rows);
