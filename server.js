@@ -236,6 +236,87 @@ app.get('/api/profile-views', async (req, res) => {
       HAVING COALESCE(c.company, pve.viewer_name, '') != ''
     `, [workspace_id]);
 
+    // ── Grouped viewers per account (for the new UI modal) ──────────────────
+    // People who viewed each account's profile, with view counts
+    const { rows: groupedViewers } = await db.query(`
+      SELECT
+        pve.account_id,
+        COALESCE(c.id::text, pve.viewer_li_url, pve.viewer_name) AS viewer_key,
+        COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), pve.viewer_name) AS viewer_name,
+        COALESCE(c.company, '') AS company_name,
+        pve.is_anonymous,
+        pve.viewer_li_url,
+        c.li_profile_url,
+        c.id AS contact_id,
+        c.title,
+        COUNT(*) AS view_count
+      FROM profile_view_events pve
+      LEFT JOIN contacts c ON c.id = pve.contact_id
+      WHERE pve.workspace_id = $1 ${dateFilter}
+      GROUP BY
+        pve.account_id, viewer_key, viewer_name, company_name,
+        pve.is_anonymous, pve.viewer_li_url, c.li_profile_url, c.id, c.title
+      ORDER BY view_count DESC, pve.account_id
+    `, [workspace_id]).catch(() => ({ rows: [] }));
+
+    // Grouped company page visitors per account
+    const { rows: groupedCoViewers } = await db.query(`
+      SELECT
+        account_id,
+        visitor_title,
+        visitor_li_url,
+        contact_id,
+        is_anonymous,
+        COUNT(*) AS view_count
+      FROM company_page_view_events
+      WHERE workspace_id = $1 ${dateFilter}
+        AND visitor_title != '(aggregate)'
+      GROUP BY account_id, visitor_title, visitor_li_url, contact_id, is_anonymous
+      ORDER BY view_count DESC
+    `, [workspace_id]).catch(() => ({ rows: [] }));
+
+    // Build viewersByAccount: accountId → { people: [...], companies: {...} }
+    const viewersByAccount = {};
+    for (const row of groupedViewers) {
+      if (!viewersByAccount[row.account_id]) viewersByAccount[row.account_id] = { people: [], companies: {} };
+      viewersByAccount[row.account_id].people.push({
+        name:      row.viewer_name || 'Anonymous',
+        company:   row.company_name || '',
+        liUrl:     row.li_profile_url || row.viewer_li_url || null,
+        contactId: row.contact_id,
+        isAnon:    row.is_anonymous,
+        count:     parseInt(row.view_count),
+      });
+      if (row.company_name) {
+        const co = row.company_name;
+        viewersByAccount[row.account_id].companies[co] =
+          (viewersByAccount[row.account_id].companies[co] || 0) + parseInt(row.view_count);
+      }
+    }
+
+    // coViewersByAccount: accountId → { people: [...], companies: {} }
+    const coViewersByAccount = {};
+    for (const row of groupedCoViewers) {
+      if (!coViewersByAccount[row.account_id]) coViewersByAccount[row.account_id] = { people: [], companies: {} };
+      // Extract company from title like "Software Developer at Migdal Group"
+      const atIdx = (row.visitor_title || '').lastIndexOf(' at ');
+      const companyFromTitle = atIdx > 0 ? row.visitor_title.substring(atIdx + 4).trim() : '';
+      const roleFromTitle    = atIdx > 0 ? row.visitor_title.substring(0, atIdx).trim() : row.visitor_title;
+      coViewersByAccount[row.account_id].people.push({
+        name:      row.visitor_title || 'Anonymous',
+        role:      roleFromTitle,
+        company:   companyFromTitle,
+        liUrl:     row.visitor_li_url || null,
+        contactId: row.contact_id,
+        isAnon:    row.is_anonymous,
+        count:     parseInt(row.view_count),
+      });
+      if (companyFromTitle) {
+        coViewersByAccount[row.account_id].companies[companyFromTitle] =
+          (coViewersByAccount[row.account_id].companies[companyFromTitle] || 0) + parseInt(row.view_count);
+      }
+    }
+
     // Build nested map: account_id → { normalizedCompany → count }
     const profileViewsByAccount = {};
     for (const row of byAcctCo) {
@@ -259,8 +340,9 @@ app.get('/api/profile-views', async (req, res) => {
       viewers,
       profileViewsByAccount, // { accountId: { normalizedCompany: count } }
       companyViewsByAccount, // { accountId: { total_views, identified, anonymous } }
-      coViewers,             // recent company page visitors
-      // Stubs for future APIs
+      coViewers,
+      viewersByAccount,      // { accountId: { people: [...], companies: {...} } }
+      coViewersByAccount,    // { accountId: { people: [...], companies: {...} } }
       post_likes:     null,
       post_comments:  null,
     });

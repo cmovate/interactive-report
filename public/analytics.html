@@ -78,50 +78,61 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .modal-close-btn:hover { background: #e5e1db; }
 .modal-note { font-size: 11px; color: #aaa; margin-top: 12px; text-align: center; }
 
-/* ── Inbound Signals ────────────────────────────────────────────────── */
+/* ── Inbound Signals redesign ────────────────────────────────────────── */
 .inbound-wrap { padding: 14px 20px 0; max-width: 1100px; }
-.inbound-section { background: white; border: 1px solid #D4EDDA; border-radius: 12px; margin-bottom: 0; overflow: hidden; }
-.inbound-header { background: linear-gradient(135deg, #1a3a2a 0%, #2d5c40 100%); padding: 13px 18px; display: flex; align-items: center; gap: 10px; }
-.inbound-header-icon { font-size: 17px; }
-.inbound-header-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: white; flex: 1; }
-.inbound-header-sub { font-size: 10px; color: rgba(255,255,255,.55); font-style: italic; }
-.inbound-kpis { display: grid; grid-template-columns: repeat(4, 1fr); padding: 14px 16px 10px; gap: 10px; border-bottom: 1px solid #f0ede8; }
-@media (max-width: 700px) { .inbound-kpis { grid-template-columns: repeat(2,1fr); } }
-.inbound-kpi { background: #f8f6f3; border: 1px solid #ede9e3; border-radius: 10px; padding: 12px 14px; position: relative; transition: all .15s; cursor: pointer; user-select: none; }
-.inbound-kpi:hover { box-shadow: 0 2px 10px rgba(26,58,42,.12); border-color: #52b788; }
-.inbound-kpi.active { background: #1a3a2a; border-color: #1a3a2a; box-shadow: 0 2px 12px rgba(26,58,42,.25); }
-.inbound-kpi.active .inbound-kpi-label { color: rgba(255,255,255,.7); }
-.inbound-kpi.active .inbound-kpi-value { color: white; }
-.inbound-kpi.active .inbound-kpi-sub { color: rgba(255,255,255,.5); }
-.inbound-kpi.active .inbound-kpi-live { background: rgba(255,255,255,.2); color: #a7f3d0; }
-.inbound-kpi.active .inbound-kpi-soon { background: rgba(255,255,255,.1); color: rgba(255,255,255,.4); }
-.inbound-activity-type { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 8px; margin-left: 5px; text-transform: uppercase; letter-spacing: .04em; }
-.activity-pv { background: #d1fae5; color: #065f46; }
-.activity-co { background: #fef3c7; color: #92400e; }
-.activity-like { background: #dbeafe; color: #1e40af; }
-.activity-comment { background: #ede9fe; color: #5b21b6; }
-.inbound-kpi-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #888; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
-.inbound-kpi-value { font-size: 28px; font-weight: 800; color: #1a3a2a; line-height: 1; }
-.inbound-kpi-sub { font-size: 10px; color: #aaa; margin-top: 3px; }
-.inbound-kpi-soon { position: absolute; top: 10px; right: 10px; background: #f0ede8; color: #bbb; font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 8px; }
-.inbound-kpi-live { position: absolute; top: 10px; right: 10px; background: #d1fae5; color: #065f46; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 8px; }
-.inbound-body { padding: 12px 16px 14px; }
-.inbound-table-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.inbound-table-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #888; flex: 1; }
-.inbound-scrape-btn { background: #f0ede8; color: #555; border: none; padding: 5px 12px; border-radius: 7px; font-size: 11px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 5px; transition: all .15s; white-space: nowrap; }
+.inbound-section { background: white; border: 1px solid #D4EDDA; border-radius: 12px; overflow: hidden; margin-bottom: 14px; }
+.inbound-header { background: linear-gradient(135deg, #1a3a2a 0%, #2d5c40 100%); padding: 11px 18px; display: flex; align-items: center; gap: 10px; }
+.inbound-header-icon { font-size: 16px; }
+.inbound-header-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: white; flex: 1; }
+.inbound-header-sub { font-size: 10px; color: rgba(255,255,255,.5); }
+
+/* Activity row */
+.inbound-row { border-bottom: 1px solid #f0ede8; }
+.inbound-row:last-child { border-bottom: none; }
+.inbound-row-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #aaa; padding: 8px 16px 4px; }
+
+/* Tab strip */
+.inbound-tabs { display: flex; align-items: stretch; gap: 6px; padding: 6px 16px 10px; flex-wrap: wrap; }
+.inbound-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 80px; padding: 8px 14px; border: 1px solid #e5e1db; border-radius: 10px; cursor: pointer; background: #f8f6f3; transition: all .15s; position: relative; user-select: none; gap: 2px; }
+.inbound-tab:hover { border-color: #52b788; background: #f0faf5; }
+.inbound-tab.active { background: #1a3a2a; border-color: #1a3a2a; box-shadow: 0 2px 8px rgba(26,58,42,.2); }
+.inbound-tab-count { font-size: 22px; font-weight: 800; color: #1a3a2a; line-height: 1; }
+.inbound-tab.active .inbound-tab-count { color: white; }
+.inbound-tab-label { font-size: 10px; color: #888; white-space: nowrap; font-weight: 500; }
+.inbound-tab.active .inbound-tab-label { color: rgba(255,255,255,.7); }
+.inbound-tab-badge { position: absolute; top: 5px; right: 6px; font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 6px; }
+.inbound-tab-badge.live { background: #d1fae5; color: #065f46; }
+.inbound-tab-badge.soon { background: #f0ede8; color: #bbb; }
+.inbound-tab.total { border-width: 2px; }
+.inbound-tab.company-tab { border-style: dashed; border-width: 1.5px; }
+.inbound-tab.company-tab.active { border-style: solid; }
+.inbound-tab-sep { width: 1px; background: #e5e1db; margin: 6px 2px; align-self: stretch; flex-shrink: 0; }
+
+/* Detail panel */
+.inbound-detail { display: none; border-top: 2px solid #1a3a2a; background: #fafff8; }
+.inbound-detail.open { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.inbound-detail-half { padding: 14px 16px; }
+.inbound-detail-half:first-child { border-right: 1px solid #e5e1db; }
+.inbound-detail-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #888; margin-bottom: 8px; }
+.inbound-detail-list { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; }
+.inbound-detail-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #f0ede8; }
+.inbound-detail-item:last-child { border-bottom: none; }
+.inbound-detail-name { flex: 1; font-size: 12px; font-weight: 500; color: #1a3a2a; }
+.inbound-detail-name a { color: #1a3a2a; text-decoration: none; }
+.inbound-detail-name a:hover { text-decoration: underline; }
+.inbound-detail-sub { font-size: 10px; color: #999; margin-top: 1px; }
+.inbound-detail-count { font-size: 11px; font-weight: 700; background: #d1fae5; color: #065f46; padding: 2px 7px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
+.inbound-detail-count.multi { background: #fef3c7; color: #92400e; }
+.inbound-anon-tag { background: #f3f4f6; color: #9ca3af; font-size: 10px; padding: 1px 6px; border-radius: 6px; font-style: italic; }
+.inbound-new-tag { background: #fef3c7; color: #92400e; font-size: 9px; padding: 1px 5px; border-radius: 5px; font-weight: 700; }
+.inbound-empty-detail { text-align: center; padding: 20px; color: #ccc; font-size: 12px; }
+
+/* Actions row for refresh */
+.inbound-actions { padding: 8px 16px 10px; display: flex; align-items: center; gap: 10px; }
+.inbound-scrape-btn { background: #f0ede8; color: #555; border: none; padding: 5px 12px; border-radius: 7px; font-size: 11px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 5px; transition: all .15s; }
 .inbound-scrape-btn:hover { background: #1a3a2a; color: white; }
 .inbound-scrape-btn.loading { opacity: .6; pointer-events: none; }
-.inbound-viewers-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.inbound-viewers-table th { background: #f0ede8; color: #777; padding: 6px 10px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
-.inbound-viewers-table td { padding: 7px 10px; border-bottom: 1px solid #f5f3f0; vertical-align: middle; }
-.inbound-viewers-table tr:last-child td { border-bottom: none; }
-.inbound-viewers-table tr:hover td { background: #faf9f7; }
-.inbound-viewer-name { font-weight: 600; color: #1a3a2a; }
-.inbound-viewer-name a { color: #1a3a2a; text-decoration: none; }
-.inbound-viewer-name a:hover { text-decoration: underline; }
-.inbound-viewer-sub { font-size: 10px; color: #999; margin-top: 1px; }
-.inbound-anon { display: inline-block; background: #f3f4f6; color: #9ca3af; font-size: 10px; padding: 2px 8px; border-radius: 8px; font-style: italic; }
-.inbound-empty { text-align: center; padding: 24px; color: #bbb; font-size: 12px; }
+.inbound-ts { font-size: 10px; color: #bbb; }
 
 /* Drill-down drawer */
 .drawer-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:500; }
@@ -281,55 +292,72 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </div>
 </div>
 
-<!-- ── Inbound Signals — always visible ─────────────────────────────── -->
+<!-- ── Inbound Signals ────────────────────────────────────────────────── -->
 <div class="inbound-wrap">
   <div class="inbound-section" id="inbound-section">
     <div class="inbound-header">
       <span class="inbound-header-icon">&#128268;</span>
       <span class="inbound-header-title">Inbound Signals</span>
       <span class="inbound-header-sub">Actions your audience took on your profiles &amp; content</span>
+      <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()" style="margin-left:auto">
+        &#8635; Refresh
+      </button>
     </div>
 
-    <!-- KPI row — clickable to filter activity -->
-    <div class="inbound-kpis" id="inbound-kpis">
-      <div class="inbound-kpi" data-type="pv" onclick="toggleInboundFilter('pv')" title="Click to filter by Profile Views">
-        <div class="inbound-kpi-label"><span>&#128065;</span> Profile Views</div>
-        <div class="inbound-kpi-value" id="ib-pv-total">—</div>
-        <div class="inbound-kpi-sub" id="ib-pv-sub">Loading…</div>
-        <span class="inbound-kpi-live">&#9679; Live</span>
+    <!-- Row 1: Profile & Company Views -->
+    <div class="inbound-row" id="inbound-row-views">
+      <div class="inbound-row-label">&#128065; Profile &amp; Company Page Views</div>
+      <div class="inbound-tabs" id="inbound-tabs-views">
+        <!-- injected by JS -->
       </div>
-      <div class="inbound-kpi" data-type="co" onclick="toggleInboundFilter('co')" title="Click to filter by Company Views">
-        <div class="inbound-kpi-label"><span>&#127968;</span> Company Views</div>
-        <div class="inbound-kpi-value" id="ib-co-views">—</div>
-        <div class="inbound-kpi-sub" id="ib-co-sub">Company page visits</div>
-        <span class="inbound-kpi-live">&#9679; Live</span>
-      </div>
-      <div class="inbound-kpi" data-type="like" onclick="toggleInboundFilter('like')" title="Click to filter by Post Likes">
-        <div class="inbound-kpi-label"><span>&#128077;</span> Post Likes</div>
-        <div class="inbound-kpi-value" id="ib-likes">—</div>
-        <div class="inbound-kpi-sub">Likes on your posts</div>
-        <span class="inbound-kpi-soon">Coming soon</span>
-      </div>
-      <div class="inbound-kpi" data-type="comment" onclick="toggleInboundFilter('comment')" title="Click to filter by Comments">
-        <div class="inbound-kpi-label"><span>&#128172;</span> Comments</div>
-        <div class="inbound-kpi-value" id="ib-comments">—</div>
-        <div class="inbound-kpi-sub">Comments on your content</div>
-        <span class="inbound-kpi-soon">Coming soon</span>
+      <div class="inbound-detail" id="inbound-detail-views">
+        <div class="inbound-detail-half">
+          <div class="inbound-detail-title">&#128100; People</div>
+          <ul class="inbound-detail-list" id="inbound-people-views"></ul>
+        </div>
+        <div class="inbound-detail-half">
+          <div class="inbound-detail-title">&#127970; Companies</div>
+          <ul class="inbound-detail-list" id="inbound-companies-views"></ul>
+        </div>
       </div>
     </div>
 
-    <!-- Recent Engagement Activity -->
-    <div class="inbound-body">
-      <div class="inbound-table-header">
-        <span class="inbound-table-title" id="inbound-activity-title">&#9889; Recent Engagement Activity</span>
-        <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()">
-          &#8635; Refresh now
-        </button>
+    <!-- Row 2: Post Likes (stub) -->
+    <div class="inbound-row" id="inbound-row-likes">
+      <div class="inbound-row-label">&#128077; Post Likes</div>
+      <div class="inbound-tabs" id="inbound-tabs-likes">
+        <!-- injected by JS -->
       </div>
-      <div id="inbound-viewers-wrap">
-        <div class="inbound-empty">Loading…</div>
+      <div class="inbound-detail" id="inbound-detail-likes">
+        <div class="inbound-detail-half">
+          <div class="inbound-detail-title">&#128100; People</div>
+          <ul class="inbound-detail-list" id="inbound-people-likes"></ul>
+        </div>
+        <div class="inbound-detail-half">
+          <div class="inbound-detail-title">&#127970; Companies</div>
+          <ul class="inbound-detail-list" id="inbound-companies-likes"></ul>
+        </div>
       </div>
     </div>
+
+    <!-- Row 3: Comments (stub) -->
+    <div class="inbound-row" id="inbound-row-comments">
+      <div class="inbound-row-label">&#128172; Comments</div>
+      <div class="inbound-tabs" id="inbound-tabs-comments">
+        <!-- injected by JS -->
+      </div>
+      <div class="inbound-detail" id="inbound-detail-comments">
+        <div class="inbound-detail-half">
+          <div class="inbound-detail-title">&#128100; People</div>
+          <ul class="inbound-detail-list" id="inbound-people-comments"></ul>
+        </div>
+        <div class="inbound-detail-half">
+          <div class="inbound-detail-title">&#127970; Companies</div>
+          <ul class="inbound-detail-list" id="inbound-companies-comments"></ul>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1125,154 +1153,228 @@ initTabs();
 loadCampaigns();
 loadInboundSignals();
 
-// ── Inbound Signals ────────────────────────────────────────────────────────
+// ── Inbound Signals ─────────────────────────────────────────────────────────
 
-var _inboundData    = { viewers: [], coViewers: [] }; // cached API data
-var _activeFilter   = null; // 'pv' | 'co' | 'like' | 'comment' | null
+var _inboundRaw = {};          // cached full API response
+var _inboundAccounts = [];     // [{ id, name, shortName }]
+var _activeViewTab = null;     // which tab is open in views row
 
-var FILTER_META = {
-  pv:      { label: '&#128065; Profile Views',   emptyMsg: 'No profile views recorded yet.' },
-  co:      { label: '&#127968; Company Views',    emptyMsg: 'No company page visits recorded yet.' },
-  like:    { label: '&#128077; Post Likes',        emptyMsg: 'Post likes coming soon.' },
-  comment: { label: '&#128172; Comments',          emptyMsg: 'Comments coming soon.' },
-};
-
-function toggleInboundFilter(type) {
-  // Toggle: if already active, clear; otherwise set
-  var next = (_activeFilter === type) ? null : type;
-  _activeFilter = next;
-
-  // Update KPI card styles
-  document.querySelectorAll('.inbound-kpi').forEach(function(el) {
-    if (next && el.dataset.type === next) {
-      el.classList.add('active');
-    } else {
-      el.classList.remove('active');
-    }
-  });
-
-  // Update table title
-  var titleEl = document.getElementById('inbound-activity-title');
-  if (next && FILTER_META[next]) {
-    titleEl.innerHTML = FILTER_META[next].label + ' <span style="font-size:10px;color:#888;font-weight:400">(click again to show all)</span>';
-  } else {
-    titleEl.innerHTML = '&#9889; Recent Engagement Activity';
-  }
-
-  // Re-render with filter
-  renderInboundActivity();
-}
-
+// ── Load all data ───────────────────────────────────────────────────────────
 async function loadInboundSignals() {
   try {
     var range = getRange(rangeMode);
-    var params = new URLSearchParams({ workspace_id: wsId, limit: 50 });
+    var params = new URLSearchParams({ workspace_id: wsId, limit: 200 });
     if (range.from) params.set('from', range.from.toISOString().slice(0,10));
     if (range.to)   params.set('to',   range.to.toISOString().slice(0,10));
 
     var d = await fetch('/api/profile-views?' + params.toString()).then(function(r){ return r.json(); });
+    _inboundRaw = d;
 
-    // Cache data
-    _inboundData.viewers   = d.viewers   || [];
-    _inboundData.coViewers = d.coViewers || [];
-
-    // KPIs
-    var s = d.stats || {};
-    document.getElementById('ib-pv-total').textContent = (parseInt(s.total_views)||0).toLocaleString();
-    document.getElementById('ib-pv-sub').textContent =
-      (parseInt(s.identified_views)||0) + ' identified · ' +
-      (parseInt(s.anonymous_views)||0) + ' anonymous';
-
-    // Company views total
-    var coTotal = Object.values(d.companyViewsByAccount || {}).reduce(function(s, v) { return s + (v.total_views||0); }, 0);
-    document.getElementById('ib-co-views').textContent = coTotal > 0 ? coTotal.toLocaleString() : '—';
-    var coIdentified = _inboundData.coViewers.filter(function(v){ return !v.is_anonymous; }).length;
-    document.getElementById('ib-co-sub').textContent = coIdentified + ' identified · ' + (_inboundData.coViewers.length - coIdentified) + ' anonymous';
-
-    // Stubs
-    document.getElementById('ib-likes').textContent    = d.post_likes    != null ? d.post_likes    : '—';
-    document.getElementById('ib-comments').textContent = d.post_comments != null ? d.post_comments : '—';
-
-    renderInboundActivity();
-  } catch(e) {
-    document.getElementById('inbound-viewers-wrap').innerHTML =
-      '<div class="inbound-empty">&#9888; Could not load data: ' + e.message + '</div>';
-  }
-}
-
-function buildActivityRows(items, type) {
-  if (!items.length) return null;
-  return items.map(function(v) {
-    var ts       = v.viewed_at || v.scraped_at;
-    var dateStr  = ts ? new Date(ts).toLocaleDateString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
-    var isAnon   = v.is_anonymous;
-    var typeBadge = '<span class="inbound-activity-type activity-' + type + '">' +
-      (type === 'pv' ? '&#128065; Profile' : type === 'co' ? '&#127968; Company' : type === 'like' ? '&#128077; Like' : '&#128172; Comment') +
-      '</span>';
-
-    if (isAnon) {
-      var anonLabel = v.viewer_name || v.visitor_title || 'Anonymous viewer';
-      return '<tr>' +
-        '<td><span class="inbound-anon">' + anonLabel + '</span>' + typeBadge + '</td>' +
-        '<td style="color:#ccc">—</td>' +
-        '<td style="color:#aaa;font-size:11px">' + dateStr + '</td>' +
-        '<td></td>' +
-      '</tr>';
+    // Load accounts if not cached
+    if (!_inboundAccounts.length) {
+      var accts = await fetch('/api/workspaces/' + wsId + '/accounts').then(function(r){ return r.json(); });
+      _inboundAccounts = (accts.items || []).map(function(a) {
+        var name = a.display_name || a.email || a.account_id;
+        return { id: a.account_id, name: name, shortName: name.split(' ')[0] };
+      });
     }
 
-    var name     = ((v.first_name||v.viewer_name||v.visitor_title||'Unknown') + ' ' + (v.last_name||'')).trim();
-    var liUrl    = v.li_profile_url || v.viewer_li_url || v.visitor_li_url;
-    var nameCell = liUrl ? '<a href="' + liUrl + '" target="_blank">' + name + '</a>' : name;
-    var sub      = v.title || v.viewer_title || v.visitor_title || '';
-    var company  = v.company || '';
-    var isNew    = !v.contact_id ? '<span style="background:#fef3c7;color:#92400e;font-size:9px;padding:1px 6px;border-radius:6px;margin-left:4px;font-weight:700">NEW</span>' : '';
+    renderViewsRow();
+    renderStubRow('likes',    '&#128077; Post Likes');
+    renderStubRow('comments', '&#128172; Comments');
 
-    return '<tr>' +
-      '<td><div class="inbound-viewer-name">' + nameCell + isNew + typeBadge + '</div>' +
-           '<div class="inbound-viewer-sub">' + sub + '</div></td>' +
-      '<td style="font-size:11px;color:#555">' + (company||'—') + '</td>' +
-      '<td style="color:#aaa;font-size:11px;white-space:nowrap">' + dateStr + '</td>' +
-      '<td>' + (liUrl ? '<a href="' + liUrl + '" target="_blank" style="color:#52b788;font-size:11px">View &#8599;</a>' : '') + '</td>' +
-    '</tr>';
-  });
+    // Update timestamp
+    var ts = document.getElementById('inbound-scrape-btn');
+    if (ts) ts.title = 'Last loaded: ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    console.error('[InboundSignals]', e);
+  }
 }
 
-function renderInboundActivity() {
-  var wrap = document.getElementById('inbound-viewers-wrap');
-  var filter = _activeFilter;
+// ── Views row ───────────────────────────────────────────────────────────────
+function renderViewsRow() {
+  var d = _inboundRaw;
+  var vba = d.viewersByAccount || {};
+  var cba = d.coViewersByAccount || {};
+  var stats = d.stats || {};
 
-  var allRows = [];
+  // Compute totals per account (personal profile views)
+  var pvTotals = {};
+  _inboundAccounts.forEach(function(acc) {
+    pvTotals[acc.id] = (vba[acc.id]?.people || []).reduce(function(s, p) { return s + p.count; }, 0);
+  });
 
-  if (!filter || filter === 'pv') {
-    var pvRows = buildActivityRows(_inboundData.viewers, 'pv');
-    if (pvRows) allRows = allRows.concat(pvRows);
+  // Company page total
+  var coTotal = 0;
+  var coAcctIds = Object.keys(cba);
+  coAcctIds.forEach(function(id) {
+    coTotal += (cba[id]?.people || []).reduce(function(s, p) { return s + p.count; }, 0);
+  });
+  // Also from companyViewsByAccount if available
+  if (coTotal === 0) {
+    Object.values(d.companyViewsByAccount || {}).forEach(function(v) { coTotal += (v.total_views || 0); });
   }
-  if (!filter || filter === 'co') {
-    var coRows = buildActivityRows(_inboundData.coViewers, 'co');
-    if (coRows) allRows = allRows.concat(coRows);
+
+  var grandTotal = parseInt(stats.total_views || 0) + coTotal;
+
+  // Build tab HTML
+  var tabs = '';
+
+  // Total tab (leftmost)
+  tabs += '<div class="inbound-tab total" data-tab="total" onclick="selectViewTab('total')">' +
+    '<span class="inbound-tab-count">' + grandTotal + '</span>' +
+    '<span class="inbound-tab-label">Total</span>' +
+  '</div>';
+  tabs += '<div class="inbound-tab-sep"></div>';
+
+  // Per-user tabs
+  _inboundAccounts.forEach(function(acc) {
+    var cnt = pvTotals[acc.id] || 0;
+    tabs += '<div class="inbound-tab" data-tab="pv-' + acc.id + '" onclick="selectViewTab('pv-' + acc.id + '')">' +
+      '<span class="inbound-tab-badge live">&#9679;</span>' +
+      '<span class="inbound-tab-count">' + cnt + '</span>' +
+      '<span class="inbound-tab-label">&#128100; ' + acc.shortName + '</span>' +
+    '</div>';
+  });
+
+  // Company page tab (rightmost, separated)
+  if (_inboundAccounts.length > 0) tabs += '<div class="inbound-tab-sep"></div>';
+  tabs += '<div class="inbound-tab company-tab" data-tab="co" onclick="selectViewTab('co')">' +
+    '<span class="inbound-tab-badge live">&#9679;</span>' +
+    '<span class="inbound-tab-count">' + coTotal + '</span>' +
+    '<span class="inbound-tab-label">&#127968; Company</span>' +
+  '</div>';
+
+  document.getElementById('inbound-tabs-views').innerHTML = tabs;
+
+  // Restore active tab if any
+  if (_activeViewTab) {
+    var el = document.querySelector('[data-tab="' + _activeViewTab + '"]');
+    if (el) el.classList.add('active');
   }
-  // Like / Comment stubs — show placeholder only when filtered
-  if (filter === 'like' || filter === 'comment') {
-    wrap.innerHTML = '<div class="inbound-empty">' + FILTER_META[filter].emptyMsg + '</div>';
+}
+
+function selectViewTab(tabKey) {
+  // Toggle
+  if (_activeViewTab === tabKey) {
+    _activeViewTab = null;
+    document.querySelectorAll('.inbound-tab').forEach(function(el) { el.classList.remove('active'); });
+    document.getElementById('inbound-detail-views').classList.remove('open');
     return;
   }
+  _activeViewTab = tabKey;
 
-  // Sort all rows by date desc — already sorted from API, just show first 15
-  var rows = allRows.slice(0, 15);
+  // Update active state
+  document.querySelectorAll('#inbound-tabs-views .inbound-tab').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.tab === tabKey);
+  });
 
-  if (!rows.length) {
-    var emptyMsg = filter ? FILTER_META[filter].emptyMsg : 'No engagement activity recorded yet.<br><span style="font-size:11px">Click "Refresh now" to scrape latest data.</span>';
-    wrap.innerHTML = '<div class="inbound-empty">' + emptyMsg + '</div>';
-    return;
+  // Build detail data
+  var d = _inboundRaw;
+  var vba = d.viewersByAccount || {};
+  var cba = d.coViewersByAccount || {};
+
+  var people    = [];  // [{ name, company, liUrl, count, isAnon, contactId }]
+  var companies = {};  // name → count
+
+  if (tabKey === 'total') {
+    // Aggregate all personal profile views
+    _inboundAccounts.forEach(function(acc) {
+      (vba[acc.id]?.people || []).forEach(function(p) {
+        var existing = people.find(function(x) { return x.name === p.name && x.company === p.company; });
+        if (existing) { existing.count += p.count; }
+        else           { people.push(Object.assign({}, p)); }
+        if (p.company) companies[p.company] = (companies[p.company] || 0) + p.count;
+      });
+    });
+    // Also aggregate company page visitors
+    Object.values(cba).forEach(function(accData) {
+      (accData.people || []).forEach(function(p) {
+        var name = p.role || p.name || 'Anonymous';
+        var co   = p.company || '';
+        var existing = people.find(function(x) { return x.name === name && x.company === co; });
+        if (existing) { existing.count += p.count; }
+        else           { people.push({ name: name, company: co, liUrl: p.liUrl, count: p.count, isAnon: p.isAnon }); }
+        if (co) companies[co] = (companies[co] || 0) + p.count;
+      });
+    });
+  } else if (tabKey === 'co') {
+    // Company page only
+    Object.values(cba).forEach(function(accData) {
+      (accData.people || []).forEach(function(p) {
+        var name = p.role || p.name || 'Anonymous';
+        var co   = p.company || '';
+        people.push({ name: name, company: co, liUrl: p.liUrl, count: p.count, isAnon: p.isAnon });
+        if (co) companies[co] = (companies[co] || 0) + p.count;
+      });
+    });
+  } else if (tabKey.startsWith('pv-')) {
+    // Specific user personal profile
+    var accId = tabKey.substring(3);
+    people    = (vba[accId]?.people || []).slice();
+    companies = Object.assign({}, vba[accId]?.companies || {});
   }
 
-  wrap.innerHTML = '<div style="max-height:340px;overflow-y:auto;border-radius:8px;border:1px solid #f0ede8">' +
-    '<table class="inbound-viewers-table">' +
-      '<thead><tr><th>Person</th><th>Company</th><th>Date</th><th></th></tr></thead>' +
-      '<tbody>' + rows.join('') + '</tbody>' +
-    '</table>' +
-  '</div>' +
-  (allRows.length > 15 ? '<div style="font-size:11px;color:#aaa;text-align:center;margin-top:8px">Showing 15 of ' + allRows.length + ' activities</div>' : '');
+  // Sort
+  people.sort(function(a, b) { return b.count - a.count; });
+  var companyList = Object.entries(companies).sort(function(a, b) { return b[1] - a[1]; });
+
+  // Render people
+  var peopleHtml = people.length ? people.map(function(p) {
+    var nameHtml = p.isAnon
+      ? '<span class="inbound-anon-tag">' + escInbound(p.name || 'Anonymous') + '</span>'
+      : (p.liUrl
+          ? '<a href="' + p.liUrl + '" target="_blank">' + escInbound(p.name) + '</a>'
+          : escInbound(p.name));
+    var isNew = !p.contactId && !p.isAnon
+      ? ' <span class="inbound-new-tag">NEW</span>' : '';
+    var sub   = p.company ? '<div class="inbound-detail-sub">' + escInbound(p.company) + '</div>' : '';
+    var cnt   = p.count;
+    return '<li class="inbound-detail-item">' +
+      '<div class="inbound-detail-name">' + nameHtml + isNew + sub + '</div>' +
+      '<span class="inbound-detail-count' + (cnt > 1 ? ' multi' : '') + '">' + cnt + 'x</span>' +
+    '</li>';
+  }).join('') : '<li class="inbound-empty-detail">No identified visitors</li>';
+
+  var companiesHtml = companyList.length ? companyList.map(function(pair) {
+    return '<li class="inbound-detail-item">' +
+      '<div class="inbound-detail-name">' + escInbound(pair[0]) + '</div>' +
+      '<span class="inbound-detail-count' + (pair[1] > 1 ? ' multi' : '') + '">' + pair[1] + 'x</span>' +
+    '</li>';
+  }).join('') : '<li class="inbound-empty-detail">No company data</li>';
+
+  document.getElementById('inbound-people-views').innerHTML   = peopleHtml;
+  document.getElementById('inbound-companies-views').innerHTML = companiesHtml;
+  document.getElementById('inbound-detail-views').classList.add('open');
+}
+
+// ── Stub rows (Post Likes, Comments) ────────────────────────────────────────
+function renderStubRow(type, label) {
+  var container = document.getElementById('inbound-tabs-' + type);
+  if (!container) return;
+  container.innerHTML =
+    '<div class="inbound-tab total" style="cursor:default;opacity:.5">' +
+      '<span class="inbound-tab-count">—</span>' +
+      '<span class="inbound-tab-label">Total</span>' +
+    '</div>' +
+    _inboundAccounts.map(function(acc) {
+      return '<div class="inbound-tab" style="cursor:default;opacity:.5">' +
+        '<span class="inbound-tab-badge soon">Soon</span>' +
+        '<span class="inbound-tab-count">—</span>' +
+        '<span class="inbound-tab-label">&#128100; ' + acc.shortName + '</span>' +
+      '</div>';
+    }).join('') +
+    '<div class="inbound-tab-sep"></div>' +
+    '<div class="inbound-tab company-tab" style="cursor:default;opacity:.5">' +
+      '<span class="inbound-tab-badge soon">Soon</span>' +
+      '<span class="inbound-tab-count">—</span>' +
+      '<span class="inbound-tab-label">&#127968; Company</span>' +
+    '</div>';
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function escInbound(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 async function triggerScrape() {
@@ -1281,25 +1383,26 @@ async function triggerScrape() {
   btn.innerHTML = '&#8987; Scraping…';
   try {
     await fetch('/api/profile-views/scrape', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ workspace_id: parseInt(wsId) })
     });
     setTimeout(function() {
+      _activeViewTab = null;
       loadInboundSignals();
       btn.classList.remove('loading');
-      btn.innerHTML = '&#8635; Refresh now';
+      btn.innerHTML = '&#8635; Refresh';
     }, 4000);
   } catch(e) {
     btn.classList.remove('loading');
-    btn.innerHTML = '&#8635; Refresh now';
+    btn.innerHTML = '&#8635; Refresh';
   }
 }
 
-// Reload inbound signals when date range changes
+// Reload when date range changes
 var _origSetRange = setRange;
 setRange = function(mode, el) {
   _origSetRange(mode, el);
+  _activeViewTab = null;
   loadInboundSignals();
 };
 </script>
