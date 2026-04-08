@@ -146,29 +146,37 @@ async function getOrCreateViewersList(workspaceId) {
 // ── Process one account ───────────────────────────────────────────────────────
 
 async function processAccount(workspaceId, accountId) {
+  // Ensure table exists before any queries
+  await ensureTable();
+
   let viewers;
   try {
     viewers = await fetchProfileViewers(accountId, 5);
   } catch (e) {
-    console.warn(`[ProfileViewScraper] ws=${workspaceId} acc=${accountId}: ${e.message}`);
+    console.warn(`[ProfileViewScraper] ws=${workspaceId} acc=${accountId} fetch error: ${e.message}`);
     return { total: 0, identified: 0, added: 0 };
   }
 
+  console.log(`[ProfileViewScraper] ws=${workspaceId} acc=${accountId}: got ${viewers.length} viewers`);
   let identified = 0, added = 0;
 
   for (const elem of viewers) {
     const v = parseViewer(elem);
     if (!v) continue;
 
-    // ── Dedup: skip if we already recorded this viewer in last 12h ────────────
+    console.log(`[ProfileViewScraper]  → ${v.isAnonymous ? '(anon)' : v.name} | pid=${v.publicIdentifier} | cap="${v.caption}"`);
+
+    // ── Dedup: skip if already recorded in last 12h ───────────────────────────
     if (!v.isAnonymous && v.liUrl) {
-      const { rows: dup } = await db.query(
-        `SELECT id FROM profile_view_events
-         WHERE workspace_id=$1 AND viewer_li_url=$2 AND scraped_at > NOW() - INTERVAL '12 hours'
-         LIMIT 1`,
-        [workspaceId, v.liUrl]
-      );
-      if (dup.length) continue; // already recorded recently
+      try {
+        const { rows: dup } = await db.query(
+          `SELECT id FROM profile_view_events
+           WHERE workspace_id=$1 AND viewer_li_url=$2 AND scraped_at > NOW() - INTERVAL '12 hours'
+           LIMIT 1`,
+          [workspaceId, v.liUrl]
+        );
+        if (dup.length) { console.log(`[ProfileViewScraper]   ↩ dedup skip: ${v.name}`); continue; }
+      } catch(e) { /* table may not have rows yet — proceed */ }
     }
 
     // ── Try to match to existing contact ─────────────────────────────────────
@@ -184,14 +192,19 @@ async function processAccount(workspaceId, accountId) {
     }
 
     // ── Record in profile_view_events ─────────────────────────────────────────
-    await db.query(
-      `INSERT INTO profile_view_events
-         (workspace_id, account_id, viewed_at, is_anonymous, viewer_name, viewer_title,
-          viewer_provider_id, viewer_li_url, contact_id, raw_caption)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [workspaceId, accountId, v.viewedAt, v.isAnonymous,
-       v.name, v.title, v.providerId, v.liUrl, contactId, v.caption]
-    );
+    try {
+      await db.query(
+        `INSERT INTO profile_view_events
+           (workspace_id, account_id, viewed_at, is_anonymous, viewer_name, viewer_title,
+            viewer_provider_id, viewer_li_url, contact_id, raw_caption)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [workspaceId, accountId, v.viewedAt, v.isAnonymous,
+         v.name, v.title, v.providerId, v.liUrl, contactId, v.caption]
+      );
+    } catch(e) {
+      console.error(`[ProfileViewScraper] INSERT pve error: ${e.message}`);
+      continue;
+    }
 
     if (v.isAnonymous) continue; // rest is only for identified viewers
 
