@@ -192,9 +192,33 @@ app.get('/api/profile-views', async (req, res) => {
       LIMIT $2
     `, [workspace_id, parseInt(limit)]);
 
+    // Per-account × per-company breakdown for the companies table
+    // Groups: account_id → company_name → count
+    const { rows: byAcctCo } = await db.query(`
+      SELECT
+        pve.account_id,
+        COALESCE(c.company, pve.viewer_name, '') AS company_name,
+        COUNT(*) AS view_count
+      FROM profile_view_events pve
+      LEFT JOIN contacts c ON c.id = pve.contact_id
+      WHERE pve.workspace_id = $1 ${dateFilter}
+        AND pve.is_anonymous = false
+      GROUP BY pve.account_id, COALESCE(c.company, pve.viewer_name, '')
+      HAVING COALESCE(c.company, pve.viewer_name, '') != ''
+    `, [workspace_id]);
+
+    // Build nested map: account_id → { normalizedCompany → count }
+    const profileViewsByAccount = {};
+    for (const row of byAcctCo) {
+      if (!profileViewsByAccount[row.account_id]) profileViewsByAccount[row.account_id] = {};
+      const key = (row.company_name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      profileViewsByAccount[row.account_id][key] = (profileViewsByAccount[row.account_id][key] || 0) + parseInt(row.view_count);
+    }
+
     res.json({
       stats: stats[0],
       viewers,
+      profileViewsByAccount, // { accountId: { normalizedCompany: count } }
       // Stub placeholders — will be populated once API details received
       post_likes:     null,
       post_comments:  null,
