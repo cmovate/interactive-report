@@ -49,6 +49,25 @@ async function ensureTable() {
   // Add viewed_our_profile column to list_contacts if missing
   await db.query(`ALTER TABLE list_contacts ADD COLUMN IF NOT EXISTS viewed_our_profile BOOLEAN DEFAULT FALSE`);
   await db.query(`ALTER TABLE list_contacts ADD COLUMN IF NOT EXISTS viewed_our_profile_at TIMESTAMP`);
+
+  // Company page view events table
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS company_page_view_events (
+      id            SERIAL PRIMARY KEY,
+      workspace_id  INTEGER NOT NULL,
+      account_id    VARCHAR(255) NOT NULL,
+      company_urn   VARCHAR(255),
+      scraped_at    TIMESTAMP DEFAULT NOW(),
+      visitor_title TEXT,
+      visitor_pid   VARCHAR(255),
+      visitor_li_url TEXT,
+      contact_id    INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+      is_anonymous  BOOLEAN DEFAULT TRUE,
+      total_views   INTEGER DEFAULT 0
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_cpve_ws   ON company_page_view_events(workspace_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_cpve_time ON company_page_view_events(scraped_at)`);
 }
 
 // ── Voyager API call ──────────────────────────────────────────────────────────
@@ -141,6 +160,125 @@ async function getOrCreateViewersList(workspaceId) {
   );
   console.log(`[ProfileViewScraper] Created "Profile Viewers" list for ws=${workspaceId}`);
   return created[0].id;
+}
+
+// ── Company page visitor fetcher ─────────────────────────────────────────────
+
+function buildCompanyViewerUrl(orgId, fromMs, toMs) {
+  const from = fromMs || (Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const to   = toMs   || Date.now();
+  return `https://www.linkedin.com/voyager/api/graphql?variables=(analyticsEntityUrn:(company:urn%3Ali%3Afsd_company%3A${orgId}),surfaceType:ORGANIZATION_VISITORS,query:(selectedFilters:List((key:timeRange,value:List(${from},${to})),(key:resultType,value:List(PAGE_VIEWS)),(key:pageType,value:List(ALL_PAGES)))))&queryId=voyagerPremiumDashAnalyticsView.d24d2e85d8a23d815c7fd94aa8988261`;
+}
+
+async function fetchCompanyPageViewers(accountId, orgId) {
+  const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+  const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+  const res = await fetch(`${UNIPILE_DSN}/api/v1/linkedin`, {
+    method: 'POST',
+    headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      account_id:  accountId,
+      method:      'GET',
+      request_url: buildCompanyViewerUrl(orgId),
+      encoding:    false,
+    }),
+  });
+  if (!res.ok) throw new Error(`CompanyViewers HTTP ${res.status}`);
+  const data = await res.json();
+  const cards = data?.data?.data?.premiumDashAnalyticsViewByAnalyticsEntity?.elements?.[0]?.sections?.[0]?.card || [];
+
+  // card[2] has the analyticsObjectList with visitor items
+  const items = cards[2]?.components?.[0]?.analyticsObjectList?.items || [];
+
+  // KPI: total page views from card[0] infoList
+  const kpiItems = cards[0]?.components?.[0]?.infoList?.items || [];
+  let totalViews = 0;
+  if (kpiItems.length) {
+    const raw = JSON.stringify(kpiItems[0]);
+    const nums = raw.match(/"text":"(\d+)"/g);
+    if (nums) totalViews = parseInt(nums[0].match(/\d+/)[0]) || 0;
+  }
+
+  return { items, totalViews };
+}
+
+function parseCompanyVisitor(item) {
+  const lockup = item?.content?.analyticsEntityLockup?.entityLockup;
+  const title  = lockup?.title?.text?.trim() || '';
+  const raw    = JSON.stringify(item);
+  const pid    = raw.match(/"publicIdentifier":"([^"]+)"/)?.[1] || null;
+  const liUrl  = pid ? `https://www.linkedin.com/in/${pid}` : null;
+  const isAnon = !pid;
+  return { title, pid, liUrl, isAnon };
+}
+
+async function processCompanyPageAccount(workspaceId, accountId, orgId, companyUrn) {
+  await ensureTable();
+  let result;
+  try {
+    result = await fetchCompanyPageViewers(accountId, orgId);
+  } catch(e) {
+    console.warn(`[ProfileViewScraper] company page ws=${workspaceId} acc=${accountId}: ${e.message}`);
+    return { total: 0, visitors: 0, added: 0 };
+  }
+
+  const { items, totalViews } = result;
+  console.log(`[ProfileViewScraper] Company page ws=${workspaceId}: totalViews=${totalViews} items=${items.length}`);
+
+  let added = 0;
+  for (const item of items) {
+    const v = parseCompanyVisitor(item);
+
+    // Dedup: skip if recorded in last 12h for same account+title combo
+    try {
+      const { rows: dup } = await db.query(
+        `SELECT id FROM company_page_view_events
+         WHERE workspace_id=$1 AND account_id=$2 AND visitor_title=$3 AND scraped_at > NOW() - INTERVAL '12 hours'
+         LIMIT 1`,
+        [workspaceId, accountId, v.title]
+      );
+      if (dup.length) continue;
+    } catch(e) { /* proceed */ }
+
+    // Match to contact
+    let contactId = null;
+    if (!v.isAnon && v.liUrl) {
+      const { rows } = await db.query(
+        `SELECT id FROM contacts WHERE workspace_id=$1 AND (li_profile_url=$2 OR provider_id=$3) LIMIT 1`,
+        [workspaceId, v.liUrl, v.pid || '']
+      );
+      contactId = rows[0]?.id || null;
+    }
+
+    await db.query(
+      `INSERT INTO company_page_view_events
+         (workspace_id, account_id, company_urn, visitor_title, visitor_pid, visitor_li_url, contact_id, is_anonymous, total_views)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [workspaceId, accountId, companyUrn, v.title, v.pid, v.liUrl, contactId, v.isAnon, totalViews]
+    );
+    added++;
+
+    // If identified and not in list, add to Profile Viewers list
+    if (!v.isAnon && !contactId && v.liUrl) {
+      try {
+        const { getOrCreateViewersList } = require('./profileViewScraper'); // self-ref fallback
+      } catch(e) {}
+    }
+  }
+
+  // Also upsert a total_views record for this account (even if no individual visitors)
+  if (totalViews > 0 && items.length === 0) {
+    await db.query(
+      `INSERT INTO company_page_view_events
+         (workspace_id, account_id, company_urn, visitor_title, is_anonymous, total_views)
+       VALUES ($1,$2,$3,'(aggregate)',true,$4)
+       ON CONFLICT DO NOTHING`,
+      [workspaceId, accountId, companyUrn, totalViews]
+    ).catch(()=>{});
+  }
+
+  return { total: totalViews, visitors: items.length, added };
 }
 
 // ── Process one account ───────────────────────────────────────────────────────
@@ -312,14 +450,41 @@ async function runAllWorkspaces() {
     );
 
     const wsSummary = {};
+    // Get full account info (for company page URN)
+    const { rows: fullAccounts } = await db.query(
+      `SELECT ua.workspace_id, ua.account_id, ua.settings
+       FROM unipile_accounts ua`
+    );
+
     for (const { workspace_id, account_id } of accounts) {
       try {
+        // Personal profile views
         const result = await processAccount(workspace_id, account_id);
         if (!wsSummary[workspace_id]) wsSummary[workspace_id] = { total:0, identified:0, added:0 };
         wsSummary[workspace_id].total      += result.total;
         wsSummary[workspace_id].identified += result.identified;
         wsSummary[workspace_id].added      += result.added;
-        await new Promise(r => setTimeout(r, 1500)); // rate limit
+        await new Promise(r => setTimeout(r, 1500));
+
+        // Company page views — if this account has a company page
+        const fullAcc = fullAccounts.find(a => a.account_id === account_id);
+        const settings = fullAcc?.settings || {};
+        const coUrn = settings.company_page_urn || '';
+        // Extract org ID from URN like urn:li:organization:68860743
+        const orgId = coUrn.match(/organization:(\d+)/)?.[1]
+          || settings.company_page_url?.match(/company\/(\d+)/)?.[1];
+
+        if (orgId) {
+          try {
+            const coResult = await processCompanyPageAccount(workspace_id, account_id, orgId, coUrn);
+            if (coResult.total > 0 || coResult.visitors > 0) {
+              console.log(`[ProfileViewScraper] ws=${workspace_id} company page: ${coResult.total} views, ${coResult.visitors} identified`);
+            }
+          } catch(e) {
+            console.warn(`[ProfileViewScraper] company page err ${account_id}:`, e.message);
+          }
+          await new Promise(r => setTimeout(r, 1500));
+        }
       } catch (e) {
         console.error(`[ProfileViewScraper] acc ${account_id}:`, e.message);
       }
@@ -361,4 +526,4 @@ function start() {
   }, STARTUP_DELAY_MS);
 }
 
-module.exports = { start, runAllWorkspaces, processAccount, ensureTable };
+module.exports = { start, runAllWorkspaces, processAccount, processCompanyPageAccount, ensureTable };

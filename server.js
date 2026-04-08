@@ -192,6 +192,35 @@ app.get('/api/profile-views', async (req, res) => {
       LIMIT $2
     `, [workspace_id, parseInt(limit)]);
 
+    // Company page view totals per account (for "Co. Views" column)
+    const { rows: coViewStats } = await db.query(`
+      SELECT
+        account_id,
+        SUM(total_views)                                    AS total_views,
+        COUNT(*) FILTER (WHERE is_anonymous = false)        AS identified_visitors,
+        COUNT(*) FILTER (WHERE is_anonymous = true
+                           AND visitor_title != '(aggregate)') AS anonymous_visitors
+      FROM company_page_view_events
+      WHERE workspace_id = $1 ${dateFilter}
+      GROUP BY account_id
+    `, [workspace_id]).catch(() => ({ rows: [] }));
+
+    // Recent company page visitors
+    const { rows: coViewers } = await db.query(`
+      SELECT
+        cpve.id, cpve.visitor_title, cpve.visitor_li_url, cpve.visitor_pid,
+        cpve.scraped_at, cpve.is_anonymous, cpve.total_views, cpve.account_id,
+        c.id           AS contact_id,
+        c.first_name, c.last_name, c.company, c.title,
+        c.li_profile_url
+      FROM company_page_view_events cpve
+      LEFT JOIN contacts c ON c.id = cpve.contact_id
+      WHERE cpve.workspace_id = $1 ${dateFilter}
+        AND cpve.visitor_title != '(aggregate)'
+      ORDER BY cpve.scraped_at DESC
+      LIMIT 20
+    `, [workspace_id]).catch(() => ({ rows: [] }));
+
     // Per-account × per-company breakdown for the companies table
     // Groups: account_id → company_name → count
     const { rows: byAcctCo } = await db.query(`
@@ -215,14 +244,25 @@ app.get('/api/profile-views', async (req, res) => {
       profileViewsByAccount[row.account_id][key] = (profileViewsByAccount[row.account_id][key] || 0) + parseInt(row.view_count);
     }
 
+    // Build company views by account map: accountId → { totalViews, identifiedVisitors }
+    const companyViewsByAccount = {};
+    for (const row of coViewStats) {
+      companyViewsByAccount[row.account_id] = {
+        total_views: parseInt(row.total_views) || 0,
+        identified:  parseInt(row.identified_visitors) || 0,
+        anonymous:   parseInt(row.anonymous_visitors) || 0,
+      };
+    }
+
     res.json({
       stats: stats[0],
       viewers,
       profileViewsByAccount, // { accountId: { normalizedCompany: count } }
-      // Stub placeholders — will be populated once API details received
+      companyViewsByAccount, // { accountId: { total_views, identified, anonymous } }
+      coViewers,             // recent company page visitors
+      // Stubs for future APIs
       post_likes:     null,
       post_comments:  null,
-      company_views:  null,
     });
   } catch (e) {
     console.error('[GET /api/profile-views]', e.message);

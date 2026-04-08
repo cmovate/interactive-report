@@ -1055,6 +1055,7 @@ function renderCompanyStats() {
 // ── Inbound Signals for companies — per-user columns ──────────────────────────
 let _wsAccounts      = [];
 let _pvByAcctCo      = {};
+let _coViewsByAccount = {}; // accountId → { total_views, identified, anonymous }
 
 function normalizeCoName(name) {
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1075,7 +1076,7 @@ function buildInboundCells(companyName) {
     html += '<td style="text-align:center;background:#fafff8;">' + soonCellInner() + '</td>';
     html += '<td style="text-align:center;background:#fafff8;">' + soonCellInner() + '</td>';
   });
-  const totalCoViews = Object.values(_pvByAcctCo).reduce((s, m) => s + (m[co] || 0), 0);
+  const totalCoViews = Object.values(_coViewsByAccount).reduce((s, v) => s + (v.total_views || 0), 0);
   html += '<td style="text-align:center;background:#fff7ed;border-left:2px solid #fcd34d;">' + inboundBadge(totalCoViews) + '</td>';
   html += '<td style="text-align:center;background:#fff7ed;">' + soonCellInner() + '</td>';
   html += '<td style="text-align:center;background:#fff7ed;">' + soonCellInner() + '</td>';
@@ -1127,6 +1128,7 @@ async function loadCompanyInboundData() {
     }
     const d = await fetch('/api/profile-views?workspace_id=' + workspaceId + '&limit=1000').then(r => r.json());
     _pvByAcctCo = d.profileViewsByAccount || {};
+    _coViewsByAccount = d.companyViewsByAccount || {};
     buildInboundHeaders();
     if (filteredCompanies.length) renderCompaniesTable();
   } catch(e) { console.warn('[InboundSignals]', e.message); }
