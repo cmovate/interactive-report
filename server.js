@@ -149,6 +149,137 @@ app.post('/api/profile-views/scrape', async (req, res) => {
   res.json({ ok: true, status: 'scrape started', workspace_id: workspace_id || 'all' });
 });
 
+// POST /api/profile-views/enrich — enrich identified viewers with company name
+app.post('/api/profile-views/enrich', async (req, res) => {
+  const { workspace_id, limit = 20 } = req.body || {};
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+  try {
+    // Ensure column exists
+    await db.query(`ALTER TABLE profile_view_events ADD COLUMN IF NOT EXISTS viewer_company TEXT`).catch(()=>{});
+
+    // Get viewers needing enrichment: identified, no company yet, have a provider_id
+    const { rows: toEnrich } = await db.query(`
+      SELECT pve.id, pve.account_id, pve.viewer_provider_id, pve.viewer_li_url, pve.viewer_title,
+             pve.viewer_name, c.company AS contact_company
+      FROM profile_view_events pve
+      LEFT JOIN contacts c ON c.id = pve.contact_id
+      WHERE pve.workspace_id = $1
+        AND pve.is_anonymous = false
+        AND pve.viewer_company IS NULL
+        AND (pve.viewer_provider_id IS NOT NULL OR pve.viewer_li_url IS NOT NULL)
+      LIMIT $2
+    `, [workspace_id, parseInt(limit)]);
+
+    let enriched = 0, fromContact = 0, fromTitle = 0, fromApi = 0;
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    // Get one account_id for the workspace (for API calls)
+    const { rows: accts } = await db.query(
+      `SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1`,
+      [workspace_id]
+    );
+    const defaultAccountId = accts[0]?.account_id;
+
+    for (const viewer of toEnrich) {
+      let company = null;
+
+      // 1. Use contact's company if available
+      if (viewer.contact_company) {
+        company = viewer.contact_company;
+        fromContact++;
+      }
+
+      // 2. Parse from title: "Role at Company" or "Role | Company"
+      if (!company && viewer.viewer_title) {
+        const atMatch = viewer.viewer_title.match(/\bat\s+([A-Z][^|\n,]{2,50})(?:\s*[|,]|$)/);
+        if (atMatch) {
+          company = atMatch[1].trim();
+          fromTitle++;
+        }
+      }
+
+      // 3. Fetch from Unipile LinkedIn profile API
+      if (!company && viewer.viewer_provider_id && defaultAccountId && UNIPILE_DSN) {
+        try {
+          // Extract publicIdentifier from provider_id or li_url
+          const pid = viewer.viewer_li_url?.split('/in/')?.[1]?.replace(/\/.*/, '') || null;
+          if (pid) {
+            const profileRes = await fetch(`${UNIPILE_DSN}/api/v1/linkedin`, {
+              method: 'POST',
+              headers: {
+                'X-API-KEY': UNIPILE_API_KEY,
+                'accept': 'application/json',
+                'content-type': 'application/json'
+              },
+              body: JSON.stringify({
+                account_id: viewer.account_id || defaultAccountId,
+                method: 'GET',
+                request_url: `https://www.linkedin.com/voyager/api/identity/profiles/${pid}`,
+                encoding: false
+              })
+            });
+
+            if (profileRes.ok) {
+              const profileData = await profileRes.json();
+              // Try multiple paths for company
+              const profile = profileData?.data?.data?.identityDashProfilesByMemberIdentity?.elements?.[0]
+                           || profileData?.data?.miniProfile
+                           || profileData?.data;
+
+              // Try to get current company from experience or headline
+              const headline = profile?.headline?.text || profile?.occupation || '';
+              const atInHeadline = headline.match(/\bat\s+([A-Z][^|\n,]{2,50})/);
+              if (atInHeadline) {
+                company = atInHeadline[1].trim();
+                fromApi++;
+              }
+
+              // Try experience sections
+              if (!company) {
+                const experiences = profile?.profileView?.positionView?.elements ||
+                  profileData?.data?.data?.positionGroupView?.elements || [];
+                if (experiences.length > 0) {
+                  const latestExp = experiences[0];
+                  company = latestExp?.companyName
+                         || latestExp?.company?.miniCompany?.name
+                         || latestExp?.position?.company?.name || null;
+                  if (company) fromApi++;
+                }
+              }
+            }
+            // Rate limit
+            await new Promise(r => setTimeout(r, 300));
+          }
+        } catch(e) {
+          console.warn(`[Enrich] viewer ${viewer.id}:`, e.message);
+        }
+      }
+
+      if (company) {
+        await db.query(
+          `UPDATE profile_view_events SET viewer_company = $1 WHERE id = $2`,
+          [company, viewer.id]
+        );
+        enriched++;
+      }
+    }
+
+    res.json({
+      ok: true,
+      total: toEnrich.length,
+      enriched,
+      fromContact,
+      fromTitle,
+      fromApi
+    });
+  } catch(e) {
+    console.error('[Enrich]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
@@ -243,7 +374,7 @@ app.get('/api/profile-views', async (req, res) => {
         pve.account_id,
         COALESCE(c.id::text, pve.viewer_li_url, pve.viewer_name) AS viewer_key,
         COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), pve.viewer_name) AS viewer_name,
-        COALESCE(c.company, '') AS company_name,
+        COALESCE(c.company, pve.viewer_company, '') AS company_name,
         pve.is_anonymous,
         pve.viewer_li_url,
         c.li_profile_url,

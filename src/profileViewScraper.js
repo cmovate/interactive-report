@@ -49,6 +49,7 @@ async function ensureTable() {
   // Add viewed_our_profile column to list_contacts if missing
   await db.query(`ALTER TABLE list_contacts ADD COLUMN IF NOT EXISTS viewed_our_profile BOOLEAN DEFAULT FALSE`);
   await db.query(`ALTER TABLE list_contacts ADD COLUMN IF NOT EXISTS viewed_our_profile_at TIMESTAMP`);
+  await db.query(`ALTER TABLE profile_view_events ADD COLUMN IF NOT EXISTS viewer_company TEXT`);
 
   // Company page view events table
   await db.query(`
@@ -441,6 +442,107 @@ async function updateDailyAnalytics(workspaceId) {
 
 // ── Main run ──────────────────────────────────────────────────────────────────
 
+// ── Profile viewer enrichment ─────────────────────────────────────────────────
+async function enrichProfileViewers(workspaceId, limit = 30) {
+  await ensureTable();
+  await db.query(`ALTER TABLE profile_view_events ADD COLUMN IF NOT EXISTS viewer_company TEXT`).catch(()=>{});
+
+  const { rows: toEnrich } = await db.query(`
+    SELECT pve.id, pve.account_id, pve.viewer_provider_id, pve.viewer_li_url,
+           pve.viewer_title, pve.viewer_name, c.company AS contact_company
+    FROM profile_view_events pve
+    LEFT JOIN contacts c ON c.id = pve.contact_id
+    WHERE pve.workspace_id = $1
+      AND pve.is_anonymous = false
+      AND pve.viewer_company IS NULL
+      AND (pve.viewer_provider_id IS NOT NULL OR pve.viewer_li_url IS NOT NULL)
+    LIMIT $2
+  `, [workspaceId, limit]);
+
+  if (!toEnrich.length) return { enriched: 0 };
+
+  const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+  const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+  // Get a valid account for this workspace
+  const { rows: accts } = await db.query(
+    `SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1`,
+    [workspaceId]
+  );
+  const accountId = accts[0]?.account_id;
+
+  let enriched = 0;
+
+  for (const viewer of toEnrich) {
+    let company = null;
+
+    // 1. Contact's company
+    if (viewer.contact_company) {
+      company = viewer.contact_company;
+    }
+
+    // 2. Parse from title: "Role at Company"
+    if (!company && viewer.viewer_title) {
+      const m = viewer.viewer_title.match(/at\s+([A-Z][^\|\n,]{2,60})(?:\s*[\|,]|$)/);
+      if (m) company = m[1].trim();
+    }
+
+    // 3. Unipile profile API
+    if (!company && viewer.viewer_li_url && accountId && UNIPILE_DSN) {
+      try {
+        const pid = viewer.viewer_li_url.split('/in/')[1]?.replace(/\/.*/, '').trim();
+        if (pid) {
+          const r = await fetch(`${UNIPILE_DSN}/api/v1/linkedin`, {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': UNIPILE_API_KEY,
+              'accept': 'application/json',
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              account_id: viewer.account_id || accountId,
+              method: 'GET',
+              request_url: `https://www.linkedin.com/voyager/api/identity/profiles/${pid}`,
+              encoding: false,
+            }),
+          });
+          if (r.ok) {
+            const data = await r.json();
+            const raw  = JSON.stringify(data);
+            // Try headline "at Company"
+            const hMatch = raw.match(/"occupation":"([^"]+)"/);
+            if (hMatch) {
+              const atM = hMatch[1].match(/at\s+([A-Z][^"]{2,60})/);
+              if (atM) company = atM[1].trim();
+            }
+            // Try company name in positions
+            if (!company) {
+              const coMatch = raw.match(/"companyName"\s*:\s*"([^"]{2,60})"/);
+              if (coMatch) company = coMatch[1];
+            }
+          }
+          await new Promise(r => setTimeout(r, 400)); // rate limit
+        }
+      } catch(e) {
+        // silent
+      }
+    }
+
+    if (company) {
+      await db.query(
+        `UPDATE profile_view_events SET viewer_company = $1 WHERE id = $2`,
+        [company, viewer.id]
+      );
+      enriched++;
+    }
+  }
+
+  if (enriched > 0) {
+    console.log(`[ProfileViewScraper] Enriched ${enriched}/${toEnrich.length} viewers in ws=${workspaceId}`);
+  }
+  return { enriched, total: toEnrich.length };
+}
+
 async function runAllWorkspaces() {
   console.log('[ProfileViewScraper] Starting scrape cycle...');
   try {
@@ -497,6 +599,16 @@ async function runAllWorkspaces() {
     }
 
     console.log('[ProfileViewScraper] Scrape cycle complete.');
+
+    // Auto-enrich viewers with company names
+    const wsIds = [...new Set(accounts.map(a => a.workspace_id))];
+    for (const wsId of wsIds) {
+      try {
+        await enrichProfileViewers(wsId, 30);
+      } catch(e) {
+        console.warn('[ProfileViewScraper] auto-enrich ws=' + wsId + ':', e.message);
+      }
+    }
   } catch (e) {
     console.error('[ProfileViewScraper] runAllWorkspaces error:', e.message);
   }
@@ -526,4 +638,4 @@ function start() {
   }, STARTUP_DELAY_MS);
 }
 
-module.exports = { start, runAllWorkspaces, processAccount, processCompanyPageAccount, ensureTable };
+module.exports = { start, runAllWorkspaces, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable };

@@ -299,7 +299,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <span class="inbound-header-icon">&#128268;</span>
       <span class="inbound-header-title">Inbound Signals</span>
       <span class="inbound-header-sub">Actions your audience took on your profiles &amp; content</span>
-      <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()" style="margin-left:auto">
+      <button class="inbound-scrape-btn" id="inbound-enrich-btn" onclick="triggerEnrich()" style="margin-left:auto" title="Fetch company names for identified viewers">
+        &#128269; Enrich
+      </button>
+      <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()" title="Re-scrape latest profile views">
         &#8635; Refresh
       </button>
     </div>
@@ -1379,6 +1382,36 @@ function renderStubRow(type, label) {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function escInbound(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function triggerEnrich() {
+  var btn = document.getElementById('inbound-enrich-btn');
+  btn.classList.add('loading');
+  btn.innerHTML = '&#8987; Enriching…';
+  try {
+    var res = await fetch('/api/profile-views/enrich', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: parseInt(wsId), limit: 50 })
+    }).then(function(r){ return r.json(); });
+
+    var msg = 'Enriched ' + (res.enriched||0) + '/' + (res.total||0) + ' viewers';
+    if (res.fromTitle > 0) msg += ' (' + res.fromTitle + ' from title';
+    if (res.fromApi   > 0) msg += ', ' + res.fromApi   + ' from API';
+    if (res.fromTitle > 0 || res.fromApi > 0) msg += ')';
+    console.log('[Enrich]', msg);
+
+    // Reload signals to show enriched companies
+    _inboundAccounts = []; // force accounts reload
+    await loadInboundSignals();
+    btn.classList.remove('loading');
+    btn.innerHTML = '&#128269; Enrich';
+    btn.title = msg;
+  } catch(e) {
+    btn.classList.remove('loading');
+    btn.innerHTML = '&#128269; Enrich';
+    console.error('[Enrich]', e);
+  }
 }
 
 async function triggerScrape() {
