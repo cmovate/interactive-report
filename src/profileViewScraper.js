@@ -338,4 +338,4 @@ function start() {
   }, STARTUP_DELAY_MS);
 }
 
-module.exports = { start, runAllWorkspaces, processAccount };
+module.exports = { start, runAllWorkspaces, processAccount, ensureTable };

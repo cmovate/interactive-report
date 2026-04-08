@@ -136,6 +136,8 @@ app.post('/api/inbox/poll', async (req, res) => {
 app.post('/api/profile-views/scrape', async (req, res) => {
   const { workspace_id, account_id } = req.body || {};
   const scraper = require('./src/profileViewScraper');
+  // Always ensure table first
+  await scraper.ensureTable().catch(e => console.error('[ProfileViewScraper] ensureTable:', e.message));
   if (workspace_id && account_id) {
     scraper.processAccount(workspace_id, account_id)
       .then(r => console.log('[ProfileViewScraper] manual:', JSON.stringify(r)))
