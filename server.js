@@ -149,105 +149,107 @@ app.post('/api/profile-views/scrape', async (req, res) => {
   res.json({ ok: true, status: 'scrape started', workspace_id: workspace_id || 'all' });
 });
 
-// POST /api/profile-views/enrich — enrich identified viewers with company name
+// POST /api/profile-views/enrich
+// Stage 1: parse company from viewer_name ("Someone at X") and title
+// Stage 2: fetch work_experience via Unipile for identified viewers with li_url
 app.post('/api/profile-views/enrich', async (req, res) => {
-  const { workspace_id, limit = 20 } = req.body || {};
+  const { workspace_id, limit = 30 } = req.body || {};
   if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
   try {
-    // Ensure column exists
     await db.query(`ALTER TABLE profile_view_events ADD COLUMN IF NOT EXISTS viewer_company TEXT`).catch(()=>{});
 
-    // Get viewers needing enrichment: identified, no company yet, have a provider_id
-    const { rows: toEnrich } = await db.query(`
-      SELECT pve.id, pve.account_id, pve.viewer_provider_id, pve.viewer_li_url, pve.viewer_title,
-             pve.viewer_name, c.company AS contact_company
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    const { rows: accts } = await db.query(
+      `SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1`, [workspace_id]
+    );
+    const defaultAccountId = accts[0]?.account_id;
+
+    // ── Stage 1: fast parse — no API calls ───────────────────────────────────
+    const { rows: stage1 } = await db.query(`
+      SELECT id, viewer_name, viewer_title, is_anonymous
+      FROM profile_view_events
+      WHERE workspace_id = $1 AND viewer_company IS NULL
+    `, [workspace_id]);
+
+    let fromName = 0, fromTitle = 0;
+    for (const v of stage1) {
+      let company = null;
+      // "Someone at Company X" pattern (anonymous)
+      if (!company && v.viewer_name) {
+        const m = v.viewer_name.match(/^Someone at\s+(.+)$/i);
+        if (m) company = m[1].trim();
+      }
+      // "Role at Company" in title
+      if (!company && v.viewer_title) {
+        const m = v.viewer_title.match(/(?:^|[\s,|])at\s+([A-Z][^|\n,&]{2,60}?)(?:\s*[|,]|$)/);
+        if (m) company = m[1].trim();
+      }
+      if (company) {
+        await db.query(`UPDATE profile_view_events SET viewer_company=$1 WHERE id=$2`, [company, v.id]);
+        if (v.is_anonymous) fromName++; else fromTitle++;
+      }
+    }
+
+    // ── Stage 2: Unipile profile API — work_experience for identified viewers ─
+    const { rows: stage2 } = await db.query(`
+      SELECT pve.id, pve.account_id, pve.viewer_li_url,
+             c.company AS contact_company
       FROM profile_view_events pve
       LEFT JOIN contacts c ON c.id = pve.contact_id
       WHERE pve.workspace_id = $1
         AND pve.is_anonymous = false
         AND pve.viewer_company IS NULL
-        AND (pve.viewer_provider_id IS NOT NULL OR pve.viewer_li_url IS NOT NULL)
+        AND pve.viewer_li_url IS NOT NULL
       LIMIT $2
     `, [workspace_id, parseInt(limit)]);
 
-    let enriched = 0, fromContact = 0, fromTitle = 0, fromApi = 0;
-    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
-    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+    let fromContact = 0, fromApi = 0;
+    for (const v of stage2) {
+      let company = v.contact_company || null;
+      if (company) { fromContact++; }
 
-    // Get one account_id for the workspace (for API calls)
-    const { rows: accts } = await db.query(
-      `SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1`,
-      [workspace_id]
-    );
-    const defaultAccountId = accts[0]?.account_id;
-
-    for (const viewer of toEnrich) {
-      let company = null;
-
-      // 1. Use contact's company if available
-      if (viewer.contact_company) {
-        company = viewer.contact_company;
-        fromContact++;
-      }
-
-      // 2. Parse from title / viewer_name fields: "Role at Company"
-      const titleSrc = viewer.viewer_title || '';
-      if (!company && titleSrc) {
-        // Pattern: "... at Company Name" (at preceded by space/comma/pipe)
-        const atMatch = titleSrc.match(/(?:^|[\s,|])at\s+([A-Z][^|\n,&]{2,60}?)(?:\s*[|,]|$)/);
-        if (atMatch) { company = atMatch[1].trim(); fromTitle++; }
-      }
-      // viewer_name sometimes has "Someone at Company" for anon viewers
-      if (!company && viewer.viewer_name) {
-        const nameAtM = viewer.viewer_name.match(/^Someone at\s+(.+)$/i);
-        if (nameAtM) { company = nameAtM[1].trim(); fromTitle++; }
-      }
-
-      // 3. Fetch from Unipile GET /api/v1/users/{identifier} endpoint
-      if (!company && viewer.viewer_li_url && defaultAccountId && UNIPILE_DSN) {
+      if (!company && v.viewer_li_url && defaultAccountId && UNIPILE_DSN) {
         try {
-          const pid = (viewer.viewer_li_url || '').split('/in/')[1]?.replace(/\/.*/, '').trim();
+          const pid = (v.viewer_li_url || '').split('/in/')[1]?.replace(/\/.*/, '').trim();
           if (pid) {
-            const profileRes = await fetch(
-              `${UNIPILE_DSN}/api/v1/users/${pid}?account_id=${viewer.account_id || defaultAccountId}`,
+            const r = await fetch(
+              `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}` +
+              `?account_id=${v.account_id || defaultAccountId}&linkedin_sections=experience&notify=false`,
               { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
             );
-            if (profileRes.ok) {
-              const profile = await profileRes.json();
-              const headline = profile.headline || '';
-              // Try "Role at Company" pattern
-              const atM = headline.match(/\bat\s+([A-Z][^|\n,&]{2,60}?)(?:\s*[|,]|$)/);
-              if (atM) {
-                company = atM[1].trim();
-                fromApi++;
-              }
-              // If no company yet, try location as hint (skip — not reliable)
+            if (r.ok) {
+              const profile = await r.json();
+              // work_experience array; find current role (no end_date) or first
+              const we = profile.work_experience || [];
+              const current = we.find(e => !e.end_date) || we[0];
+              company = current?.company || current?.company_name || null;
+              if (company) fromApi++;
             }
-            await new Promise(r => setTimeout(r, 350));
+            await new Promise(r => setTimeout(r, 400));
           }
         } catch(e) {
-          console.warn(`[Enrich] viewer ${viewer.id}:`, e.message);
+          console.warn(`[Enrich] ${v.id}:`, e.message);
         }
       }
 
       if (company) {
-        await db.query(
-          `UPDATE profile_view_events SET viewer_company = $1 WHERE id = $2`,
-          [company, viewer.id]
-        );
-        enriched++;
+        await db.query(`UPDATE profile_view_events SET viewer_company=$1 WHERE id=$2`, [company, v.id]);
       }
     }
 
-    res.json({
-      ok: true,
-      total: toEnrich.length,
-      enriched,
-      fromContact,
-      fromTitle,
-      fromApi
-    });
+    const enriched = fromName + fromTitle + fromContact + fromApi;
+    console.log(`[Enrich] ws=${workspace_id}: enriched=${enriched} (name=${fromName} title=${fromTitle} contact=${fromContact} api=${fromApi})`);
+    res.json({ ok: true, enriched, fromName, fromTitle, fromContact, fromApi,
+               stage1Total: stage1.length, stage2Total: stage2.length });
+  } catch(e) {
+    console.error('[Enrich]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
   } catch(e) {
     console.error('[Enrich]', e.message);
     res.status(500).json({ error: e.message });

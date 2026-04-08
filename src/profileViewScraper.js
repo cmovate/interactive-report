@@ -487,21 +487,21 @@ async function enrichProfileViewers(workspaceId, limit = 30) {
       if (m) company = m[1].trim();
     }
 
-    // 3. Unipile GET /api/v1/users/{identifier} — correct native endpoint
+    // 3. Unipile GET /api/v1/users/{id}?linkedin_sections=experience — current company
     if (!company && viewer.viewer_li_url && accountId && UNIPILE_DSN) {
       try {
         const pid = (viewer.viewer_li_url || '').split('/in/')[1]?.replace(/\/.*/, '').trim();
         if (pid) {
           const useAcct = viewer.account_id || accountId;
           const r = await fetch(
-            `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}?account_id=${useAcct}`,
+            `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}?account_id=${useAcct}&linkedin_sections=experience&notify=false`,
             { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
           );
           if (r.ok) {
             const profile = await r.json();
-            const headline = profile.headline || '';
-            const atM = headline.match(/(?:^|\s)at\s+([A-Z][^|,\n&]{2,60}?)(?:\s*[|,]|$)/);
-            if (atM) company = atM[1].trim();
+            const we = profile.work_experience || [];
+            const current = we.find(e => !e.end_date) || we[0];
+            company = current?.company || current?.company_name || null;
           }
           await new Promise(r => setTimeout(r, 400));
         }
