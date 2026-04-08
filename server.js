@@ -250,12 +250,6 @@ app.post('/api/profile-views/enrich', async (req, res) => {
   }
 });
 
-  } catch(e) {
-    console.error('[Enrich]', e.message);
-    res.status(500).json({ error: e.message });
-  }
-});
-
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
