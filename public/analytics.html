@@ -1183,8 +1183,15 @@ async function loadInboundSignals() {
     }
 
     renderViewsRow();
-    renderStubRow('likes',    '&#128077; Post Likes');
-    renderStubRow('comments', '&#128172; Comments');
+    // Load engagement data (reactions + comments)
+    try {
+      var eng = await fetch('/api/posts/engagement-stats?workspace_id=' + wsId).then(function(r){ return r.json(); });
+      renderEngagementRow('likes',    eng.reactions, '&#128077;');
+      renderEngagementRow('comments', eng.comments,  '&#128172;');
+    } catch(e) {
+      renderStubRow('likes',    '&#128077; Post Likes');
+      renderStubRow('comments', '&#128172; Comments');
+    }
 
     // Update timestamp
     var ts = document.getElementById('inbound-scrape-btn');
@@ -1353,6 +1360,112 @@ function selectViewTab(tabKey) {
   document.getElementById('inbound-people-views').innerHTML   = peopleHtml;
   document.getElementById('inbound-companies-views').innerHTML = companiesHtml;
   document.getElementById('inbound-detail-views').classList.add('open');
+}
+
+// ── Engagement rows (Post Likes, Comments) ──────────────────────────────────
+var _engagementDetailOpen = {}; // track open panel per type
+
+function renderEngagementRow(type, data, icon) {
+  var container = document.getElementById('inbound-tabs-' + type);
+  if (!container) return;
+  if (!data) { renderStubRow(type, icon); return; }
+
+  var total = data.total || 0;
+  var byAcc = data.byAccount || {};
+  var opened = _engagementDetailOpen[type] || null;
+
+  var html = '<div class="inbound-tab total ' + (opened === 'total' ? 'active' : '') + '" ' +
+    'data-eng-type="' + type + '" data-eng-acc="total" style="cursor:pointer">' +
+    '<span class="inbound-tab-count">' + total + '</span>' +
+    '<span class="inbound-tab-label">Total</span></div>';
+
+  _inboundAccounts.forEach(function(acc) {
+    var acData = byAcc[acc.id] || {};
+    var cnt = acData.total || 0;
+    var isOpen = opened === acc.id;
+    html += '<div class="inbound-tab ' + (isOpen ? 'active' : '') + '" ' +
+      'data-eng-type="' + type + '" data-eng-acc="' + acc.id + '" style="cursor:pointer">' +
+      '<span class="inbound-tab-count">' + cnt + '</span>' +
+      '<span class="inbound-tab-label">&#128100; ' + escInbound(acc.shortName) + '</span></div>';
+  });
+
+  // Company tab — aggregate all
+  var allCoObj = data.allCompanies || {};
+  var coTotal = Object.values(allCoObj).reduce(function(s,v){ return s+v; }, 0);
+  html += '<div class="inbound-tab-sep"></div>' +
+    '<div class="inbound-tab company-tab ' + (opened === 'company' ? 'active' : '') + '" ' +
+    'data-eng-type="' + type + '" data-eng-acc="company" style="cursor:pointer">' +
+    '<span class="inbound-tab-count">' + coTotal + '</span>' +
+    '<span class="inbound-tab-label">&#127968; Company</span></div>';
+
+  container.innerHTML = html;
+
+  // Event delegation for clicks
+  container.onclick = function(e) {
+    var tab = e.target.closest('[data-eng-acc]');
+    if (!tab) return;
+    var t   = tab.dataset.engType;
+    var acc = tab.dataset.engAcc;
+    if (_engagementDetailOpen[t] === acc) {
+      // Toggle close
+      _engagementDetailOpen[t] = null;
+      document.getElementById('inbound-detail-' + t).classList.remove('open');
+      container.querySelectorAll('.inbound-tab').forEach(function(el){ el.classList.remove('active'); });
+    } else {
+      _engagementDetailOpen[t] = acc;
+      container.querySelectorAll('.inbound-tab').forEach(function(el){ el.classList.remove('active'); });
+      tab.classList.add('active');
+      openEngagementDetail(t, acc, data);
+    }
+  };
+
+  // Re-open if was open
+  if (opened) openEngagementDetail(type, opened, data);
+}
+
+function openEngagementDetail(type, accId, data) {
+  var panelEl = document.getElementById('inbound-detail-' + type);
+  if (!panelEl) return;
+
+  var people, companies;
+  if (accId === 'total') {
+    people    = data.allPeople    || [];
+    companies = data.allCompanies || {};
+  } else if (accId === 'company') {
+    people    = [];
+    companies = data.allCompanies || {};
+  } else {
+    var acData = (data.byAccount || {})[accId] || {};
+    people    = acData.people    || [];
+    companies = acData.companies || {};
+  }
+
+  // People list
+  var peopleHtml = people.length ? people.slice(0,50).map(function(p) {
+    var nameHtml = p.url
+      ? '<a href="' + escInbound(p.url) + '" target="_blank" rel="noopener">' + escInbound(p.name) + '</a>'
+      : escInbound(p.name);
+    var sub = p.title ? '<div class="inbound-detail-sub">' + escInbound(p.title.substring(0,60)) + '</div>' : '';
+    var cnt = p.count || 1;
+    var badge = cnt > 2 ? ' multi' : (cnt > 1 ? ' multi' : '');
+    return '<li class="inbound-detail-item">' +
+      '<div class="inbound-detail-name">' + nameHtml + sub + '</div>' +
+      '<span class="inbound-detail-count' + badge + '">' + cnt + 'x</span>' +
+    '</li>';
+  }).join('') : '<li class="inbound-empty-detail">No data</li>';
+
+  // Companies list
+  var coPairs = Object.entries(companies).sort(function(a,b){ return b[1]-a[1]; }).slice(0,30);
+  var coHtml = coPairs.length ? coPairs.map(function(pair) {
+    return '<li class="inbound-detail-item">' +
+      '<div class="inbound-detail-name">' + escInbound(pair[0]) + '</div>' +
+      '<span class="inbound-detail-count' + (pair[1]>1?' multi':'') + '">' + pair[1] + 'x</span>' +
+    '</li>';
+  }).join('') : '<li class="inbound-empty-detail">No company data</li>';
+
+  document.getElementById('inbound-people-'    + type).innerHTML   = peopleHtml;
+  document.getElementById('inbound-companies-' + type).innerHTML   = coHtml;
+  panelEl.classList.add('open');
 }
 
 // ── Stub rows (Post Likes, Comments) ────────────────────────────────────────

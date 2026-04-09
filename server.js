@@ -766,6 +766,172 @@ app.post('/api/posts/engagement/sync', async (req, res) => {
   }
 });
 
+// GET /api/posts/engagement-stats?workspace_id=
+// Returns reaction + comment counts per account + top reactors/commentors for Inbound Signals UI
+app.get('/api/posts/engagement-stats', async (req, res) => {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  const wsId = parseInt(workspace_id);
+
+  try {
+    // Get accounts for this workspace
+    const { rows: accounts } = await db.query(
+      `SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id=$1 ORDER BY account_id`,
+      [wsId]
+    );
+
+    // ── Reactions totals per account ─────────────────────────────────────
+    const { rows: reactionTotals } = await db.query(`
+      SELECT pr.account_id, COUNT(*) AS total
+      FROM post_reactions pr
+      JOIN user_posts up ON up.post_id = pr.post_id AND up.account_id = pr.account_id
+      WHERE pr.workspace_id = $1
+      GROUP BY pr.account_id
+    `, [wsId]);
+
+    // ── Top reactors per account (people who reacted to our posts) ────────
+    const { rows: topReactors } = await db.query(`
+      SELECT pr.account_id,
+             pr.reactor_name,
+             pr.reactor_headline,
+             pr.reactor_url,
+             COUNT(*) AS cnt,
+             MAX(pr.scraped_at) AS last_seen
+      FROM post_reactions pr
+      WHERE pr.workspace_id = $1
+        AND pr.reactor_name IS NOT NULL
+      GROUP BY pr.account_id, pr.reactor_name, pr.reactor_headline, pr.reactor_url
+      ORDER BY pr.account_id, cnt DESC
+    `, [wsId]);
+
+    // ── Company aggregation from reactors (use reactor_headline "at Company") ──
+    const { rows: reactorCompanies } = await db.query(`
+      SELECT pr.account_id,
+             TRIM(REGEXP_REPLACE(pr.reactor_headline, '^.*\bAt\b\s*', '', 'i')) AS company,
+             COUNT(*) AS cnt
+      FROM post_reactions pr
+      WHERE pr.workspace_id = $1
+        AND pr.reactor_headline ILIKE '%at %'
+      GROUP BY pr.account_id, company
+      HAVING TRIM(REGEXP_REPLACE(pr.reactor_headline, '^.*\bAt\b\s*', '', 'i')) != ''
+      ORDER BY pr.account_id, cnt DESC
+      LIMIT 100
+    `, [wsId]).catch(() => ({ rows: [] }));
+
+    // ── Comments totals per account ───────────────────────────────────────
+    const { rows: commentTotals } = await db.query(`
+      SELECT pc.account_id, COUNT(*) AS total
+      FROM post_comments pc
+      JOIN user_posts up ON up.post_id = pc.post_id AND up.account_id = pc.account_id
+      WHERE pc.workspace_id = $1
+      GROUP BY pc.account_id
+    `, [wsId]);
+
+    // ── Top commentors per account ────────────────────────────────────────
+    const { rows: topCommentors } = await db.query(`
+      SELECT pc.account_id,
+             pc.author_name,
+             pc.author_headline,
+             pc.author_url,
+             COUNT(*) AS cnt,
+             MAX(pc.scraped_at) AS last_seen
+      FROM post_comments pc
+      WHERE pc.workspace_id = $1
+        AND pc.author_name IS NOT NULL
+      GROUP BY pc.account_id, pc.author_name, pc.author_headline, pc.author_url
+      ORDER BY pc.account_id, cnt DESC
+    `, [wsId]);
+
+    // ── Company aggregation from commentors ───────────────────────────────
+    const { rows: commentorCompanies } = await db.query(`
+      SELECT pc.account_id,
+             TRIM(REGEXP_REPLACE(pc.author_headline, '^.*\bAt\b\s*', '', 'i')) AS company,
+             COUNT(*) AS cnt
+      FROM post_comments pc
+      WHERE pc.workspace_id = $1
+        AND pc.author_headline ILIKE '%at %'
+      GROUP BY pc.account_id, company
+      HAVING TRIM(REGEXP_REPLACE(pc.author_headline, '^.*\bAt\b\s*', '', 'i')) != ''
+      ORDER BY pc.account_id, cnt DESC
+      LIMIT 100
+    `, [wsId]).catch(() => ({ rows: [] }));
+
+    // ── Build response ────────────────────────────────────────────────────
+    const reactionsByAccount = {};
+    const commentsByAccount  = {};
+
+    // Total row
+    const totalReactions = reactionTotals.reduce((s, r) => s + parseInt(r.total), 0);
+    const totalComments  = commentTotals.reduce((s, r)  => s + parseInt(r.total), 0);
+
+    for (const acc of accounts) {
+      const aId = acc.account_id;
+
+      const rTotal = parseInt(reactionTotals.find(r=>r.account_id===aId)?.total || 0);
+      const cTotal = parseInt(commentTotals.find(r=>r.account_id===aId)?.total || 0);
+
+      const rPeople = topReactors
+        .filter(r => r.account_id === aId)
+        .slice(0, 50)
+        .map(r => ({ name: r.reactor_name, title: r.reactor_headline, url: r.reactor_url, count: parseInt(r.cnt) }));
+
+      const rCompanies = {};
+      reactorCompanies.filter(r => r.account_id === aId).forEach(r => {
+        if (r.company) rCompanies[r.company] = (rCompanies[r.company] || 0) + parseInt(r.cnt);
+      });
+
+      const cPeople = topCommentors
+        .filter(r => r.account_id === aId)
+        .slice(0, 50)
+        .map(r => ({ name: r.author_name, title: r.author_headline, url: r.author_url, count: parseInt(r.cnt) }));
+
+      const cCompanies = {};
+      commentorCompanies.filter(r => r.account_id === aId).forEach(r => {
+        if (r.company) cCompanies[r.company] = (cCompanies[r.company] || 0) + parseInt(r.cnt);
+      });
+
+      reactionsByAccount[aId] = { total: rTotal, name: acc.display_name, people: rPeople, companies: rCompanies };
+      commentsByAccount[aId]  = { total: cTotal, name: acc.display_name, people: cPeople,  companies: cCompanies };
+    }
+
+    // Aggregate totals across all accounts (de-dup by name)
+    const allReactorPeople = {}, allReactorCo = {};
+    const allCommentPeople = {}, allCommentCo = {};
+    topReactors.forEach(r => {
+      const k = r.reactor_name;
+      if (!allReactorPeople[k]) allReactorPeople[k] = { name: r.reactor_name, title: r.reactor_headline, url: r.reactor_url, count: 0 };
+      allReactorPeople[k].count += parseInt(r.cnt);
+    });
+    reactorCompanies.forEach(r => { if (r.company) allReactorCo[r.company] = (allReactorCo[r.company]||0) + parseInt(r.cnt); });
+    topCommentors.forEach(r => {
+      const k = r.author_name;
+      if (!allCommentPeople[k]) allCommentPeople[k] = { name: r.author_name, title: r.author_headline, url: r.author_url, count: 0 };
+      allCommentPeople[k].count += parseInt(r.cnt);
+    });
+    commentorCompanies.forEach(r => { if (r.company) allCommentCo[r.company] = (allCommentCo[r.company]||0) + parseInt(r.cnt); });
+
+    res.json({
+      ok: true,
+      accounts,
+      reactions: {
+        total: totalReactions,
+        byAccount: reactionsByAccount,
+        allPeople: Object.values(allReactorPeople).sort((a,b)=>b.count-a.count).slice(0,50),
+        allCompanies: allReactorCo
+      },
+      comments: {
+        total: totalComments,
+        byAccount: commentsByAccount,
+        allPeople: Object.values(allCommentPeople).sort((a,b)=>b.count-a.count).slice(0,50),
+        allCompanies: allCommentCo
+      }
+    });
+  } catch(e) {
+    console.error('[engagement-stats]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
