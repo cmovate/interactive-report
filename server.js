@@ -355,7 +355,7 @@ app.post('/api/posts/fetch', async (req, res) => {
         id              SERIAL PRIMARY KEY,
         workspace_id    INTEGER NOT NULL,
         account_id      VARCHAR(255) NOT NULL,
-        post_id         VARCHAR(255) UNIQUE,
+        post_id         VARCHAR(255),
         social_id       VARCHAR(255),
         share_url       TEXT,
         post_date       VARCHAR(255),
@@ -372,6 +372,7 @@ app.post('/api/posts/fetch', async (req, res) => {
       )
     `).catch(()=>{});
     await db.query(`CREATE INDEX IF NOT EXISTS idx_up_ws  ON user_posts(workspace_id)`).catch(()=>{});
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_up_post_acc ON user_posts(post_id, account_id) WHERE post_id IS NOT NULL`).catch(()=>{});
     await db.query(`CREATE INDEX IF NOT EXISTS idx_up_acc ON user_posts(account_id)`).catch(()=>{});
 
     // Get accounts
@@ -396,11 +397,18 @@ app.post('/api/posts/fetch', async (req, res) => {
         });
         if (meRes.ok) {
           const me = await meRes.json();
-          pid = me.provider_id || null;
+          // AccountOwnerProfile has provider_id; UserProfile also has provider_id
+          pid = me.provider_id 
+             || me.entity_urn?.split(':').pop()   // fallback: last segment of URN
+             || null;
         }
       } catch(e) {}
 
-      if (!pid) { summary[accId] = { skipped: 'no provider_id', name }; continue; }
+      if (!pid) { 
+        summary[accId] = { skipped: 'no provider_id', name };
+        console.warn(`[PostsFetch] no provider_id for ${name||accId}`);
+        continue;
+      }
 
       const key = accId;
       const cursor = cursors[key] || null;
@@ -428,7 +436,7 @@ app.post('/api/posts/fetch', async (req, res) => {
                  parsed_datetime, text, likes_count, comments_count, reposts_count,
                  impressions, is_repost, author_name, author_pid)
               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-              ON CONFLICT (post_id) DO UPDATE SET
+              ON CONFLICT (post_id, account_id) DO UPDATE SET
                 likes_count   = EXCLUDED.likes_count,
                 comments_count = EXCLUDED.comments_count,
                 reposts_count = EXCLUDED.reposts_count,
