@@ -575,33 +575,35 @@ app.post('/api/posts/engagement', async (req, res) => {
 
       await new Promise(r => setTimeout(r, 300));
 
-      // Fetch comments
+      // Fetch comments — must use social_id (urn:li:activity:...), not numeric post_id
       try {
+        const commentId = post.social_id || postId;
         const cr = await fetch(
-          `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(postId)}/comments?account_id=${accId}&limit=50`,
+          `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(commentId)}/comments?account_id=${accId}&limit=50`,
           { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
         ).then(r=>r.json());
 
         for (const comment of (cr.items || [])) {
+          const authorDetails = comment.author_details || {};
           await db.query(`
             INSERT INTO post_comments
               (post_id, comment_id, account_id, workspace_id, author_id, author_name, author_headline, author_url, text, likes_count, created_at)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
             ON CONFLICT (comment_id) DO UPDATE SET
-              text       = EXCLUDED.text,
+              text        = EXCLUDED.text,
               likes_count = EXCLUDED.likes_count,
               scraped_at  = NOW()
           `, [
             postId,
-            comment.id || comment.comment_id || null,
+            comment.id || null,
             accId, wsId || null,
-            comment.author?.id || null,
-            comment.author?.name || null,
-            comment.author?.headline || null,
-            comment.author?.profile_url || null,
-            comment.text || comment.content?.text || '',
-            comment.likes_count || comment.reaction_counter || 0,
-            comment.date || comment.created_at || null
+            authorDetails.id || null,
+            comment.author || authorDetails.name || null,
+            authorDetails.headline || null,
+            authorDetails.profile_url || null,
+            comment.text || '',
+            comment.reaction_counter || comment.likes_count || 0,
+            comment.date || null
           ]).catch(()=>{});
           summary.comments++;
         }
