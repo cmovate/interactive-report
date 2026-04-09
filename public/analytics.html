@@ -302,6 +302,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <button class="inbound-scrape-btn" id="inbound-enrich-btn" onclick="triggerEnrich()" style="margin-left:auto" title="Fetch company names for identified viewers">
         &#128269; Enrich
       </button>
+      <button class="inbound-scrape-btn" id="inbound-deep-enrich-btn" onclick="triggerDeepEnrich()" title="Full profile enrichment: title + company from all signals (views, likes, comments) → adds to Lists">
+        &#10024; Deep Enrich
+      </button>
       <button class="inbound-scrape-btn" id="inbound-scrape-btn" onclick="triggerScrape()" title="Re-scrape latest profile views">
         &#8635; Refresh
       </button>
@@ -1495,6 +1498,43 @@ function renderStubRow(type, label) {
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function escInbound(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function triggerDeepEnrich() {
+  var btn = document.getElementById('inbound-deep-enrich-btn');
+  btn.classList.add('loading');
+  btn.innerHTML = '&#8987; Enriching…';
+  btn.disabled = true;
+  var done = 0;
+
+  // Run in batches of 20 until nothing left
+  while (true) {
+    try {
+      var res = await fetch('/api/inbound/enrich', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ workspace_id: parseInt(wsId), limit: 20 })
+      }).then(function(r){ return r.json(); });
+
+      done += (res.enriched || 0);
+      btn.innerHTML = '&#8987; ' + done + ' enriched…';
+
+      // Stop when nothing more to enrich
+      if (!res.toEnrich || res.toEnrich === 0 || res.enriched === 0) break;
+    } catch(e) { break; }
+
+    // Small delay between batches
+    await new Promise(function(r){ setTimeout(r, 1000); });
+  }
+
+  btn.classList.remove('loading');
+  btn.disabled = false;
+  btn.innerHTML = '&#10024; Deep Enrich';
+  btn.title = 'Done: ' + done + ' profiles enriched and added to Inbound Signals list';
+
+  // Reload signals
+  _inboundAccounts = [];
+  await loadInboundSignals();
 }
 
 async function triggerEnrich() {

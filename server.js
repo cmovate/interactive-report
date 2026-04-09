@@ -932,6 +932,218 @@ app.get('/api/posts/engagement-stats', async (req, res) => {
   }
 });
 
+// POST /api/inbound/enrich
+// Collects all LinkedIn profile URLs from Inbound Signals (views, reactions, comments),
+// fetches full profile with linkedin_sections=*_preview, extracts title+company,
+// upserts into contacts table, and adds to "Inbound Signals" list in Lists page.
+app.post('/api/inbound/enrich', async (req, res) => {
+  const { workspace_id, limit = 20 } = req.body || {};
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  const wsId = parseInt(workspace_id);
+
+  try {
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    // Get one account for API calls
+    const { rows: accts } = await db.query(
+      `SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1`, [wsId]
+    );
+    const accountId = accts[0]?.account_id;
+    if (!accountId) return res.status(400).json({ error: 'no account for workspace' });
+
+    // ── Collect all unique LinkedIn identifiers needing enrichment ────────
+    // Sources: profile views, reactions, comments (only identified people with URLs)
+
+    // Add inbound_signals columns to contacts if missing
+    await db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS viewed_profile  BOOLEAN DEFAULT FALSE`).catch(()=>{});
+    await db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS liked_post      BOOLEAN DEFAULT FALSE`).catch(()=>{});
+    await db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS commented_post  BOOLEAN DEFAULT FALSE`).catch(()=>{});
+    await db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS inbound_signal  BOOLEAN DEFAULT FALSE`).catch(()=>{});
+    await db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS enriched_at     TIMESTAMP`).catch(()=>{});
+
+    // Build union of all signal sources
+    const { rows: toEnrich } = await db.query(`
+      SELECT li_url, public_id, signal_type
+      FROM (
+        -- Profile views
+        SELECT viewer_li_url AS li_url,
+               SPLIT_PART(viewer_li_url, '/in/', 2) AS public_id,
+               'view' AS signal_type,
+               scraped_at
+        FROM profile_view_events
+        WHERE workspace_id=$1
+          AND is_anonymous=false
+          AND viewer_li_url IS NOT NULL
+          AND viewer_li_url != ''
+
+        UNION ALL
+
+        -- Post reactions
+        SELECT reactor_url AS li_url,
+               SPLIT_PART(reactor_url, '/in/', 2) AS public_id,
+               'like' AS signal_type,
+               scraped_at
+        FROM post_reactions
+        WHERE workspace_id=$1
+          AND reactor_url IS NOT NULL
+          AND reactor_url != ''
+
+        UNION ALL
+
+        -- Post comments
+        SELECT author_url AS li_url,
+               SPLIT_PART(author_url, '/in/', 2) AS public_id,
+               'comment' AS signal_type,
+               scraped_at
+        FROM post_comments
+        WHERE workspace_id=$1
+          AND author_url IS NOT NULL
+          AND author_url != ''
+      ) raw
+      WHERE public_id IS NOT NULL AND public_id != ''
+      GROUP BY li_url, public_id, signal_type
+      ORDER BY li_url
+    `, [wsId]);
+
+    // Deduplicate by li_url, merge signal types
+    const byUrl = {};
+    for (const row of toEnrich) {
+      const url = (row.li_url || '').split('?')[0].replace(/\/+$/, '');
+      const pid = (row.public_id || '').replace(/\/.*/, '').trim();
+      if (!pid) continue;
+      if (!byUrl[url]) byUrl[url] = { li_url: url, public_id: pid, signals: new Set() };
+      byUrl[url].signals.add(row.signal_type);
+    }
+    const people = Object.values(byUrl);
+
+    // Filter to only those NOT yet enriched (no entry in contacts with enriched_at)
+    const needsEnrich = [];
+    for (const p of people) {
+      const { rows: ex } = await db.query(
+        `SELECT id, enriched_at FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1`,
+        [wsId, p.li_url]
+      );
+      const alreadyEnriched = ex.length > 0 && ex[0].enriched_at;
+      if (!alreadyEnriched) needsEnrich.push({ ...p, existingId: ex[0]?.id || null });
+    }
+
+    const batch = needsEnrich.slice(0, parseInt(limit));
+
+    const result = { total: people.length, toEnrich: needsEnrich.length, enriched: 0, errors: 0 };
+
+    // ── Enrich each person ────────────────────────────────────────────────
+    for (const person of batch) {
+      try {
+        // GET /api/v1/users/{public_identifier}?linkedin_sections=*_preview&notify=false
+        const pid = person.public_id;
+        const r = await fetch(
+          `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}?account_id=${accountId}&linkedin_sections=*_preview&notify=false`,
+          { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
+        );
+
+        if (!r.ok) { result.errors++; await new Promise(r=>setTimeout(r,400)); continue; }
+        const profile = await r.json();
+
+        // Extract current role from work_experience
+        const we = profile.work_experience || [];
+        const current = we.find(e => !e.end_date) || we[0];
+        const company   = current?.company     || null;
+        const title     = current?.position    || null;
+        const firstName = profile.first_name   || null;
+        const lastName  = profile.last_name    || null;
+        const location  = profile.location     || null;
+        const picUrl    = profile.profile_picture_url || null;
+        const provId    = profile.provider_id   || null;
+
+        const signalArr = [...person.signals];
+        const viewedProfile = signalArr.includes('view');
+        const likedPost     = signalArr.includes('like');
+        const commentedPost = signalArr.includes('comment');
+
+        if (person.existingId) {
+          // Update existing contact
+          await db.query(`
+            UPDATE contacts SET
+              first_name=$1, last_name=$2, company=$3, title=$4,
+              location=$5, provider_id=COALESCE($6, provider_id),
+              viewed_profile = viewed_profile OR $7,
+              liked_post     = liked_post     OR $8,
+              commented_post = commented_post OR $9,
+              inbound_signal = TRUE,
+              enriched_at    = NOW()
+            WHERE id=$10
+          `, [firstName, lastName, company, title, location, provId,
+              viewedProfile, likedPost, commentedPost, person.existingId]);
+        } else {
+          // Insert new contact
+          await db.query(`
+            INSERT INTO contacts
+              (workspace_id, first_name, last_name, company, title, li_profile_url,
+               location, provider_id, inbound_signal, viewed_profile, liked_post,
+               commented_post, enriched_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,$9,$10,$11,NOW())
+            ON CONFLICT (workspace_id, li_profile_url) DO UPDATE SET
+              first_name     = COALESCE(EXCLUDED.first_name, contacts.first_name),
+              last_name      = COALESCE(EXCLUDED.last_name,  contacts.last_name),
+              company        = COALESCE(EXCLUDED.company,    contacts.company),
+              title          = COALESCE(EXCLUDED.title,      contacts.title),
+              viewed_profile = contacts.viewed_profile OR EXCLUDED.viewed_profile,
+              liked_post     = contacts.liked_post     OR EXCLUDED.liked_post,
+              commented_post = contacts.commented_post OR EXCLUDED.commented_post,
+              inbound_signal = TRUE,
+              enriched_at    = NOW()
+          `, [wsId, firstName, lastName, company, title, person.li_url,
+              location, provId, viewedProfile, likedPost, commentedPost]);
+        }
+
+        result.enriched++;
+        await new Promise(r=>setTimeout(r,500)); // rate limit
+      } catch(e) {
+        result.errors++;
+        console.warn(`[InboundEnrich] ${person.public_id}: ${e.message}`);
+      }
+    }
+
+    // ── Upsert "Inbound Signals" list and add enriched contacts ──────────
+    if (result.enriched > 0) {
+      // Get or create the list
+      let listId;
+      const { rows: existing } = await db.query(
+        `SELECT id FROM lists WHERE workspace_id=$1 AND name='Inbound Signals' LIMIT 1`, [wsId]
+      );
+      if (existing.length) {
+        listId = existing[0].id;
+      } else {
+        const { rows: inserted } = await db.query(
+          `INSERT INTO lists (workspace_id, name, type, description)
+           VALUES ($1,'Inbound Signals','contacts','Auto-generated: people who engaged with your LinkedIn content')
+           RETURNING id`,
+          [wsId]
+        );
+        listId = inserted[0].id;
+      }
+
+      // Add all inbound_signal contacts to the list
+      await db.query(`
+        INSERT INTO list_contacts (list_id, contact_id)
+        SELECT $1, c.id
+        FROM contacts c
+        WHERE c.workspace_id=$2
+          AND c.inbound_signal=TRUE
+          AND c.li_profile_url IS NOT NULL
+        ON CONFLICT (list_id, contact_id) DO NOTHING
+      `, [listId, wsId]).catch(()=>{});
+    }
+
+    console.log(`[InboundEnrich] ws=${wsId}: total=${result.total} needed=${result.toEnrich} enriched=${result.enriched} errors=${result.errors}`);
+    res.json({ ok: true, ...result });
+  } catch(e) {
+    console.error('[InboundEnrich]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
