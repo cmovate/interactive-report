@@ -695,6 +695,99 @@ async function fetchAllUserPosts() {
   return { total, accounts: accounts.length };
 }
 
+// ── Engagement sync: incremental reactions+comments every 30 min ─────────────
+
+async function syncEngagementAllAccounts() {
+  const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+  const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+  if (!UNIPILE_DSN || !UNIPILE_API_KEY) return;
+
+  // Call the sync endpoint via internal HTTP (server is already running)
+  // Use db directly instead — reuse same logic inline
+  const { rows: accounts } = await db.query(
+    `SELECT DISTINCT workspace_id, account_id, display_name FROM unipile_accounts ORDER BY workspace_id, account_id`
+  );
+
+  const BATCH = 10;
+  let reactionsNew = 0, commentsNew = 0;
+
+  for (const acc of accounts) {
+    const { workspace_id: wsId, account_id: accId } = acc;
+
+    const { rows: posts } = await db.query(
+      `SELECT post_id, social_id FROM user_posts WHERE account_id=$1 AND post_id IS NOT NULL ORDER BY scraped_at DESC`,
+      [accId]
+    );
+
+    for (const post of posts) {
+      const postId   = post.post_id;
+      const socialId = post.social_id || postId;
+
+      // Reactions — incremental
+      let cursor = null;
+      while (true) {
+        let url = `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(postId)}/reactions?account_id=${accId}&limit=${BATCH}`;
+        if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+        let items = [], nextCursor = null;
+        try {
+          const rd = await fetch(url, { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }).then(r=>r.json());
+          items = rd.items || [];
+          nextCursor = rd.cursor || null;
+        } catch(e) { break; }
+        if (!items.length) break;
+        let allNew = true;
+        for (const reaction of items) {
+          const rId = reaction.author?.id;
+          if (!rId) continue;
+          const { rows: ex } = await db.query(`SELECT id FROM post_reactions WHERE post_id=$1 AND reactor_id=$2 LIMIT 1`, [postId, rId]);
+          if (ex.length) { allNew = false; break; }
+          await db.query(`INSERT INTO post_reactions (post_id,account_id,workspace_id,reactor_id,reactor_name,reactor_headline,reactor_url,reaction_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (post_id,reactor_id) DO NOTHING`,
+            [postId,accId,wsId,rId,reaction.author?.name||null,reaction.author?.headline||null,reaction.author?.profile_url||null,reaction.value||'LIKE']);
+          reactionsNew++;
+        }
+        if (!allNew || !nextCursor) break;
+        cursor = nextCursor;
+        await new Promise(r=>setTimeout(r,200));
+      }
+
+      // Comments — incremental
+      cursor = null;
+      while (true) {
+        let url = `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(socialId)}/comments?account_id=${accId}&limit=${BATCH}`;
+        if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+        let items = [], nextCursor = null;
+        try {
+          const cd = await fetch(url, { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }).then(r=>r.json());
+          items = cd.items || [];
+          nextCursor = cd.cursor || null;
+        } catch(e) { break; }
+        if (!items.length) break;
+        let allNew = true;
+        for (const comment of items) {
+          const cId = comment.id;
+          if (!cId) continue;
+          const { rows: ex } = await db.query(`SELECT id FROM post_comments WHERE comment_id=$1 LIMIT 1`, [cId]);
+          if (ex.length) { allNew = false; break; }
+          const ad = comment.author_details || {};
+          await db.query(`INSERT INTO post_comments (post_id,comment_id,account_id,workspace_id,author_id,author_name,author_headline,author_url,text,likes_count,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (comment_id) DO NOTHING`,
+            [postId,cId,accId,wsId,ad.id||null,comment.author||null,ad.headline||null,ad.profile_url||null,comment.text||'',comment.reaction_counter||0,comment.date||null]);
+          commentsNew++;
+        }
+        if (!allNew || !nextCursor) break;
+        cursor = nextCursor;
+        await new Promise(r=>setTimeout(r,200));
+      }
+
+      await new Promise(r=>setTimeout(r,200));
+    }
+    await new Promise(r=>setTimeout(r,400));
+  }
+
+  if (reactionsNew > 0 || commentsNew > 0) {
+    console.log(`[EngagementSync] +${reactionsNew} reactions, +${commentsNew} comments`);
+  }
+}
+
 // ── Scheduler: fire at 08:00, 14:00, 20:00 ───────────────────────────────────
 
 let _lastFiredHour = -1;
@@ -718,8 +811,13 @@ function start() {
       }
     }, 60 * 1000); // check every minute
 
-    console.log(`[ProfileViewScraper] Started — fires daily at ${FIRE_HOURS.join(':00, ')}:00`);
+    // ── Engagement sync every 30 minutes ─────────────────────────────────
+    setInterval(() => {
+      syncEngagementAllAccounts().catch(e => console.error('[EngagementSync] scheduler error:', e.message));
+    }, 30 * 60 * 1000); // every 30 min
+
+    console.log(`[ProfileViewScraper] Started — fires daily at ${FIRE_HOURS.join(':00, ')}:00 | engagement sync every 30min`);
   }, STARTUP_DELAY_MS);
 }
 
-module.exports = { start, runAllWorkspaces, fetchAllUserPosts, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable, _parseViewer: parseViewer };
+module.exports = { start, runAllWorkspaces, fetchAllUserPosts, syncEngagementAllAccounts, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable, _parseViewer: parseViewer };

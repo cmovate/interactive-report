@@ -620,6 +620,153 @@ app.post('/api/posts/engagement', async (req, res) => {
   }
 });
 
+// POST /api/posts/engagement/sync
+// Incremental engagement sync — fetch 10 at a time, stop when hitting known data.
+// If all 10 are new → fetch 10 more. Stop when any known item found.
+// Runs every 30 min via scheduler for all accounts.
+app.post('/api/posts/engagement/sync', async (req, res) => {
+  const { workspace_id, account_id: filterAcct } = req.body || {};
+
+  try {
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    // Ensure tables exist
+    await db.query(`CREATE TABLE IF NOT EXISTS post_reactions (id SERIAL PRIMARY KEY, post_id VARCHAR(255) NOT NULL, account_id VARCHAR(255) NOT NULL, workspace_id INTEGER, reactor_id VARCHAR(255), reactor_name TEXT, reactor_headline TEXT, reactor_url TEXT, reaction_type VARCHAR(50), scraped_at TIMESTAMP DEFAULT NOW())`).catch(()=>{});
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pr_post_reactor ON post_reactions(post_id, reactor_id) WHERE reactor_id IS NOT NULL`).catch(()=>{});
+    await db.query(`CREATE TABLE IF NOT EXISTS post_comments (id SERIAL PRIMARY KEY, post_id VARCHAR(255) NOT NULL, comment_id VARCHAR(255), account_id VARCHAR(255) NOT NULL, workspace_id INTEGER, author_id VARCHAR(255), author_name TEXT, author_headline TEXT, author_url TEXT, text TEXT, likes_count INTEGER DEFAULT 0, created_at VARCHAR(255), scraped_at TIMESTAMP DEFAULT NOW())`).catch(()=>{});
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pc_comment ON post_comments(comment_id) WHERE comment_id IS NOT NULL`).catch(()=>{});
+
+    // Get accounts to process
+    const wsFilter = workspace_id ? `AND ua.workspace_id=${parseInt(workspace_id)}` : '';
+    const acctFilter = filterAcct ? `AND ua.account_id='${filterAcct}'` : '';
+    const { rows: accounts } = await db.query(`
+      SELECT DISTINCT ua.workspace_id, ua.account_id, ua.display_name
+      FROM unipile_accounts ua ${wsFilter} ${acctFilter}
+      ORDER BY ua.workspace_id, ua.account_id
+    `);
+
+    const BATCH = 10;
+    const result = { accounts: accounts.length, reactions_new: 0, comments_new: 0, posts_checked: 0 };
+
+    for (const acc of accounts) {
+      const { workspace_id: wsId, account_id: accId } = acc;
+
+      // Get this account's posts
+      const { rows: posts } = await db.query(
+        `SELECT post_id, social_id FROM user_posts WHERE account_id=$1 AND post_id IS NOT NULL ORDER BY scraped_at DESC`,
+        [accId]
+      );
+
+      for (const post of posts) {
+        result.posts_checked++;
+        const postId   = post.post_id;
+        const socialId = post.social_id || postId;
+
+        // ── Reactions (incremental) ─────────────────────────────────────────
+        let cursor = null;
+        while (true) {
+          let url = `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(postId)}/reactions?account_id=${accId}&limit=${BATCH}`;
+          if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+          let items = [], nextCursor = null;
+          try {
+            const rd = await fetch(url, { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }).then(r=>r.json());
+            items = rd.items || [];
+            nextCursor = rd.cursor || null;
+          } catch(e) { break; }
+
+          if (!items.length) break;
+
+          let allNew = true;
+          for (const reaction of items) {
+            const rId = reaction.author?.id;
+            if (!rId) continue;
+
+            // Check if already exists
+            const { rows: existing } = await db.query(
+              `SELECT id FROM post_reactions WHERE post_id=$1 AND reactor_id=$2 LIMIT 1`,
+              [postId, rId]
+            );
+
+            if (existing.length > 0) {
+              allNew = false;
+              break; // found known reaction — stop this post
+            }
+
+            // Insert new reaction
+            await db.query(`
+              INSERT INTO post_reactions (post_id, account_id, workspace_id, reactor_id, reactor_name, reactor_headline, reactor_url, reaction_type)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+              ON CONFLICT (post_id, reactor_id) DO NOTHING
+            `, [postId, accId, wsId, rId, reaction.author?.name||null, reaction.author?.headline||null, reaction.author?.profile_url||null, reaction.value||'LIKE']);
+            result.reactions_new++;
+          }
+
+          // If any existing found, or no cursor, stop paginating this post
+          if (!allNew || !nextCursor) break;
+          cursor = nextCursor;
+          await new Promise(r=>setTimeout(r,200));
+        }
+
+        // ── Comments (incremental) ──────────────────────────────────────────
+        cursor = null;
+        while (true) {
+          let url = `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(socialId)}/comments?account_id=${accId}&limit=${BATCH}`;
+          if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
+
+          let items = [], nextCursor = null;
+          try {
+            const cd = await fetch(url, { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }).then(r=>r.json());
+            items = cd.items || [];
+            nextCursor = cd.cursor || null;
+          } catch(e) { break; }
+
+          if (!items.length) break;
+
+          let allNew = true;
+          for (const comment of items) {
+            const cId = comment.id;
+            if (!cId) continue;
+
+            const { rows: existing } = await db.query(
+              `SELECT id FROM post_comments WHERE comment_id=$1 LIMIT 1`, [cId]
+            );
+
+            if (existing.length > 0) {
+              allNew = false;
+              break;
+            }
+
+            const authorDetails = comment.author_details || {};
+            await db.query(`
+              INSERT INTO post_comments (post_id, comment_id, account_id, workspace_id, author_id, author_name, author_headline, author_url, text, likes_count, created_at)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+              ON CONFLICT (comment_id) DO NOTHING
+            `, [postId, cId, accId, wsId, authorDetails.id||null, comment.author||null, authorDetails.headline||null, authorDetails.profile_url||null, comment.text||'', comment.reaction_counter||0, comment.date||null]);
+            result.comments_new++;
+          }
+
+          if (!allNew || !nextCursor) break;
+          cursor = nextCursor;
+          await new Promise(r=>setTimeout(r,200));
+        }
+
+        await new Promise(r=>setTimeout(r,250)); // rate limit between posts
+      }
+
+      console.log(`[EngagementSync] ws${wsId}/${acc.display_name||accId.substring(0,8)}: done`);
+      await new Promise(r=>setTimeout(r,500)); // between accounts
+    }
+
+    console.log(`[EngagementSync] Done — new reactions:${result.reactions_new} new comments:${result.comments_new}`);
+    res.json({ ok: true, ...result });
+  } catch(e) {
+    console.error('[EngagementSync]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
