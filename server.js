@@ -479,6 +479,14 @@ app.post('/api/posts/fetch', async (req, res) => {
   }
 });
 
+// POST /api/posts/scrape — manual trigger for the posts scheduler
+app.post('/api/posts/scrape', async (req, res) => {
+  require('./src/profileViewScraper').fetchAllUserPosts()
+    .then(r => console.log('[PostsScrape] manual done:', JSON.stringify(r)))
+    .catch(e => console.error('[PostsScrape] manual error:', e.message));
+  res.json({ ok: true, status: 'posts scrape started' });
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {

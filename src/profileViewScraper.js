@@ -594,6 +594,107 @@ async function runAllWorkspaces() {
   }
 }
 
+// ── Posts fetcher: scrape latest 10 posts per account, 3×/day ──────────────────
+
+async function fetchAllUserPosts() {
+  const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+  const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+  // Ensure user_posts table exists
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_posts (
+      id              SERIAL PRIMARY KEY,
+      workspace_id    INTEGER NOT NULL,
+      account_id      VARCHAR(255) NOT NULL,
+      post_id         VARCHAR(255),
+      social_id       VARCHAR(255),
+      share_url       TEXT,
+      post_date       VARCHAR(255),
+      parsed_datetime TIMESTAMP,
+      text            TEXT,
+      likes_count     INTEGER DEFAULT 0,
+      comments_count  INTEGER DEFAULT 0,
+      reposts_count   INTEGER DEFAULT 0,
+      impressions     INTEGER DEFAULT 0,
+      is_repost       BOOLEAN DEFAULT FALSE,
+      author_name     TEXT,
+      author_pid      VARCHAR(255),
+      scraped_at      TIMESTAMP DEFAULT NOW()
+    )
+  `).catch(()=>{});
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_up_post_acc ON user_posts(post_id, account_id) WHERE post_id IS NOT NULL`).catch(()=>{});
+
+  const { rows: accounts } = await db.query(
+    `SELECT workspace_id, account_id, display_name FROM unipile_accounts ORDER BY workspace_id, account_id`
+  );
+
+  let total = 0;
+  for (const acc of accounts) {
+    const { workspace_id: wsId, account_id: accId, display_name: name } = acc;
+    try {
+      // Get provider_id via /me
+      const meRes = await fetch(`${UNIPILE_DSN}/api/v1/users/me?account_id=${accId}`, {
+        headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' }
+      });
+      if (!meRes.ok) continue;
+      const me = await meRes.json();
+      const pid = me.provider_id || me.entity_urn?.split(':').pop();
+      if (!pid) continue;
+
+      // Fetch latest 10 posts
+      const postsRes = await fetch(
+        `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}/posts?account_id=${accId}&limit=10`,
+        { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
+      );
+      if (!postsRes.ok) continue;
+      const data = await postsRes.json();
+      const posts = data.items || [];
+
+      for (const post of posts) {
+        try {
+          await db.query(`
+            INSERT INTO user_posts
+              (workspace_id, account_id, post_id, social_id, share_url, post_date,
+               parsed_datetime, text, likes_count, comments_count, reposts_count,
+               impressions, is_repost, author_name, author_pid)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+            ON CONFLICT (post_id, account_id) DO UPDATE SET
+              likes_count    = EXCLUDED.likes_count,
+              comments_count = EXCLUDED.comments_count,
+              reposts_count  = EXCLUDED.reposts_count,
+              impressions    = EXCLUDED.impressions,
+              scraped_at     = NOW()
+          `, [
+            wsId, accId,
+            post.id || post.social_id,
+            post.social_id,
+            post.share_url || null,
+            post.date || null,
+            post.parsed_datetime ? new Date(post.parsed_datetime) : null,
+            post.text || '',
+            post.reaction_counter || post.likes_count || 0,
+            post.comment_counter  || post.comments_count || 0,
+            post.repost_counter   || post.reposts_count || 0,
+            post.impressions_counter || post.impressions || 0,
+            post.is_repost || false,
+            post.author?.name || null,
+            post.author?.id   || post.author?.public_identifier || null
+          ]);
+          total++;
+        } catch(e) { /* skip duplicate/bad */ }
+      }
+
+      console.log(`[PostsScraper] ws${wsId}/${name||accId.substring(0,8)}: ${posts.length} posts`);
+      await new Promise(r => setTimeout(r, 600));
+    } catch(e) {
+      console.warn(`[PostsScraper] ${accId}: ${e.message}`);
+    }
+  }
+
+  console.log(`[PostsScraper] Done — upserted ${total} posts across ${accounts.length} accounts`);
+  return { total, accounts: accounts.length };
+}
+
 // ── Scheduler: fire at 08:00, 14:00, 20:00 ───────────────────────────────────
 
 let _lastFiredHour = -1;
@@ -610,7 +711,10 @@ function start() {
 
       if (FIRE_HOURS.includes(hour) && min === 0 && _lastFiredHour !== hour) {
         _lastFiredHour = hour;
+        // Run profile view scraper + enrichment
         runAllWorkspaces().catch(e => console.error('[ProfileViewScraper] scheduled run error:', e.message));
+        // Run posts fetch (all workspaces, latest 10 per account)
+        fetchAllUserPosts().catch(e => console.error('[PostsScraper] scheduled run error:', e.message));
       }
     }, 60 * 1000); // check every minute
 
@@ -618,4 +722,4 @@ function start() {
   }, STARTUP_DELAY_MS);
 }
 
-module.exports = { start, runAllWorkspaces, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable, _parseViewer: parseViewer };
+module.exports = { start, runAllWorkspaces, fetchAllUserPosts, processAccount, processCompanyPageAccount, enrichProfileViewers, ensureTable, _parseViewer: parseViewer };
