@@ -1144,6 +1144,23 @@ app.post('/api/inbound/enrich', async (req, res) => {
   }
 });
 
+// PATCH /api/accounts/:account_id/settings — patch account settings (e.g., company_page_urn)
+app.patch('/api/accounts/:account_id/settings', async (req, res) => {
+  const { account_id } = req.params;
+  const { settings } = req.body || {};
+  if (!settings || typeof settings !== 'object') return res.status(400).json({ error: 'settings object required' });
+  try {
+    await db.query(
+      `UPDATE unipile_accounts SET settings = settings || $2::jsonb WHERE account_id = $1`,
+      [account_id, JSON.stringify(settings)]
+    );
+    const { rows } = await db.query(`SELECT settings FROM unipile_accounts WHERE account_id=$1`, [account_id]);
+    res.json({ ok: true, settings: rows[0]?.settings });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
