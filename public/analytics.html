@@ -1047,10 +1047,17 @@ function renderOverlapTable() {
   }).join('');
 }
 
-// ── Init tabs if wsId === '4' ──────────────────────────────────────────────
+// ── Init tabs for all workspaces ─────────────────────────────────────────────
 function initTabs() {
-  if (wsId === '4') {
-    document.getElementById('tab-bar').style.display = '';
+  // Always show tab-bar (Automations tab available everywhere)
+  document.getElementById('tab-bar').style.display = '';
+
+  // Email + Overlap tabs only for Datatailr (ws4)
+  var emailBtn = document.getElementById('tab-email');
+  var overlapBtn = document.getElementById('tab-overlap');
+  if (wsId !== '4') {
+    if (emailBtn) emailBtn.style.display = 'none';
+    if (overlapBtn) overlapBtn.style.display = 'none';
   }
 }
 
