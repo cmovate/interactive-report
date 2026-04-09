@@ -238,4 +238,4 @@ function daysBetween(d1, d2) { return (d2 - d1) / (1000 * 60 * 60 * 24); }
 function toDateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-module.exports = { start, countSentThisMonth };
+module.exports = { start, run, countSentThisMonth };

@@ -1161,6 +1161,18 @@ app.patch('/api/accounts/:account_id/settings', async (req, res) => {
   }
 });
 
+// POST /api/company-follow/run — manual trigger for companyFollowSender
+app.post('/api/company-follow/run', (_req, res) => {
+  const { run } = require('./src/companyFollowSender');
+  if (typeof run === 'function') {
+    run().catch(e => console.error('[CompanyFollow manual]', e.message));
+    res.json({ ok: true, status: 'company follow sender started' });
+  } else {
+    // Sender has no exported run — it runs internally via setInterval
+    res.json({ ok: false, message: 'No manual trigger available — sender runs every 30min automatically' });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
