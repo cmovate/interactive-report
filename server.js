@@ -251,158 +251,88 @@ app.post('/api/profile-views/enrich', async (req, res) => {
 });
 
 // POST /api/profile-views/bulk-import
-// For every account in every workspace: fetch up to 100 viewers in batches of 10
-// Then auto-enrich all newly imported viewers
+// Fetches exactly 10 viewers per account starting at `start` offset
+// Call repeatedly with start=0,10,20,...90 to page through 100 viewers
 app.post('/api/profile-views/bulk-import', async (req, res) => {
-  const { workspace_id } = req.body || {}; // optional: limit to one ws
+  const { workspace_id, start = 0 } = req.body || {};
 
   try {
-    const scraper     = require('./src/profileViewScraper');
+    const scraper = require('./src/profileViewScraper');
     const UNIPILE_DSN     = process.env.UNIPILE_DSN;
     const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
 
     await scraper.ensureTable();
 
-    // Get accounts to process
+    // Get accounts for this workspace (or all)
     const wsFilter = workspace_id ? `WHERE ua.workspace_id = ${parseInt(workspace_id)}` : '';
     const { rows: accounts } = await db.query(`
       SELECT ua.workspace_id, ua.account_id, ua.display_name
-      FROM unipile_accounts ua
-      ${wsFilter}
+      FROM unipile_accounts ua ${wsFilter}
       ORDER BY ua.workspace_id, ua.account_id
     `);
 
+    const BATCH = 10;
     const summary = {};
-    const BATCH_SIZE = 10;
-    const TOTAL_PER_USER = 100;
-    const BATCHES = TOTAL_PER_USER / BATCH_SIZE; // = 10 batches
 
     for (const acc of accounts) {
       const { workspace_id: wsId, account_id: accId, display_name: name } = acc;
-      const key = `ws${wsId}/${name || accId.substring(0,8)}`;
-      let totalFetched = 0, totalAdded = 0, batchErrors = 0;
+      const key = `ws${wsId}/${(name||accId).substring(0,12)}`;
+      let fetched = 0, added = 0, error = null;
 
-      for (let batch = 0; batch < BATCHES; batch++) {
-        const start = batch * BATCH_SIZE;
-
-        // Build paginated Voyager URL
-        const voyagerUrl = 
+      try {
+        const voyagerUrl =
           'https://www.linkedin.com/voyager/api/graphql' +
-          `?variables=(start:\${start},count:\${BATCH_SIZE},query:(),analyticsEntityUrn:(activityUrn:urn%3Ali%3Adummy%3A-1),surfaceType:WVMP)` +
+          `?variables=(start:${start},count:${BATCH},query:(),analyticsEntityUrn:(activityUrn:urn%3Ali%3Adummy%3A-1),surfaceType:WVMP)` +
           '&queryId=voyagerPremiumDashAnalyticsObject.c31102e906e7098910f44e0cecaa5b5c';
 
-        try {
-          const resp = await fetch(`\${UNIPILE_DSN}/api/v1/linkedin`, {
-            method: 'POST',
-            headers: {
-              'X-API-KEY': UNIPILE_API_KEY,
-              'accept': 'application/json',
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-              account_id:  accId,
-              method:      'GET',
-              request_url: voyagerUrl,
-              encoding:    false,
-            }),
-          });
+        const resp = await fetch(`${UNIPILE_DSN}/api/v1/linkedin`, {
+          method: 'POST',
+          headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json', 'content-type': 'application/json' },
+          body: JSON.stringify({ account_id: accId, method: 'GET', request_url: voyagerUrl, encoding: false }),
+        });
 
-          if (!resp.ok) { const errTxt = await resp.text(); console.warn('[BulkImport] API err', resp.status, errTxt.substring(0,200)); batchErrors++; break; }
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-          const data = await resp.json();
-          const elems = data?.data?.data?.premiumDashAnalyticsObjectByAnalyticsEntity?.elements || [];
+        const data = await resp.json();
+        const elems = data?.data?.data?.premiumDashAnalyticsObjectByAnalyticsEntity?.elements || [];
+        fetched = elems.length;
 
-          if (!elems.length) break; // no more data — stop early
+        for (const elem of elems) {
+          try {
+            const v = scraper._parseViewer(elem);
+            if (!v) continue;
 
-          totalFetched += elems.length;
+            // Dedup
+            const dup = v.liUrl
+              ? await db.query(`SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_li_url=$3 LIMIT 1`, [wsId, accId, v.liUrl])
+              : await db.query(`SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_name=$3 AND is_anonymous=true AND scraped_at > NOW()-INTERVAL '90 days' LIMIT 1`, [wsId, accId, v.name||'']);
+            if (dup.rows.length) continue;
 
-          // Parse + insert each element (inline parse, no scraper dependency)
-          for (const elem of elems) {
-            try {
-              const lockup = elem?.content?.analyticsEntityLockup?.entityLockup;
-              if (!lockup) continue;
-
-              const vName    = (lockup?.title?.text || '').trim();
-              const vTitle   = (lockup?.subtitle?.text || '').trim();
-              const vCaption = (lockup?.caption?.text || '').trim();
-
-              const rawJson = JSON.stringify(elem);
-              const pidM  = rawJson.match(/"publicIdentifier":"([^"]+)"/);
-              const pid   = pidM?.[1] || null;
-              const liUrl = pid ? `https://www.linkedin.com/in/${pid}` : null;
-              const isAnon = !pid;
-
-              // Parse timestamp from caption
-              let viewedAt = null;
-              if (vCaption) {
-                const hM = vCaption.match(/(\d+)\s*h/i);
-                const dM = vCaption.match(/(\d+)\s*d/i);
-                const mM = vCaption.match(/(\d+)\s*m/i);
-                const now = Date.now();
-                if      (hM) viewedAt = new Date(now - parseInt(hM[1]) * 3600000);
-                else if (dM) viewedAt = new Date(now - parseInt(dM[1]) * 86400000);
-                else if (mM) viewedAt = new Date(now - parseInt(mM[1]) * 60000);
-                else         viewedAt = new Date();
-              }
-
-              // Dedup
-              const dupCheck = liUrl
-                ? await db.query(
-                    `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_li_url=$3 LIMIT 1`,
-                    [wsId, accId, liUrl])
-                : await db.query(
-                    `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_name=$3 AND is_anonymous=true AND scraped_at > NOW() - INTERVAL '90 days' LIMIT 1`,
-                    [wsId, accId, vName || '']);
-              if (dupCheck.rows.length) continue;
-
-              // Match to contact
-              let contactId = null;
-              if (!isAnon && liUrl) {
-                const { rows } = await db.query(
-                  `SELECT id FROM contacts WHERE workspace_id=$1 AND (li_profile_url=$2 OR provider_id=$3) LIMIT 1`,
-                  [wsId, liUrl, pid || '']);
-                contactId = rows[0]?.id || null;
-              }
-
-              await db.query(
-                `INSERT INTO profile_view_events
-                   (workspace_id, account_id, viewed_at, is_anonymous, viewer_name, viewer_title,
-                    viewer_provider_id, viewer_li_url, contact_id, raw_caption)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-                [wsId, accId, viewedAt, isAnon, vName, vTitle, pid, liUrl, contactId, vCaption]);
-              totalAdded++;
-            } catch(parseErr) {
-              console.warn(`[BulkImport] parse error: ${parseErr.message}`);
+            // Match contact
+            let contactId = null;
+            if (!v.isAnonymous && v.liUrl) {
+              const { rows } = await db.query(`SELECT id FROM contacts WHERE workspace_id=$1 AND (li_profile_url=$2 OR provider_id=$3) LIMIT 1`, [wsId, v.liUrl, v.publicIdentifier||'']);
+              contactId = rows[0]?.id || null;
             }
-          }
 
-          await new Promise(r => setTimeout(r, 600)); // rate limit between batches
-        } catch(e) {
-          console.warn(`[BulkImport] \${key} batch\${batch}: \${e.message}`);
-          batchErrors++;
-          break;
+            await db.query(
+              `INSERT INTO profile_view_events (workspace_id,account_id,viewed_at,is_anonymous,viewer_name,viewer_title,viewer_provider_id,viewer_li_url,contact_id,raw_caption) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+              [wsId, accId, v.viewedAt, v.isAnonymous, v.name, v.title||'', v.publicIdentifier, v.liUrl, contactId, v.caption||'']
+            );
+            added++;
+          } catch(parseErr) { /* skip bad element */ }
         }
-      }
 
-      summary[key] = { fetched: totalFetched, added: totalAdded, errors: batchErrors };
-      console.log(`[BulkImport] \${key}: fetched=\${totalFetched} added=\${totalAdded} errors=\${batchErrors}`);
-
-      await new Promise(r => setTimeout(r, 1000)); // rate limit between accounts
-    }
-
-    // Auto-enrich all workspaces
-    const wsIds = [...new Set(accounts.map(a => a.workspace_id))];
-    const enrichSummary = {};
-    for (const wsId of wsIds) {
-      try {
-        const enrichResult = await require('./src/profileViewScraper').enrichProfileViewers(wsId, 200);
-        enrichSummary[wsId] = enrichResult;
+        await new Promise(r => setTimeout(r, 400)); // rate limit per account
       } catch(e) {
-        enrichSummary[wsId] = { error: e.message };
+        error = e.message;
       }
+
+      summary[key] = { fetched, added, error };
+      console.log(`[BulkImport] start=${start} ${key}: fetched=${fetched} added=${added}${error?' err='+error:''}`);
     }
 
-    res.json({ ok: true, accounts: accounts.length, summary, enrichSummary });
+    res.json({ ok: true, start, accounts: accounts.length, summary });
   } catch(e) {
     console.error('[BulkImport]', e.message);
     res.status(500).json({ error: e.message });
