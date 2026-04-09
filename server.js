@@ -487,6 +487,137 @@ app.post('/api/posts/scrape', async (req, res) => {
   res.json({ ok: true, status: 'posts scrape started' });
 });
 
+// POST /api/posts/engagement — scrape reactions & comments for posts of given account
+// body: { account_id, workspace_id, limit_posts: 20 }
+app.post('/api/posts/engagement', async (req, res) => {
+  const { account_id: accId, workspace_id: wsId, limit_posts = 20 } = req.body || {};
+  if (!accId) return res.status(400).json({ error: 'account_id required' });
+
+  try {
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    // Ensure engagement tables
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS post_reactions (
+        id          SERIAL PRIMARY KEY,
+        post_id     VARCHAR(255) NOT NULL,
+        account_id  VARCHAR(255) NOT NULL,
+        workspace_id INTEGER,
+        reactor_id  VARCHAR(255),
+        reactor_name TEXT,
+        reactor_headline TEXT,
+        reactor_url TEXT,
+        reaction_type VARCHAR(50),
+        scraped_at  TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(()=>{});
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pr_post_reactor ON post_reactions(post_id, reactor_id) WHERE reactor_id IS NOT NULL`).catch(()=>{});
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS post_comments (
+        id           SERIAL PRIMARY KEY,
+        post_id      VARCHAR(255) NOT NULL,
+        comment_id   VARCHAR(255),
+        account_id   VARCHAR(255) NOT NULL,
+        workspace_id INTEGER,
+        author_id    VARCHAR(255),
+        author_name  TEXT,
+        author_headline TEXT,
+        author_url   TEXT,
+        text         TEXT,
+        likes_count  INTEGER DEFAULT 0,
+        created_at   VARCHAR(255),
+        scraped_at   TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(()=>{});
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pc_comment ON post_comments(comment_id) WHERE comment_id IS NOT NULL`).catch(()=>{});
+
+    // Get posts for this account
+    const { rows: posts } = await db.query(
+      `SELECT post_id, social_id, text FROM user_posts
+       WHERE account_id = $1 AND post_id IS NOT NULL
+       ORDER BY scraped_at DESC LIMIT $2`,
+      [accId, parseInt(limit_posts)]
+    );
+
+    const summary = { posts: posts.length, reactions: 0, comments: 0, errors: 0 };
+
+    for (const post of posts) {
+      const postId = post.post_id;
+
+      // Fetch reactions
+      try {
+        const rr = await fetch(
+          `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(postId)}/reactions?account_id=${accId}&limit=100`,
+          { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
+        ).then(r=>r.json());
+
+        for (const reaction of (rr.items || [])) {
+          await db.query(`
+            INSERT INTO post_reactions
+              (post_id, account_id, workspace_id, reactor_id, reactor_name, reactor_headline, reactor_url, reaction_type)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+            ON CONFLICT (post_id, reactor_id) DO UPDATE SET
+              reaction_type = EXCLUDED.reaction_type,
+              scraped_at    = NOW()
+          `, [
+            postId, accId, wsId || null,
+            reaction.author?.id || null,
+            reaction.author?.name || null,
+            reaction.author?.headline || null,
+            reaction.author?.profile_url || null,
+            reaction.value || 'LIKE'
+          ]).catch(()=>{});
+          summary.reactions++;
+        }
+      } catch(e) { summary.errors++; }
+
+      await new Promise(r => setTimeout(r, 300));
+
+      // Fetch comments
+      try {
+        const cr = await fetch(
+          `${UNIPILE_DSN}/api/v1/posts/${encodeURIComponent(postId)}/comments?account_id=${accId}&limit=50`,
+          { headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' } }
+        ).then(r=>r.json());
+
+        for (const comment of (cr.items || [])) {
+          await db.query(`
+            INSERT INTO post_comments
+              (post_id, comment_id, account_id, workspace_id, author_id, author_name, author_headline, author_url, text, likes_count, created_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+            ON CONFLICT (comment_id) DO UPDATE SET
+              text       = EXCLUDED.text,
+              likes_count = EXCLUDED.likes_count,
+              scraped_at  = NOW()
+          `, [
+            postId,
+            comment.id || comment.comment_id || null,
+            accId, wsId || null,
+            comment.author?.id || null,
+            comment.author?.name || null,
+            comment.author?.headline || null,
+            comment.author?.profile_url || null,
+            comment.text || comment.content?.text || '',
+            comment.likes_count || comment.reaction_counter || 0,
+            comment.date || comment.created_at || null
+          ]).catch(()=>{});
+          summary.comments++;
+        }
+      } catch(e) { summary.errors++; }
+
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    console.log(`[PostEngagement] acc=${accId}: posts=${summary.posts} reactions=${summary.reactions} comments=${summary.comments}`);
+    res.json({ ok: true, ...summary });
+  } catch(e) {
+    console.error('[PostEngagement]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
