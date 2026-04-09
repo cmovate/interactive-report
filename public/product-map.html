@@ -149,7 +149,7 @@ ul.feat li{flex-wrap:nowrap}
   <a href="#feed">Feed</a>
   <a href="#inbox">Inbox</a>
   <a href="#settings">Settings</a>
-  <a href="#automations">Automations</a>
+  <a href="#automations">Automations</a><a href="#api-reference">API Reference</a>
   <a href="#database">Database</a>
   <a href="#limits">Limits</a>
   <a href="#flow">Full Flow</a>
@@ -526,31 +526,34 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="automations">
   <div class="section-header">
-    <div class="section-icon" style="background:#fef9c3">ð¤</div>
-    <div><h2>Background Automations</h2><p>All workers running continuously â the engine of El-Via</p></div>
+    <div class="section-icon" style="background:#fef9c3">⚙️</div>
+    <div><h2>Background Automations</h2><p>16 workers running continuously — full engine of El-Via</p></div>
   </div>
-  <div class="callout info">All automations registered in <code>server.js</code> via <code>module.start()</code> after DB schema init. Run on Railway server process â no external cron needed.</div>
-  <div class="tab-block">
-    <div class="tab-body" style="padding-top:16px">
-      <div class="sub-title green">Outreach Automations</div>
-      <div class="auto-row"><span class="auto-badge badge-green">Every 45min</span><div><div class="auto-name">invitationSender.js</div><div class="auto-desc">Sends LinkedIn connection requests to uninvited contacts. Respects daily limit. Attaches note if configured. Sets invite_sent=true.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-green">Every 30min</span><div><div class="auto-name">messageSender.js</div><div class="auto-desc">Sends next message in sequence to approved contacts. Checks delay conditions between steps. Updates msg_N_text, msg_N_sent_at, msg_sent=true.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-orange">On-demand</span><div><div class="auto-name">withdrawSender.js</div><div class="auto-desc">Withdraws unanswered connection requests older than 3 weeks. Frees up pending invite slots. Triggered manually from campaign UI.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-blue">Every 60min</span><div><div class="auto-name">companyFollowSender.js</div><div class="auto-desc">Sends company page follows to connected contacts. Uses company_page_url from account settings. Monthly cap: 250. Sets company_follow_invited=true.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-blue">Every 60min</span><div><div class="auto-name">profileViewer.js</div><div class="auto-desc">Views profiles of contacts as a warm signal before messaging. Sets last_profile_view_at. Respects daily view limit.</div></div></div>
-      <div class="sub-title purple" style="margin-top:20px">Engagement Automations</div>
-      <div class="auto-row"><span class="auto-badge badge-purple">On-demand</span><div><div class="auto-name">engagementScraper.js</div><div class="auto-desc">Fetches recent posts for all campaign contacts. Classifies: un_engaged / average_engaged / engaged. Stores engagement_data JSON. Feeds likeSender and Feed tab.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-purple">On-demand</span><div><div class="auto-name">companyEngagementScraper.js</div><div class="auto-desc">Fetches posts from company LinkedIn pages (not individuals). Data flows to Feed tab.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-purple">On-demand</span><div><div class="auto-name">likeSender.js</div><div class="auto-desc">Likes recent posts/comments of engaged contacts. Creates warm touchpoints. Tracks post_likes_sent and comment_likes_sent per contact.</div></div></div>
-      <div class="sub-title orange" style="margin-top:20px">Intelligence Automations</div>
-      <div class="auto-row"><span class="auto-badge badge-orange">Every 60min</span><div><div class="auto-name">opportunityScraper.js</div><div class="auto-desc">Scans all 3 company sources (campaign_companies, opportunity_companies, contacts.work_experience) for 1st-degree connections (DISTANCE_1). Saves to contacts with already_connected=true, campaign_id=NULL. Powers Opportunities tab.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-green">Every 60min</span><div><div class="auto-name">followerScraper.js</div><div class="auto-desc">Fetches new followers of connected accounts. Identifies organic warm leads.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-green">Every 6 hours</span><div><div class="auto-name">statsSnapshotter.js</div><div class="auto-desc">Snapshots key LinkedIn metrics per account (connections count, followers). Builds trend data for Admin Analytics.</div></div></div>
-      <div class="sub-title blue" style="margin-top:20px">Inbox Automations</div>
-      <div class="auto-row"><span class="auto-badge badge-blue">Every 30min</span><div><div class="auto-name">conversationQueue.js</div><div class="auto-desc">Polls Unipile for new messages on all accounts. Matches threads to contacts. Updates msg_replied=true and conversation_id.</div></div></div>
-      <div class="auto-row"><span class="auto-badge badge-blue">Every 30min</span><div><div class="auto-name">conversationAnalyzer.js</div><div class="auto-desc">Sends unanalyzed conversation threads to AI. Classifies intent (positive/neutral/negative), extracts what person is asking, generates recommended next step.</div></div></div>
-    </div>
-  </div>
+  <div class="callout info">All automations start via <code>module.start()</code> in server.js after DB init. Run on Railway — no external cron needed. Manual triggers available for all via API endpoints.</div>
+
+  <div class="sub-title green" style="margin-bottom:12px">🚀 Outbound</div>
+  <div class="auto-row"><span class="auto-badge badge-green">Every 15min</span><div><div class="auto-name">invitationSender.js</div><div class="auto-desc">Sends LinkedIn connection requests per active campaign. Respects working hours + daily limit per account (settings.limits.connection_requests). Uses provider_id (ACoXXX), not vanity slug. Manual: <code>POST /api/campaigns/:id/scrape-engagement</code></div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-green">Every 5min</span><div><div class="auto-name">messageSender.js</div><div class="auto-desc">Sends LinkedIn messages by campaign sequence. Supports A/B/C variants, delay scheduling (days/hours/minutes), working hours. Jitter ±hours on scheduling to avoid patterns. Max 3 concurrent sends.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-blue">Every 15min</span><div><div class="auto-name">profileViewer.js</div><div class="auto-desc">Views LinkedIn profiles of campaign contacts. Max once every 7 days per contact. 30–90s random delay between views. Daily limit from account settings. Warm signal before messaging.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-blue">Every 30min</span><div><div class="auto-name">companyFollowSender.js</div><div class="auto-desc">Sends company page follow invites to connected contacts. State machine: normal → waiting_5d → drip → waiting_7d. Monthly limit: 250/account. Batch: 5. Requires company_page_urn in account settings. Manual: <code>POST /api/company-follow/run</code></div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-orange">Daily (timed)</span><div><div class="auto-name">withdrawSender.js</div><div class="auto-desc">Withdraws pending connection requests not accepted within withdraw_after_days. Runs once daily at configured time. Frees up pending invite slots.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-purple">Every 1h</span><div><div class="auto-name">likeSender.js</div><div class="auto-desc">Likes posts/comments of engaged contacts from personal accounts. Skips contacts already liked by company page today. Dedup via liked_ids. Only contacts with engagement_level: engaged/average_engaged.</div></div></div>
+
+  <div class="sub-title blue" style="margin-top:24px;margin-bottom:12px">📥 Inbound &amp; Tracking</div>
+  <div class="auto-row"><span class="auto-badge badge-green">Every 30min</span><div><div class="auto-name">approvalChecker.js</div><div class="auto-desc">Fetches full relations list from Unipile for each active account. Marks invite_approved=true when contact's provider_id appears. Also marks already_connected for pre-existing connections not in any campaign.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-green">Every 30min</span><div><div class="auto-name">inboxPoller.js</div><div class="auto-desc">Backup webhook insurance. Fetches last 15 chats per account, syncs to inbox_threads/inbox_messages. Marks msg_replied on campaign contacts who replied — catches missed webhooks. Manual: <code>POST /api/inbox/poll</code></div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-blue">08:00 / 14:00 / 20:00</span><div><div class="auto-name">profileViewScraper.js — Views</div><div class="auto-desc">Fetches last 5 LinkedIn profile viewers per account via Voyager API. Stores in profile_view_events. Identified viewers matched to contacts/lists. Adds unknown viewers to "Profile Viewers" list. Then auto-enriches company names via Unipile work_experience API. Manual: <code>POST /api/profile-views/scrape</code></div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-blue">08:00 / 14:00 / 20:00</span><div><div class="auto-name">profileViewScraper.js — Posts</div><div class="auto-desc">Fetches latest 10 posts per account via Unipile GET /api/v1/users/{pid}/posts. Upserts to user_posts table — updates likes/comments/reposts/impressions on re-run. All workspaces. Manual: <code>POST /api/posts/scrape</code></div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-orange">Every 30min</span><div><div class="auto-name">profileViewScraper.js — Engagement Sync</div><div class="auto-desc">Incremental sync of reactions + comments per user post. Fetches 10 at a time, stops on first known item. If all-new → fetches 10 more with cursor. Saves to post_reactions + post_comments tables. Manual: <code>POST /api/posts/engagement/sync</code></div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-orange">Every 30min</span><div><div class="auto-name">followerScraper.js</div><div class="auto-desc">Scrapes company page followers. Learning mode (days 0–7): 3×/day full scrape. Incremental after: top N pages, stops when all known. Cross-references with contacts to mark company_follow_confirmed. Requires company_page_urn in account settings. Manual: <code>POST /api/followers/scrape</code></div></div></div>
+
+  <div class="sub-title purple" style="margin-top:24px;margin-bottom:12px">🧠 Intelligence &amp; Enrichment</div>
+  <div class="auto-row"><span class="auto-badge badge-purple">Daily (2×)</span><div><div class="auto-name">engagementScraper.js</div><div class="auto-desc">3 phases: (1) Scrape posts+comments for contacts, save JSONB. (2) Personal-account likes if enabled — skips company-liked today. (3) Classify engagement_level per contact: un_engaged / average_engaged / engaged. Feeds Feed tab + likeSender.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-purple">Every 1h</span><div><div class="auto-name">companyEngagementScraper.js</div><div class="auto-desc">Scrapes company posts (last 14 days) for every company in campaign_companies + opportunity_companies. Up to 50 posts per company. Whether to LIKE is controlled separately by campaign settings.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-orange">Every 1h</span><div><div class="auto-name">opportunityScraper.js</div><div class="auto-desc">Finds 1st-degree connections at target companies via Unipile search (DISTANCE_1). Sources: campaign_companies + opportunity_companies + contacts' work_experience. Saves to contacts with already_connected=true, campaign_id=NULL. Powers Opportunities tab.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-orange">Every 6h</span><div><div class="auto-name">scheduler.js</div><div class="auto-desc">Auto-scan: scans all list companies for 1st-degree connections every 6 hours. Populates Opportunities page with new people to engage.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-blue">Event-driven</span><div><div class="auto-name">conversationQueue.js + conversationAnalyzer.js</div><div class="auto-desc">2-minute debounce per contact after message received. Max 3 concurrent Claude AI analyses. Detects positive/negative intent, suggests reply. Restart recovery re-queues unanalyzed contacts. Triggered by webhook or inboxPoller.</div></div></div>
+  <div class="auto-row"><span class="auto-badge badge-green">Daily</span><div><div class="auto-name">statsSnapshotter.js</div><div class="auto-desc">Saves daily funnel snapshots per campaign to campaign_daily_stats. Idempotent (ON CONFLICT DO UPDATE). Runs on startup to catch missed days, then every 24h.</div></div></div>
 </section>
 
 <section id="database">
@@ -1047,4 +1050,208 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 });
 </script>
+
+<section id="api-reference">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ede9fe">📡</div>
+    <div><h2>API Reference</h2><p>All HTTP endpoints — production base URL: interactive-report-production-0c5d.up.railway.app</p></div>
+  </div>
+  <div class="callout info">All endpoints are prefixed with the base URL. Authentication is handled at the Railway level. All POST/PATCH bodies are JSON.</div>
+
+  <style>
+  .api-group{margin-bottom:28px}
+  .api-group-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#7c3aed;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid #ede9fe}
+  .ep-table{width:100%;border-collapse:collapse;font-size:13px}
+  .ep-table tr{border-bottom:1px solid #f3f4f6}
+  .ep-table tr:last-child{border-bottom:none}
+  .ep-table td{padding:8px 10px;vertical-align:top}
+  .ep-table td:first-child{width:52px}
+  .ep-table td:nth-child(2){font-family:monospace;font-size:12px;width:340px;color:#1e3a5f;word-break:break-all}
+  .ep-table td:nth-child(3){color:#374151;line-height:1.45}
+  .ep-table td code{font-size:11px;background:#f3f4f6;padding:1px 5px;border-radius:3px}
+  .m-get{background:#dcfce7;color:#166534;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:monospace}
+  .m-post{background:#dbeafe;color:#1e40af;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:monospace}
+  .m-patch{background:#fef9c3;color:#854d0e;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:monospace}
+  .m-delete{background:#fee2e2;color:#991b1b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;font-family:monospace}
+  </style>
+
+  <div class="api-group">
+    <div class="api-group-title">Workspaces &amp; Accounts</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/workspaces</td><td>List all workspaces</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/workspaces</td><td>Create workspace</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/workspaces/:id/accounts</td><td>List accounts for workspace</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/workspaces/:id/accounts</td><td>Add Unipile account to workspace</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/workspaces/:id/accounts/:accountId/settings</td><td>Update account settings (limits, company_page_urn, hours)</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/accounts/:account_id/settings</td><td>Directly patch account settings. body: <code>{ settings: {} }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/workspaces/:id/accounts/:accountId/refresh-profile</td><td>Refresh Unipile profile for account</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/workspaces/:id/accounts/:accountId</td><td>Remove account from workspace</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/workspaces/:id</td><td>Delete workspace</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Campaigns</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/campaigns</td><td>List campaigns. <code>?workspace_id=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns</td><td>Create campaign</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/campaigns/:id</td><td>Get campaign details</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/campaigns/:id/status</td><td>Set status: active / paused</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/campaigns/:id/settings</td><td>Update sequence, limits, working hours, engagement flags</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/campaigns/:id</td><td>Delete campaign</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/campaigns/:id/contacts</td><td>List contacts with funnel. <code>?page= &amp;search= &amp;filter=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/:id/contacts</td><td>Add contacts to campaign from list / manual</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/campaigns/:id/contacts/:contactId</td><td>Remove contact from campaign</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/campaigns/:id/companies</td><td>List target companies</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/:id/fetch-all-companies</td><td>Fetch companies from contact profiles into campaign</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/campaigns/:id/list</td><td>Assign a list to campaign</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/campaigns/:id/ab-analytics</td><td>A/B/C variant performance breakdown</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/:id/scrape-engagement</td><td>Trigger engagement scraper for campaign contacts</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/:id/send-likes</td><td>Manually trigger like sender</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/:id/run-withdraw</td><td>Manually run withdraw sender</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/:id/reclassify</td><td>Re-run engagement classification for all contacts</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/campaigns/search-people</td><td>Search LinkedIn for campaign audience via Unipile</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Contacts</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/contacts</td><td>List contacts. <code>?workspace_id= &amp;campaign_id= &amp;search=</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/contacts/:id/conversation</td><td>Full conversation thread for contact</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/:id/re-analyze</td><td>Re-run Claude AI conversation analysis</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/:id/send-invite</td><td>Manually send connection request</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/:id/withdraw-invite</td><td>Manually withdraw connection request</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/contacts/:id</td><td>Delete contact</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/contacts</td><td>Bulk delete. body: <code>{ campaign_id, filter }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/bulk-update</td><td>Bulk update contact fields</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/bulk-company-follow</td><td>Bulk send company follow invites</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/run-engagement-scraper</td><td>Trigger engagement scraper for specific contacts</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/re-extract</td><td>Re-extract company/title from profile_data JSONB</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/contacts/re-enrich</td><td>Re-enrich via Unipile profile API</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/contacts/conversation-queue-status</td><td>AI analysis queue depth and status</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Lists</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/lists</td><td>List all lists. <code>?workspace_id=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists</td><td>Create list</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/lists/:id</td><td>Update list name/settings</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/lists/:id</td><td>Delete list</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/lists/:id/contacts</td><td>Contacts in list. <code>?page= &amp;search= &amp;filter=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists/:id/contacts</td><td>Add contacts (li_url, provider_id, or bulk)</td></tr>
+      <tr><td><span class="m-delete">DEL</span></td><td>/api/lists/:id/contacts/:contactId</td><td>Remove contact from list</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists/:id/company-search</td><td>Search LinkedIn for people at list companies</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists/:id/bulk-import</td><td>Bulk import contacts from CSV or LinkedIn search</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists/:id/resolve-ids</td><td>Resolve LinkedIn URLs to provider IDs</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists/:id/scan-opportunities</td><td>Scan list companies for 1st-degree connections</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/lists/company-search-batch</td><td>Batch company search across multiple companies</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Inbound Signals — Profile Views, Posts, Engagement</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/profile-views</td><td>Profile view events + per-account breakdown. <code>?workspace_id= &amp;from= &amp;to= &amp;limit=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/profile-views/scrape</td><td>Manually trigger profile view scraper for all accounts</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/profile-views/enrich</td><td>Enrich viewers with company names. Stage 1: parse title/name. Stage 2: Unipile work_experience. body: <code>{ workspace_id, limit }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/profile-views/bulk-import</td><td>Import 10 viewers per account at offset. Call 10× with start=0,10..90. body: <code>{ workspace_id?, start }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/inbound/enrich</td><td>Deep enrich identified viewers via Unipile *_preview. Upserts to contacts + Inbound Signals list. body: <code>{ workspace_id, limit }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/posts/fetch</td><td>Fetch 10 posts/account with cursor. Pass nextCursors in 2nd call for posts 11–20. body: <code>{ workspace_id?, cursors }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/posts/scrape</td><td>Manually trigger posts scraper (same as 3×/day)</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/posts/engagement</td><td>Full engagement scrape for one account: all reactions + comments. body: <code>{ account_id, workspace_id, limit_posts }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/posts/engagement/sync</td><td>Incremental sync: 10 at a time, stops on first known. Auto-runs every 30min. body: <code>{ workspace_id?, account_id? }</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/posts/engagement-stats</td><td>Reactions + comments + top people + companies for analytics UI. <code>?workspace_id=</code></td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Company Followers</div>
+    <table class="ep-table">
+      <tr><td><span class="m-post">POST</span></td><td>/api/followers/scrape</td><td>Trigger company followers scrape. body: <code>{ account_id }</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/followers/status</td><td>Last scrape: mode, company_id, total_fetched, new_followers, confirmed</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/followers/stats</td><td>total_followers, invited, confirmed, conversion_rate. <code>?account_id=</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/followers</td><td>List scraped followers with contact cross-reference. <code>?workspace_id= &amp;page= &amp;search=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/company-follow/run</td><td>Manually trigger company follow sender (otherwise every 30min)</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Opportunities &amp; Hot Opportunities</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/opportunities</td><td>List opportunities with filters</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/opportunities/companies</td><td>Add company to Opportunities tracker</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/opportunities/scan</td><td>Trigger 1st-degree connection scan at opportunity companies</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/opportunities/enrich</td><td>Enrich opportunity contacts via Unipile</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/opportunities/attach-to-campaign</td><td>Add opportunity contacts to campaign</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/opportunities/send-message</td><td>Send message to opportunity contact</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/hot-opportunities</td><td>AI-generated high-priority outreach opportunities</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/hot-opportunities/scan-companies</td><td>Scan companies for new hot opportunities</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/hot-opportunities/regenerate-draft</td><td>Regenerate AI-written outreach draft</td></tr>
+      <tr><td><span class="m-patch">PATCH</span></td><td>/api/hot-opportunities/drafts/:id/status</td><td>Update draft status: approved / rejected / sent</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Inbox</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/inbox</td><td>List threads with last message preview. <code>?workspace_id= &amp;page= &amp;search= &amp;filter=</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/inbox/:threadId/messages</td><td>All messages in thread</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/inbox/:threadId/reply</td><td>Send reply. body: <code>{ text, account_id }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/inbox/sync</td><td>Force sync inbox from Unipile for all accounts</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/inbox/poll</td><td>Manually trigger inbox poller (backup webhook check)</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Feed (LinkedIn Content)</div>
+    <table class="ep-table">
+      <tr><td><span class="m-get">GET</span></td><td>/api/feed</td><td>Scraped LinkedIn posts for workspace contacts. <code>?workspace_id= &amp;campaign_id= &amp;page=</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/feed/fetch</td><td>Fetch latest posts from LinkedIn for campaign contacts</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/feed/like</td><td>Like a post. body: <code>{ post_id, account_id }</code></td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/feed/comment</td><td>Comment on a post</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Analytics &amp; Stats</div>
+    <table class="ep-table">
+      <tr><td><span class="m-post">POST</span></td><td>/api/analytics/share-token</td><td>Generate shareable token for campaign analytics</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/analytics/token/:token</td><td>Get shared analytics data (public, no auth)</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/stats/history</td><td>Campaign daily stats history. <code>?campaign_id= &amp;days=</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/stats/funnel</td><td>Full funnel counts for campaign</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/stats/followers</td><td>Company follower count history</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/automations/status</td><td>Live status of all automation services</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Enrichment Jobs</div>
+    <table class="ep-table">
+      <tr><td><span class="m-post">POST</span></td><td>/api/enrich-job/start</td><td>Start background contact enrichment job</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/enrich-job/stop</td><td>Stop enrichment job</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/enrich-job/status</td><td>Enrichment job progress</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/enrich-companies</td><td>Enrich company records with LinkedIn data</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/enrich-list</td><td>Enrich all contacts in a list via Unipile</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/company-id-job/start</td><td>Start company LinkedIn ID resolution job</td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/api/company-id-job/status</td><td>Company ID resolution progress</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/apollo/bulk-match</td><td>Bulk match contacts against Apollo.io for email enrichment</td></tr>
+    </table>
+  </div>
+
+  <div class="api-group">
+    <div class="api-group-title">Dev / Internal</div>
+    <table class="ep-table">
+      <tr><td><span class="m-post">POST</span></td><td>/dev/push-file</td><td>Push file to GitHub repo (Claude sessions). body: <code>{ path, content, message }</code></td></tr>
+      <tr><td><span class="m-get">GET</span></td><td>/dev/push-file/status</td><td>Last GitHub push result</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/cleanup/workspace</td><td>Delete all data for workspace (irreversible)</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/admin/run-migration</td><td>Run a named DB migration</td></tr>
+      <tr><td><span class="m-post">POST</span></td><td>/api/webhooks/unipile</td><td>Unipile webhook receiver — new messages, connection events</td></tr>
+    </table>
+  </div>
+
+</section>
+
 </body>
