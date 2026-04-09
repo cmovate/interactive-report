@@ -307,7 +307,7 @@ app.post('/api/profile-views/bulk-import', async (req, res) => {
             }),
           });
 
-          if (!resp.ok) { batchErrors++; break; } // stop if API fails
+          if (!resp.ok) { const errTxt = await resp.text(); console.warn('[BulkImport] API err', resp.status, errTxt.substring(0,200)); batchErrors++; break; }
 
           const data = await resp.json();
           const elems = data?.data?.data?.premiumDashAnalyticsObjectByAnalyticsEntity?.elements || [];
