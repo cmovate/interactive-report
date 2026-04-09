@@ -637,14 +637,15 @@ app.post('/api/posts/engagement/sync', async (req, res) => {
     await db.query(`CREATE TABLE IF NOT EXISTS post_comments (id SERIAL PRIMARY KEY, post_id VARCHAR(255) NOT NULL, comment_id VARCHAR(255), account_id VARCHAR(255) NOT NULL, workspace_id INTEGER, author_id VARCHAR(255), author_name TEXT, author_headline TEXT, author_url TEXT, text TEXT, likes_count INTEGER DEFAULT 0, created_at VARCHAR(255), scraped_at TIMESTAMP DEFAULT NOW())`).catch(()=>{});
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_pc_comment ON post_comments(comment_id) WHERE comment_id IS NOT NULL`).catch(()=>{});
 
-    // Get accounts to process
-    const wsFilter = workspace_id ? `AND ua.workspace_id=${parseInt(workspace_id)}` : '';
-    const acctFilter = filterAcct ? `AND ua.account_id='${filterAcct}'` : '';
-    const { rows: accounts } = await db.query(`
-      SELECT DISTINCT ua.workspace_id, ua.account_id, ua.display_name
-      FROM unipile_accounts ua ${wsFilter} ${acctFilter}
-      ORDER BY ua.workspace_id, ua.account_id
-    `);
+    // Get accounts to process — use parameterized query
+    let accQuery = `SELECT DISTINCT workspace_id, account_id, display_name FROM unipile_accounts`;
+    const accParams = [];
+    const accWhere = [];
+    if (workspace_id) { accParams.push(parseInt(workspace_id)); accWhere.push(`workspace_id=$${accParams.length}`); }
+    if (filterAcct)   { accParams.push(filterAcct);             accWhere.push(`account_id=$${accParams.length}`); }
+    if (accWhere.length) accQuery += ' WHERE ' + accWhere.join(' AND ');
+    accQuery += ' ORDER BY workspace_id, account_id';
+    const { rows: accounts } = await db.query(accQuery, accParams);
 
     const BATCH = 10;
     const result = { accounts: accounts.length, reactions_new: 0, comments_new: 0, posts_checked: 0 };
