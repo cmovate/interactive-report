@@ -316,43 +316,64 @@ app.post('/api/profile-views/bulk-import', async (req, res) => {
 
           totalFetched += elems.length;
 
-          // Parse + insert each element
+          // Parse + insert each element (inline parse, no scraper dependency)
           for (const elem of elems) {
-            const v = scraper._parseViewer(elem);
-            if (!v) continue;
+            try {
+              const lockup = elem?.content?.analyticsEntityLockup?.entityLockup;
+              if (!lockup) continue;
 
-            // Dedup: skip if already in DB (same li_url or viewer_name in last 90 days)
-            const dupCheck = v.liUrl
-              ? await db.query(
-                  `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_li_url=$3 LIMIT 1`,
-                  [wsId, accId, v.liUrl]
-                )
-              : await db.query(
-                  `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_name=$3 AND is_anonymous=true AND scraped_at > NOW() - INTERVAL '90 days' LIMIT 1`,
-                  [wsId, accId, v.name || '']
-                );
+              const vName    = (lockup?.title?.text || '').trim();
+              const vTitle   = (lockup?.subtitle?.text || '').trim();
+              const vCaption = (lockup?.caption?.text || '').trim();
 
-            if (dupCheck.rows.length) continue;
+              const rawJson = JSON.stringify(elem);
+              const pidM  = rawJson.match(/"publicIdentifier":"([^"]+)"/);
+              const pid   = pidM?.[1] || null;
+              const liUrl = pid ? `https://www.linkedin.com/in/${pid}` : null;
+              const isAnon = !pid;
 
-            // Try to match contact
-            let contactId = null;
-            if (!v.isAnonymous && v.liUrl) {
-              const { rows } = await db.query(
-                `SELECT id FROM contacts WHERE workspace_id=$1 AND (li_profile_url=$2 OR provider_id=$3) LIMIT 1`,
-                [wsId, v.liUrl, v.publicIdentifier || '']
-              );
-              contactId = rows[0]?.id || null;
+              // Parse timestamp from caption
+              let viewedAt = null;
+              if (vCaption) {
+                const hM = vCaption.match(/(\d+)\s*h/i);
+                const dM = vCaption.match(/(\d+)\s*d/i);
+                const mM = vCaption.match(/(\d+)\s*m/i);
+                const now = Date.now();
+                if      (hM) viewedAt = new Date(now - parseInt(hM[1]) * 3600000);
+                else if (dM) viewedAt = new Date(now - parseInt(dM[1]) * 86400000);
+                else if (mM) viewedAt = new Date(now - parseInt(mM[1]) * 60000);
+                else         viewedAt = new Date();
+              }
+
+              // Dedup
+              const dupCheck = liUrl
+                ? await db.query(
+                    `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_li_url=$3 LIMIT 1`,
+                    [wsId, accId, liUrl])
+                : await db.query(
+                    `SELECT id FROM profile_view_events WHERE workspace_id=$1 AND account_id=$2 AND viewer_name=$3 AND is_anonymous=true AND scraped_at > NOW() - INTERVAL '90 days' LIMIT 1`,
+                    [wsId, accId, vName || '']);
+              if (dupCheck.rows.length) continue;
+
+              // Match to contact
+              let contactId = null;
+              if (!isAnon && liUrl) {
+                const { rows } = await db.query(
+                  `SELECT id FROM contacts WHERE workspace_id=$1 AND (li_profile_url=$2 OR provider_id=$3) LIMIT 1`,
+                  [wsId, liUrl, pid || '']);
+                contactId = rows[0]?.id || null;
+              }
+
+              await db.query(
+                `INSERT INTO profile_view_events
+                   (workspace_id, account_id, viewed_at, is_anonymous, viewer_name, viewer_title,
+                    viewer_provider_id, viewer_li_url, contact_id, raw_caption)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                [wsId, accId, viewedAt, isAnon, vName, vTitle, pid, liUrl, contactId, vCaption]);
+              totalAdded++;
+            } catch(parseErr) {
+              console.warn(`[BulkImport] parse error: ${parseErr.message}`);
             }
-
-            await db.query(
-              `INSERT INTO profile_view_events
-                (workspace_id, account_id, viewed_at, is_anonymous, viewer_name, viewer_title,
-                 viewer_provider_id, viewer_li_url, contact_id, raw_caption)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-              [wsId, accId, v.viewedAt, v.isAnonymous, v.name,
-               v.title || '', v.publicIdentifier, v.liUrl, contactId, v.caption || '']
-            );
-            totalAdded++;
           }
 
           await new Promise(r => setTimeout(r, 600)); // rate limit between batches
