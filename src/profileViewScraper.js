@@ -741,8 +741,8 @@ async function syncEngagementAllAccounts() {
           if (!rId) continue;
           const { rows: ex } = await db.query(`SELECT id FROM post_reactions WHERE post_id=$1 AND reactor_id=$2 LIMIT 1`, [postId, rId]);
           if (ex.length) { allNew = false; break; }
-          await db.query(`INSERT INTO post_reactions (post_id,account_id,workspace_id,reactor_id,reactor_name,reactor_headline,reactor_url,reaction_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (post_id,reactor_id) DO NOTHING`,
-            [postId,accId,wsId,rId,reaction.author?.name||null,reaction.author?.headline||null,reaction.author?.profile_url||null,reaction.value||'LIKE']);
+          await db.query(`INSERT INTO post_reactions (post_id,account_id,workspace_id,reactor_id,reactor_name,reactor_headline,reactor_url,reaction_type) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [postId,accId,wsId,rId,reaction.author?.name||null,reaction.author?.headline||null,reaction.author?.profile_url||null,reaction.value||'LIKE']).catch(()=>{});
           reactionsNew++;
         }
         if (!allNew || !nextCursor) break;
@@ -769,8 +769,8 @@ async function syncEngagementAllAccounts() {
           const { rows: ex } = await db.query(`SELECT id FROM post_comments WHERE comment_id=$1 LIMIT 1`, [cId]);
           if (ex.length) { allNew = false; break; }
           const ad = comment.author_details || {};
-          await db.query(`INSERT INTO post_comments (post_id,comment_id,account_id,workspace_id,author_id,author_name,author_headline,author_url,text,likes_count,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (comment_id) DO NOTHING`,
-            [postId,cId,accId,wsId,ad.id||null,comment.author||null,ad.headline||null,ad.profile_url||null,comment.text||'',comment.reaction_counter||0,comment.date||null]);
+          await db.query(`INSERT INTO post_comments (post_id,comment_id,account_id,workspace_id,author_id,author_name,author_headline,author_url,text,likes_count,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+            [postId,cId,accId,wsId,ad.id||null,comment.author||null,ad.headline||null,ad.profile_url||null,comment.text||'',comment.reaction_counter||0,comment.date||null]).catch(()=>{});
           commentsNew++;
         }
         if (!allNew || !nextCursor) break;

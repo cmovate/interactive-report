@@ -699,8 +699,7 @@ app.post('/api/posts/engagement/sync', async (req, res) => {
             await db.query(`
               INSERT INTO post_reactions (post_id, account_id, workspace_id, reactor_id, reactor_name, reactor_headline, reactor_url, reaction_type)
               VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-              ON CONFLICT (post_id, reactor_id) DO NOTHING
-            `, [postId, accId, wsId, rId, reaction.author?.name||null, reaction.author?.headline||null, reaction.author?.profile_url||null, reaction.value||'LIKE']);
+            `, [postId, accId, wsId, rId, reaction.author?.name||null, reaction.author?.headline||null, reaction.author?.profile_url||null, reaction.value||'LIKE']).catch(()=>{});
             result.reactions_new++;
           }
 
@@ -743,8 +742,7 @@ app.post('/api/posts/engagement/sync', async (req, res) => {
             await db.query(`
               INSERT INTO post_comments (post_id, comment_id, account_id, workspace_id, author_id, author_name, author_headline, author_url, text, likes_count, created_at)
               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-              ON CONFLICT (comment_id) DO NOTHING
-            `, [postId, cId, accId, wsId, authorDetails.id||null, comment.author||null, authorDetails.headline||null, authorDetails.profile_url||null, comment.text||'', comment.reaction_counter||0, comment.date||null]);
+            `, [postId, cId, accId, wsId, authorDetails.id||null, comment.author||null, authorDetails.headline||null, authorDetails.profile_url||null, comment.text||'', comment.reaction_counter||0, comment.date||null]).catch(()=>{});
             result.comments_new++;
           }
 
