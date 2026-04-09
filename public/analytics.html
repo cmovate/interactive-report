@@ -275,6 +275,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <button class="tab-btn active" id="tab-campaign" onclick="switchTab('campaign',this)">&#128202; Campaign</button>
   <button class="tab-btn" id="tab-email" onclick="switchTab('email',this)">&#9993;&#65039; Email — HF Quants</button>
   <button class="tab-btn" id="tab-overlap" onclick="switchTab('overlap',this)">&#128101; Overlap</button>
+  <button class="tab-btn" id="tab-automations" onclick="switchTab('automations',this)">&#9881;&#65039; Automations</button>
 </div>
 
 <div class="date-bar" id="date-bar">
@@ -369,6 +370,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 <div class="content" id="content">
   <div class="empty-state">&#128202; Select a campaign to view analytics</div>
+</div>
+
+<!-- Automations Tab -->
+<div id="tab-content-automations" class="tab-content" style="display:none; padding:24px 0;">
+  <div id="automations-container"></div>
 </div>
 
 <!-- Overlap Tab — LinkedIn × Email cross-reference -->
@@ -684,6 +690,193 @@ function emailPage(dir) {
   document.querySelector('.email-table-body-wrap').scrollTop = 0;
 }
 
+// ── Automations Tab ──────────────────────────────────────────────────────────
+
+var _automationsLoaded = false;
+
+async function loadAutomations() {
+  if (_automationsLoaded) return;
+  _automationsLoaded = true;
+
+  var container = document.getElementById('automations-container');
+  container.innerHTML = '<div style="color:#888;padding:20px">Loading…</div>';
+
+  // Fetch live status from server
+  var stats = {};
+  try {
+    var status = await fetch('/api/automations/status').then(function(r){return r.json();});
+    stats = status || {};
+  } catch(e) { /* use defaults */ }
+
+  var automations = [
+    {
+      category: 'Profile & Company Page Views',
+      icon: '&#128100;',
+      items: [
+        {
+          name: 'Profile View Scraper',
+          description: 'Scrapes who viewed each user's LinkedIn profile. Saves to <code>profile_view_events</code>.',
+          schedule: '3x/day — 08:00, 14:00, 20:00',
+          status: 'active',
+          lastRun: stats.profileViews?.lastRun || null,
+          manualTrigger: 'POST /api/profile-views/scrape',
+        },
+        {
+          name: 'Viewer Enrichment',
+          description: 'Stage 1: parses company from viewer name/title. Stage 2: fetches <code>work_experience[0].company</code> via Unipile profile API.',
+          schedule: 'Auto-runs after every scrape cycle',
+          status: 'active',
+          manualTrigger: 'POST /api/profile-views/enrich',
+        },
+        {
+          name: 'Bulk Profile View Import',
+          description: 'One-time import of up to 100 viewers per account using paginated Voyager API (10 per call × 10 batches).',
+          schedule: 'Manual only',
+          status: 'manual',
+          manualTrigger: 'POST /api/profile-views/bulk-import  { start: 0..90 }',
+        },
+      ]
+    },
+    {
+      category: 'Posts',
+      icon: '&#128196;',
+      items: [
+        {
+          name: 'Posts Scraper',
+          description: 'Fetches latest 10 posts per account from <code>GET /api/v1/users/{pid}/posts?limit=10</code>. Upserts engagement counts on re-runs.',
+          schedule: '3x/day — 08:00, 14:00, 20:00',
+          status: 'active',
+          lastRun: stats.posts?.lastRun || null,
+          manualTrigger: 'POST /api/posts/scrape',
+        },
+        {
+          name: 'Post Import (paginated)',
+          description: 'Fetches up to 20 posts per account using cursor pagination (2 rounds × 10 posts). Stores in <code>user_posts</code> table.',
+          schedule: 'Manual only',
+          status: 'manual',
+          manualTrigger: 'POST /api/posts/fetch  { cursors: {} }',
+        },
+      ]
+    },
+    {
+      category: 'Post Engagement (Reactions & Comments)',
+      icon: '&#128293;',
+      items: [
+        {
+          name: 'Engagement Sync — Incremental',
+          description: 'Per-post: fetches 10 reactions then 10 comments. Stops immediately when hitting a known item. Continues paginating only if all 10 are new.',
+          schedule: 'Every 30 minutes',
+          status: 'active',
+          lastRun: stats.engagementSync?.lastRun || null,
+          manualTrigger: 'POST /api/posts/engagement/sync  { workspace_id?, account_id? }',
+        },
+        {
+          name: 'Full Engagement Scrape',
+          description: 'Full initial scrape of reactions + comments for all posts of one account. Used for first-time population.',
+          schedule: 'Manual only',
+          status: 'manual',
+          manualTrigger: 'POST /api/posts/engagement  { account_id, workspace_id, limit_posts: 20 }',
+        },
+      ]
+    },
+    {
+      category: 'Company Page Followers',
+      icon: '&#127968;',
+      items: [
+        {
+          name: 'Follower Scraper',
+          description: 'Scrapes company page followers via Unipile. Cross-references with contacts to mark <code>company_follow_confirmed</code>. Requires <code>company_page_urn</code> in account settings.',
+          schedule: 'Learning mode: runs periodically',
+          status: 'active',
+          lastRun: stats.followers?.lastRun || null,
+          manualTrigger: 'POST /api/followers/scrape  { account_id }',
+        },
+      ]
+    },
+    {
+      category: 'Company Follow Invitations',
+      icon: '&#128231;',
+      items: [
+        {
+          name: 'Company Follow Sender',
+          description: 'Sends follow invitations to approved contacts who haven't followed yet. Requires <code>follow_company: true</code> in campaign engagement settings and <code>company_page_urn</code> in account settings. Monthly limit: 250/account.',
+          schedule: 'Every 30 minutes (during working hours)',
+          status: 'active',
+          manualTrigger: 'POST /api/company-follow/run',
+        },
+      ]
+    },
+    {
+      category: 'Outbound Sequences',
+      icon: '&#128228;',
+      items: [
+        {
+          name: 'Invitation Sender',
+          description: 'Sends LinkedIn connection requests to contacts in active campaigns.',
+          schedule: 'Every 30 minutes (working hours)',
+          status: 'active',
+        },
+        {
+          name: 'Message Sender',
+          description: 'Sends follow-up messages to connected contacts.',
+          schedule: 'Every 30 minutes (working hours)',
+          status: 'active',
+        },
+        {
+          name: 'Like Sender',
+          description: 'Sends profile/post likes as engagement warmup.',
+          schedule: 'Every 30 minutes (working hours)',
+          status: 'active',
+        },
+      ]
+    },
+  ];
+
+  var statusBadge = {
+    active:  '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#d4edda;color:#155724;">● Active</span>',
+    manual:  '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#fff3cd;color:#856404;">⊙ Manual</span>',
+    paused:  '<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:#f8d7da;color:#721c24;">○ Paused</span>',
+  };
+
+  var html = '<div style="max-width:860px;margin:0 auto">';
+
+  automations.forEach(function(cat) {
+    html += '<div style="margin-bottom:32px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;border-bottom:1px solid #e0ddd4;padding-bottom:8px">' +
+        '<span style="font-size:18px">' + cat.icon + '</span>' +
+        '<span style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#555">' + cat.category + '</span>' +
+      '</div>';
+
+    cat.items.forEach(function(item) {
+      var badge = statusBadge[item.status] || statusBadge.active;
+      var lastRunHtml = item.lastRun
+        ? '<span style="font-size:11px;color:#888;margin-left:8px">Last run: ' + new Date(item.lastRun).toLocaleString() + '</span>'
+        : '';
+      var triggerHtml = item.manualTrigger
+        ? '<div style="margin-top:6px"><code style="font-size:11px;background:#f0ede6;padding:3px 7px;border-radius:4px;color:#555">' + item.manualTrigger + '</code></div>'
+        : '';
+
+      html +=
+        '<div style="background:#fff;border:1px solid #e8e5de;border-radius:10px;padding:16px 20px;margin-bottom:10px">' +
+          '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
+            '<span style="font-size:14px;font-weight:700;color:#1a3a2a">' + item.name + '</span>' +
+            badge + lastRunHtml +
+          '</div>' +
+          '<div style="font-size:12px;color:#666;line-height:1.5;margin-bottom:6px">' + item.description + '</div>' +
+          '<div style="display:flex;align-items:center;gap:16px">' +
+            '<span style="font-size:11px;color:#888">&#128337; ' + item.schedule + '</span>' +
+          '</div>' +
+          triggerHtml +
+        '</div>';
+    });
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
 // ── Overlap Tab ────────────────────────────────────────────────────────────
 const OV_CAMPAIGN_ID = 'd3b8ee99-d5f5-4bc5-a3d3-23e4c286ed01';
 var _overlapData     = null;
@@ -694,10 +887,12 @@ var _overlapLoaded   = false;
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
   btn.classList.add('active');
-  document.getElementById('content').style.display        = tab === 'campaign' ? '' : 'none';
-  document.getElementById('email-content').style.display  = tab === 'email'    ? '' : 'none';
-  document.getElementById('overlap-content').style.display= tab === 'overlap'  ? '' : 'none';
-  document.getElementById('date-bar').style.display       = tab === 'campaign' ? '' : 'none';
+  document.getElementById('content').style.display              = tab === 'campaign'    ? '' : 'none';
+  document.getElementById('email-content').style.display        = tab === 'email'       ? '' : 'none';
+  document.getElementById('overlap-content').style.display      = tab === 'overlap'     ? '' : 'none';
+  document.getElementById('tab-content-automations').style.display = tab === 'automations' ? '' : 'none';
+  document.getElementById('date-bar').style.display             = tab === 'campaign'    ? '' : 'none';
+  document.getElementById('campaign-select').style.display      = tab === 'campaign'    ? '' : 'none';
   if (tab === 'email'   && !_emailLoaded)   loadEmailTab();
   if (tab === 'overlap' && !_overlapLoaded) checkSyncStatus();
 }
@@ -710,6 +905,8 @@ async function checkSyncStatus() {
       var dt = d.last_sync ? new Date(d.last_sync).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       el.textContent = d.count.toLocaleString() + ' leads in DB · Last sync: ' + dt;
       loadOverlap();
+    } else if (name === 'automations') {
+      loadAutomations();
     } else {
       el.textContent = 'Not synced yet — click "Sync from Instantly" to start';
       document.getElementById('overlap-empty').style.display = '';

@@ -1173,6 +1173,38 @@ app.post('/api/company-follow/run', (_req, res) => {
   }
 });
 
+// GET /api/automations/status — last run times for all automations
+app.get('/api/automations/status', async (_req, res) => {
+  try {
+    const scraper = require('./src/profileViewScraper');
+    const followerScraper = require('./src/followerScraper');
+    
+    // Get last scrape timestamps from DB
+    const { rows: pvLast } = await db.query(
+      `SELECT MAX(scraped_at) AS last_run FROM profile_view_events`
+    ).catch(() => ({ rows: [{}] }));
+    
+    const { rows: postsLast } = await db.query(
+      `SELECT MAX(scraped_at) AS last_run FROM user_posts`
+    ).catch(() => ({ rows: [{}] }));
+    
+    const { rows: engLast } = await db.query(
+      `SELECT MAX(scraped_at) AS last_run FROM post_reactions`
+    ).catch(() => ({ rows: [{}] }));
+    
+    const followerStatus = followerScraper.getStatus ? followerScraper.getStatus() : {};
+    
+    res.json({
+      profileViews:    { lastRun: pvLast[0]?.last_run || null },
+      posts:           { lastRun: postsLast[0]?.last_run || null },
+      engagementSync:  { lastRun: engLast[0]?.last_run || null },
+      followers:       { lastRun: followerStatus.last_result?.scraped_at || null, ...followerStatus.last_result },
+    });
+  } catch(e) {
+    res.json({});
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
