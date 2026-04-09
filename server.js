@@ -377,7 +377,7 @@ app.post('/api/posts/fetch', async (req, res) => {
     // Get accounts
     const wsFilter = workspace_id ? `WHERE ua.workspace_id = ${parseInt(workspace_id)}` : '';
     const { rows: accounts } = await db.query(`
-      SELECT ua.workspace_id, ua.account_id, ua.display_name, ua.provider_id
+      SELECT ua.workspace_id, ua.account_id, ua.display_name
       FROM unipile_accounts ua ${wsFilter}
       ORDER BY ua.workspace_id, ua.account_id
     `);
@@ -386,8 +386,21 @@ app.post('/api/posts/fetch', async (req, res) => {
     const nextCursors = {};
 
     for (const acc of accounts) {
-      const { workspace_id: wsId, account_id: accId, display_name: name, provider_id: pid } = acc;
-      if (!pid) { summary[accId] = { skipped: 'no provider_id' }; continue; }
+      const { workspace_id: wsId, account_id: accId, display_name: name } = acc;
+
+      // Get provider_id via /api/v1/users/me
+      let pid = null;
+      try {
+        const meRes = await fetch(`${UNIPILE_DSN}/api/v1/users/me?account_id=${accId}`, {
+          headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' }
+        });
+        if (meRes.ok) {
+          const me = await meRes.json();
+          pid = me.provider_id || null;
+        }
+      } catch(e) {}
+
+      if (!pid) { summary[accId] = { skipped: 'no provider_id', name }; continue; }
 
       const key = accId;
       const cursor = cursors[key] || null;
