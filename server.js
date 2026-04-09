@@ -339,6 +339,125 @@ app.post('/api/profile-views/bulk-import', async (req, res) => {
   }
 });
 
+// POST /api/posts/fetch — fetch 10 posts per account, cursor-based pagination
+// First call: no cursor. Subsequent calls: pass cursor from previous response.
+// Store in user_posts table. Call twice per account to get 20 posts total.
+app.post('/api/posts/fetch', async (req, res) => {
+  const { workspace_id, cursors = {} } = req.body || {};
+
+  try {
+    const UNIPILE_DSN     = process.env.UNIPILE_DSN;
+    const UNIPILE_API_KEY = process.env.UNIPILE_API_KEY;
+
+    // Ensure table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_posts (
+        id              SERIAL PRIMARY KEY,
+        workspace_id    INTEGER NOT NULL,
+        account_id      VARCHAR(255) NOT NULL,
+        post_id         VARCHAR(255) UNIQUE,
+        social_id       VARCHAR(255),
+        share_url       TEXT,
+        post_date       VARCHAR(255),
+        parsed_datetime TIMESTAMP,
+        text            TEXT,
+        likes_count     INTEGER DEFAULT 0,
+        comments_count  INTEGER DEFAULT 0,
+        reposts_count   INTEGER DEFAULT 0,
+        impressions     INTEGER DEFAULT 0,
+        is_repost       BOOLEAN DEFAULT FALSE,
+        author_name     TEXT,
+        author_pid      VARCHAR(255),
+        scraped_at      TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(()=>{});
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_up_ws  ON user_posts(workspace_id)`).catch(()=>{});
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_up_acc ON user_posts(account_id)`).catch(()=>{});
+
+    // Get accounts
+    const wsFilter = workspace_id ? `WHERE ua.workspace_id = ${parseInt(workspace_id)}` : '';
+    const { rows: accounts } = await db.query(`
+      SELECT ua.workspace_id, ua.account_id, ua.display_name, ua.provider_id
+      FROM unipile_accounts ua ${wsFilter}
+      ORDER BY ua.workspace_id, ua.account_id
+    `);
+
+    const summary = {};
+    const nextCursors = {};
+
+    for (const acc of accounts) {
+      const { workspace_id: wsId, account_id: accId, display_name: name, provider_id: pid } = acc;
+      if (!pid) { summary[accId] = { skipped: 'no provider_id' }; continue; }
+
+      const key = accId;
+      const cursor = cursors[key] || null;
+      let fetched = 0, added = 0;
+
+      try {
+        let url = `\${UNIPILE_DSN}/api/v1/users/\${encodeURIComponent(pid)}/posts?account_id=\${accId}&limit=10`;
+        if (cursor) url += `&cursor=\${encodeURIComponent(cursor)}`;
+
+        const r = await fetch(url, {
+          headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' }
+        });
+
+        if (!r.ok) throw new Error(`HTTP \${r.status}`);
+        const data = await r.json();
+        const posts = data.items || [];
+        fetched = posts.length;
+        if (data.cursor) nextCursors[key] = data.cursor;
+
+        for (const post of posts) {
+          try {
+            await db.query(`
+              INSERT INTO user_posts
+                (workspace_id, account_id, post_id, social_id, share_url, post_date,
+                 parsed_datetime, text, likes_count, comments_count, reposts_count,
+                 impressions, is_repost, author_name, author_pid)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+              ON CONFLICT (post_id) DO UPDATE SET
+                likes_count   = EXCLUDED.likes_count,
+                comments_count = EXCLUDED.comments_count,
+                reposts_count = EXCLUDED.reposts_count,
+                impressions   = EXCLUDED.impressions,
+                scraped_at    = NOW()
+            `, [
+              wsId, accId,
+              post.id || post.social_id,
+              post.social_id,
+              post.share_url || null,
+              post.date || null,
+              post.parsed_datetime ? new Date(post.parsed_datetime) : null,
+              post.text || '',
+              post.reaction_counter || post.likes_count || 0,
+              post.comment_counter || post.comments_count || 0,
+              post.repost_counter || post.reposts_count || 0,
+              post.impressions_counter || post.impressions || 0,
+              post.is_repost || false,
+              post.author?.name || null,
+              post.author?.id || post.author?.public_identifier || null
+            ]);
+            added++;
+          } catch(e) { /* skip duplicate or bad post */ }
+        }
+
+        await new Promise(r => setTimeout(r, 500));
+      } catch(e) {
+        summary[key] = { fetched: 0, added: 0, error: e.message };
+        continue;
+      }
+
+      summary[key] = { fetched, added, name: (name||'').substring(0,12) };
+      console.log(`[PostsFetch] ws\${wsId}/\${name||accId.substring(0,8)}: fetched=\${fetched} added=\${added}`);
+    }
+
+    res.json({ ok: true, accounts: accounts.length, summary, nextCursors });
+  } catch(e) {
+    console.error('[PostsFetch]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
