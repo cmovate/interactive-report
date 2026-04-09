@@ -158,7 +158,7 @@ ul.feat li{flex-wrap:nowrap}
 
 <div id="author-badge" onclick="changeAuthor()">âï¸ <span id="author-name">Set your name</span></div>
 <div id="stats-bar">
-  <div>&#128279;¬ <strong id="total-comments">0</strong> notes</div>
+  <div>&#128172; <strong id="total-comments">0</strong> notes</div>
   <div>â¦ <strong id="total-added">0</strong> additions</div>
   <button id="clear-all-btn" onclick="clearAll()">Clear all</button>
 </div>
@@ -166,18 +166,18 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="overview">
   <div class="section-header">
-    <div class="section-icon" style="background:#f0fdf4">&#128279;ºï¸</div>
+    <div class="section-icon" style="background:#f0fdf4">&#128506;</div>
     <div><h2>Product Overview</h2><p>What El-Via ABM is, who it's for, and how it works</p></div>
   </div>
   <div class="callout info"><strong>Core premise:</strong> El-Via ABM lets SDRs and CMOs run LinkedIn outreach campaigns at scale  &mdash;  automatically sending connection requests, sequenced messages, profile views, company follows, and post likes  &mdash;  while surfacing intelligence about warm leads at target accounts.</div>
   <div class="card-grid">
-    <div class="card"><h3>&#128279;¯ Primary Use Case</h3><p>Outbound LinkedIn ABM: define a list of target companies + personas, build a message sequence, and let El-Via automate the full outreach funnel  &mdash;  from initial connection request through multi-step follow-up  &mdash;  while respecting LinkedIn daily limits.</p></div>
-    <div class="card"><h3>&#128279;¤ Who Uses It</h3><p>SDRs, AEs, and fractional CMOs managing LinkedIn outreach for one or more companies. Each company gets its own <strong>Workspace</strong> with its own LinkedIn accounts, campaigns, and contacts. Multiple accounts can run per workspace.</p></div>
-    <div class="card"><h3>&#128279; LinkedIn Connection</h3><p>All actions go through <strong>Unipile API</strong>  &mdash;  a middleware wrapping LinkedIn's internal APIs. Each account is authenticated once in Unipile and accessed via <code>account_id</code>. El-Via never stores LinkedIn passwords.</p></div>
+    <div class="card"><h3>&#127919; Primary Use Case</h3><p>Outbound LinkedIn ABM: define a list of target companies + personas, build a message sequence, and let El-Via automate the full outreach funnel  &mdash;  from initial connection request through multi-step follow-up  &mdash;  while respecting LinkedIn daily limits.</p></div>
+    <div class="card"><h3>&#128100; Who Uses It</h3><p>SDRs, AEs, and fractional CMOs managing LinkedIn outreach for one or more companies. Each company gets its own <strong>Workspace</strong> with its own LinkedIn accounts, campaigns, and contacts. Multiple accounts can run per workspace.</p></div>
+    <div class="card"><h3>&#128268; LinkedIn Connection</h3><p>All actions go through <strong>Unipile API</strong>  &mdash;  a middleware wrapping LinkedIn's internal APIs. Each account is authenticated once in Unipile and accessed via <code>account_id</code>. El-Via never stores LinkedIn passwords.</p></div>
     <div class="card"><h3>âï¸ How Automation Works</h3><p>Background workers run on <strong>setInterval</strong> loops (every 30 &ndash; 60 min). Each cycle processes a small batch of contacts per account, respecting per-account daily limits. All actions are rate-limited and logged in the database.</p></div>
   </div>
   <div class="card">
-    <h3>&#128279;ï¸ Architecture at a Glance</h3>
+    <h3>&#127959; Architecture at a Glance</h3>
     <div class="flow" style="margin-top:12px">
       <div class="flow-step"><div class="num">1</div><div class="step-name">Workspace</div><div class="step-sub">Company bucket</div></div>
       <div class="flow-arrow">â</div>
@@ -196,12 +196,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="workspaces">
   <div class="section-header">
-    <div class="section-icon" style="background:#fef3c7">&#128279;¢</div>
+    <div class="section-icon" style="background:#fef3c7">&#127970;</div>
     <div><h2>Workspaces</h2><p>Top-level isolation  &mdash;  each client gets its own workspace</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#fef3c7">&#128279;¢</div>
+      <div class="tab-icon-wrap" style="background:#fef3c7">&#127970;</div>
       <div class="tab-header-text"><h3>Workspace Selector (Entry Screen)</h3><p class="tab-purpose">Landing page after login. Shows all workspaces. Each is fully isolated with its own LinkedIn accounts, campaigns, contacts, and settings.</p></div>
     </div>
     <div class="tab-body">
@@ -232,12 +232,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="campaigns">
   <div class="section-header">
-    <div class="section-icon" style="background:#dcfce7">&#128279;</div>
+    <div class="section-icon" style="background:#dcfce7">&#128203;</div>
     <div><h2>Campaigns Tab</h2><p>Core outreach engine  &mdash;  define targets, sequence, and launch</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#dcfce7">&#128279;</div>
+      <div class="tab-icon-wrap" style="background:#dcfce7">&#128203;</div>
       <div class="tab-header-text"><h3>Campaigns</h3><p class="tab-purpose">Each campaign targets a contact list and runs a full LinkedIn outreach sequence: connection request â approval â follow-up messages. Multiple campaigns run simultaneously across different accounts.</p></div>
     </div>
     <div class="tab-body">
@@ -298,12 +298,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="alldata">
   <div class="section-header">
-    <div class="section-icon" style="background:#dbeafe">&#128279;¥</div>
+    <div class="section-icon" style="background:#dbeafe">&#128101;</div>
     <div><h2>All Data Tab</h2><p>Full contacts database  &mdash;  enriched LinkedIn profiles across all campaigns</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#dbeafe">&#128279;¥</div>
+      <div class="tab-icon-wrap" style="background:#dbeafe">&#128101;</div>
       <div class="tab-header-text"><h3>All Data</h3><p class="tab-purpose">Cross-campaign view of all contacts. Each row is a person with their LinkedIn profile, outreach status, and engagement level. Source of truth for the enrichment pipeline.</p></div>
     </div>
     <div class="tab-body">
@@ -359,12 +359,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="opportunities">
   <div class="section-header">
-    <div class="section-icon" style="background:#fef3c7">&#128279;¡</div>
+    <div class="section-icon" style="background:#fef3c7">&#128161;</div>
     <div><h2>Opportunities Tab</h2><p>Intelligence  &mdash;  who do you already know at your target companies?</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#fef3c7">&#128279;¡</div>
+      <div class="tab-icon-wrap" style="background:#fef3c7">&#128161;</div>
       <div class="tab-header-text"><h3>Opportunities</h3><p class="tab-purpose">Shows all target companies with a count of 1st-degree LinkedIn connections currently employed there. These are warm leads  &mdash;  people you can reach without a cold connection request. Scanned hourly automatically.</p></div>
     </div>
     <div class="tab-body">
@@ -403,7 +403,7 @@ ul.feat li{flex-wrap:nowrap}
           </ul>
           <div class="sub-title blue" style="margin-top:16px">Manual Actions</div>
           <ul class="feat">
-            <li><strong>&#128279; Scan connections</strong>  &mdash;  immediate scan for current workspace</li>
+            <li><strong>&#128269; Scan connections</strong>  &mdash;  immediate scan for current workspace</li>
             <li><strong>+ Add companies</strong>  &mdash;  add by LinkedIn URL</li>
             <li><strong>Refresh</strong>  &mdash;  reload page data</li>
             <li><strong>POST /enrich-company-ids</strong>  &mdash;  resolve missing LinkedIn IDs</li>
@@ -451,12 +451,12 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="inbox">
   <div class="section-header">
-    <div class="section-icon" style="background:#ffe4e6">&#128279;¬</div>
+    <div class="section-icon" style="background:#ffe4e6">&#128172;</div>
     <div><h2>Inbox Tab</h2><p>LinkedIn message inbox with AI-powered reply analysis</p></div>
   </div>
   <div class="tab-block">
     <div class="tab-header">
-      <div class="tab-icon-wrap" style="background:#ffe4e6">&#128279;¬</div>
+      <div class="tab-icon-wrap" style="background:#ffe4e6">&#128172;</div>
       <div class="tab-header-text"><h3>Inbox</h3><p class="tab-purpose">Mirrors the LinkedIn inbox for connected accounts. Shows all conversations, flags replies from campaign contacts, and uses AI to classify replies as positive / neutral / negative with next-step recommendations.</p></div>
     </div>
     <div class="tab-body">
@@ -558,7 +558,7 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="database">
   <div class="section-header">
-    <div class="section-icon" style="background:#f0fdf4">&#128279;ï¸</div>
+    <div class="section-icon" style="background:#f0fdf4">&#128196;</div>
     <div><h2>Database Schema</h2><p>PostgreSQL tables and their relationships</p></div>
   </div>
   <div class="cols-3">
@@ -573,7 +573,7 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="limits">
   <div class="section-header">
-    <div class="section-icon" style="background:#fff7ed">&#128279;</div>
+    <div class="section-icon" style="background:#fff7ed">&#128202;</div>
     <div><h2>LinkedIn Safety Limits</h2><p>Per-account daily caps enforced to avoid account restrictions</p></div>
   </div>
   <div class="callout warn"><strong>Important:</strong> LinkedIn monitors unusual activity. These are conservative safe defaults. Exceeding them  &mdash;  especially connection requests  &mdash;  can trigger restrictions or bans.</div>
@@ -596,7 +596,7 @@ ul.feat li{flex-wrap:nowrap}
 
 <section id="flow">
   <div class="section-header">
-    <div class="section-icon" style="background:#ede9fe">&#128279;</div>
+    <div class="section-icon" style="background:#ede9fe">&#128260;</div>
     <div><h2>End-to-End Outreach Flow</h2><p>From contact added to deal booked</p></div>
   </div>
   <div class="tab-block">
@@ -660,7 +660,7 @@ function toggleForm(id,type){
   const authorVal = esc(getAuthor());
   if(type==='comment'){
     f.innerHTML = [
-      '<div class="form-label">&#128279;¬ Add a note</div>',
+      '<div class="form-label">&#128172; Add a note</div>',
       '<textarea id="ft-'+id+'" placeholder="Write your note..." rows="3"></textarea>',
       '<div class="form-row">',
       '<input type="text" class="form-author" id="fa-'+id+'" placeholder="Your name" value="'+authorVal+'">',
@@ -831,7 +831,7 @@ function makeBtn(type, id, actionType, label){
   btn.dataset.action = '1';
   btn.dataset.id = id;
   btn.dataset.type = actionType;
-  btn.textContent = label || (type === 'comment' ? '&#128279;¬ Note' : 'ï¼ Add');
+  btn.textContent = label || (type === 'comment' ? '&#128172; Note' : 'ï¼ Add');
   return btn;
 }
 
@@ -875,7 +875,7 @@ function addInteractiveButtons(){
     const id = uid('sec');
     const actions = document.createElement('div');
     actions.className = 'section-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '&#128279;¬ Note'));
+    actions.appendChild(makeBtn('comment', id, 'comment', '&#128172; Note'));
     actions.appendChild(makeCountBadge(id));
     el.appendChild(actions);
     el.after(makeForm(id));
@@ -889,7 +889,7 @@ function addInteractiveButtons(){
     const id = uid('tab');
     const actions = document.createElement('div');
     actions.className = 'tab-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '&#128279;¬'));
+    actions.appendChild(makeBtn('comment', id, 'comment', '&#128172;'));
     actions.appendChild(makeCountBadge(id));
     el.appendChild(actions);
     const thread = makeThread(id, 'section-comment-thread');
@@ -931,7 +931,7 @@ function addInteractiveButtons(){
       }
       const actions = document.createElement('span');
       actions.className = 'item-actions';
-      actions.appendChild(makeBtn('comment', liId, 'comment', '&#128279;¬'));
+      actions.appendChild(makeBtn('comment', liId, 'comment', '&#128172;'));
       li.appendChild(actions);
       li.after(makeForm(liId));
       li.after(makeThread(liId));
@@ -948,7 +948,7 @@ function addInteractiveButtons(){
     if(content){
       const actions = document.createElement('div');
       actions.className = 'item-actions';
-      actions.appendChild(makeBtn('comment', id, 'comment', '&#128279;¬ Note'));
+      actions.appendChild(makeBtn('comment', id, 'comment', '&#128172; Note'));
       content.appendChild(actions);
     }
     const thread = makeThread(id);
@@ -967,7 +967,7 @@ function addInteractiveButtons(){
     card.classList.add('commentable');
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '&#128279;¬ Note'));
+    actions.appendChild(makeBtn('comment', id, 'comment', '&#128172; Note'));
     card.appendChild(actions);
     card.appendChild(makeForm(id));
     card.appendChild(makeThread(id));
@@ -981,7 +981,7 @@ function addInteractiveButtons(){
     el.classList.add('commentable');
     const actions = document.createElement('div');
     actions.className = 'item-actions';
-    actions.appendChild(makeBtn('comment', id, 'comment', '&#128279;¬'));
+    actions.appendChild(makeBtn('comment', id, 'comment', '&#128172;'));
     el.appendChild(actions);
     el.after(makeForm(id));
     el.after(makeThread(id));
@@ -995,7 +995,7 @@ function addInteractiveButtons(){
     // Add btn to last td
     const lastTd = tr.querySelector('td:last-child');
     if(lastTd){
-      const btn = makeBtn('comment', id, 'comment', '&#128279;¬');
+      const btn = makeBtn('comment', id, 'comment', '&#128172;');
       btn.style.marginLeft = '8px';
       lastTd.appendChild(btn);
     }
