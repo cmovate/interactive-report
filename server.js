@@ -407,14 +407,14 @@ app.post('/api/posts/fetch', async (req, res) => {
       let fetched = 0, added = 0;
 
       try {
-        let url = `\${UNIPILE_DSN}/api/v1/users/\${encodeURIComponent(pid)}/posts?account_id=\${accId}&limit=10`;
-        if (cursor) url += `&cursor=\${encodeURIComponent(cursor)}`;
+        let url = `${UNIPILE_DSN}/api/v1/users/${encodeURIComponent(pid)}/posts?account_id=${accId}&limit=10`;
+        if (cursor) url += `&cursor=${encodeURIComponent(cursor)}`;
 
         const r = await fetch(url, {
           headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' }
         });
 
-        if (!r.ok) throw new Error(`HTTP \${r.status}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const data = await r.json();
         const posts = data.items || [];
         fetched = posts.length;
