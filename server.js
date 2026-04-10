@@ -29,6 +29,7 @@ const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
 const healthChecker            = require('./src/healthChecker');
+const watchdog                 = require('./src/watchdog');
 const followerScraper          = require('./src/followerScraper');
 const statsSnapshotter         = require('./src/statsSnapshotter');
 const profileViewer            = require('./src/profileViewer');
@@ -1189,6 +1190,24 @@ app.post('/api/automations/health-check', async (_req, res) => {
   }
 });
 
+// POST /api/automations/restart/:name — force-restart a specific automation
+app.post('/api/automations/restart/:name', async (req, res) => {
+  const { name } = req.params;
+  const result = await watchdog.forceRestart(name);
+  res.json(result);
+});
+
+// GET /api/automations/watchdog — live heartbeat status for all automations
+app.get('/api/automations/watchdog', (_req, res) => {
+  res.json(watchdog.getStatus());
+});
+
+// GET /api/automations/watchdog/logs — recent watchdog events
+app.get('/api/automations/watchdog/logs', async (_req, res) => {
+  const logs = await watchdog.getLogs(100);
+  res.json({ logs });
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {
@@ -2029,6 +2048,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   withdrawSender.start();
   companyFollowSender.start();
   healthChecker.start();
+  watchdog.start();
   followerScraper.start();
   statsSnapshotter.start();
   profileViewer.start();

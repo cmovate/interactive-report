@@ -206,6 +206,8 @@ async function pollWorkspace(workspaceId) {
 }
 
 async function pollAllWorkspaces() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('inboxPoller');
   console.log('[InboxPoller] Starting poll cycle...');
   try {
     const { rows: workspaces } = await db.query(

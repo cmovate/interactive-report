@@ -28,6 +28,8 @@ function start() {
 }
 
 async function run() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('profileViewer');
   console.log('[ProfileViewer] Running check...');
   try {
     const { rows: campaigns } = await db.query(`

@@ -193,7 +193,68 @@ async function runCheck() {
 
 // Auto-refresh every 60s
 load();
+loadWatchdog();
 setInterval(load, 60000);
+setInterval(loadWatchdog, 60000);
+
+async function loadWatchdog() {
+  try {
+    const [wdRes, logRes] = await Promise.all([
+      fetch('/api/automations/watchdog').then(r=>r.json()),
+      fetch('/api/automations/watchdog/logs').then(r=>r.json()),
+    ]);
+    renderWatchdog(wdRes, logRes.logs || []);
+  } catch(e) { console.error(e); }
+}
+
+function renderWatchdog(status, logs) {
+  const el = document.getElementById('watchdog-section');
+  if (!el) return;
+  
+  const rows = Object.entries(status).map(([name, s]) => {
+    const cls = s.ok ? 'ok' : 'fail';
+    const age = s.lastTick ? timeAgo(s.lastTick) : 'never';
+    const restarts = s.restarts > 0 ? ` <span style="color:#d97706;font-size:11px">(restarted ${s.restarts}x)</span>` : '';
+    return `<div class="check ${cls}">
+      <div class="dot ${cls}"></div>
+      <div>
+        <div class="check-name">${name}${restarts}</div>
+        <div class="check-desc">Last tick: ${age} &middot; Stale after: ${s.staleAfterMinutes}min</div>
+        ${s.lastRestart ? `<div class="check-reason" style="color:#d97706">Last restart: ${timeAgo(s.lastRestart)}</div>` : ''}
+      </div>
+      <div>
+        <div style="text-align:right">
+          <button onclick="forceRestart('${name}')" style="font-size:11px;padding:3px 10px;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;background:white">&#128295; Restart</button>
+        </div>
+        <div class="check-meta">${s.ageMinutes}min ago</div>
+      </div>
+    </div>`;
+  }).join('');
+  
+  const logHtml = logs.slice(0,20).map(l => 
+    `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid #f3f4f6;display:flex;gap:12px">
+      <span style="color:#9ca3af;font-family:monospace;min-width:140px">${new Date(l.created_at).toLocaleString()}</span>
+      <span style="font-weight:600;min-width:160px">${l.automation_name}</span>
+      <span style="color:${l.event.includes('fail')?'#dc2626':l.event.includes('restart')?'#d97706':'#16a34a'}">${l.event}</span>
+      <span style="color:#6b7280">${l.detail||''}</span>
+    </div>`
+  ).join('') || '<div style="color:#9ca3af;font-size:13px;padding:8px 0">No events yet</div>';
+  
+  el.innerHTML = `
+    <div class="section-title" style="margin-top:32px">Live Heartbeats (Watchdog)</div>
+    <div class="checks-grid" style="margin-bottom:24px">${rows || '<div style="color:#9ca3af;padding:20px;text-align:center">No heartbeat data yet — automations register on first run</div>'}</div>
+    <div class="section-title">Watchdog Event Log</div>
+    <div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:14px 18px">${logHtml}</div>
+  `;
+}
+
+async function forceRestart(name) {
+  if (!confirm('Force restart ' + name + '?')) return;
+  const r = await fetch('/api/automations/restart/' + name, {method:'POST'}).then(r=>r.json());
+  alert(r.ok ? '✅ ' + r.message : '❌ ' + r.error);
+  loadWatchdog();
+}
 </script>
+<div id="watchdog-section" class="container" style="padding-top:0"></div>
 </body>
 </html>

@@ -201,6 +201,8 @@ function start() {
 }
 
 async function runAll() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('likeSender');
   try {
     const { rows: camps } = await db.query(
       `SELECT DISTINCT id FROM campaigns

@@ -180,9 +180,9 @@ const CHECKS = [
     async heal() {
       // No direct endpoint — approval checker runs on setInterval in process
       // We can nudge it via admin endpoint if available
-      return { ok: true, note: 'approvalChecker runs in-process, no external trigger needed' };
+      return require('./watchdog').forceRestart('approvalChecker');
     },
-    healless: true, // no external heal needed
+    async heal() { return require('./watchdog').forceRestart('approvalChecker'); },
   },
   {
     name: 'invitationSender',
@@ -201,8 +201,7 @@ const CHECKS = [
       const stale = eligible > 0 && (!lastSent || new Date(lastSent) < hoursAgo(36));
       return { ok: !stale, lastRun: lastSent, eligible, reason: stale ? `${eligible} eligible contacts, no invite sent in 36h` : null };
     },
-    healless: true, // in-process only
-    async heal() { return { ok: true, note: 'invitationSender runs in-process every 15min' }; },
+    async heal() { return require('./watchdog').forceRestart('invitationSender'); },
   },
   {
     name: 'messageSender',
@@ -220,8 +219,7 @@ const CHECKS = [
       const stale = eligible > 10 && (!lastSent || new Date(lastSent) < hoursAgo(12));
       return { ok: !stale, lastRun: lastSent, eligible, reason: stale ? `${eligible} eligible contacts, no message sent in 12h` : null };
     },
-    healless: true,
-    async heal() { return { ok: true, note: 'messageSender runs in-process every 5min' }; },
+    async heal() { return require('./watchdog').forceRestart('messageSender'); },
   },
   {
     name: 'profileViewer',
@@ -239,8 +237,7 @@ const CHECKS = [
       const stale = eligible > 10 && (!lastView || new Date(lastView) < hoursAgo(36));
       return { ok: !stale, lastRun: lastView, eligible, reason: stale ? `${eligible} viewable contacts, no view in 36h` : null };
     },
-    healless: true,
-    async heal() { return { ok: true, note: 'profileViewer runs in-process every 15min' }; },
+    async heal() { return require('./watchdog').forceRestart('profileViewer'); },
   },
   {
     name: 'companyFollowSender',
@@ -272,8 +269,7 @@ const CHECKS = [
       const stale = lastDate !== today;
       return { ok: !stale, lastRun: last, reason: stale ? `Last snapshot: ${lastDate || 'never'} (expected today ${today})` : null };
     },
-    healless: true,
-    async heal() { return { ok: true, note: 'statsSnapshotter runs in-process daily on startup + 24h interval' }; },
+    async heal() { return require('./watchdog').forceRestart('statsSnapshotter'); },
   },
   {
     name: 'opportunityScraper',
@@ -322,21 +318,16 @@ async function runHealthCheck() {
     if (!status.ok && status.reason) {
       console.warn(`[HealthChecker] ⚠️  ${check.name}: ${status.reason}`);
 
-      if (!check.healless) {
-        // Attempt auto-heal
-        console.log(`[HealthChecker] 🔧 Auto-healing ${check.name}...`);
-        try {
-          const healRes = await check.heal();
-          result.healResult = healRes.ok ? 'healed' : `failed: ${healRes.error || healRes.body?.substring?.(0,100)}`;
-          console.log(`[HealthChecker] ${healRes.ok ? '✅' : '❌'} Heal ${check.name}: ${result.healResult}`);
-          if (!healRes.ok) alertIssues.push({ ...result, healResult: result.healResult });
-        } catch (e) {
-          result.healResult = `exception: ${e.message}`;
-          alertIssues.push({ ...result });
-        }
-      } else {
-        result.healResult = 'in-process (auto)';
-        console.log(`[HealthChecker] ℹ️  ${check.name} runs in-process, no external trigger`);
+      // Attempt auto-heal (all automations now have heal via watchdog.forceRestart or API)
+      console.log(`[HealthChecker] 🔧 Auto-healing ${check.name}...`);
+      try {
+        const healRes = await check.heal();
+        result.healResult = healRes.ok ? 'healed' : `failed: ${healRes.error || String(healRes.body || '').substring(0,100)}`;
+        console.log(`[HealthChecker] ${healRes.ok ? '✅' : '❌'} Heal ${check.name}: ${result.healResult}`);
+        if (!healRes.ok) alertIssues.push({ ...result, healResult: result.healResult });
+      } catch (e) {
+        result.healResult = `exception: ${e.message}`;
+        alertIssues.push({ ...result });
       }
     } else {
       result.healResult = status.ok ? 'healthy' : 'skipped (no eligible work)';

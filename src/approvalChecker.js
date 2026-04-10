@@ -28,6 +28,8 @@ function start() {
 }
 
 async function run() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('approvalChecker');
   if (isRunning) return;
   isRunning = true;
   console.log('[ApprovalChecker] Running...');

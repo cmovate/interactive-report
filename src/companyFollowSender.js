@@ -38,6 +38,8 @@ async function countSentThisMonth(accountId) {
 }
 
 async function run() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('companyFollowSender');
   console.log('[CompanyFollow] Running check...');
   try {
     const { rows: accounts } = await db.query(`

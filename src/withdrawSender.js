@@ -46,6 +46,8 @@ function scheduleDaily() {
 }
 
 async function run(campaignId = null) {
+  const watchdog = require('./watchdog');
+  watchdog.tick('withdrawSender');
   if (isRunning) { console.log('[WithdrawSender] Already running, skipping'); return { skipped: true }; }
   isRunning = true;
   console.log('[WithdrawSender] Starting run...');

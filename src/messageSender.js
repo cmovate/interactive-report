@@ -64,6 +64,8 @@ function isWithinWorkingHours(hours) {
 }
 
 async function runOnce() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('messageSender');
   try {
     const { rows: campaigns } = await db.query(
       `SELECT id, account_id, settings FROM campaigns WHERE status = 'active'`

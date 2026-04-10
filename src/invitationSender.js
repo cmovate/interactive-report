@@ -24,6 +24,8 @@ function start() {
 }
 
 async function run() {
+  const watchdog = require('./watchdog');
+  watchdog.tick('invitationSender');
   console.log('[InvitationSender] Running check...');
   try {
     const { rows: campaigns } = await db.query(`

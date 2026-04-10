@@ -57,6 +57,8 @@ async function scheduleNext() {
 }
 
 async function runScrape(forcedAccountId) {
+  const watchdog = require('./watchdog');
+  watchdog.tick('followerScraper');
   if (isScraping) return { skipped: true };
   isScraping = true;
   const startTime = Date.now();
