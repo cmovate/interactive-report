@@ -28,6 +28,7 @@ const companyIdJobRouter       = require('./src/routes/companyIdJob');
 const invitationSender         = require('./src/invitationSender');
 const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
+const healthChecker            = require('./src/healthChecker');
 const followerScraper          = require('./src/followerScraper');
 const statsSnapshotter         = require('./src/statsSnapshotter');
 const profileViewer            = require('./src/profileViewer');
@@ -1173,35 +1174,18 @@ app.post('/api/company-follow/run', (_req, res) => {
   }
 });
 
-// GET /api/automations/status — last run times for all automations
-app.get('/api/automations/status', async (_req, res) => {
+// GET /api/automations/status — last health check result
+app.get('/api/automations/status', (_req, res) => {
+  res.json(healthChecker.getLastResult() || { message: 'No health check run yet' });
+});
+
+// POST /api/automations/health-check — run health check now
+app.post('/api/automations/health-check', async (_req, res) => {
   try {
-    const scraper = require('./src/profileViewScraper');
-    const followerScraper = require('./src/followerScraper');
-    
-    // Get last scrape timestamps from DB
-    const { rows: pvLast } = await db.query(
-      `SELECT MAX(scraped_at) AS last_run FROM profile_view_events`
-    ).catch(() => ({ rows: [{}] }));
-    
-    const { rows: postsLast } = await db.query(
-      `SELECT MAX(scraped_at) AS last_run FROM user_posts`
-    ).catch(() => ({ rows: [{}] }));
-    
-    const { rows: engLast } = await db.query(
-      `SELECT MAX(scraped_at) AS last_run FROM post_reactions`
-    ).catch(() => ({ rows: [{}] }));
-    
-    const followerStatus = followerScraper.getStatus ? followerScraper.getStatus() : {};
-    
-    res.json({
-      profileViews:    { lastRun: pvLast[0]?.last_run || null },
-      posts:           { lastRun: postsLast[0]?.last_run || null },
-      engagementSync:  { lastRun: engLast[0]?.last_run || null },
-      followers:       { lastRun: followerStatus.last_result?.scraped_at || null, ...followerStatus.last_result },
-    });
+    const result = await healthChecker.runHealthCheck();
+    res.json(result);
   } catch(e) {
-    res.json({});
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -2044,6 +2028,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   invitationSender.start();
   withdrawSender.start();
   companyFollowSender.start();
+  healthChecker.start();
   followerScraper.start();
   statsSnapshotter.start();
   profileViewer.start();
