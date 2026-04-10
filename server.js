@@ -30,6 +30,7 @@ const withdrawSender           = require('./src/withdrawSender');
 const companyFollowSender      = require('./src/companyFollowSender');
 const healthChecker            = require('./src/healthChecker');
 const watchdog                 = require('./src/watchdog');
+const opportunityFollowSender  = require('./src/opportunityFollowSender');
 const followerScraper          = require('./src/followerScraper');
 const statsSnapshotter         = require('./src/statsSnapshotter');
 const profileViewer            = require('./src/profileViewer');
@@ -1190,6 +1191,28 @@ app.post('/api/automations/health-check', async (_req, res) => {
   }
 });
 
+// POST /api/opportunity-follow/run — manual trigger
+app.post('/api/opportunity-follow/run', async (_req, res) => {
+  try {
+    opportunityFollowSender.runAll()
+      .catch(e => console.error('[OppFollow manual]', e.message));
+    res.json({ ok: true, status: 'opportunity follow sender started' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/opportunity-follow/report — send report email now
+app.post('/api/opportunity-follow/report', async (_req, res) => {
+  try {
+    await opportunityFollowSender.sendDailyReport();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/opportunity-follow/status
+app.get('/api/opportunity-follow/status', (_req, res) => {
+  res.json(opportunityFollowSender.getStatus() || { message: 'No run yet today' });
+});
+
 // POST /api/automations/restart/:name — force-restart a specific automation
 app.post('/api/automations/restart/:name', async (req, res) => {
   const { name } = req.params;
@@ -2049,6 +2072,7 @@ const opportunityScraper = require('./src/opportunityScraper');
   companyFollowSender.start();
   healthChecker.start();
   watchdog.start();
+  opportunityFollowSender.start();
   followerScraper.start();
   statsSnapshotter.start();
   profileViewer.start();

@@ -120,6 +120,12 @@ const AUTOMATIONS = {
     reset()   {},
     restart() { this.mod.start?.(); },
   },
+  opportunityFollowSender: {
+    staleMs: 26 * 60 * 60 * 1000, // 26h — runs once daily
+    get mod() { return require('./opportunityFollowSender'); },
+    reset()   {},
+    restart() { this.mod.start(); },
+  },
   followerScraper: {
     staleMs: 75 * 60 * 1000,
     get mod() { return require('./followerScraper'); },
