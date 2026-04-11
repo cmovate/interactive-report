@@ -1231,6 +1231,121 @@ app.get('/api/automations/watchdog/logs', async (_req, res) => {
   res.json({ logs });
 });
 
+// GET /api/analytics/companies?campaign_id=&workspace_id=&from=&to=
+// Returns per-company engagement summary across all campaign activities
+app.get('/api/analytics/companies', async (req, res) => {
+  const { campaign_id, workspace_id, from, to } = req.query;
+  if (!workspace_id && !campaign_id) return res.status(400).json({ error: 'workspace_id or campaign_id required' });
+
+  const wsId = workspace_id ? parseInt(workspace_id) : null;
+  const campId = campaign_id ? parseInt(campaign_id) : null;
+
+  // Date filter
+  const fromDt = from ? `'${from}'::date` : `'2000-01-01'::date`;
+  const toDt   = to   ? `'${to}'::date + 1`   : `NOW()`;
+
+  try {
+    // Base filter
+    const campFilter = campId
+      ? `AND c.campaign_id = ${campId}`
+      : `AND camp.workspace_id = ${wsId}`;
+
+    // Extract company from contact — use company column, else parse from profile_data
+    // For each contact, count each action type
+    const { rows } = await db.query(`
+      WITH contact_companies AS (
+        SELECT
+          c.id                                                    AS contact_id,
+          c.first_name,
+          c.last_name,
+          c.li_profile_url,
+          COALESCE(
+            NULLIF(TRIM(c.company), ''),
+            c.profile_data->>'company',
+            split_part(c.profile_data->>'headline', ' at ', 2),
+            'Unknown'
+          )                                                       AS company,
+          -- Outbound actions (what WE did to this person)
+          CASE WHEN c.invite_sent_at   BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS inv_sent,
+          CASE WHEN c.invite_approved_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END    AS inv_approved,
+          CASE WHEN c.msg_1_sent_at    BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS msg_sent,
+          CASE WHEN c.msg_replied_at   BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS msg_replied,
+          CASE WHEN c.positive_reply_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END     AS positive,
+          CASE WHEN c.last_profile_view_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END  AS profile_viewed,
+          CASE WHEN c.likes_sent_at    BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS post_liked,
+          CASE WHEN c.company_follow_invited_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END AS co_follow_sent,
+          CASE WHEN c.company_follow_confirmed = true THEN 1 ELSE 0 END                      AS co_follow_confirmed,
+          -- Inbound actions (what THEY did to us)
+          CASE WHEN c.viewed_our_profile = true THEN 1 ELSE 0 END  AS viewed_us,
+          c.engagement_level
+        FROM contacts c
+        JOIN campaigns camp ON camp.id = c.campaign_id
+        WHERE 1=1 ${campFilter}
+      )
+      SELECT
+        company,
+        COUNT(DISTINCT contact_id)          AS contacts,
+        SUM(inv_sent)                       AS inv_sent,
+        SUM(inv_approved)                   AS inv_approved,
+        SUM(msg_sent)                       AS msg_sent,
+        SUM(msg_replied)                    AS msg_replied,
+        SUM(positive)                       AS positive_replies,
+        SUM(profile_viewed)                 AS profile_views_sent,
+        SUM(post_liked)                     AS post_likes_sent,
+        SUM(co_follow_sent)                 AS co_follow_sent,
+        SUM(co_follow_confirmed)            AS co_follow_confirmed,
+        SUM(viewed_us)                      AS viewed_us,
+        SUM(CASE WHEN engagement_level = 'engaged' THEN 1 ELSE 0 END)          AS engaged,
+        SUM(CASE WHEN engagement_level = 'average_engaged' THEN 1 ELSE 0 END)  AS avg_engaged,
+        -- Total activity score for sorting
+        SUM(inv_sent + inv_approved + msg_sent + msg_replied + positive + profile_viewed + post_liked + co_follow_sent) AS outbound_total,
+        SUM(viewed_us) + SUM(CASE WHEN engagement_level IN ('engaged','average_engaged') THEN 1 ELSE 0 END)             AS inbound_total
+      FROM contact_companies
+      GROUP BY company
+      HAVING company != 'Unknown' OR COUNT(DISTINCT contact_id) > 0
+      ORDER BY (outbound_total + inbound_total) DESC, contacts DESC
+      LIMIT 500
+    `);
+
+    res.json({ ok: true, companies: rows, total: rows.length });
+  } catch(e) {
+    console.error('[analytics/companies]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/analytics/companies/:company/contacts — drill down into one company
+app.get('/api/analytics/companies/:company/contacts', async (req, res) => {
+  const { campaign_id, workspace_id } = req.query;
+  const company = decodeURIComponent(req.params.company);
+  if (!workspace_id && !campaign_id) return res.status(400).json({ error: 'workspace_id or campaign_id required' });
+  const wsId = workspace_id ? parseInt(workspace_id) : null;
+  const campId = campaign_id ? parseInt(campaign_id) : null;
+  const campFilter = campId ? `AND c.campaign_id = ${campId}` : `AND camp.workspace_id = ${wsId}`;
+
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        c.id, c.first_name, c.last_name, c.title, c.company,
+        c.li_profile_url, c.invite_sent, c.invite_approved,
+        c.msg_sent, c.msg_replied, c.positive_reply,
+        c.likes_sent_at, c.company_follow_invited, c.company_follow_confirmed,
+        c.last_profile_view_at, c.viewed_our_profile,
+        c.engagement_level,
+        COALESCE(NULLIF(TRIM(c.company),''), c.profile_data->>'company', 'Unknown') AS resolved_company
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      WHERE COALESCE(NULLIF(TRIM(c.company),''), c.profile_data->>'company', 'Unknown') ILIKE $1
+        ${campFilter}
+      ORDER BY c.invite_approved DESC, c.msg_replied DESC, c.created_at DESC
+      LIMIT 200
+    `, [company]);
+    res.json({ ok: true, contacts: rows });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/profile-views?workspace_id=&from=&to=&limit=
 // Returns aggregate stats + recent identified viewers from profile_view_events
 app.get('/api/profile-views', async (req, res) => {

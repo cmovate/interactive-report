@@ -276,6 +276,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <button class="tab-btn" id="tab-email" onclick="switchTab('email',this)">&#9993;&#65039; Email — HF Quants</button>
   <button class="tab-btn" id="tab-overlap" onclick="switchTab('overlap',this)">&#128101; Overlap</button>
   <button class="tab-btn" id="tab-automations" onclick="switchTab('automations',this)">&#9881;&#65039; Automations</button>
+  <button class="tab-btn" id="tab-companies" onclick="switchTab('companies',this)">&#127968; Companies</button>
 </div>
 
 <div class="date-bar" id="date-bar">
@@ -375,6 +376,71 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <!-- Automations Tab -->
 <div id="tab-content-automations" class="tab-content" style="display:none; padding:24px 0;">
   <div id="automations-container"></div>
+</div>
+
+<!-- Companies Tab -->
+<div id="companies-content" style="display:none; padding:16px 20px">
+
+  <!-- Search + sort bar -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+    <input id="co-search" placeholder="Search company..." style="padding:7px 12px;border:1px solid #e5e1db;border-radius:8px;font-size:13px;min-width:220px" oninput="filterCompanies()">
+    <select id="co-sort" onchange="sortCompanies()" style="padding:7px 10px;border:1px solid #e5e1db;border-radius:8px;font-size:12px;color:#555">
+      <option value="outbound_total">Sort: Most Active</option>
+      <option value="contacts">Sort: Most Contacts</option>
+      <option value="inv_approved">Sort: Most Connected</option>
+      <option value="msg_replied">Sort: Most Replies</option>
+      <option value="positive_replies">Sort: Most Positive</option>
+      <option value="engaged">Sort: Most Engaged</option>
+      <option value="co_follow_confirmed">Sort: Follow Confirmed</option>
+    </select>
+    <span id="co-count" style="font-size:12px;color:#888;margin-left:4px"></span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button onclick="exportCompaniesCSV()" style="font-size:12px;padding:6px 14px;border:1px solid #e5e1db;border-radius:8px;cursor:pointer;background:white">&#11015; Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;font-size:11px;color:#777">
+    <span style="background:#f0f9f4;border:1px solid #c6e8d7;padding:2px 8px;border-radius:12px;color:#1a6640">&#128228; Outbound</span>
+    <span style="background:#f0f4ff;border:1px solid #c6d0f0;padding:2px 8px;border-radius:12px;color:#2c3e8c">&#128229; Inbound</span>
+    <span style="background:#fff8ec;border:1px solid #f0d89a;padding:2px 8px;border-radius:12px;color:#8c5e00">&#127968; Company Page</span>
+    <span style="background:#fdf2f8;border:1px solid #e8bedd;padding:2px 8px;border-radius:12px;color:#7c2d6e">&#9889; Engagement</span>
+  </div>
+
+  <!-- Table -->
+  <div style="background:white;border:1px solid #E9E5DF;border-radius:12px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse;font-size:12px" id="co-table">
+      <thead>
+        <tr style="background:#1a3a2a;color:white;font-size:11px">
+          <th style="padding:10px 14px;text-align:left;font-weight:600">Company</th>
+          <th style="padding:10px 8px;text-align:center;white-space:nowrap" title="Total contacts from this company">Contacts</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Invites sent">&#128228; Sent</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Connected">Connected</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Messages sent">Msgs</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Replies received">Replies</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Positive replies">&#128994; Pos</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Profile views sent">Profile Views</th>
+          <th style="padding:10px 8px;text-align:center;color:#a8d5bc;white-space:nowrap" title="Post likes sent">Likes</th>
+          <th style="padding:10px 8px;text-align:center;color:#c4cef7;white-space:nowrap" title="Viewed our profile">&#128229; Viewed Us</th>
+          <th style="padding:10px 8px;text-align:center;color:#f7d98a;white-space:nowrap" title="Company follow invites sent">&#127968; Follow Sent</th>
+          <th style="padding:10px 8px;text-align:center;color:#f7d98a;white-space:nowrap" title="Company follows confirmed">&#127968; Confirmed</th>
+          <th style="padding:10px 8px;text-align:center;color:#e8b4e0;white-space:nowrap" title="Engaged contacts">&#9889; Engaged</th>
+        </tr>
+      </thead>
+      <tbody id="co-tbody">
+        <tr><td colspan="13" style="text-align:center;padding:40px;color:#aaa">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Drill-down panel -->
+  <div id="co-drill" style="display:none;margin-top:16px;background:white;border:1px solid #E9E5DF;border-radius:12px;overflow:hidden">
+    <div style="background:#f8f6f3;padding:12px 18px;border-bottom:1px solid #E9E5DF;display:flex;align-items:center;justify-content:space-between">
+      <span id="co-drill-title" style="font-weight:700;font-size:14px"></span>
+      <button onclick="document.getElementById('co-drill').style.display='none'" style="border:none;background:none;cursor:pointer;font-size:18px;color:#888">&#10005;</button>
+    </div>
+    <div id="co-drill-body" style="padding:0"></div>
+  </div>
 </div>
 
 <!-- Overlap Tab — LinkedIn × Email cross-reference -->
@@ -551,6 +617,187 @@ function applyCustom() {
   if (allContacts.length) render();
 }
 
+
+// ── Companies tab ────────────────────────────────────────────────────────────
+var _companiesData     = [];
+var _companiesFiltered = [];
+var _companiesLoaded   = false;
+
+async function loadCompanies() {
+  var tbody = document.getElementById('co-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:#aaa">&#8987; Loading company data...</td></tr>';
+
+  try {
+    var params = new URLSearchParams({ workspace_id: wsId });
+    var campId = (document.getElementById('campaign-select') || {}).value;
+    if (campId) params.set('campaign_id', campId);
+    var range = getRange(rangeMode);
+    if (range.from) params.set('from', range.from.toISOString().slice(0,10));
+    if (range.to)   params.set('to',   range.to.toISOString().slice(0,10));
+
+    var d = await fetch('/api/analytics/companies?' + params.toString()).then(function(r){ return r.json(); });
+    _companiesData     = d.companies || [];
+    _companiesFiltered = _companiesData.slice();
+    _companiesLoaded   = true;
+    document.getElementById('co-count').textContent = _companiesData.length + ' companies';
+    renderCompanies();
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:#c00">Error: ' + e.message + '</td></tr>';
+  }
+}
+
+function filterCompanies() {
+  var q = (document.getElementById('co-search').value || '').toLowerCase();
+  _companiesFiltered = _companiesData.filter(function(c){ return c.company.toLowerCase().includes(q); });
+  document.getElementById('co-count').textContent = _companiesFiltered.length + ' companies';
+  renderCompanies();
+}
+
+function sortCompanies() {
+  var key = document.getElementById('co-sort').value;
+  _companiesFiltered.sort(function(a,b){ return (parseInt(b[key])||0) - (parseInt(a[key])||0); });
+  renderCompanies();
+}
+
+function renderCompanies() {
+  var tbody = document.getElementById('co-tbody');
+  if (!tbody) return;
+  if (!_companiesFiltered.length) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:40px;color:#aaa">No companies found</td></tr>';
+    return;
+  }
+
+  function cell(n, color) {
+    var v = parseInt(n) || 0;
+    var style = 'padding:8px 8px;text-align:center;';
+    if (v > 0 && color) style += 'font-weight:600;color:' + color + ';';
+    else if (!v) style += 'color:#ccc;';
+    return '<td style="' + style + '">' + (v || '—') + '</td>';
+  }
+
+  function engBadge(row) {
+    var eng = parseInt(row.engaged) || 0;
+    var avg = parseInt(row.avg_engaged) || 0;
+    var total = eng + avg;
+    if (!total) return '<td style="padding:8px;text-align:center;color:#ccc">—</td>';
+    return '<td style="padding:8px;text-align:center">' +
+      (eng ? '<span style="background:#fdf2f8;border:1px solid #e8b4e0;color:#7c2d6e;font-size:11px;padding:1px 6px;border-radius:10px;font-weight:600">' + eng + ' hot</span> ' : '') +
+      (avg ? '<span style="background:#fff8ec;border:1px solid #f0d89a;color:#8c5e00;font-size:11px;padding:1px 6px;border-radius:10px">' + avg + ' warm</span>' : '') +
+    '</td>';
+  }
+
+  var html = _companiesFiltered.slice(0, 300).map(function(row) {
+    var outTotal = parseInt(row.outbound_total) || 0;
+    var inTotal  = parseInt(row.inbound_total)  || 0;
+    var rowBg    = outTotal > 20 ? 'background:#f9fdf6' : '';
+    return '<tr style="border-bottom:1px solid #f3f0ec;cursor:pointer;' + rowBg + '" onclick="drillCompany('' + escCo(row.company) + '')">' +
+      '<td style="padding:9px 14px;font-weight:600;color:#1a3a2a;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escCo(row.company) + '">' + escCo(row.company) + '</td>' +
+      cell(row.contacts, '#333') +
+      cell(row.inv_sent, '#2a7a4b') +
+      cell(row.inv_approved, '#1a6640') +
+      cell(row.msg_sent, '#2a7a4b') +
+      cell(row.msg_replied, '#1a5c8c') +
+      cell(row.positive_replies, '#165c2a') +
+      cell(row.profile_views_sent, '#2a7a4b') +
+      cell(row.post_likes_sent, '#2a7a4b') +
+      cell(row.viewed_us, '#2c3e8c') +
+      cell(row.co_follow_sent, '#8c5e00') +
+      cell(row.co_follow_confirmed, '#5c3c00') +
+      engBadge(row) +
+    '</tr>';
+  }).join('');
+
+  tbody.innerHTML = html;
+}
+
+function escCo(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+async function drillCompany(company) {
+  var drill = document.getElementById('co-drill');
+  var drillTitle = document.getElementById('co-drill-title');
+  var drillBody  = document.getElementById('co-drill-body');
+  drillTitle.textContent = '&#127968; ' + company;
+  drillBody.innerHTML = '<div style="padding:20px;color:#aaa;text-align:center">&#8987; Loading...</div>';
+  drill.style.display = '';
+  drill.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  try {
+    var params = new URLSearchParams({ workspace_id: wsId });
+    var campId = (document.getElementById('campaign-select') || {}).value;
+    if (campId) params.set('campaign_id', campId);
+    var d = await fetch('/api/analytics/companies/' + encodeURIComponent(company) + '/contacts?' + params.toString()).then(function(r){ return r.json(); });
+    var contacts = d.contacts || [];
+
+    if (!contacts.length) {
+      drillBody.innerHTML = '<div style="padding:20px;color:#aaa;text-align:center">No contacts found</div>';
+      return;
+    }
+
+    function tick(v, color) {
+      if (!v && v !== true) return '<span style="color:#ddd">—</span>';
+      return '<span style="color:' + (color||'#2a7a4b') + ';font-weight:600">&#10003;</span>';
+    }
+
+    function engLabel(level) {
+      if (level === 'engaged')         return '<span style="background:#fdf2f8;color:#7c2d6e;font-size:10px;padding:1px 6px;border-radius:8px;border:1px solid #e8b4e0">&#9889; hot</span>';
+      if (level === 'average_engaged') return '<span style="background:#fff8ec;color:#8c5e00;font-size:10px;padding:1px 6px;border-radius:8px;border:1px solid #f0d89a">&#9889; warm</span>';
+      return '<span style="color:#ccc;font-size:10px">—</span>';
+    }
+
+    var rows = contacts.map(function(c) {
+      var name = (c.first_name || '') + ' ' + (c.last_name || '');
+      var nameHtml = c.li_profile_url
+        ? '<a href="' + c.li_profile_url + '" target="_blank" rel="noopener" style="color:#1a3a2a;text-decoration:none;font-weight:600">' + escCo(name.trim()) + '</a>'
+        : '<span style="font-weight:600">' + escCo(name.trim()) + '</span>';
+      return '<tr style="border-bottom:1px solid #f3f0ec">' +
+        '<td style="padding:8px 14px">' + nameHtml + '<div style="font-size:11px;color:#888">' + escCo(c.title || '') + '</div></td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.invite_sent) + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.invite_approved, '#1a6640') + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.msg_sent) + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.msg_replied, '#2563eb') + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.positive_reply, '#16a34a') + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.last_profile_view_at) + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.viewed_our_profile, '#2563eb') + '</td>' +
+        '<td style="padding:8px;text-align:center">' + tick(c.company_follow_confirmed, '#8c5e00') + '</td>' +
+        '<td style="padding:8px;text-align:center">' + engLabel(c.engagement_level) + '</td>' +
+      '</tr>';
+    }).join('');
+
+    drillBody.innerHTML = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="background:#f8f6f3;font-size:11px;font-weight:600;color:#555">' +
+      '<th style="padding:8px 14px;text-align:left">Name</th>' +
+      '<th style="padding:8px;text-align:center" title="Invite sent">&#128228; Sent</th>' +
+      '<th style="padding:8px;text-align:center" title="Connected">Connected</th>' +
+      '<th style="padding:8px;text-align:center" title="Message sent">Msg</th>' +
+      '<th style="padding:8px;text-align:center" title="Replied">Replied</th>' +
+      '<th style="padding:8px;text-align:center" title="Positive reply">&#128994; Pos</th>' +
+      '<th style="padding:8px;text-align:center" title="Profile view sent">Profile View</th>' +
+      '<th style="padding:8px;text-align:center" title="Viewed our profile">&#128229; Viewed Us</th>' +
+      '<th style="padding:8px;text-align:center" title="Follow confirmed">&#127968; Follow</th>' +
+      '<th style="padding:8px;text-align:center" title="Engagement level">&#9889; Eng.</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  } catch(e) {
+    drillBody.innerHTML = '<div style="padding:20px;color:#c00">Error: ' + e.message + '</div>';
+  }
+}
+
+function exportCompaniesCSV() {
+  if (!_companiesFiltered.length) return;
+  var cols = ['company','contacts','inv_sent','inv_approved','msg_sent','msg_replied','positive_replies','profile_views_sent','post_likes_sent','viewed_us','co_follow_sent','co_follow_confirmed','engaged','avg_engaged'];
+  var csv  = cols.join(',') + '\n';
+  csv += _companiesFiltered.map(function(r) {
+    return cols.map(function(k){ return '"' + String(r[k]||'').replace(/"/g,'""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob([csv], {type:'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'company_analytics.csv';
+  a.click();
+}
+
 // ── Email tab (Instantly / HF Quants) ─────────────────────────────────────
 const INSTANTLY_CAMPAIGN_ID = 'd3b8ee99-d5f5-4bc5-a3d3-23e4c286ed01';
 var _emailLeads = [];        // all loaded leads
@@ -559,6 +806,7 @@ var _emailPage = 1;
 const EMAIL_PAGE_SIZE = 50;
 var _emailLoading = false;
 var _emailLoaded = false;
+  _companiesLoaded = false;
 
 async function loadEmailTab() {
   if (_emailLoading) return;
@@ -891,10 +1139,12 @@ function switchTab(tab, btn) {
   document.getElementById('email-content').style.display        = tab === 'email'       ? '' : 'none';
   document.getElementById('overlap-content').style.display      = tab === 'overlap'     ? '' : 'none';
   document.getElementById('tab-content-automations').style.display = tab === 'automations' ? '' : 'none';
+  document.getElementById('companies-content').style.display    = tab === 'companies'   ? '' : 'none';
   document.getElementById('date-bar').style.display             = tab === 'campaign'    ? '' : 'none';
   document.getElementById('campaign-select').style.display      = tab === 'campaign'    ? '' : 'none';
   if (tab === 'email'   && !_emailLoaded)   loadEmailTab();
   if (tab === 'overlap' && !_overlapLoaded) checkSyncStatus();
+  if (tab === 'companies' && !_companiesLoaded) loadCompanies();
 }
 
 async function checkSyncStatus() {
