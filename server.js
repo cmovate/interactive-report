@@ -1276,7 +1276,7 @@ app.get('/api/analytics/companies', async (req, res) => {
           CASE WHEN c.company_follow_invited_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END AS co_follow_sent,
           CASE WHEN c.company_follow_confirmed = true THEN 1 ELSE 0 END                      AS co_follow_confirmed,
           -- Inbound actions (what THEY did to us)
-          CASE WHEN c.viewed_our_profile = true THEN 1 ELSE 0 END  AS viewed_us,
+          CASE WHEN c.viewed_profile = true THEN 1 ELSE 0 END  AS viewed_us,
           c.engagement_level
         FROM contacts c
         JOIN campaigns camp ON camp.id = c.campaign_id
@@ -1330,7 +1330,7 @@ app.get('/api/analytics/companies/:company/contacts', async (req, res) => {
         c.li_profile_url, c.invite_sent, c.invite_approved,
         c.msg_sent, c.msg_replied, c.positive_reply,
         c.likes_sent_at, c.company_follow_invited, c.company_follow_confirmed,
-        c.last_profile_view_at, c.viewed_our_profile,
+        c.last_profile_view_at, c.viewed_profile,
         c.engagement_level,
         COALESCE(NULLIF(TRIM(c.company),''), c.profile_data->>'company', 'Unknown') AS resolved_company
       FROM contacts c
