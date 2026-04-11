@@ -1268,7 +1268,7 @@ app.get('/api/analytics/companies', async (req, res) => {
           -- Outbound actions (what WE did to this person)
           CASE WHEN c.invite_sent_at   BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS inv_sent,
           CASE WHEN c.invite_approved_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END    AS inv_approved,
-          CASE WHEN c.msg_1_sent_at    BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS msg_sent,
+          CASE WHEN c.msg_sent_at      BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS msg_sent,
           CASE WHEN c.msg_replied_at   BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END      AS msg_replied,
           CASE WHEN c.positive_reply_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END     AS positive,
           CASE WHEN c.last_profile_view_at BETWEEN ${fromDt} AND ${toDt} THEN 1 ELSE 0 END  AS profile_viewed,
