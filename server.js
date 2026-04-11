@@ -1303,7 +1303,9 @@ app.get('/api/analytics/companies', async (req, res) => {
       FROM contact_companies
       GROUP BY company
       HAVING company != 'Unknown' OR COUNT(DISTINCT contact_id) > 0
-      ORDER BY (outbound_total + inbound_total) DESC, contacts DESC
+      ORDER BY (SUM(inv_sent + inv_approved + msg_sent + msg_replied + positive + profile_viewed + post_liked + co_follow_sent) +
+                SUM(CASE WHEN viewed_us THEN 1 ELSE 0 END)) DESC,
+               COUNT(DISTINCT contact_id) DESC
       LIMIT 500
     `);
 
