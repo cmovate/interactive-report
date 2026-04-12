@@ -529,7 +529,7 @@ router.post('/enrich-company-ids', async (req, res) => {
 
     // Get first account for this workspace
     const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1', [workspace_id]
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY RANDOM() LIMIT 1', [workspace_id]
     );
     if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
     const accountId = accs[0].account_id;
