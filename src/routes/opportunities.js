@@ -529,10 +529,12 @@ router.post('/enrich-company-ids', async (req, res) => {
 
     // Get first account for this workspace
     const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY RANDOM() LIMIT 1', [workspace_id]
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
     );
     if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
-    const accountId = accs[0].account_id;
+    // Will rotate through accounts on 429
+    let accountIdx = 0;
+    const accountId = accs[accountIdx].account_id;
 
     // Find companies with URL but no LinkedIn ID
     const { rows: companies } = await db.query(
@@ -879,7 +881,7 @@ router.post('/fb-linkedin-match', async (req, res) => {
 
       while (attempts < 3 && !success) {
         try {
-          const res2 = await searchPeopleByKeywords(accountId, name, 5);
+          const res2 = await searchPeopleByKeywords(accs[accountIdx].account_id, name, 5);
           const people = res2.items || [];
           searched++;
           success = true;
@@ -917,8 +919,13 @@ router.post('/fb-linkedin-match', async (req, res) => {
           const is429 = e.message && e.message.includes('429');
           if (is429) {
             rateLimitHits++;
-            const wait = 8000 * rateLimitHits;
-            console.warn(`[fb-match] 429 for "${name}", attempt ${attempts}, waiting ${wait}ms`);
+            // Rotate to next account on 429
+            accountIdx = (accountIdx + 1) % accs.length;
+            const nextAccountId2 = accs[accountIdx].account_id;
+            Object.assign(accs[0], { account_id: nextAccountId2 }); // swap current
+            // Actually reassign properly
+            const wait = 5000;
+            console.warn(`[fb-match] 429 for "${name}", switching to account ${accountIdx}, waiting ${wait}ms`);
             await new Promise(r => setTimeout(r, wait));
           } else {
             results.push({ fb_name: name, profiles: [], profiles_found: 0, error: e.message });
