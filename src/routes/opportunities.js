@@ -699,7 +699,65 @@ router.get('/cached-contacts', async (req, res) => {
   }
 });
 
-// GET /api/opportunities/company-jobs?workspace_id=X&company_linkedin_id=Y&company_name=Z
+// GET /api/opportunities/prefetch-jobs?workspace_id=X
+// Fetches open tech jobs for ALL companies in a workspace and returns results.
+// Use this to verify job import is working.
+router.get('/prefetch-jobs', async (req, res) => {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+  try {
+    const { rows: accs } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1',
+      [workspace_id]
+    );
+    if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
+    const accountId = accs[0].account_id;
+
+    const { rows: companies } = await db.query(
+      `SELECT DISTINCT company_name, company_linkedin_id, li_company_url
+       FROM opportunity_companies
+       WHERE workspace_id = $1
+       ORDER BY company_name`,
+      [workspace_id]
+    );
+
+    if (!companies.length) return res.json({ ok: true, message: 'No companies found in this workspace', results: [] });
+
+    const { getCompanyJobs } = require('../unipile');
+    const results = [];
+
+    for (const co of companies) {
+      try {
+        const allJobs = await getCompanyJobs(accountId, co.company_linkedin_id, co.company_name);
+        const techJobs = allJobs.filter(isTechJob);
+        results.push({
+          company:          co.company_name,
+          company_id:       co.company_linkedin_id,
+          total_jobs:       allJobs.length,
+          tech_jobs:        techJobs.length,
+          sample:           (techJobs.length ? techJobs : allJobs).slice(0, 3).map(j => j.title || j.job_title || '?'),
+        });
+        console.log(`[prefetch-jobs] ${co.company_name}: total=${allJobs.length} tech=${techJobs.length}`);
+        // Small delay to avoid rate limiting
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (e) {
+        results.push({ company: co.company_name, error: e.message });
+        console.error(`[prefetch-jobs] error for ${co.company_name}: ${e.message}`);
+      }
+    }
+
+    const totalJobs  = results.reduce((s, r) => s + (r.tech_jobs || 0), 0);
+    const withJobs   = results.filter(r => (r.tech_jobs || 0) > 0).length;
+    res.json({ ok: true, companies_checked: companies.length, companies_with_jobs: withJobs, total_tech_jobs: totalJobs, results });
+
+  } catch (err) {
+    console.error('[prefetch-jobs] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // Returns active tech job postings at a specific LinkedIn company.
 const TECH_KEYWORDS = [
   'software', 'engineer', 'developer', 'engineering', 'technology', 'technical',
