@@ -169,7 +169,15 @@ function renderAll() {
     list.appendChild(block);
   });
 }
+function parseCompanyId(raw) {
+  if (!raw) return '';
+  if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+    try { return JSON.parse(raw).id || ''; } catch(e) {}
+  }
+  return raw;
+}
 function renderBlock(co) {
+  var coLinkedInId = parseCompanyId(co.company_linkedin_id);
   var res = scanResults[co.id];
   var countLabel = '';
   if (res && !res.scanning) countLabel = '<span class="co-count">' + (res.contacts ? res.contacts.length : 0) + ' connection' + (res.contacts && res.contacts.length!==1?'s':'') + ' found</span>';
@@ -185,7 +193,7 @@ function renderBlock(co) {
     body = '<div class="co-body"><div class="scanning-row"><span class="spinner"></span> Scanning LinkedIn...</div></div>';
   } else if (!res.contacts || !res.contacts.length) {
     var jobsBtnEmpty = '<div class="jobs-section">'
-      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\',\'' + (co.company_name||'').replace(/'/g,"\\'") + '\')">'
+      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + coLinkedInId + '\',\'' + (co.company_name||'').replace(/'/g,"\\'") + '\')">'
       + '<span class="jobs-chevron">&#9654;</span> Open tech jobs<span class="jobs-count"></span>'
       + '</button>'
       + '<div class="jobs-list" id="jobs-list-'+co.id+'"></div>'
@@ -208,7 +216,7 @@ function renderBlock(co) {
         +'</tr>';
     }).join('');
     var jobsBtn = '<div class="jobs-section">'
-      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\',\'' + (co.company_name||'').replace(/'/g,"\\'") + '\')">'
+      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + coLinkedInId + '\',\'' + (co.company_name||'').replace(/'/g,"\\'") + '\')">'
       + '<span class="jobs-chevron">&#9654;</span> Open tech jobs<span class="jobs-count"></span>'
       + '</button>'
       + '<div class="jobs-list" id="jobs-list-'+co.id+'"></div>'
