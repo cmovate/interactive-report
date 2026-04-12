@@ -714,13 +714,26 @@ router.get('/prefetch-jobs', async (req, res) => {
     if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
     const accountId = accs[0].account_id;
 
-    const { rows: companies } = await db.query(
-      `SELECT DISTINCT company_name, company_linkedin_id, li_company_url
-       FROM opportunity_companies
-       WHERE workspace_id = $1
+    const { rows: rawCompanies } = await db.query(
+      `SELECT DISTINCT company_name, company_linkedin_id
+       FROM list_companies WHERE workspace_id = $1
+       UNION
+       SELECT DISTINCT company_name, company_linkedin_id
+       FROM opportunity_companies WHERE workspace_id = $1
        ORDER BY company_name`,
       [workspace_id]
     );
+
+    if (!rawCompanies.length) return res.json({ ok: true, message: 'No companies found in this workspace', results: [] });
+
+    // Parse JSON-encoded IDs e.g. {"id":"3090","name":"Check Point"}
+    const companies = rawCompanies.map(co => {
+      let id = co.company_linkedin_id;
+      if (id && typeof id === 'string' && id.trim().startsWith('{')) {
+        try { id = JSON.parse(id).id || null; } catch(e) { id = null; }
+      }
+      return { company_name: co.company_name, company_linkedin_id: id };
+    });
 
     if (!companies.length) return res.json({ ok: true, message: 'No companies found in this workspace', results: [] });
 

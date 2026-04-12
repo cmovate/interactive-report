@@ -56,13 +56,27 @@ async function scrapeWorkspace(workspaceId) {
   if (!accs.length) return;
   const accountId = accs[0].account_id;
 
-  const { rows: companies } = await db.query(
+  // Read from both list_companies and opportunity_companies
+  const { rows: rawCompanies } = await db.query(
     `SELECT DISTINCT company_name, company_linkedin_id
+     FROM list_companies
+     WHERE workspace_id = $1 AND company_name IS NOT NULL AND company_name != ''
+     UNION
+     SELECT DISTINCT company_name, company_linkedin_id
      FROM opportunity_companies
      WHERE workspace_id = $1 AND company_name IS NOT NULL AND company_name != ''
      ORDER BY company_name`,
     [workspaceId]
   );
+
+  // Parse JSON-encoded company_linkedin_id e.g. {"id":"3090","name":"Check Point"}
+  const companies = rawCompanies.map(co => {
+    let id = co.company_linkedin_id;
+    if (id && typeof id === 'string' && id.trim().startsWith('{')) {
+      try { id = JSON.parse(id).id || null; } catch(e) { id = null; }
+    }
+    return { company_name: co.company_name, company_linkedin_id: id };
+  });
 
   if (!companies.length) return;
   console.log(`[JobsScraper] ws=${workspaceId}: ${companies.length} companies to scan`);
