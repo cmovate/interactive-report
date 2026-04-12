@@ -853,6 +853,12 @@ router.post('/fb-linkedin-match', async (req, res) => {
       )
     `);
 
+    // Cancel any stale running jobs (older than 2 min or stuck)
+    await db.query(
+      `UPDATE fb_match_jobs SET status='cancelled' WHERE workspace_id=$1 AND status='running'`,
+      [workspace_id]
+    );
+
     const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
     await db.query(
       `INSERT INTO fb_match_jobs (workspace_id, job_id, total) VALUES ($1, $2, $3)`,
@@ -901,6 +907,13 @@ router.post('/fb-linkedin-match', async (req, res) => {
         let accIdx = 0;
 
         for (const name of names) {
+          // Check if job was cancelled
+          const { rows: check } = await db.query('SELECT status FROM fb_match_jobs WHERE job_id=$1', [jobId]);
+          if (!check.length || check[0].status === 'cancelled') {
+            console.log(`[fb-match] job ${jobId} was cancelled, stopping`);
+            return;
+          }
+
           let done = false;
           let triesLeft = accs.length * 3;
 
@@ -931,13 +944,13 @@ router.post('/fb-linkedin-match', async (req, res) => {
               allResults.push({ fb_name: name, profiles, profiles_found: profiles.length, with_open_jobs: profiles.filter(p=>p.has_open_jobs).length });
               await db.query(`UPDATE fb_match_jobs SET searched=$1, results=$2::jsonb, updated_at=NOW() WHERE job_id=$3`,
                 [searched, JSON.stringify(allResults), jobId]);
-              await new Promise(r => setTimeout(r, 3000));
+              await new Promise(r => setTimeout(r, 2500));
 
             } catch(e) {
               if (e.message && e.message.includes('429')) {
                 accIdx = (accIdx + 1) % accs.length;
                 console.warn(`[fb-match] 429 rotating to acc ${accIdx} for "${name}"`);
-                await new Promise(r => setTimeout(r, 8000));
+                await new Promise(r => setTimeout(r, 5000));
               } else {
                 allResults.push({ fb_name: name, profiles: [], profiles_found: 0, error: e.message });
                 done = true;
