@@ -699,6 +699,27 @@ router.get('/cached-contacts', async (req, res) => {
   }
 });
 
+// Tech job filter — used by prefetch-jobs and jobsScraper
+const TECH_KEYWORDS = [
+  'software','engineer','developer','engineering','technology','technical',
+  'data','cloud','devops','qa','quality assurance','testing','tester',
+  'cyber','security','infosec','ai','ml','machine learning',
+  'artificial intelligence','platform','infrastructure','backend','front-end',
+  'frontend','fullstack','full stack','full-stack','architect','mobile',
+  'ios','android','python','java','javascript','react','node','database',
+  'sql','api','automation','sre','salesforce','erp','crm','it manager',
+  'it director','chief technology','cto','vp engineering','vp technology',
+  'scrum','agile','product manager','product owner','technical lead',
+  'tech lead','systems','network','devsecops','blockchain','embedded',
+  'firmware','microservices','kubernetes','docker','r&d','research',
+  'scientist','analyst','business intelligence','information technology',
+  'digital','innovation','solution',
+];
+function isTechJob(job) {
+  const text = `${job.title || ''} ${job.description || ''}`.toLowerCase();
+  return TECH_KEYWORDS.some(kw => text.includes(kw));
+}
+
 // GET /api/opportunities/prefetch-jobs?workspace_id=X
 // Fetches open tech jobs for ALL companies in a workspace and returns results.
 // Use this to verify job import is working.
