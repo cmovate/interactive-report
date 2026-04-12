@@ -759,59 +759,35 @@ router.get('/prefetch-jobs', async (req, res) => {
 
 
 // Returns active tech job postings at a specific LinkedIn company.
-const TECH_KEYWORDS = [
-  'software', 'engineer', 'developer', 'engineering', 'technology', 'technical',
-  'data', 'cloud', 'devops', 'qa', 'quality assurance', 'testing', 'tester',
-  'cyber', 'security', 'infosec', 'ai', 'ml', 'machine learning',
-  'artificial intelligence', 'platform', 'infrastructure', 'backend', 'front-end',
-  'frontend', 'fullstack', 'full stack', 'full-stack', 'architect', 'mobile',
-  'ios', 'android', 'python', 'java', 'javascript', 'react', 'node', 'database',
-  'sql', 'api', 'automation', 'sre', 'salesforce', 'erp', 'crm', 'it manager',
-  'it director', 'chief technology', 'cto', 'vp engineering', 'vp technology',
-  'scrum', 'agile', 'product manager', 'product owner', 'technical lead',
-  'tech lead', 'systems', 'network', 'devops', 'devsecops', 'blockchain',
-  'embedded', 'firmware', 'microservices', 'kubernetes', 'docker', 'r&d',
-  'research', 'scientist', 'analyst', 'bi ', 'business intelligence',
-  'it ', 'information technology', 'digital', 'innovation', 'solution',
-];
-
-function isTechJob(job) {
-  const text = `${job.title || ''} ${job.description || ''}`.toLowerCase();
-  return TECH_KEYWORDS.some(kw => text.includes(kw));
-}
-
+// GET /api/opportunities/company-jobs?workspace_id=X&company_name=Y&company_linkedin_id=Z
+// Reads from company_jobs cache table (populated by jobsScraper on startup).
 router.get('/company-jobs', async (req, res) => {
   try {
-    const { workspace_id, company_linkedin_id, company_name } = req.query;
+    const { workspace_id, company_name, company_linkedin_id } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-    if (!company_linkedin_id && !company_name) return res.json({ jobs: [], total: 0, tech_count: 0 });
+    if (!company_name && !company_linkedin_id) return res.json({ jobs: [], total: 0 });
 
-    const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1',
-      [workspace_id]
-    );
-    if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts connected to this workspace' });
-    const accountId = accs[0].account_id;
+    let rows;
+    if (company_linkedin_id) {
+      ({ rows } = await db.query(
+        `SELECT job_title AS title, job_location AS location, apply_url
+         FROM company_jobs
+         WHERE workspace_id = $1 AND company_linkedin_id = $2
+         ORDER BY job_title`,
+        [workspace_id, company_linkedin_id]
+      ));
+    }
+    if (!rows || !rows.length) {
+      ({ rows } = await db.query(
+        `SELECT job_title AS title, job_location AS location, apply_url
+         FROM company_jobs
+         WHERE workspace_id = $1 AND LOWER(company_name) = LOWER($2)
+         ORDER BY job_title`,
+        [workspace_id, company_name || '']
+      ));
+    }
 
-    const { getCompanyJobs } = require('../unipile');
-    const allJobs = await getCompanyJobs(accountId, company_linkedin_id, company_name);
-
-    console.log(`[company-jobs] total=${allJobs.length} for company="${company_name}" id=${company_linkedin_id}`);
-    if (allJobs.length > 0) console.log(`[company-jobs] sample job:`, JSON.stringify(allJobs[0]).slice(0, 200));
-
-    // Filter to tech jobs; if filter removes everything, return all jobs
-    let techJobs = allJobs.filter(isTechJob);
-    if (!techJobs.length && allJobs.length > 0) techJobs = allJobs;
-
-    const mapped = techJobs.map(job => ({
-      id:          job.id || null,
-      title:       job.title || job.job_title || '',
-      location:    job.location || job.job_location || '',
-      apply_url:   job.apply_url || job.job_url || job.url || null,
-      published_at: job.published_at || null,
-    })).filter(j => j.title);
-
-    res.json({ jobs: mapped, total: allJobs.length, tech_count: mapped.length });
+    res.json({ jobs: rows || [], total: (rows || []).length });
   } catch (err) {
     console.error('[Opportunities] company-jobs error:', err.message);
     res.status(500).json({ error: err.message });
