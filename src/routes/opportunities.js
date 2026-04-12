@@ -701,304 +701,82 @@ router.get('/cached-contacts', async (req, res) => {
   }
 });
 
-// Active background job tracker — prevents runaway jobs on redeploy
-const _activeJobs = new Set();
-
-// Tech job filter — used by prefetch-jobs and jobsScraper
-const TECH_KEYWORDS = [
-  'software','engineer','developer','engineering','technology','technical',
-  'data','cloud','devops','qa','quality assurance','testing','tester',
-  'cyber','security','infosec','ai','ml','machine learning',
-  'artificial intelligence','platform','infrastructure','backend','front-end',
-  'frontend','fullstack','full stack','full-stack','architect','mobile',
-  'ios','android','python','java','javascript','react','node','database',
-  'sql','api','automation','sre','salesforce','erp','crm','it manager',
-  'it director','chief technology','cto','vp engineering','vp technology',
-  'scrum','agile','product manager','product owner','technical lead',
-  'tech lead','systems','network','devsecops','blockchain','embedded',
-  'firmware','microservices','kubernetes','docker','r&d','research',
-  'scientist','analyst','business intelligence','information technology',
-  'digital','innovation','solution',
-];
-function isTechJob(job) {
-  const text = `${job.title || ''} ${job.description || ''}`.toLowerCase();
-  return TECH_KEYWORDS.some(kw => text.includes(kw));
-}
-
-// GET /api/opportunities/prefetch-jobs?workspace_id=X
-// Fetches open tech jobs for ALL companies in a workspace and returns results.
-// Use this to verify job import is working.
-router.get('/prefetch-jobs', async (req, res) => {
-  const { workspace_id } = req.query;
-  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+// POST /api/opportunities/fb-linkedin-match
+// Simple: search ONE name on LinkedIn, return results immediately.
+// No background jobs. Caller handles iteration with delays.
+router.post('/fb-linkedin-match', async (req, res) => {
+  const { workspace_id, name } = req.body;
+  if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' });
 
   try {
     const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1',
-      [workspace_id]
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
     );
-    if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
-    const accountId = accs[0].account_id;
+    if (!accs.length) return res.status(400).json({ error: 'No accounts' });
 
-    const { rows: rawCompanies } = await db.query(
-      `SELECT DISTINCT company_name, company_linkedin_id
-       FROM list_companies lc JOIN lists l ON l.id = lc.list_id WHERE l.workspace_id = $1
-       UNION
-       SELECT DISTINCT company_name, company_linkedin_id
-       FROM opportunity_companies WHERE workspace_id = $1
-       ORDER BY company_name`,
-      [workspace_id]
+    const { rows: jobRows } = await db.query(
+      'SELECT DISTINCT LOWER(TRIM(company_name)) AS co FROM company_jobs WHERE workspace_id = $1', [workspace_id]
     );
-
-    if (!rawCompanies.length) return res.json({ ok: true, message: 'No companies found in this workspace', results: [] });
-
-    // Parse JSON-encoded IDs e.g. {"id":"3090","name":"Check Point"}
-    const companies = rawCompanies.map(co => {
-      let id = co.company_linkedin_id;
-      if (id && typeof id === 'string' && id.trim().startsWith('{')) {
-        try { id = JSON.parse(id).id || null; } catch(e) { id = null; }
-      }
-      return { company_name: co.company_name, company_linkedin_id: id };
+    const companiesWithJobs = new Set(jobRows.map(r => r.co));
+    const { rows: allJobs } = await db.query(
+      'SELECT LOWER(TRIM(company_name)) AS co, job_title, apply_url FROM company_jobs WHERE workspace_id = $1', [workspace_id]
+    );
+    const jobsByCompany = {};
+    allJobs.forEach(j => {
+      if (!jobsByCompany[j.co]) jobsByCompany[j.co] = [];
+      if (jobsByCompany[j.co].length < 5) jobsByCompany[j.co].push({ title: j.job_title, url: j.apply_url });
     });
 
-    if (!companies.length) return res.json({ ok: true, message: 'No companies found in this workspace', results: [] });
+    function hasOpenJobs(str) {
+      if (!str) return null;
+      const s = str.toLowerCase().trim();
+      for (const jc of companiesWithJobs) {
+        if (s === jc || s.includes(jc) || jc.includes(s)) return jc;
+      }
+      return null;
+    }
 
-    const { getCompanyJobs } = require('../unipile');
-    const results = [];
+    const { searchPeopleByKeywords } = require('../unipile');
 
-    for (const co of companies) {
+    // Try each account until one works
+    let people = [];
+    for (const acc of accs) {
       try {
-        const allJobs = await getCompanyJobs(accountId, co.company_linkedin_id, co.company_name);
-        const techJobs = allJobs.filter(isTechJob);
-        results.push({
-          company:          co.company_name,
-          company_id:       co.company_linkedin_id,
-          total_jobs:       allJobs.length,
-          tech_jobs:        techJobs.length,
-          sample:           (techJobs.length ? techJobs : allJobs).slice(0, 3).map(j => j.title || j.job_title || '?'),
-        });
-        console.log(`[prefetch-jobs] ${co.company_name}: total=${allJobs.length} tech=${techJobs.length}`);
-        // Small delay to avoid rate limiting
-        await new Promise(r => setTimeout(r, 1500));
-      } catch (e) {
-        results.push({ company: co.company_name, error: e.message });
-        console.error(`[prefetch-jobs] error for ${co.company_name}: ${e.message}`);
+        const r = await searchPeopleByKeywords(acc.account_id, name, 5);
+        people = r.items || [];
+        break;
+      } catch(e) {
+        if (e.message && e.message.includes('429')) continue;
+        throw e;
       }
     }
 
-    const totalJobs  = results.reduce((s, r) => s + (r.tech_jobs || 0), 0);
-    const withJobs   = results.filter(r => (r.tech_jobs || 0) > 0).length;
-    res.json({ ok: true, companies_checked: companies.length, companies_with_jobs: withJobs, total_tech_jobs: totalJobs, results });
+    const profiles = people.map(p => {
+      const pos = p.current_positions || [];
+      const co = (pos[0]?.company || '').trim();
+      const matched = hasOpenJobs(co) || hasOpenJobs(p.headline);
+      return {
+        name: p.name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim(),
+        headline: p.headline || '',
+        current_company: co,
+        location: p.location || '',
+        li_url: p.public_profile_url || p.profile_url || '',
+        has_open_jobs: !!matched,
+        matched_company: matched || null,
+        open_jobs: matched ? (jobsByCompany[matched]||[]) : [],
+      };
+    });
+
+    res.json({ name, profiles_found: profiles.length, with_open_jobs: profiles.filter(p=>p.has_open_jobs).length, profiles });
 
   } catch (err) {
-    console.error('[prefetch-jobs] error:', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('[fb-match]', err.message);
+    res.status(err.message.includes('429') ? 429 : 500).json({ error: err.message });
   }
 });
 
-
-// Returns active tech job postings at a specific LinkedIn company.
-// GET /api/opportunities/company-jobs?workspace_id=X&company_name=Y&company_linkedin_id=Z
-// Reads from company_jobs cache table (populated by jobsScraper on startup).
-router.get('/company-jobs', async (req, res) => {
-  try {
-    const { workspace_id, company_name, company_linkedin_id } = req.query;
-    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-    if (!company_name && !company_linkedin_id) return res.json({ jobs: [], total: 0 });
-
-    let rows;
-    if (company_linkedin_id) {
-      ({ rows } = await db.query(
-        `SELECT job_title AS title, job_location AS location, apply_url
-         FROM company_jobs
-         WHERE workspace_id = $1 AND company_linkedin_id = $2
-         ORDER BY job_title`,
-        [workspace_id, company_linkedin_id]
-      ));
-    }
-    if (!rows || !rows.length) {
-      ({ rows } = await db.query(
-        `SELECT job_title AS title, job_location AS location, apply_url
-         FROM company_jobs
-         WHERE workspace_id = $1 AND LOWER(company_name) = LOWER($2)
-         ORDER BY job_title`,
-        [workspace_id, company_name || '']
-      ));
-    }
-
-    res.json({ jobs: rows || [], total: (rows || []).length });
-  } catch (err) {
-    console.error('[Opportunities] company-jobs error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// POST /api/opportunities/fb-linkedin-match
-// Kicks off async background job, returns job_id immediately.
-router.post('/fb-linkedin-match', async (req, res) => {
-  const { workspace_id, names } = req.body;
-  if (!workspace_id || !Array.isArray(names)) return res.status(400).json({ error: 'workspace_id and names[] required' });
-
-  try {
-    // Ensure results table exists
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS fb_match_jobs (
-        id SERIAL PRIMARY KEY,
-        workspace_id INTEGER NOT NULL,
-        job_id TEXT UNIQUE NOT NULL,
-        status TEXT DEFAULT 'running',
-        total INTEGER DEFAULT 0,
-        searched INTEGER DEFAULT 0,
-        results JSONB DEFAULT '[]',
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    // Cancel any stale running jobs (older than 2 min or stuck)
-    await db.query(
-      `UPDATE fb_match_jobs SET status='cancelled' WHERE workspace_id=$1 AND status='running'`,
-      [workspace_id]
-    );
-
-    const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    await db.query(
-      `INSERT INTO fb_match_jobs (workspace_id, job_id, total) VALUES ($1, $2, $3)`,
-      [workspace_id, jobId, names.length]
-    );
-
-    // Return immediately
-    res.json({ job_id: jobId, total: names.length, status: 'running' });
-
-    // Run in background (no await)
-    (async () => {
-      _activeJobs.add(jobId);
-      try {
-        const { rows: accs } = await db.query(
-          'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
-        );
-        if (!accs.length) {
-          await db.query(`UPDATE fb_match_jobs SET status='error', updated_at=NOW() WHERE job_id=$1`, [jobId]);
-          return;
-        }
-
-        const { rows: jobRows } = await db.query(
-          'SELECT DISTINCT LOWER(TRIM(company_name)) AS co FROM company_jobs WHERE workspace_id = $1', [workspace_id]
-        );
-        const companiesWithJobs = new Set(jobRows.map(r => r.co));
-        const { rows: allJobs } = await db.query(
-          'SELECT LOWER(TRIM(company_name)) AS co, job_title, apply_url FROM company_jobs WHERE workspace_id = $1', [workspace_id]
-        );
-        const jobsByCompany = {};
-        allJobs.forEach(j => {
-          if (!jobsByCompany[j.co]) jobsByCompany[j.co] = [];
-          jobsByCompany[j.co].push({ title: j.job_title, url: j.apply_url });
-        });
-
-        function hasOpenJobs(str) {
-          if (!str) return null;
-          const s = str.toLowerCase().trim();
-          for (const jc of companiesWithJobs) {
-            if (s === jc || s.includes(jc) || jc.includes(s)) return jc;
-          }
-          return null;
-        }
-
-        const { searchPeopleByKeywords } = require('../unipile');
-        const allResults = [];
-        let searched = 0;
-        let accIdx = 0;
-
-        for (const name of names) {
-          // Check if job was cancelled (DB check every name)
-          if (!_activeJobs.has(jobId)) {
-            console.log(`[fb-match] job ${jobId} no longer active, stopping`);
-            return;
-          }
-
-          let done = false;
-          let triesLeft = accs.length * 3;
-
-          while (!done && triesLeft > 0) {
-            triesLeft--;
-            try {
-              const r2 = await searchPeopleByKeywords(accs[accIdx].account_id, name, 5);
-              const people = r2.items || [];
-              searched++;
-              done = true;
-
-              const profiles = people.map(p => {
-                const pos = p.current_positions || [];
-                const co = (pos[0]?.company || '').trim();
-                const matched = hasOpenJobs(co) || hasOpenJobs(p.headline);
-                return {
-                  name: p.name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim(),
-                  headline: p.headline || '',
-                  current_company: co,
-                  location: p.location || '',
-                  li_url: p.public_profile_url || p.profile_url || '',
-                  has_open_jobs: !!matched,
-                  matched_company: matched || null,
-                  open_jobs: matched ? (jobsByCompany[matched]||[]).slice(0,5) : [],
-                };
-              });
-
-              allResults.push({ fb_name: name, profiles, profiles_found: profiles.length, with_open_jobs: profiles.filter(p=>p.has_open_jobs).length });
-              await db.query(`UPDATE fb_match_jobs SET searched=$1, results=$2::jsonb, updated_at=NOW() WHERE job_id=$3`,
-                [searched, JSON.stringify(allResults), jobId]);
-              await new Promise(r => setTimeout(r, 2500));
-
-            } catch(e) {
-              if (e.message && e.message.includes('429')) {
-                accIdx = (accIdx + 1) % accs.length;
-                console.warn(`[fb-match] 429 rotating to acc ${accIdx} for "${name}"`);
-                await new Promise(r => setTimeout(r, 5000));
-              } else {
-                allResults.push({ fb_name: name, profiles: [], profiles_found: 0, error: e.message });
-                done = true;
-              }
-            }
-          }
-          if (!done) allResults.push({ fb_name: name, profiles: [], profiles_found: 0, error: 'rate_limited' });
-        }
-
-        await db.query(`UPDATE fb_match_jobs SET status='done', searched=$1, results=$2::jsonb, updated_at=NOW() WHERE job_id=$3`,
-          [searched, JSON.stringify(allResults), jobId]);
-        console.log(`[fb-match] job ${jobId} complete: ${searched}/${names.length} searched`);
-        _activeJobs.delete(jobId);
-
-      } catch(err) {
-        console.error('[fb-match bg] error:', err.message);
-        await db.query(`UPDATE fb_match_jobs SET status='error', updated_at=NOW() WHERE job_id=$1`, [jobId]);
-      }
-    })();
-
-  } catch (err) {
-    console.error('[fb-match] error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/opportunities/fb-match-results?job_id=X
+// GET /api/opportunities/fb-match-results - kept for compatibility
 router.get('/fb-match-results', async (req, res) => {
-  const { job_id } = req.query;
-  if (!job_id) return res.status(400).json({ error: 'job_id required' });
-  try {
-    const { rows } = await db.query(
-      'SELECT status, total, searched, results FROM fb_match_jobs WHERE job_id=$1', [job_id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Job not found' });
-    const row = rows[0];
-    const results = row.results || [];
-    const withJobs = results.filter(r => r.with_open_jobs > 0);
-    res.json({
-      status: row.status,
-      progress: `${row.searched}/${row.total}`,
-      names_with_job_matches: withJobs.length,
-      matches: withJobs,
-      all_results: results,
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  res.json({ message: 'Use POST /fb-linkedin-match with one name at a time' });
 });
 
