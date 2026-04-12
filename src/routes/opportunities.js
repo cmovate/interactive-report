@@ -832,94 +832,156 @@ router.get('/company-jobs', async (req, res) => {
 
 
 // POST /api/opportunities/fb-linkedin-match
+// Kicks off async background job, returns job_id immediately.
 router.post('/fb-linkedin-match', async (req, res) => {
   const { workspace_id, names } = req.body;
   if (!workspace_id || !Array.isArray(names)) return res.status(400).json({ error: 'workspace_id and names[] required' });
 
   try {
-    const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
+    // Ensure results table exists
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS fb_match_jobs (
+        id SERIAL PRIMARY KEY,
+        workspace_id INTEGER NOT NULL,
+        job_id TEXT UNIQUE NOT NULL,
+        status TEXT DEFAULT 'running',
+        total INTEGER DEFAULT 0,
+        searched INTEGER DEFAULT 0,
+        results JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    await db.query(
+      `INSERT INTO fb_match_jobs (workspace_id, job_id, total) VALUES ($1, $2, $3)`,
+      [workspace_id, jobId, names.length]
     );
-    if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
 
-    const { rows: jobRows } = await db.query(
-      'SELECT DISTINCT LOWER(TRIM(company_name)) AS co FROM company_jobs WHERE workspace_id = $1', [workspace_id]
-    );
-    const companiesWithJobs = new Set(jobRows.map(r => r.co));
-    const { rows: allJobs } = await db.query(
-      'SELECT LOWER(TRIM(company_name)) AS co, job_title, apply_url FROM company_jobs WHERE workspace_id = $1', [workspace_id]
-    );
-    const jobsByCompany = {};
-    allJobs.forEach(j => {
-      if (!jobsByCompany[j.co]) jobsByCompany[j.co] = [];
-      jobsByCompany[j.co].push({ title: j.job_title, url: j.apply_url });
-    });
+    // Return immediately
+    res.json({ job_id: jobId, total: names.length, status: 'running' });
 
-    function hasOpenJobs(str) {
-      if (!str) return null;
-      const s = str.toLowerCase().trim();
-      for (const jc of companiesWithJobs) {
-        if (s === jc || s.includes(jc) || jc.includes(s)) return jc;
-      }
-      return null;
-    }
-
-    const { searchPeopleByKeywords } = require('../unipile');
-    const results = [];
-    let searched = 0;
-    let accIdx = 0;
-
-    for (const name of names) {
-      let done = false;
-      let triesLeft = accs.length * 2; // try each account up to twice
-
-      while (!done && triesLeft > 0) {
-        triesLeft--;
-        try {
-          const r2 = await searchPeopleByKeywords(accs[accIdx].account_id, name, 5);
-          const people = r2.items || [];
-          searched++;
-          done = true;
-
-          const profiles = people.map(p => {
-            const pos = p.current_positions || [];
-            const co = (pos[0]?.company || '').trim();
-            const matched = hasOpenJobs(co) || hasOpenJobs(p.headline);
-            return {
-              name: p.name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim(),
-              headline: p.headline || '',
-              current_company: co,
-              location: p.location || '',
-              li_url: p.public_profile_url || p.profile_url || '',
-              has_open_jobs: !!matched,
-              matched_company: matched || null,
-              open_jobs: matched ? (jobsByCompany[matched]||[]).slice(0,5) : [],
-            };
-          });
-
-          results.push({ fb_name: name, profiles, profiles_found: profiles.length, with_open_jobs: profiles.filter(p=>p.has_open_jobs).length });
-          await new Promise(r => setTimeout(r, 3000));
-
-        } catch(e) {
-          if (e.message && e.message.includes('429')) {
-            console.warn(`[fb-match] 429 acc=${accIdx} name="${name}", rotating`);
-            accIdx = (accIdx + 1) % accs.length;
-            await new Promise(r => setTimeout(r, 5000));
-          } else {
-            results.push({ fb_name: name, profiles: [], profiles_found: 0, error: e.message });
-            done = true;
-          }
+    // Run in background (no await)
+    (async () => {
+      try {
+        const { rows: accs } = await db.query(
+          'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
+        );
+        if (!accs.length) {
+          await db.query(`UPDATE fb_match_jobs SET status='error', updated_at=NOW() WHERE job_id=$1`, [jobId]);
+          return;
         }
+
+        const { rows: jobRows } = await db.query(
+          'SELECT DISTINCT LOWER(TRIM(company_name)) AS co FROM company_jobs WHERE workspace_id = $1', [workspace_id]
+        );
+        const companiesWithJobs = new Set(jobRows.map(r => r.co));
+        const { rows: allJobs } = await db.query(
+          'SELECT LOWER(TRIM(company_name)) AS co, job_title, apply_url FROM company_jobs WHERE workspace_id = $1', [workspace_id]
+        );
+        const jobsByCompany = {};
+        allJobs.forEach(j => {
+          if (!jobsByCompany[j.co]) jobsByCompany[j.co] = [];
+          jobsByCompany[j.co].push({ title: j.job_title, url: j.apply_url });
+        });
+
+        function hasOpenJobs(str) {
+          if (!str) return null;
+          const s = str.toLowerCase().trim();
+          for (const jc of companiesWithJobs) {
+            if (s === jc || s.includes(jc) || jc.includes(s)) return jc;
+          }
+          return null;
+        }
+
+        const { searchPeopleByKeywords } = require('../unipile');
+        const allResults = [];
+        let searched = 0;
+        let accIdx = 0;
+
+        for (const name of names) {
+          let done = false;
+          let triesLeft = accs.length * 3;
+
+          while (!done && triesLeft > 0) {
+            triesLeft--;
+            try {
+              const r2 = await searchPeopleByKeywords(accs[accIdx].account_id, name, 5);
+              const people = r2.items || [];
+              searched++;
+              done = true;
+
+              const profiles = people.map(p => {
+                const pos = p.current_positions || [];
+                const co = (pos[0]?.company || '').trim();
+                const matched = hasOpenJobs(co) || hasOpenJobs(p.headline);
+                return {
+                  name: p.name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim(),
+                  headline: p.headline || '',
+                  current_company: co,
+                  location: p.location || '',
+                  li_url: p.public_profile_url || p.profile_url || '',
+                  has_open_jobs: !!matched,
+                  matched_company: matched || null,
+                  open_jobs: matched ? (jobsByCompany[matched]||[]).slice(0,5) : [],
+                };
+              });
+
+              allResults.push({ fb_name: name, profiles, profiles_found: profiles.length, with_open_jobs: profiles.filter(p=>p.has_open_jobs).length });
+              await db.query(`UPDATE fb_match_jobs SET searched=$1, results=$2::jsonb, updated_at=NOW() WHERE job_id=$3`,
+                [searched, JSON.stringify(allResults), jobId]);
+              await new Promise(r => setTimeout(r, 3000));
+
+            } catch(e) {
+              if (e.message && e.message.includes('429')) {
+                accIdx = (accIdx + 1) % accs.length;
+                console.warn(`[fb-match] 429 rotating to acc ${accIdx} for "${name}"`);
+                await new Promise(r => setTimeout(r, 8000));
+              } else {
+                allResults.push({ fb_name: name, profiles: [], profiles_found: 0, error: e.message });
+                done = true;
+              }
+            }
+          }
+          if (!done) allResults.push({ fb_name: name, profiles: [], profiles_found: 0, error: 'rate_limited' });
+        }
+
+        await db.query(`UPDATE fb_match_jobs SET status='done', searched=$1, results=$2::jsonb, updated_at=NOW() WHERE job_id=$3`,
+          [searched, JSON.stringify(allResults), jobId]);
+        console.log(`[fb-match] job ${jobId} complete: ${searched}/${names.length} searched`);
+
+      } catch(err) {
+        console.error('[fb-match bg] error:', err.message);
+        await db.query(`UPDATE fb_match_jobs SET status='error', updated_at=NOW() WHERE job_id=$1`, [jobId]);
       }
-
-      if (!done) results.push({ fb_name: name, profiles: [], profiles_found: 0, error: 'rate_limited_all_accounts' });
-    }
-
-    res.json({ searched, total_names: names.length, names_with_job_matches: results.filter(r=>r.with_open_jobs>0).length, results });
+    })();
 
   } catch (err) {
     console.error('[fb-match] error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/opportunities/fb-match-results?job_id=X
+router.get('/fb-match-results', async (req, res) => {
+  const { job_id } = req.query;
+  if (!job_id) return res.status(400).json({ error: 'job_id required' });
+  try {
+    const { rows } = await db.query(
+      'SELECT status, total, searched, results FROM fb_match_jobs WHERE job_id=$1', [job_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Job not found' });
+    const row = rows[0];
+    const results = row.results || [];
+    const withJobs = results.filter(r => r.with_open_jobs > 0);
+    res.json({
+      status: row.status,
+      progress: `${row.searched}/${row.total}`,
+      names_with_job_matches: withJobs.length,
+      matches: withJobs,
+      all_results: results,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
