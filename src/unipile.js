@@ -350,17 +350,30 @@ async function createMessageWebhook(accountId, serverUrl) {
 
 /**
  * Search for active job postings at a specific LinkedIn company.
- * Uses the jobs search category with company filter.
- * Returns raw job items from LinkedIn.
+ * Uses keywords search with company name since the company filter
+ * is not supported for the jobs category in Unipile classic API.
  */
-async function getCompanyJobs(accountId, companyId, limit = 30) {
-  const body = { api: 'classic', category: 'jobs', limit };
+async function getCompanyJobs(accountId, companyId, companyName, limit = 40) {
+  // Build keyword: company ID as urn filter + company name fallback
+  const keyword = companyName || String(companyId);
+  const body = {
+    api: 'classic',
+    category: 'jobs',
+    keywords: `"${keyword}"`,
+    limit,
+  };
+  // Also pass company filter — Unipile may or may not support it for jobs,
+  // but it won't break things if it's ignored.
   if (companyId) body.company = [String(companyId)];
+
+  console.log(`[getCompanyJobs] searching jobs for "${keyword}" (id=${companyId})`);
   const data = await request(
     `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
     { method: 'POST', body: JSON.stringify(body) }
   );
-  return Array.isArray(data?.items) ? data.items : [];
+  const items = Array.isArray(data?.items) ? data.items : [];
+  console.log(`[getCompanyJobs] raw results: ${items.length}`);
+  return items;
 }
 
 

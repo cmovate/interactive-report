@@ -699,7 +699,7 @@ router.get('/cached-contacts', async (req, res) => {
   }
 });
 
-// GET /api/opportunities/company-jobs?workspace_id=X&company_linkedin_id=Y
+// GET /api/opportunities/company-jobs?workspace_id=X&company_linkedin_id=Y&company_name=Z
 // Returns active tech job postings at a specific LinkedIn company.
 const TECH_KEYWORDS = [
   'software', 'engineer', 'developer', 'engineering', 'technology', 'technical',
@@ -712,7 +712,9 @@ const TECH_KEYWORDS = [
   'it director', 'chief technology', 'cto', 'vp engineering', 'vp technology',
   'scrum', 'agile', 'product manager', 'product owner', 'technical lead',
   'tech lead', 'systems', 'network', 'devops', 'devsecops', 'blockchain',
-  'embedded', 'firmware', 'microservices', 'kubernetes', 'docker'
+  'embedded', 'firmware', 'microservices', 'kubernetes', 'docker', 'r&d',
+  'research', 'scientist', 'analyst', 'bi ', 'business intelligence',
+  'it ', 'information technology', 'digital', 'innovation', 'solution',
 ];
 
 function isTechJob(job) {
@@ -722,9 +724,9 @@ function isTechJob(job) {
 
 router.get('/company-jobs', async (req, res) => {
   try {
-    const { workspace_id, company_linkedin_id } = req.query;
+    const { workspace_id, company_linkedin_id, company_name } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-    if (!company_linkedin_id) return res.json({ jobs: [], total: 0, tech_count: 0 });
+    if (!company_linkedin_id && !company_name) return res.json({ jobs: [], total: 0, tech_count: 0 });
 
     const { rows: accs } = await db.query(
       'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1',
@@ -734,17 +736,24 @@ router.get('/company-jobs', async (req, res) => {
     const accountId = accs[0].account_id;
 
     const { getCompanyJobs } = require('../unipile');
-    const allJobs = await getCompanyJobs(accountId, company_linkedin_id);
+    const allJobs = await getCompanyJobs(accountId, company_linkedin_id, company_name);
 
-    const techJobs = allJobs.filter(isTechJob).map(job => ({
+    console.log(`[company-jobs] total=${allJobs.length} for company="${company_name}" id=${company_linkedin_id}`);
+    if (allJobs.length > 0) console.log(`[company-jobs] sample job:`, JSON.stringify(allJobs[0]).slice(0, 200));
+
+    // Filter to tech jobs; if filter removes everything, return all jobs
+    let techJobs = allJobs.filter(isTechJob);
+    if (!techJobs.length && allJobs.length > 0) techJobs = allJobs;
+
+    const mapped = techJobs.map(job => ({
       id:          job.id || null,
-      title:       job.title || '',
-      location:    job.location || '',
-      apply_url:   job.apply_url || job.job_url || null,
+      title:       job.title || job.job_title || '',
+      location:    job.location || job.job_location || '',
+      apply_url:   job.apply_url || job.job_url || job.url || null,
       published_at: job.published_at || null,
-    }));
+    })).filter(j => j.title);
 
-    res.json({ jobs: techJobs, total: allJobs.length, tech_count: techJobs.length });
+    res.json({ jobs: mapped, total: allJobs.length, tech_count: mapped.length });
   } catch (err) {
     console.error('[Opportunities] company-jobs error:', err.message);
     res.status(500).json({ error: err.message });

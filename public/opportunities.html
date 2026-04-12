@@ -185,7 +185,7 @@ function renderBlock(co) {
     body = '<div class="co-body"><div class="scanning-row"><span class="spinner"></span> Scanning LinkedIn...</div></div>';
   } else if (!res.contacts || !res.contacts.length) {
     var jobsBtnEmpty = '<div class="jobs-section">'
-      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\')">'
+      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\',\'' + (co.company_name||'').replace(/'/g,"\\'") + '\')">'
       + '<span class="jobs-chevron">&#9654;</span> Open tech jobs<span class="jobs-count"></span>'
       + '</button>'
       + '<div class="jobs-list" id="jobs-list-'+co.id+'"></div>'
@@ -208,7 +208,7 @@ function renderBlock(co) {
         +'</tr>';
     }).join('');
     var jobsBtn = '<div class="jobs-section">'
-      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\')">'
+      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\',\'' + (co.company_name||'').replace(/'/g,"\\'") + '\')">'
       + '<span class="jobs-chevron">&#9654;</span> Open tech jobs<span class="jobs-count"></span>'
       + '</button>'
       + '<div class="jobs-list" id="jobs-list-'+co.id+'"></div>'
@@ -263,7 +263,7 @@ function openDM(i, coId) {
 function closeDM() { document.getElementById('dm-overlay').classList.remove('open'); dmTarget = null; }
 var jobsState = {}; // keyed by co.id
 
-function toggleJobs(coId, companyLinkedinId) {
+function toggleJobs(coId, companyLinkedinId, companyName) {
   var btn = document.getElementById('jobs-btn-' + coId);
   var list = document.getElementById('jobs-list-' + coId);
   if (!btn || !list) return;
@@ -290,7 +290,7 @@ function toggleJobs(coId, companyLinkedinId) {
   list.innerHTML = '<div class="jobs-loading"><span class="spinner"></span> Fetching open tech jobs...</div>';
   jobsState[coId] = { loaded: false };
 
-  fetch('/api/opportunities/company-jobs?workspace_id=' + workspaceId + '&company_linkedin_id=' + encodeURIComponent(companyLinkedinId))
+  fetch('/api/opportunities/company-jobs?workspace_id=' + workspaceId + '&company_linkedin_id=' + encodeURIComponent(companyLinkedinId || '') + '&company_name=' + encodeURIComponent(companyName || ''))
     .then(function(r) { return r.json(); })
     .then(function(data) {
       jobsState[coId] = { loaded: true };
