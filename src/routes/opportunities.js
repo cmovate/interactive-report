@@ -701,6 +701,9 @@ router.get('/cached-contacts', async (req, res) => {
   }
 });
 
+// Active background job tracker — prevents runaway jobs on redeploy
+const _activeJobs = new Set();
+
 // Tech job filter — used by prefetch-jobs and jobsScraper
 const TECH_KEYWORDS = [
   'software','engineer','developer','engineering','technology','technical',
@@ -870,6 +873,7 @@ router.post('/fb-linkedin-match', async (req, res) => {
 
     // Run in background (no await)
     (async () => {
+      _activeJobs.add(jobId);
       try {
         const { rows: accs } = await db.query(
           'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
@@ -907,10 +911,9 @@ router.post('/fb-linkedin-match', async (req, res) => {
         let accIdx = 0;
 
         for (const name of names) {
-          // Check if job was cancelled
-          const { rows: check } = await db.query('SELECT status FROM fb_match_jobs WHERE job_id=$1', [jobId]);
-          if (!check.length || check[0].status === 'cancelled') {
-            console.log(`[fb-match] job ${jobId} was cancelled, stopping`);
+          // Check if job was cancelled (DB check every name)
+          if (!_activeJobs.has(jobId)) {
+            console.log(`[fb-match] job ${jobId} no longer active, stopping`);
             return;
           }
 
@@ -963,6 +966,7 @@ router.post('/fb-linkedin-match', async (req, res) => {
         await db.query(`UPDATE fb_match_jobs SET status='done', searched=$1, results=$2::jsonb, updated_at=NOW() WHERE job_id=$3`,
           [searched, JSON.stringify(allResults), jobId]);
         console.log(`[fb-match] job ${jobId} complete: ${searched}/${names.length} searched`);
+        _activeJobs.delete(jobId);
 
       } catch(err) {
         console.error('[fb-match bg] error:', err.message);
