@@ -59,6 +59,22 @@ textarea.msg-box:focus { outline: none; border-color: #1D9E75; }
 .msg-ok { color: #16a34a; } .msg-err { color: #dc2626; }
 .empty-state { text-align: center; padding: 60px; color: #9ca3af; }
 .empty-state h3 { font-size: 15px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+
+.jobs-section { border-top: 1px solid #f3f4f6; padding: 0; }
+.jobs-toggle { display: flex; align-items: center; gap: 8px; padding: 10px 18px; cursor: pointer; font-size: 12px; font-weight: 500; color: #1D9E75; background: none; border: none; width: 100%; text-align: left; }
+.jobs-toggle:hover { background: #f9fafb; }
+.jobs-toggle .jobs-chevron { font-size: 10px; color: #9ca3af; transition: transform .2s; }
+.jobs-toggle.open .jobs-chevron { transform: rotate(90deg); }
+.jobs-list { display: none; padding: 0 18px 12px; }
+.jobs-toggle.open + .jobs-list { display: block; }
+.job-item { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f9fafb; font-size: 12px; }
+.job-item:last-child { border-bottom: none; }
+.job-title { font-weight: 500; color: #111827; }
+.job-location { color: #9ca3af; font-size: 11px; }
+.job-link { color: #1D9E75; text-decoration: none; white-space: nowrap; flex-shrink: 0; }
+.job-link:hover { text-decoration: underline; }
+.jobs-empty { color: #9ca3af; font-size: 12px; padding: 8px 0; }
+.jobs-loading { display: flex; align-items: center; gap: 6px; color: #9ca3af; font-size: 12px; padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -168,7 +184,13 @@ function renderBlock(co) {
   if (!res || res.scanning) {
     body = '<div class="co-body"><div class="scanning-row"><span class="spinner"></span> Scanning LinkedIn...</div></div>';
   } else if (!res.contacts || !res.contacts.length) {
-    body = '<div class="co-body"><div class="no-conn">No 1st-degree connections found at this company.</div></div>';
+    var jobsBtnEmpty = '<div class="jobs-section">'
+      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\')">'
+      + '<span class="jobs-chevron">&#9654;</span> Open tech jobs<span class="jobs-count"></span>'
+      + '</button>'
+      + '<div class="jobs-list" id="jobs-list-'+co.id+'"></div>'
+      + '</div>';
+    body = '<div class="co-body"><div class="no-conn">No 1st-degree connections found at this company.</div>' + jobsBtnEmpty + '</div>';
   } else {
     var n = res.contacts.length;
     var rows = res.contacts.map(function(c, i) {
@@ -185,9 +207,15 @@ function renderBlock(co) {
         +'<td><button class="btn-msg" onclick="openDM('+i+','+co.id+')">&#8594; Message</button></td>'
         +'</tr>';
     }).join('');
+    var jobsBtn = '<div class="jobs-section">'
+      + '<button class="jobs-toggle" id="jobs-btn-'+co.id+'" onclick="toggleJobs('+co.id+',\'' + (co.company_linkedin_id||'') + '\')">'
+      + '<span class="jobs-chevron">&#9654;</span> Open tech jobs<span class="jobs-count"></span>'
+      + '</button>'
+      + '<div class="jobs-list" id="jobs-list-'+co.id+'"></div>'
+      + '</div>';
     body = '<div class="co-body"><div class="co-table-wrap"><table>'
       +'<thead><tr><th>First name</th><th>Last name</th><th>Company</th><th>Title</th><th>LinkedIn</th><th>Connected via</th><th></th></tr></thead>'
-      +'<tbody>'+rows+'</tbody></table></div></div>';
+      +'<tbody>'+rows+'</tbody></table></div>' + jobsBtn + '</div>';
   }
   return hdr + body;
 }
@@ -232,7 +260,68 @@ function openDM(i, coId) {
     connected_via: via
   }, '*');
 }
-function closeDM() { document.getElementById('dm-overlay').classList.remove('open'); dmTarget = null; }
+function closeDM() { 
+var jobsState = {}; // keyed by co.id
+
+function toggleJobs(coId, companyLinkedinId) {
+  var btn = document.getElementById('jobs-btn-' + coId);
+  var list = document.getElementById('jobs-list-' + coId);
+  if (!btn || !list) return;
+
+  var isOpen = btn.classList.contains('open');
+  if (isOpen) {
+    btn.classList.remove('open');
+    list.style.display = 'none';
+    return;
+  }
+  btn.classList.add('open');
+  list.style.display = 'block';
+
+  // Already loaded
+  if (jobsState[coId] && jobsState[coId].loaded) return;
+
+  if (!companyLinkedinId) {
+    list.innerHTML = '<div class="jobs-empty">No LinkedIn company ID — cannot fetch jobs.</div>';
+    jobsState[coId] = { loaded: true };
+    return;
+  }
+
+  // Show spinner
+  list.innerHTML = '<div class="jobs-loading"><span class="spinner"></span> Fetching open tech jobs...</div>';
+  jobsState[coId] = { loaded: false };
+
+  fetch('/api/opportunities/company-jobs?workspace_id=' + workspaceId + '&company_linkedin_id=' + encodeURIComponent(companyLinkedinId))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      jobsState[coId] = { loaded: true };
+      var jobs = data.jobs || [];
+      if (!jobs.length) {
+        list.innerHTML = '<div class="jobs-empty">No open tech jobs found at this company.</div>';
+        btn.querySelector('.jobs-count') && (btn.querySelector('.jobs-count').textContent = '');
+        return;
+      }
+      // Update button label with count
+      var countEl = btn.querySelector('.jobs-count');
+      if (countEl) countEl.textContent = ' · ' + jobs.length + ' open';
+
+      list.innerHTML = jobs.map(function(job) {
+        var loc = job.location ? '<span class="job-location">📍 ' + esc(job.location) + '</span>' : '';
+        var link = job.apply_url
+          ? '<a class="job-link" href="' + esc(job.apply_url) + '" target="_blank">Apply →</a>'
+          : '';
+        return '<div class="job-item">'
+          + '<div><span class="job-title">' + esc(job.title) + '</span> ' + loc + '</div>'
+          + link
+          + '</div>';
+      }).join('');
+    })
+    .catch(function(e) {
+      jobsState[coId] = { loaded: true };
+      list.innerHTML = '<div class="jobs-empty">Error: ' + esc(e.message) + '</div>';
+    });
+}
+
+document.getElementById('dm-overlay').classList.remove('open'); dmTarget = null; }
 function sendDM() {
   var msg = document.getElementById('dm-text').value.trim();
   if (!msg) { document.getElementById('dm-result').innerHTML = '<span class="msg-err">Please write a message.</span>'; return; }
@@ -254,6 +343,67 @@ function sendDM() {
     btn.disabled = false; btn.textContent = 'Send';
   });
 }
+
+var jobsState = {}; // keyed by co.id
+
+function toggleJobs(coId, companyLinkedinId) {
+  var btn = document.getElementById('jobs-btn-' + coId);
+  var list = document.getElementById('jobs-list-' + coId);
+  if (!btn || !list) return;
+
+  var isOpen = btn.classList.contains('open');
+  if (isOpen) {
+    btn.classList.remove('open');
+    list.style.display = 'none';
+    return;
+  }
+  btn.classList.add('open');
+  list.style.display = 'block';
+
+  // Already loaded
+  if (jobsState[coId] && jobsState[coId].loaded) return;
+
+  if (!companyLinkedinId) {
+    list.innerHTML = '<div class="jobs-empty">No LinkedIn company ID — cannot fetch jobs.</div>';
+    jobsState[coId] = { loaded: true };
+    return;
+  }
+
+  // Show spinner
+  list.innerHTML = '<div class="jobs-loading"><span class="spinner"></span> Fetching open tech jobs...</div>';
+  jobsState[coId] = { loaded: false };
+
+  fetch('/api/opportunities/company-jobs?workspace_id=' + workspaceId + '&company_linkedin_id=' + encodeURIComponent(companyLinkedinId))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      jobsState[coId] = { loaded: true };
+      var jobs = data.jobs || [];
+      if (!jobs.length) {
+        list.innerHTML = '<div class="jobs-empty">No open tech jobs found at this company.</div>';
+        btn.querySelector('.jobs-count') && (btn.querySelector('.jobs-count').textContent = '');
+        return;
+      }
+      // Update button label with count
+      var countEl = btn.querySelector('.jobs-count');
+      if (countEl) countEl.textContent = ' · ' + jobs.length + ' open';
+
+      list.innerHTML = jobs.map(function(job) {
+        var loc = job.location ? '<span class="job-location">📍 ' + esc(job.location) + '</span>' : '';
+        var link = job.apply_url
+          ? '<a class="job-link" href="' + esc(job.apply_url) + '" target="_blank">Apply →</a>'
+          : '';
+        return '<div class="job-item">'
+          + '<div><span class="job-title">' + esc(job.title) + '</span> ' + loc + '</div>'
+          + link
+          + '</div>';
+      }).join('');
+    })
+    .catch(function(e) {
+      jobsState[coId] = { loaded: true };
+      list.innerHTML = '<div class="jobs-empty">Error: ' + esc(e.message) + '</div>';
+    });
+}
+
 document.getElementById('dm-overlay').addEventListener('click', function(e){ if(e.target===this) closeDM(); });
 init();
 </script>

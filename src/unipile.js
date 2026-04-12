@@ -348,6 +348,22 @@ async function createMessageWebhook(accountId, serverUrl) {
   return data?.webhook_id || data?.id || null;
 }
 
+/**
+ * Search for active job postings at a specific LinkedIn company.
+ * Uses the jobs search category with company filter.
+ * Returns raw job items from LinkedIn.
+ */
+async function getCompanyJobs(accountId, companyId, limit = 30) {
+  const body = { api: 'classic', category: 'jobs', limit };
+  if (companyId) body.company = [String(companyId)];
+  const data = await request(
+    `/api/v1/linkedin/search?account_id=${encodeURIComponent(accountId)}`,
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
+
 module.exports = {
   getAccounts,
   getAccountInfo,
@@ -374,6 +390,7 @@ module.exports = {
   searchPeopleAdvanced,
   request,
   request,
+  getCompanyJobs,
 
   getPost,
   commentPost,

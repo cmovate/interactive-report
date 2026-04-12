@@ -699,4 +699,57 @@ router.get('/cached-contacts', async (req, res) => {
   }
 });
 
+// GET /api/opportunities/company-jobs?workspace_id=X&company_linkedin_id=Y
+// Returns active tech job postings at a specific LinkedIn company.
+const TECH_KEYWORDS = [
+  'software', 'engineer', 'developer', 'engineering', 'technology', 'technical',
+  'data', 'cloud', 'devops', 'qa', 'quality assurance', 'testing', 'tester',
+  'cyber', 'security', 'infosec', 'ai', 'ml', 'machine learning',
+  'artificial intelligence', 'platform', 'infrastructure', 'backend', 'front-end',
+  'frontend', 'fullstack', 'full stack', 'full-stack', 'architect', 'mobile',
+  'ios', 'android', 'python', 'java', 'javascript', 'react', 'node', 'database',
+  'sql', 'api', 'automation', 'sre', 'salesforce', 'erp', 'crm', 'it manager',
+  'it director', 'chief technology', 'cto', 'vp engineering', 'vp technology',
+  'scrum', 'agile', 'product manager', 'product owner', 'technical lead',
+  'tech lead', 'systems', 'network', 'devops', 'devsecops', 'blockchain',
+  'embedded', 'firmware', 'microservices', 'kubernetes', 'docker'
+];
+
+function isTechJob(job) {
+  const text = `${job.title || ''} ${job.description || ''}`.toLowerCase();
+  return TECH_KEYWORDS.some(kw => text.includes(kw));
+}
+
+router.get('/company-jobs', async (req, res) => {
+  try {
+    const { workspace_id, company_linkedin_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    if (!company_linkedin_id) return res.json({ jobs: [], total: 0, tech_count: 0 });
+
+    const { rows: accs } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1',
+      [workspace_id]
+    );
+    if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts connected to this workspace' });
+    const accountId = accs[0].account_id;
+
+    const { getCompanyJobs } = require('../unipile');
+    const allJobs = await getCompanyJobs(accountId, company_linkedin_id);
+
+    const techJobs = allJobs.filter(isTechJob).map(job => ({
+      id:          job.id || null,
+      title:       job.title || '',
+      location:    job.location || '',
+      apply_url:   job.apply_url || job.job_url || null,
+      published_at: job.published_at || null,
+    }));
+
+    res.json({ jobs: techJobs, total: allJobs.length, tech_count: techJobs.length });
+  } catch (err) {
+    console.error('[Opportunities] company-jobs error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 module.exports = router;
