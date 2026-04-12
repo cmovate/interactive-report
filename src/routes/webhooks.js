@@ -71,8 +71,12 @@ async function handleNewRelation(payload) {
       `UPDATE contacts SET
          invite_approved         = true,
          invite_approved_at      = NOW(),
+         msg_sequence            = CASE
+           WHEN msg_sequence IS NULL THEN 'new'
+           ELSE msg_sequence
+         END,
          msg_sequence_started_at = CASE
-           WHEN msg_sequence = 'new' AND msg_sequence_started_at IS NULL THEN NOW()
+           WHEN (msg_sequence = 'new' OR msg_sequence IS NULL) AND msg_sequence_started_at IS NULL THEN NOW()
            ELSE msg_sequence_started_at
          END
        WHERE id = $1`,
