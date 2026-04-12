@@ -857,7 +857,8 @@ router.post('/fb-linkedin-match', async (req, res) => {
 
     for (const name of names) {
       try {
-        const results = await searchPeopleByKeywords(accountId, name, 3);
+        const results = await searchPeopleByKeywords(accountId, name, 5);
+        if (!results || !results.items) throw new Error('No items in response: ' + JSON.stringify(results).slice(0,200));
         const people = results.items || [];
         searched++;
 
@@ -898,7 +899,9 @@ router.post('/fb-linkedin-match', async (req, res) => {
         if (searched % 10 === 0) console.log(`[fb-match] Progress: ${searched}/${names.length}`);
         await new Promise(r => setTimeout(r, 2000 + Math.random() * 1000));
       } catch (e) {
-        console.warn(`[fb-match] Error for "${name}": ${e.message}`);
+        const errMsg = e.message || String(e);
+        console.warn(`[fb-match] Error for "${name}": ${errMsg}`);
+        matches.push({ fb_name: name, error: errMsg });
         await new Promise(r => setTimeout(r, 1000));
       }
     }
