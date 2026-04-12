@@ -832,28 +832,22 @@ router.get('/company-jobs', async (req, res) => {
 
 
 // POST /api/opportunities/fb-linkedin-match
-// Search LinkedIn for each FB friend name, return ALL profile results + flag if at company with open jobs.
 router.post('/fb-linkedin-match', async (req, res) => {
   const { workspace_id, names } = req.body;
   if (!workspace_id || !Array.isArray(names)) return res.status(400).json({ error: 'workspace_id and names[] required' });
 
   try {
     const { rows: accs } = await db.query(
-      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1', [workspace_id]
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 ORDER BY id', [workspace_id]
     );
     if (!accs.length) return res.status(400).json({ error: 'No LinkedIn accounts in this workspace' });
-    const accountId = accs[0].account_id;
 
-    // Get all companies with open tech jobs
     const { rows: jobRows } = await db.query(
-      `SELECT DISTINCT LOWER(TRIM(company_name)) AS co FROM company_jobs WHERE workspace_id = $1`, [workspace_id]
+      'SELECT DISTINCT LOWER(TRIM(company_name)) AS co FROM company_jobs WHERE workspace_id = $1', [workspace_id]
     );
     const companiesWithJobs = new Set(jobRows.map(r => r.co));
-
-    // Get job titles per company
     const { rows: allJobs } = await db.query(
-      `SELECT LOWER(TRIM(company_name)) AS co, job_title, apply_url FROM company_jobs WHERE workspace_id = $1`,
-      [workspace_id]
+      'SELECT LOWER(TRIM(company_name)) AS co, job_title, apply_url FROM company_jobs WHERE workspace_id = $1', [workspace_id]
     );
     const jobsByCompany = {};
     allJobs.forEach(j => {
@@ -861,11 +855,11 @@ router.post('/fb-linkedin-match', async (req, res) => {
       jobsByCompany[j.co].push({ title: j.job_title, url: j.apply_url });
     });
 
-    function hasOpenJobs(companyStr) {
-      if (!companyStr) return null;
-      const co = companyStr.toLowerCase().trim();
+    function hasOpenJobs(str) {
+      if (!str) return null;
+      const s = str.toLowerCase().trim();
       for (const jc of companiesWithJobs) {
-        if (co === jc || co.includes(jc) || jc.includes(co)) return jc;
+        if (s === jc || s.includes(jc) || jc.includes(s)) return jc;
       }
       return null;
     }
@@ -873,79 +867,55 @@ router.post('/fb-linkedin-match', async (req, res) => {
     const { searchPeopleByKeywords } = require('../unipile');
     const results = [];
     let searched = 0;
-    let rateLimitHits = 0;
+    let accIdx = 0;
 
     for (const name of names) {
-      let attempts = 0;
-      let success = false;
+      let done = false;
+      let triesLeft = accs.length * 2; // try each account up to twice
 
-      while (attempts < 3 && !success) {
+      while (!done && triesLeft > 0) {
+        triesLeft--;
         try {
-          const res2 = await searchPeopleByKeywords(accs[accountIdx].account_id, name, 5);
-          const people = res2.items || [];
+          const r2 = await searchPeopleByKeywords(accs[accIdx].account_id, name, 5);
+          const people = r2.items || [];
           searched++;
-          success = true;
-          rateLimitHits = 0; // reset on success
+          done = true;
 
-          const profileResults = people.map(p => {
-            const positions = p.current_positions || [];
-            const currentCo = (positions[0]?.company || '').trim();
-            const matchedCo = hasOpenJobs(currentCo) || hasOpenJobs(p.headline);
-            const openJobs = matchedCo ? (jobsByCompany[matchedCo] || []).slice(0, 5) : [];
-
+          const profiles = people.map(p => {
+            const pos = p.current_positions || [];
+            const co = (pos[0]?.company || '').trim();
+            const matched = hasOpenJobs(co) || hasOpenJobs(p.headline);
             return {
               name: p.name || ((p.first_name||'') + ' ' + (p.last_name||'')).trim(),
               headline: p.headline || '',
-              current_company: currentCo || '',
+              current_company: co,
               location: p.location || '',
               li_url: p.public_profile_url || p.profile_url || '',
-              has_open_jobs: !!matchedCo,
-              matched_company: matchedCo || null,
-              open_jobs: openJobs,
+              has_open_jobs: !!matched,
+              matched_company: matched || null,
+              open_jobs: matched ? (jobsByCompany[matched]||[]).slice(0,5) : [],
             };
           });
 
-          results.push({
-            fb_name: name,
-            profiles: profileResults,
-            profiles_found: profileResults.length,
-            with_open_jobs: profileResults.filter(p => p.has_open_jobs).length,
-          });
+          results.push({ fb_name: name, profiles, profiles_found: profiles.length, with_open_jobs: profiles.filter(p=>p.has_open_jobs).length });
+          await new Promise(r => setTimeout(r, 3000));
 
-          await new Promise(r => setTimeout(r, 3000 + Math.random() * 1000));
-
-        } catch (e) {
-          attempts++;
-          const is429 = e.message && e.message.includes('429');
-          if (is429) {
-            rateLimitHits++;
-            // Rotate to next account on 429
-            accountIdx = (accountIdx + 1) % accs.length;
-            const nextAccountId2 = accs[accountIdx].account_id;
-            Object.assign(accs[0], { account_id: nextAccountId2 }); // swap current
-            // Actually reassign properly
-            const wait = 5000;
-            console.warn(`[fb-match] 429 for "${name}", switching to account ${accountIdx}, waiting ${wait}ms`);
-            await new Promise(r => setTimeout(r, wait));
+        } catch(e) {
+          if (e.message && e.message.includes('429')) {
+            console.warn(`[fb-match] 429 acc=${accIdx} name="${name}", rotating`);
+            accIdx = (accIdx + 1) % accs.length;
+            await new Promise(r => setTimeout(r, 5000));
           } else {
             results.push({ fb_name: name, profiles: [], profiles_found: 0, error: e.message });
-            success = true; // don't retry non-rate-limit errors
+            done = true;
           }
         }
       }
 
-      if (!success) {
-        results.push({ fb_name: name, profiles: [], profiles_found: 0, error: 'rate_limited' });
-      }
+      if (!done) results.push({ fb_name: name, profiles: [], profiles_found: 0, error: 'rate_limited_all_accounts' });
     }
 
-    const withJobs = results.filter(r => r.with_open_jobs > 0);
-    res.json({
-      searched,
-      total_names: names.length,
-      names_with_job_matches: withJobs.length,
-      results,
-    });
+    res.json({ searched, total_names: names.length, names_with_job_matches: results.filter(r=>r.with_open_jobs>0).length, results });
 
   } catch (err) {
     console.error('[fb-match] error:', err.message);
@@ -953,4 +923,3 @@ router.post('/fb-linkedin-match', async (req, res) => {
   }
 });
 
-module.exports = router;
