@@ -58,9 +58,9 @@ async function scrapeWorkspace(workspaceId) {
 
   // Read from both list_companies and opportunity_companies
   const { rows: rawCompanies } = await db.query(
-    `SELECT DISTINCT company_name, company_linkedin_id
-     FROM list_companies
-     WHERE workspace_id = $1 AND company_name IS NOT NULL AND company_name != ''
+    `SELECT DISTINCT lc.company_name, lc.company_linkedin_id
+     FROM list_companies lc JOIN lists l ON l.id = lc.list_id
+     WHERE l.workspace_id = $1 AND lc.company_name IS NOT NULL AND lc.company_name != ''
      UNION
      SELECT DISTINCT company_name, company_linkedin_id
      FROM opportunity_companies
@@ -126,7 +126,9 @@ async function scrapeAllWorkspaces() {
   try {
     await ensureTable();
     const { rows: workspaces } = await db.query(
-      `SELECT DISTINCT workspace_id FROM opportunity_companies`
+      `SELECT DISTINCT workspace_id FROM lists
+       UNION
+       SELECT DISTINCT workspace_id FROM opportunity_companies`
     );
     console.log(`[JobsScraper] Starting scan for ${workspaces.length} workspace(s)`);
     for (const row of workspaces) {

@@ -716,7 +716,7 @@ router.get('/prefetch-jobs', async (req, res) => {
 
     const { rows: rawCompanies } = await db.query(
       `SELECT DISTINCT company_name, company_linkedin_id
-       FROM list_companies WHERE workspace_id = $1
+       FROM list_companies lc JOIN lists l ON l.id = lc.list_id WHERE l.workspace_id = $1
        UNION
        SELECT DISTINCT company_name, company_linkedin_id
        FROM opportunity_companies WHERE workspace_id = $1
