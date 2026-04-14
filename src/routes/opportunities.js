@@ -678,17 +678,18 @@ router.post('/send-dm', async (req, res) => {
     const target = provider_id || (li_profile_url || '').replace(/.*\/in\/([^\/\?#]+).*/,'$1');
     if (!target) return res.status(400).json({ error: 'provider_id or li_profile_url required' });
 
-    // Step 1: check DB for existing thread
+    // Step 1: check DB for existing thread via contacts table
     const { rows: threadRows } = await db.query(
-      `SELECT unipile_chat_id FROM inbox_threads
-       WHERE workspace_id = $1 AND account_id = $2
-         AND (provider_id = $3 OR li_profile_url LIKE '%' || $3 || '%')
+      `SELECT it.thread_id FROM inbox_threads it
+       JOIN contacts c ON c.id = it.contact_id
+       WHERE it.workspace_id = $1 AND it.account_id = $2
+         AND c.provider_id = $3
        LIMIT 1`,
       [workspace_id, account_id, target]
     );
-    if (threadRows.length && threadRows[0].unipile_chat_id) {
-      const chatId = threadRows[0].unipile_chat_id;
-      console.log(`[send-dm] found existing chat ${chatId}, sending via sendMessage`);
+    if (threadRows.length && threadRows[0].thread_id) {
+      const chatId = threadRows[0].thread_id;
+      console.log(`[send-dm] found existing thread ${chatId}, sending via sendMessage`);
       const { sendMessage } = require('../unipile');
       await sendMessage(account_id, chatId, message);
       return res.json({ success: true, chat_id: chatId });
