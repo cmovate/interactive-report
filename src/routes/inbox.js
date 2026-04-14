@@ -448,4 +448,26 @@ router.get('/by-provider', async (req, res) => {
 
 
 
+// DELETE /api/inbox/messages/:msg_id
+router.delete('/messages/:msg_id', async (req, res) => {
+  const { msg_id } = req.params;
+  const { workspace_id } = req.query;
+  try {
+    const { rows: accs } = await db.query(
+      'SELECT account_id FROM unipile_accounts WHERE workspace_id = $1 LIMIT 1', [workspace_id]
+    );
+    const accountId = accs.length ? accs[0].account_id : null;
+    const { request } = require('../unipile');
+    const result = await request(`/api/v1/messages/${encodeURIComponent(msg_id)}`, {
+      method: 'DELETE',
+      headers: accountId ? { 'X-Account-Id': accountId } : {}
+    });
+    res.json(result);
+  } catch(err) {
+    console.error('[inbox delete]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 module.exports = router;
