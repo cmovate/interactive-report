@@ -677,9 +677,42 @@ router.post('/send-dm', async (req, res) => {
     if (!workspace_id || !account_id || !message) return res.status(400).json({ error: 'workspace_id, account_id, message required' });
     const target = provider_id || (li_profile_url || '').replace(/.*\/in\/([^\/\?#]+).*/,'$1');
     if (!target) return res.status(400).json({ error: 'provider_id or li_profile_url required' });
+
+    // Step 1: check DB for existing thread
+    const { rows: threadRows } = await db.query(
+      `SELECT unipile_chat_id FROM inbox_threads
+       WHERE workspace_id = $1 AND account_id = $2
+         AND (provider_id = $3 OR li_profile_url LIKE '%' || $3 || '%')
+       LIMIT 1`,
+      [workspace_id, account_id, target]
+    );
+    if (threadRows.length && threadRows[0].unipile_chat_id) {
+      const chatId = threadRows[0].unipile_chat_id;
+      console.log(`[send-dm] found existing chat ${chatId}, sending via sendMessage`);
+      const { sendMessage } = require('../unipile');
+      await sendMessage(account_id, chatId, message);
+      return res.json({ success: true, chat_id: chatId });
+    }
+
+    // Step 2: check Unipile for existing chat
+    const { getChatsByAttendee } = require('../unipile');
+    const chats = await getChatsByAttendee(account_id, target).catch(() => []);
+    if (chats.length) {
+      const chatId = chats[0].id;
+      console.log(`[send-dm] found Unipile chat ${chatId}, sending via sendMessage`);
+      const { sendMessage } = require('../unipile');
+      await sendMessage(account_id, chatId, message);
+      return res.json({ success: true, chat_id: chatId });
+    }
+
+    // Step 3: start new DM
+    console.log(`[send-dm] no existing chat, starting new DM to ${target}`);
     const result = await startDirectMessage(account_id, target, message);
     res.json({ success: true, chat_id: (result && (result.id || result.chat_id)) || null });
-  } catch(err) { res.status(500).json({ error: err.message }); }
+  } catch(err) {
+    console.error('[send-dm] error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 // GET /cached-contacts - returns all opportunity contacts grouped by li_company_url
 router.get('/cached-contacts', async (req, res) => {

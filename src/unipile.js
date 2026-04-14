@@ -220,9 +220,22 @@ async function sendMessage(accountId, chatId, text) {
 }
 
 async function startDirectMessage(accountId, providerId, text) {
-  return request('/api/v1/chats', {
-    method: 'POST', body: JSON.stringify({ account_id: accountId, attendees_ids: [providerId], text }),
+  // Unipile POST /api/v1/chats requires multipart/form-data, not JSON
+  const form = new FormData();
+  form.append('account_id', accountId);
+  form.append('attendees_ids', providerId);
+  form.append('text', text);
+  const url = `${UNIPILE_DSN}/api/v1/chats`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'X-API-KEY': UNIPILE_API_KEY, 'accept': 'application/json' },
+    body: form,
   });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(`Unipile ${res.status}: ${JSON.stringify(data)}`);
+  }
+  return data;
 }
 
 async function getChatsByAttendee(accountId, providerId) {
