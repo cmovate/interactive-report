@@ -385,17 +385,43 @@ window.addEventListener('message', function(ev) {
 
 // Send new DM to contact not yet in inbox
 function sendNewDM(providerId, wsId) {
-  var content = document.getElementById('reply-input')?.value?.trim();
+  var content = (document.getElementById('reply-input')?.value || '').trim();
   if (!content) return;
   var accId = selectedAccount;
-  if (!accId) { alert('Select an account first'); return; }
+  if (!accId) { alert('No account selected. Please select an account first.'); return; }
+  var btn = document.querySelector('.send-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   fetch('/api/opportunities/send-dm', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ workspace_id: parseInt(wsId), account_id: accId, provider_id: providerId, message: content })
   }).then(r=>r.json()).then(function(d){
-    if(d.error) { alert('Error: ' + d.error); return; }
-    // Reload threads to show the new conversation
-    loadThreads();
+    if (d.error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Send ▶'; }
+      alert('Error sending message: ' + d.error);
+      return;
+    }
+    // Clear input and show success
+    var input = document.getElementById('reply-input');
+    if (input) input.value = '';
+    // Show sent message in the chat
+    var msgs = document.getElementById('messages');
+    if (msgs) {
+      msgs.innerHTML += '<div class="msg msg-out" style="text-align:right;margin:8px 0"><div style="display:inline-block;background:#0A66C2;color:#fff;border-radius:14px 14px 2px 14px;padding:8px 14px;max-width:75%;font-size:13px;text-align:left">' + esc(content) + '</div><div style="font-size:11px;color:#aaa;margin-top:2px">just now</div></div>';
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Send ▶'; }
+    // If we got a chat_id, try to load the thread
+    if (d.chat_id) {
+      setTimeout(function() {
+        loadThreads().then(function() {
+          var t = threads.find(function(th) { return th.provider_id === providerId || (th.li_profile_url && th.li_profile_url.includes(providerId)); });
+          if (t) openThread(t.id);
+        });
+      }, 1000);
+    }
+  }).catch(function(err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send ▶'; }
+    alert('Error: ' + err.message);
   });
 }
 
@@ -425,7 +451,7 @@ function showEmptyChat(data, pid, url, wid, accountId) {
         '<div style="color:#aaa;text-align:center;padding:40px;">No messages yet. Start the conversation!</div>' +
       '</div>' +
       '<div class="reply-area">' +
-        '<textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea>' +
+        '<textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)" onkeydown="if(event.ctrlKey&&event.key===\'Enter\'){event.preventDefault();sendNewDM(' + JSON.stringify(pid) + ',' + JSON.stringify(wid) + ');}"></textarea>' +
         '<div class="reply-actions">' +
           '<button class="ai-btn" disabled>🤖 AI Suggest</button>' +
           '<div class="reply-actions-spacer"></div>' +
@@ -436,7 +462,7 @@ function showEmptyChat(data, pid, url, wid, accountId) {
   }
 }
 
-function showEmptyChat(data,pid,url,wid){var nm=((data.first_name||'')+' '+(data.last_name||'')).trim()||'Contact';var conv=document.getElementById('conversation');if(!conv)return;conv.innerHTML='<div class="conv-header"><div class="conv-avatar">'+esc(nm.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase())+'</div><div class="conv-header-info"><div class="conv-name">'+esc(nm)+'</div><div class="conv-meta">'+esc(data.headline||'')+'</div></div>'+(url?'<a href="'+esc(url)+'" target="_blank" class="li-link">LinkedIn ↗</a>':'')+'</div><div class="messages" id="messages"><div style="color:#aaa;text-align:center;padding:40px">No messages yet. Start the conversation!</div></div><div class="reply-area"><textarea class="reply-input" id="reply-input" placeholder="Write a message... (Ctrl+Enter to send)"></textarea><div class="reply-actions"><button class="ai-btn" disabled>🤖 AI Suggest</button><div class="reply-actions-spacer"></div><button class="send-btn" onclick="sendNewDM('+JSON.stringify(pid)+','+JSON.stringify(wid)+')">Send ▶</button></div></div>';currentThread={id:null,provider_id:pid,li_profile_url:url,first_name:data.first_name,last_name:data.last_name,_newContact:true};}
+
 </script>
 </body>
 </html>
