@@ -1332,7 +1332,7 @@ function onCampaignChange() {
 
 async function loadData(campId) {
   document.getElementById('content').innerHTML = '<div class="loading-wrap"><div class="spinner"></div><p style="margin-top:12px">Loading contacts…</p></div>';
-  var d = await fetch('/api/contacts?workspace_id='+wsId+'&campaign_id='+campId+'&limit=5000').then(function(r){return r.json();});
+  var d = await fetch('/api/contacts?workspace_id='+wsId+'&campaign_id='+campId+'&limit=2000').then(function(r){return r.json();});
   allContacts = d.items || [];
   render();
 }
