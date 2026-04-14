@@ -388,7 +388,16 @@ function sendNewDM(providerId, wsId) {
   var content = (document.getElementById('reply-input')?.value || '').trim();
   if (!content) return;
   var accId = selectedAccount;
-  if (!accId) { alert('No account selected. Please select an account first.'); return; }
+  // Fallback: if no account selected, try the first available account
+  if (!accId && accounts && accounts.length > 0) {
+    accId = accounts[0].account_id;
+    setAccount(accId);
+  }
+  if (!accId) { 
+    // Try to get from the workspace accounts API
+    alert('אין חשבון מחובר. אנא בחר חשבון בראש המסך.');
+    return; 
+  }
   var btn = document.querySelector('.send-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   fetch('/api/opportunities/send-dm', {
@@ -397,7 +406,19 @@ function sendNewDM(providerId, wsId) {
   }).then(r=>r.json()).then(function(d){
     if (d.error) {
       if (btn) { btn.disabled = false; btn.textContent = 'Send ▶'; }
-      alert('Error sending message: ' + d.error);
+      // If subscription_required, LinkedIn Premium needed — open LinkedIn profile instead
+      if (d.error.includes('subscription_required') || d.error.includes('403')) {
+        var url = document.querySelector('.li-link')?.href;
+        if (url) {
+          if (confirm('שליחה ישירה דורשת LinkedIn Premium. לפתוח את הפרופיל ב-LinkedIn ולשלוח ידנית?')) {
+            window.open(url, '_blank');
+          }
+        } else {
+          alert('לא ניתן לשלוח הודעה חדשה ישירות. אנא פתח את הפרופיל ב-LinkedIn ושלח ידנית.');
+        }
+      } else {
+        alert('שגיאה בשליחה: ' + d.error);
+      }
       return;
     }
     // Clear input and show success
