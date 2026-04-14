@@ -691,7 +691,7 @@ function renderCompanies() {
     var outTotal = parseInt(row.outbound_total) || 0;
     var inTotal  = parseInt(row.inbound_total)  || 0;
     var rowBg    = outTotal > 20 ? 'background:#f9fdf6' : '';
-    return '<tr style="border-bottom:1px solid #f3f0ec;cursor:pointer;' + rowBg + '" onclick="drillCompany('' + escCo(row.company) + '')">' +
+    return '<tr style="border-bottom:1px solid #f3f0ec;cursor:pointer;' + rowBg + '" onclick="drillCompany(\'' + escCo(row.company) + '\')">' +
       '<td style="padding:9px 14px;font-weight:600;color:#1a3a2a;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escCo(row.company) + '">' + escCo(row.company) + '</td>' +
       cell(row.contacts, '#333') +
       cell(row.inv_sent, '#2a7a4b') +
@@ -963,7 +963,7 @@ async function loadAutomations() {
       items: [
         {
           name: 'Profile View Scraper',
-          description: 'Scrapes who viewed each user's LinkedIn profile. Saves to <code>profile_view_events</code>.',
+          description: 'Scrapes who viewed each user\'s LinkedIn profile. Saves to <code>profile_view_events</code>.',
           schedule: '3x/day — 08:00, 14:00, 20:00',
           status: 'active',
           lastRun: stats.profileViews?.lastRun || null,
@@ -1047,7 +1047,7 @@ async function loadAutomations() {
       items: [
         {
           name: 'Company Follow Sender',
-          description: 'Sends follow invitations to approved contacts who haven't followed yet. Requires <code>follow_company: true</code> in campaign engagement settings and <code>company_page_urn</code> in account settings. Monthly limit: 250/account.',
+          description: 'Sends follow invitations to approved contacts who haven\'t followed yet. Requires <code>follow_company: true</code> in campaign engagement settings and <code>company_page_urn</code> in account settings. Monthly limit: 250/account.',
           schedule: 'Every 30 minutes (during working hours)',
           status: 'active',
           manualTrigger: 'POST /api/company-follow/run',
