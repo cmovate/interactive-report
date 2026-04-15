@@ -682,7 +682,7 @@ router.post('/send-dm', async (req, res) => {
     const { rows: contactRows } = await db.query(
       `SELECT chat_id FROM contacts
        WHERE workspace_id = $1 AND provider_id = $2 AND chat_id IS NOT NULL
-       ORDER BY updated_at DESC LIMIT 1`,
+       ORDER BY id DESC LIMIT 1`,
       [workspace_id, target]
     );
     if (contactRows.length && contactRows[0].chat_id) {
