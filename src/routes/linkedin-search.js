@@ -215,4 +215,19 @@ router.get('/config', (req, res) => {
   res.json({ dsn, hasKey: !!key, key: key ? key.slice(0,8) + '...' : null });
 });
 
+// POST /api/linkedin/search — proxy to Unipile search (avoids CORS + exposes key)
+router.post('/search', async (req, res) => {
+  const { account_id, keywords, cursor, limit = 50 } = req.body;
+  if (!account_id || !keywords) return res.status(400).json({ error: 'account_id and keywords required' });
+  try {
+    const body = { api: 'classic', category: 'people', keywords };
+    const params = new URLSearchParams({ account_id, limit: String(limit) });
+    if (cursor) params.set('cursor', cursor);
+    const data = await unipileRequest(`/api/v1/linkedin/search?${params}`, {
+      method: 'POST', body: JSON.stringify(body),
+    });
+    res.json(data);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
