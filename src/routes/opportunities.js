@@ -678,38 +678,45 @@ router.post('/send-dm', async (req, res) => {
     const target = provider_id || (li_profile_url || '').replace(/.*\/in\/([^\/\?#]+).*/,'$1');
     if (!target) return res.status(400).json({ error: 'provider_id or li_profile_url required' });
 
-    // Step 1: check DB for existing thread via contacts table
+    // Step 1: check contacts table for existing chat_id (fastest - from campaign contacts)
+    const { rows: contactRows } = await db.query(
+      `SELECT chat_id FROM contacts
+       WHERE workspace_id = $1 AND provider_id = $2 AND chat_id IS NOT NULL
+       ORDER BY updated_at DESC LIMIT 1`,
+      [workspace_id, target]
+    );
+    if (contactRows.length && contactRows[0].chat_id) {
+      const chatId = contactRows[0].chat_id;
+      console.log(`[send-dm] found chat_id ${chatId} in contacts, sending via sendMessage`);
+      const { sendMessage } = require('../unipile');
+      await sendMessage(account_id, chatId, message);
+      return res.json({ success: true, chat_id: chatId, method: 'existing_chat' });
+    }
+
+    // Step 2: check inbox_threads table
     const { rows: threadRows } = await db.query(
-      `SELECT it.thread_id FROM inbox_threads it
-       JOIN contacts c ON c.id = it.contact_id
-       WHERE it.workspace_id = $1 AND it.account_id = $2
-         AND c.provider_id = $3
+      `SELECT t.thread_id FROM inbox_threads t
+       WHERE t.workspace_id = $1 AND t.account_id = $2
+         AND t.thread_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM contacts c
+           WHERE c.id = t.contact_id AND c.provider_id = $3
+         )
        LIMIT 1`,
       [workspace_id, account_id, target]
     );
     if (threadRows.length && threadRows[0].thread_id) {
       const chatId = threadRows[0].thread_id;
-      console.log(`[send-dm] found existing thread ${chatId}, sending via sendMessage`);
+      console.log(`[send-dm] found inbox thread ${chatId}, sending via sendMessage`);
       const { sendMessage } = require('../unipile');
       await sendMessage(account_id, chatId, message);
-      return res.json({ success: true, chat_id: chatId });
+      return res.json({ success: true, chat_id: chatId, method: 'inbox_thread' });
     }
 
-    // Step 2: check Unipile for existing chat
-    const { getChatsByAttendee } = require('../unipile');
-    const chats = await getChatsByAttendee(account_id, target).catch(() => []);
-    if (chats.length) {
-      const chatId = chats[0].id;
-      console.log(`[send-dm] found Unipile chat ${chatId}, sending via sendMessage`);
-      const { sendMessage } = require('../unipile');
-      await sendMessage(account_id, chatId, message);
-      return res.json({ success: true, chat_id: chatId });
-    }
-
-    // Step 3: start new DM
-    console.log(`[send-dm] no existing chat, starting new DM to ${target}`);
+    // Step 3: start new DM (requires LinkedIn to allow it)
+    console.log(`[send-dm] no existing chat for ${target}, starting new DM`);
     const result = await startDirectMessage(account_id, target, message);
-    res.json({ success: true, chat_id: (result && (result.id || result.chat_id)) || null });
+    res.json({ success: true, chat_id: (result && (result.id || result.chat_id)) || null, method: 'new_dm' });
   } catch(err) {
     console.error('[send-dm] error:', err.message);
     res.status(500).json({ error: err.message });
