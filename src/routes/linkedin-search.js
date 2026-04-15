@@ -43,12 +43,13 @@ router.get('/search-params', async (req, res) => {
 // POST /api/linkedin/bulk-search-import
 // Body: { workspace_id, account_id, title_keywords, industries[], list_name, limit }
 router.post('/bulk-search-import', async (req, res) => {
-  const { workspace_id, account_id, title_keywords, industries, list_name, limit = 1000 } = req.body;
+  const { workspace_id, account_id, title_keywords, industries, list_name, limit = 1000, cursor = null } = req.body;
   if (!workspace_id || !account_id || !title_keywords)
     return res.status(400).json({ error: 'workspace_id, account_id, title_keywords required' });
 
   // Create or find list
   let listId;
+  let imported = 0;
   const { rows: existing } = await db.query(
     `SELECT id FROM lists WHERE workspace_id=$1 AND name=$2 LIMIT 1`,
     [workspace_id, list_name || title_keywords]
@@ -64,11 +65,10 @@ router.post('/bulk-search-import', async (req, res) => {
   }
 
   // Paginate search
-  let cursor = null;
-  let total = 0;
-  let imported = 0;
-  let page = 0;
-  const errors = [];
+
+
+
+
 
   res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
 
