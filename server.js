@@ -2171,6 +2171,18 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
     await db.query(`ALTER TABLE contacts ADD CONSTRAINT IF NOT EXISTS uq_contacts_ws_url UNIQUE (workspace_id, li_profile_url)`);
   });
 
+  // Migration: replace unique(workspace_id, li_profile_url) with unique(workspace_id, campaign_id, li_profile_url)
+  // so the same person can be in multiple campaigns (needed when two accounts target same list)
+  await s('alter.contacts.unique_campaign_url', async () => {
+    // Drop old constraint
+    await db.query(`ALTER TABLE contacts DROP CONSTRAINT IF EXISTS uq_contacts_ws_url`);
+    // Add new constraint that allows same person in different campaigns
+    await db.query(`
+      ALTER TABLE contacts ADD CONSTRAINT IF NOT EXISTS uq_contacts_camp_url
+      UNIQUE (workspace_id, campaign_id, li_profile_url)
+    `);
+  });
+
   await s('alter.campaigns.list_id', async () => {
     await db.query(`ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS list_id int REFERENCES lists(id) ON DELETE SET NULL`);
   });
