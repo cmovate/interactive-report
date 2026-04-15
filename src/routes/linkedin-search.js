@@ -11,14 +11,9 @@ async function searchPage(accountId, keywords, industries, cursor) {
   const body = {
     api: 'classic',
     category: 'people',
-    keywords,
+    keywords: keywords,
   };
   if (industries && industries.length) body.industry = industries;
-  // Title keywords to find founders/CEOs
-  body.advanced_keywords = {
-    title: keywords
-  };
-  delete body.keywords; // use title filter instead
 
   const params = new URLSearchParams({ account_id: accountId, limit: '50' });
   if (cursor) params.set('cursor', cursor);
