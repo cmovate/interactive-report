@@ -713,10 +713,32 @@ router.post('/send-dm', async (req, res) => {
       return res.json({ success: true, chat_id: chatId, method: 'inbox_thread' });
     }
 
-    // Step 3: start new DM (requires LinkedIn to allow it)
+    // Step 3: ask Unipile to find existing chat for this attendee (works for 1st-degree connections)
+    const { getChatsByAttendee, sendMessage: sendMsg } = require('../unipile');
+    const existingChats = await getChatsByAttendee(account_id, target).catch(() => []);
+    if (existingChats.length) {
+      const chatId = existingChats[0].id;
+      console.log(`[send-dm] found Unipile chat ${chatId} for ${target}, sending via sendMessage`);
+      await sendMsg(account_id, chatId, message);
+      // Cache the chat_id in contacts table for future use
+      await db.query(
+        `UPDATE contacts SET chat_id = $1 WHERE workspace_id = $2 AND provider_id = $3 AND chat_id IS NULL`,
+        [chatId, workspace_id, target]
+      ).catch(() => {});
+      return res.json({ success: true, chat_id: chatId, method: 'unipile_lookup' });
+    }
+
+    // Step 4: start new DM — for 1st-degree connections this should work via multipart/form-data
     console.log(`[send-dm] no existing chat for ${target}, starting new DM`);
     const result = await startDirectMessage(account_id, target, message);
-    res.json({ success: true, chat_id: (result && (result.id || result.chat_id)) || null, method: 'new_dm' });
+    const newChatId = (result && (result.id || result.chat_id)) || null;
+    if (newChatId) {
+      await db.query(
+        `UPDATE contacts SET chat_id = $1 WHERE workspace_id = $2 AND provider_id = $3 AND chat_id IS NULL`,
+        [newChatId, workspace_id, target]
+      ).catch(() => {});
+    }
+    res.json({ success: true, chat_id: newChatId, method: 'new_dm' });
   } catch(err) {
     console.error('[send-dm] error:', err.message);
     res.status(500).json({ error: err.message });
