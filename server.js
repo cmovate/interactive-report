@@ -7,6 +7,7 @@ const db      = require('./src/db');
 
 const workspacesRouter         = require('./src/routes/workspaces');
 const unipileRouter            = require('./src/routes/unipile');
+const linkedinSearchRouter     = require('./src/routes/linkedin-search');
 const listsRouter            = require('./src/routes/lists');
 const campaignsRouter          = require('./src/routes/campaigns');
 const contactsRouter           = require('./src/routes/contacts');
@@ -101,6 +102,7 @@ app.post('/dev/push-file', async (req, res) => {
 
 app.use('/api/workspaces',         workspacesRouter);
 app.use('/api/unipile',            unipileRouter);
+app.use('/api/linkedin',           linkedinSearchRouter);
 app.use('/api/lists',            listsRouter);
 app.use('/api/campaigns',          campaignsRouter);
 app.use('/api/contacts',           contactsRouter);
