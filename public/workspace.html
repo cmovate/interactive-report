@@ -5,29 +5,109 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Workspace</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; display: flex; min-height: 100vh; }
-.sidebar { width: 220px; background: white; border-right: 1px solid #e5e5e5; padding: 20px 0 0; display: flex; flex-direction: column; flex-shrink: 0; min-height: 100vh; }
-.sidebar-header { padding: 0 16px 20px; border-bottom: 1px solid #f0f0f0; margin-bottom: 8px; }
-.sidebar-ws { font-size: 15px; font-weight: 600; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-back { font-size: 12px; color: #1D9E75; cursor: pointer; margin-top: 4px; display: inline-block; }
-.sidebar-back:hover { text-decoration: underline; }
-.nav-section { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #bbb; padding: 12px 16px 4px; }
-.nav-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; font-size: 14px; color: #555; cursor: pointer; transition: background 0.1s; }
-.nav-item:hover { background: #f5f5f5; color: #111; }
-.nav-item.active { background: #F0FBF7; color: #1D9E75; font-weight: 500; border-right: 2px solid #1D9E75; }
-.nav-item .nav-icon { font-size: 15px; }
-.nav-new-badge { font-size: 9px; font-weight: 700; background: #1D9E75; color: white; border-radius: 3px; padding: 1px 4px; margin-left: 4px; }
-.sidebar-footer { margin-top: auto; border-top: 1px solid #f0f0f0; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-.sidebar-account { display: flex; align-items: center; gap: 10px; padding: 6px 2px; }
-.sidebar-avatar-wrap { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg,#DBEAFE,#C7F2D8); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #1E5F3E; flex-shrink: 0; overflow: hidden; border: 2px solid #e5e5e5; position: relative; }
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f5f7; color: #1a1a2e; display: flex; min-height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 232px; flex-shrink: 0; min-height: 100vh;
+  background: #0f1923;
+  display: flex; flex-direction: column;
+  position: relative;
+}
+.sidebar::after {
+  content:''; position:absolute; right:0; top:0; bottom:0; width:1px;
+  background: linear-gradient(to bottom, transparent, rgba(29,158,117,.3) 40%, rgba(29,158,117,.3) 60%, transparent);
+}
+
+/* Header */
+.sidebar-header {
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 6px;
+}
+.sidebar-logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sidebar-logo {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: linear-gradient(135deg, #1D9E75, #0d7a5a);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: white;
+  flex-shrink: 0; box-shadow: 0 2px 8px rgba(29,158,117,.35);
+}
+.sidebar-ws {
+  font-size: 14px; font-weight: 700; color: #f0f4f8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  letter-spacing: -.01em;
+}
+.sidebar-back {
+  font-size: 11px; color: rgba(29,158,117,.8); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 3px;
+  transition: color .15s;
+}
+.sidebar-back:hover { color: #1D9E75; }
+
+/* Nav sections */
+.nav-section {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: rgba(255,255,255,.25);
+  padding: 14px 16px 5px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 14px 9px 16px;
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.55);
+  cursor: pointer; transition: all .15s; border-radius: 0; position: relative;
+  margin: 1px 8px;
+  border-radius: 8px;
+}
+.nav-item:hover { background: rgba(255,255,255,.07); color: rgba(255,255,255,.9); }
+.nav-item.active {
+  background: rgba(29,158,117,.18);
+  color: #2dd4a0;
+  font-weight: 600;
+}
+.nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 18px; background: #1D9E75; border-radius: 0 2px 2px 0;
+  margin-left: -8px;
+}
+.nav-icon { font-size: 14px; opacity: .9; width: 18px; text-align: center; }
+.nav-new-badge {
+  font-size: 9px; font-weight: 700; background: #1D9E75; color: white;
+  border-radius: 4px; padding: 1px 5px; margin-left: auto; letter-spacing: .03em;
+}
+
+/* Footer accounts */
+.sidebar-footer {
+  margin-top: auto; border-top: 1px solid rgba(255,255,255,.07);
+  padding: 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.sidebar-footer-label {
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .1em; color: rgba(255,255,255,.2); padding: 0 4px 6px;
+}
+.sidebar-account {
+  display: flex; align-items: center; gap: 9px; padding: 6px 8px;
+  border-radius: 8px; transition: background .15s; cursor: default;
+}
+.sidebar-account:hover { background: rgba(255,255,255,.06); }
+.sidebar-avatar-wrap {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(135deg, #1D9E75, #0a5a43);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: white;
+  flex-shrink: 0; overflow: hidden; position: relative;
+  border: 1.5px solid rgba(29,158,117,.4);
+}
 .sidebar-avatar-wrap img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
-.sidebar-avatar-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #1E5F3E; }
+.sidebar-avatar-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; }
 .sidebar-account-info { min-width: 0; }
-.sidebar-account-name { font-size: 12px; font-weight: 500; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
-.sidebar-account-badge { font-size: 10px; color: #aaa; margin-top: 1px; display: flex; align-items: center; gap: 3px; }
-.li-dot { width: 6px; height: 6px; border-radius: 50%; background: #0A66C2; display: inline-block; }
-.content { flex: 1; overflow: auto; }
+.sidebar-account-name { font-size: 12px; font-weight: 500; color: rgba(255,255,255,.75); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 145px; }
+.sidebar-account-badge { font-size: 10px; color: rgba(255,255,255,.3); margin-top: 1px; display: flex; align-items: center; gap: 3px; }
+.li-dot { width: 5px; height: 5px; border-radius: 50%; background: #0A66C2; display: inline-block; }
+
+.content { flex: 1; overflow: auto; min-width: 0; }
 .screen { display: none; }
 .screen.active { display: block; }
 </style>
@@ -35,8 +115,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <body>
 <div class="sidebar">
   <div class="sidebar-header">
-    <div class="sidebar-ws" id="ws-name">Workspace</div>
-    <span class="sidebar-back" onclick="window.location.href='/'">&#8592; All workspaces</span>
+    <div class="sidebar-logo-row">
+      <div class="sidebar-logo">E</div>
+      <div class="sidebar-ws" id="ws-name">Workspace</div>
+    </div>
+    <span class="sidebar-back" onclick="window.location.href='/'">← All workspaces</span>
   </div>
 
   <div class="nav-section">Outreach</div>
@@ -74,7 +157,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <span class="nav-icon">&#9881;</span> Settings
   </div>
 
-  <div class="sidebar-footer" id="sidebar-footer" style="display:none;"></div>
+  <div class="sidebar-footer" id="sidebar-footer" style="display:none;"><div class="sidebar-footer-label">Accounts</div></div>
 </div>
 
 <div class="content">
@@ -106,7 +189,7 @@ async function loadAccounts() {
     if (!accounts.length) return;
     const footer = document.getElementById('sidebar-footer');
     footer.style.display = 'flex';
-    footer.innerHTML = accounts.map(acc => {
+    footer.innerHTML = '<div class="sidebar-footer-label">Accounts</div>' + accounts.map(acc => {
       const name = acc.full_name || acc.display_name || acc.account_id;
       const ini  = initials(name);
       const avatarInner = acc.avatar_url
