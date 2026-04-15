@@ -50,6 +50,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <span class="nav-icon">&#128203;</span> List 2
   </div>
 
+  <div class="nav-item" onclick="showScreen('scheduler')" id="nav-scheduler">
+    <span class="nav-icon">&#128197;</span> Post Scheduler
+  </div>
+
   <div class="nav-section">Intelligence</div>
   <div class="nav-item" onclick="showScreen('opportunities')" id="nav-opportunities">
     <span class="nav-icon">&#128161;</span> Opportunities
@@ -82,6 +86,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="screen" id="screen-analytics"></div>
   <div class="screen" id="screen-inbox"></div>
   <div class="screen" id="screen-settings"></div>
+  <div class="screen" id="screen-scheduler"></div>
 </div>
 
 <script>
@@ -136,7 +141,7 @@ function showScreen(name) {
 
 function loadScreen(name) {
   loaded[name] = true;
-  var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2'};
+  var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2', scheduler: 'post-scheduler'};
   var fname = fileMap[name] || name;
   var frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
