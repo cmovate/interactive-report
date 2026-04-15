@@ -140,4 +140,72 @@ router.post('/bulk-search-import', async (req, res) => {
   res.end(JSON.stringify({ done: true, imported, total, list_id: listId, errors }));
 });
 
+// POST /api/linkedin/save-contacts — save batch of contacts from client-side LinkedIn search
+router.post('/save-contacts', async (req, res) => {
+  const { workspace_id, list_name, contacts } = req.body;
+  if (!workspace_id || !contacts || !contacts.length)
+    return res.status(400).json({ error: 'workspace_id and contacts required' });
+
+  // Create or find list
+  let listId = null;
+  if (list_name) {
+    const { rows: existing } = await db.query(
+      `SELECT id FROM lists WHERE workspace_id=$1 AND name=$2 LIMIT 1`, [workspace_id, list_name]
+    );
+    if (existing.length) {
+      listId = existing[0].id;
+    } else {
+      const { rows: created } = await db.query(
+        `INSERT INTO lists (workspace_id, name, description, created_at) VALUES ($1,$2,$3,NOW()) RETURNING id`,
+        [workspace_id, list_name, `Imported from LinkedIn search`]
+      );
+      listId = created[0].id;
+    }
+  }
+
+  let imported = 0;
+  for (const person of contacts) {
+    try {
+      const providerId  = person.id || person.provider_id || null;
+      const liUrl       = person.public_profile_url || person.li_profile_url || null;
+      const firstName   = person.first_name || '';
+      const lastName    = person.last_name  || '';
+      const headline    = person.headline   || '';
+      const alreadyConn = person.network_distance === 'FIRST_DEGREE' || person.already_connected || false;
+
+      if (!providerId && !liUrl) continue;
+
+      const { rows: exists } = await db.query(
+        `SELECT id FROM contacts WHERE workspace_id=$1 AND (provider_id=$2 OR (li_profile_url IS NOT NULL AND li_profile_url=$3)) LIMIT 1`,
+        [workspace_id, providerId || '', liUrl || '']
+      );
+      let contactId;
+      if (exists.length) {
+        contactId = exists[0].id;
+        await db.query(
+          `UPDATE contacts SET first_name=$1, last_name=$2, headline=$3, already_connected=$4 WHERE id=$5`,
+          [firstName, lastName, headline, alreadyConn, contactId]
+        );
+      } else {
+        const { rows: ins } = await db.query(
+          `INSERT INTO contacts (workspace_id, first_name, last_name, headline, li_profile_url, provider_id, already_connected, source, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'linkedin_search',NOW()) RETURNING id`,
+          [workspace_id, firstName, lastName, headline, liUrl || null, providerId || null, alreadyConn]
+        );
+        contactId = ins[0]?.id;
+      }
+
+      if (contactId && listId) {
+        await db.query(
+          `INSERT INTO list_contacts (list_id, contact_id, added_at) VALUES ($1,$2,NOW()) ON CONFLICT DO NOTHING`,
+          [listId, contactId]
+        );
+      }
+      imported++;
+    } catch(e) { /* skip */ }
+  }
+
+  res.json({ ok: true, imported, list_id: listId });
+});
+
 module.exports = router;
