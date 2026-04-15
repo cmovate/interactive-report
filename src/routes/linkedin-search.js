@@ -208,4 +208,11 @@ router.post('/save-contacts', async (req, res) => {
   res.json({ ok: true, imported, list_id: listId });
 });
 
+// GET /api/linkedin/config — return DSN info for client-side calls
+router.get('/config', (req, res) => {
+  const dsn = process.env.UNIPILE_DSN || '';
+  const key = process.env.UNIPILE_API_KEY || '';
+  res.json({ dsn, hasKey: !!key, key: key ? key.slice(0,8) + '...' : null });
+});
+
 module.exports = router;
