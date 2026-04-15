@@ -461,28 +461,22 @@ router.patch('/:id/list', async (req, res) => {
       [list_id, camp.id, wsId]
     );
 
-    // 2. Bulk-insert contacts from the list (skip duplicates)
-    const { rowCount } = await db.query(
-      `INSERT INTO contacts (workspace_id, campaign_id, li_profile_url,
-          first_name, last_name, company, title, provider_id, member_urn, already_connected,
-          msg_sequence, msg_sequence_started_at)
-        SELECT c.workspace_id, $1, c.li_profile_url,
-               c.first_name, c.last_name, c.company, c.title, c.provider_id, c.member_urn,
-               c.already_connected,
-               CASE WHEN c.already_connected = true THEN 'existing_no_history' ELSE NULL END,
-               CASE WHEN c.already_connected = true THEN NOW() ELSE NULL END
-        FROM list_contacts lc
-        JOIN contacts c ON c.id = lc.contact_id
-        WHERE lc.list_id = $2
-          AND c.workspace_id = $3
-          AND NOT EXISTS (
-            SELECT 1 FROM contacts c2
-            WHERE c2.campaign_id = $1
-              AND c2.li_profile_url = c.li_profile_url
-              AND c2.workspace_id = $3
-          )`,
+    // 2. Update existing contacts (from list) to assign this campaign_id
+    //    UNIQUE(workspace_id, li_profile_url) prevents duplicate inserts,
+    //    so we UPDATE contacts that belong to this list and have no campaign yet.
+    const updated = await db.query(
+      `UPDATE contacts SET
+         campaign_id = $1,
+         msg_sequence = CASE WHEN already_connected = true THEN 'existing_no_history' ELSE msg_sequence END,
+         msg_sequence_started_at = CASE WHEN already_connected = true AND msg_sequence_started_at IS NULL THEN NOW() ELSE msg_sequence_started_at END
+       WHERE workspace_id = $3
+         AND campaign_id IS NULL
+         AND id IN (
+           SELECT lc.contact_id FROM list_contacts lc WHERE lc.list_id = $2
+         )`,
       [camp.id, list_id, wsId]
     );
+    const rowCount = updated.rowCount;
 
     res.json({ success: true, list_id, contacts_added: rowCount });
   } catch (err) {
