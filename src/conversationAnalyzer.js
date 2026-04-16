@@ -155,13 +155,19 @@ async function analyzeConversation(contactId, accountId, chatId) {
   const stage = VALID_STAGES.includes(result.stage) ? result.stage : 'cold_reply';
   const score = Math.min(10, Math.max(1, parseInt(result.score) || 5));
 
+  // Positive stages that warrant marking as a positive reply
+  const POSITIVE_STAGES = new Set(['engaged', 'meeting_intent', 'meeting_booked']);
+  const isPositive = POSITIVE_STAGES.has(stage) || score >= 7;
+
   // 6. Save to DB
   await db.query(`
     UPDATE contacts SET
       conversation_stage       = $1,
       conversation_score       = $2,
       conversation_signals     = $3,
-      conversation_analyzed_at = NOW()
+      conversation_analyzed_at = NOW(),
+      positive_reply           = CASE WHEN $5 THEN true ELSE positive_reply END,
+      positive_reply_at        = CASE WHEN $5 AND positive_reply_at IS NULL THEN NOW() ELSE positive_reply_at END
     WHERE id = $4
   `, [
     stage,
@@ -174,13 +180,24 @@ async function analyzeConversation(contactId, accountId, chatId) {
       summary:          result.summary          || '',
     }),
     contactId,
+    isPositive,
   ]);
 
   console.log(
     `[ConvAnalyzer] contact=${contactId} stage=${stage} score=${score}` +
-    ` exchange_depth=${result.exchange_depth} model=${MODEL}`
+    ` exchange_depth=${result.exchange_depth} model=${MODEL}` +
+    (isPositive ? ' ✅ POSITIVE' : '')
   );
-  return { contactId, stage, score };
+
+  // Sync enrollment status
+  if (isPositive) {
+    await db.query(`
+      UPDATE enrollments SET status = 'positive_reply', updated_at = NOW()
+      WHERE contact_id = $1 AND status IN ('replied','messaged','approved')
+    `, [contactId]).catch(() => {});
+  }
+
+  return { contactId, stage, score, isPositive };
 }
 
 module.exports = { analyzeConversation };

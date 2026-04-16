@@ -450,6 +450,23 @@ async function registerSignalsWebhooks() {
   }
 }
 
+async function runJob(jobName) {
+  const fb = document.getElementById('job-run-feedback');
+  if (fb) { fb.textContent = `Running ${jobName}…`; fb.style.color = '#888'; }
+  try {
+    const r = await fetch('/api/admin/trigger-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job: jobName }),
+    }).then(r => r.json());
+    if (r.error) throw new Error(r.error);
+    if (fb) { fb.textContent = `✅ ${jobName} started (${r.method})`; fb.style.color = '#059669'; }
+    setTimeout(() => { if (fb) fb.textContent = ''; }, 5000);
+  } catch(e) {
+    if (fb) { fb.textContent = '❌ ' + e.message; fb.style.color = '#dc2626'; }
+  }
+}
+
 load();
 </script>
 </body>
