@@ -1365,3 +1365,50 @@ router.post('/fix-company-follow', async (req, res) => {
     res.json({ results, accounts_with_company_url: status });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/set-company-page-url
+// Sets company_page_url (and auto-resolves URN) for all accounts in a workspace
+// Body: { workspace_id: 1, company_page_url: 'https://www.linkedin.com/company/cmovate' }
+router.post('/set-company-page-url', async (req, res) => {
+  const { workspace_id, company_page_url } = req.body;
+  if (!workspace_id || !company_page_url)
+    return res.status(400).json({ error: 'workspace_id and company_page_url required' });
+
+  const urlMatch = company_page_url.match(/linkedin\.com\/company\/([^/?#]+)/);
+  if (!urlMatch) return res.status(400).json({ error: 'Invalid LinkedIn company URL' });
+  const slug = urlMatch[1];
+
+  try {
+    const { getCompanyProfile } = require('../unipile');
+
+    // Get all accounts for this workspace
+    const { rows: accounts } = await db.query(
+      'SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id = $1',
+      [workspace_id]
+    );
+
+    // Try to resolve URN using first available account
+    let resolvedUrn = null;
+    for (const acc of accounts) {
+      const profile = await getCompanyProfile(acc.account_id, slug).catch(() => null);
+      const id = profile?.id || profile?.company_id ||
+        profile?.entity_urn?.match(/(\d+)$/)?.[1] ||
+        profile?.urn?.match(/(\d+)$/)?.[1];
+      if (id) { resolvedUrn = `urn:li:fsd_company:${id}`; break; }
+    }
+
+    // Update all accounts in this workspace
+    const results = [];
+    for (const acc of accounts) {
+      const patch = { company_page_url };
+      if (resolvedUrn) patch.company_page_urn = resolvedUrn;
+      await db.query(
+        `UPDATE unipile_accounts SET settings = settings || $1::jsonb WHERE account_id = $2 AND workspace_id = $3`,
+        [JSON.stringify(patch), acc.account_id, workspace_id]
+      );
+      results.push({ account: acc.display_name, url: company_page_url, urn: resolvedUrn || 'not resolved' });
+    }
+
+    res.json({ workspace_id, slug, resolved_urn: resolvedUrn, updated: results });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
