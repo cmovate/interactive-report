@@ -659,8 +659,22 @@ router.post('/scan-company', async (req, res) => {
             );
           }
         } else {
-          const { rows:ins } = await db.query('INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id,connected_via) VALUES ($1,$2,$3,$4,$5,$6,NULL,$7::jsonb) ON CONFLICT DO NOTHING RETURNING id',[workspace_id,c.first_name,c.last_name,c.headline,company_name,c.li_profile_url,JSON.stringify(c.connected_via||[])]);
-          if (ins[0]?.id) { const {enqueue}=require('../enrichment'); enqueue(ins[0].id,accounts[0].account_id,c.li_profile_url); }
+          // Insert with no campaign (contacts from Find Connections go to workspace pool)
+          const { rows:ins } = await db.query(
+            `INSERT INTO contacts (workspace_id,first_name,last_name,title,company,li_profile_url,campaign_id,connected_via,already_connected)
+             VALUES ($1,$2,$3,$4,$5,$6,NULL,$7::jsonb,true)
+             ON CONFLICT (li_profile_url, workspace_id) DO UPDATE
+               SET title = COALESCE(NULLIF($3,''), contacts.title),
+                   company = COALESCE(NULLIF($5,''), contacts.company),
+                   already_connected = true
+             RETURNING id`,
+            [workspace_id,c.first_name,c.last_name,c.headline,company_name,c.li_profile_url,JSON.stringify(c.connected_via||[])]
+          );
+          if (ins[0]?.id) {
+            // Queue via pg-boss enrichContacts (persists across restarts) instead of in-memory queue
+            const { enqueue } = require('../enrichment');
+            enqueue(ins[0].id, accounts[0].account_id, c.li_profile_url);
+          }
         }
       } catch(e) {}
     }
