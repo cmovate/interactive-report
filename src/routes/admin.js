@@ -1131,3 +1131,86 @@ router.post('/register-signals-webhooks', async (req, res) => {
     res.json({ registered, existed, failed, total: results.length, results });
   } catch(err) { res.status(500).json({ error: err.message }); }
 });
+
+// GET /api/admin/debug-company-follow?workspace_id=2
+// Traces through companyFollowSender logic and shows exactly why follow invites are/aren't sending
+router.get('/debug-company-follow', async (req, res) => {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const report = {};
+
+    // 1. Find accounts with company_page_urn configured
+    const { rows: accounts } = await db.query(`
+      SELECT ua.account_id, ua.display_name,
+             ua.settings->>'company_page_urn' AS company_page_urn,
+             ua.settings->>'company_page_url' AS company_page_url,
+             ua.settings->>'cf_state'         AS cf_state,
+             ua.settings->>'cf_month'         AS cf_month,
+             (ua.settings->'limits'->>'company_follow_invites')::int AS daily_limit
+      FROM unipile_accounts ua
+      WHERE ua.workspace_id = $1
+    `, [workspace_id]);
+    report.accounts = accounts;
+
+    // 2. Find eligible campaigns (follow_company enabled)
+    const { rows: campaigns } = await db.query(`
+      SELECT c.id, c.name,
+             (c.settings->'engagement'->>'follow_company')::boolean AS follow_company_enabled,
+             c.status
+      FROM campaigns c
+      WHERE c.workspace_id = $1
+      ORDER BY c.id
+    `, [workspace_id]);
+    report.campaigns = campaigns;
+
+    // 3. For each account, check pending contacts
+    for (const acc of accounts) {
+      const { rows: pending } = await db.query(`
+        SELECT COUNT(*) AS total_pending
+        FROM contacts c
+        JOIN campaigns camp ON camp.id = c.campaign_id
+        WHERE camp.account_id = $1
+          AND camp.workspace_id = $2
+          AND camp.status = 'active'
+          AND (camp.settings->'engagement'->>'follow_company')::boolean = true
+          AND (c.invite_approved = true OR c.already_connected = true)
+          AND (c.company_follow_invited = false OR c.company_follow_invited IS NULL)
+          AND (c.member_urn IS NOT NULL OR c.provider_id LIKE 'ACo%')
+      `, [acc.account_id, workspace_id]);
+
+      const { rows: alreadySent } = await db.query(`
+        SELECT COUNT(*) AS total_sent
+        FROM contacts c
+        JOIN campaigns camp ON camp.id = c.campaign_id
+        WHERE camp.account_id = $1
+          AND camp.workspace_id = $2
+          AND c.company_follow_invited = true
+          AND c.company_follow_invited_at >= date_trunc('month', NOW())
+      `, [acc.account_id, workspace_id]);
+
+      const { rows: qualified } = await db.query(`
+        SELECT COUNT(*) AS connected
+        FROM contacts c
+        JOIN campaigns camp ON camp.id = c.campaign_id
+        WHERE camp.account_id = $1
+          AND camp.workspace_id = $2
+          AND camp.status = 'active'
+          AND (c.invite_approved = true OR c.already_connected = true)
+      `, [acc.account_id, workspace_id]);
+
+      acc.pending_follow = parseInt(pending[0]?.total_pending || 0);
+      acc.sent_this_month = parseInt(alreadySent[0]?.total_sent || 0);
+      acc.connected_contacts = parseInt(qualified[0]?.connected || 0);
+      acc.blockers = [];
+      if (!acc.company_page_urn) acc.blockers.push('❌ company_page_urn not set');
+      if (acc.cf_state === 'waiting_5d') acc.blockers.push('⏳ in waiting_5d state');
+      if (acc.cf_state === 'waiting_7d') acc.blockers.push('⏳ in waiting_7d state');
+      if (acc.sent_this_month >= 250) acc.blockers.push('❌ monthly limit reached (250)');
+      if (acc.pending_follow === 0) acc.blockers.push('❌ 0 pending contacts (all sent or no connected contacts with ACoXXX)');
+      if (acc.blockers.length === 0) acc.blockers.push('✅ should be sending');
+    }
+
+    res.json({ workspace_id, report });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
