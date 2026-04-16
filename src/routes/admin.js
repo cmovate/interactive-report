@@ -1744,3 +1744,56 @@ router.post('/delete-sent-messages-fast', async (req, res) => {
     res.json({ found: rows.length, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/delete-messages-by-account — delete messages for a specific account
+router.post('/delete-messages-by-account', async (req, res) => {
+  const { workspace_id, account_name } = req.body;
+  if (!workspace_id || !account_name) return res.status(400).json({ error: 'workspace_id and account_name required' });
+  try {
+    const { rows } = await db.query(`
+      SELECT e.id, e.chat_id, camp.account_id, c.first_name, c.last_name
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      JOIN unipile_accounts ua ON ua.account_id = camp.account_id AND ua.workspace_id = camp.workspace_id
+      WHERE camp.workspace_id = $1
+        AND ua.display_name ILIKE $2
+        AND e.status = 'messaged'
+        AND e.chat_id IS NOT NULL
+      ORDER BY c.first_name
+    `, [workspace_id, `%${account_name}%`]);
+
+    const unipile = require('../unipile');
+    const results = [];
+
+    for (const row of rows) {
+      try {
+        // Get messages from chat
+        const msgs = await unipile.getChatMessages(row.account_id, row.chat_id, 20);
+        // Find outbound messages
+        const outbound = msgs.filter(m => m.is_sender === true || m.sender?.is_me === true);
+        if (!outbound.length) {
+          results.push({ name: `${row.first_name} ${row.last_name}`, skip: 'no outbound msg found', msgs_count: msgs.length });
+          continue;
+        }
+        // Delete each outbound message
+        let deletedCount = 0;
+        for (const msg of outbound) {
+          try {
+            await unipile.deleteMessage(row.account_id, msg.id);
+            deletedCount++;
+            await new Promise(r => setTimeout(r, 200));
+          } catch(de) {
+            // ignore individual delete errors
+          }
+        }
+        results.push({ name: `${row.first_name} ${row.last_name}`, deleted: deletedCount });
+      } catch(e) {
+        results.push({ name: `${row.first_name} ${row.last_name}`, error: e.message });
+      }
+      await new Promise(r => setTimeout(r, 800));
+    }
+
+    res.json({ account: account_name, total: rows.length, results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
