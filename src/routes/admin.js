@@ -1666,3 +1666,45 @@ router.post('/send-pending-messages', async (req, res) => {
     res.json({ processed: results.length, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/delete-sent-messages — delete messages sent to workspace contacts via Unipile
+router.post('/delete-sent-messages', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const { rows } = await db.query(`
+      SELECT e.id, e.chat_id, camp.account_id, c.first_name
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE camp.workspace_id = $1
+        AND e.status = 'messaged'
+        AND e.chat_id IS NOT NULL
+    `, [workspace_id]);
+
+    const unipile = require('../unipile');
+    const results = [];
+
+    for (const row of rows) {
+      try {
+        // Get messages from this chat to find the one we sent
+        const msgs = await unipile.getChatMessages(row.account_id, row.chat_id, 10);
+        // Find outbound messages (sent by us) — most recent first
+        const outbound = msgs.filter(m => m.is_sender || m.sender_id === row.account_id || m.direction === 'SENDING');
+        if (!outbound.length) {
+          results.push({ id: row.id, name: row.first_name, skip: 'no outbound messages found' });
+          continue;
+        }
+        // Delete the most recent outbound message
+        const msgToDelete = outbound[outbound.length - 1];
+        await unipile.deleteMessage(row.account_id, msgToDelete.id);
+        results.push({ id: row.id, name: row.first_name, deleted: true, msg_id: msgToDelete.id });
+      } catch(e) {
+        results.push({ id: row.id, name: row.first_name, error: e.message });
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    res.json({ total: rows.length, results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});

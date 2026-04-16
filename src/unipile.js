@@ -213,6 +213,13 @@ async function withdrawInvitation(accountId, linkedinUrl) {
   );
 }
 
+async function deleteMessage(accountId, messageId) {
+  return request(`/api/v1/messages/${encodeURIComponent(messageId)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ account_id: accountId }),
+  });
+}
+
 async function sendMessage(accountId, chatId, text) {
   return request(`/api/v1/chats/${encodeURIComponent(chatId)}/messages`, {
     method: 'POST', body: JSON.stringify({ account_id: accountId, text }),
@@ -461,6 +468,7 @@ module.exports = {
   searchPeopleByCompany,
   lookupCompany,
   getChatMessages,
+  deleteMessage,
   enrichProfile,
   viewProfile,
   getUserPosts,
