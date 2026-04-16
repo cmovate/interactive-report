@@ -10,6 +10,10 @@ const { status: queueStatus }  = require('../conversationQueue');
 router.get('/', async (req, res) => {
   try {
     const { workspace_id, campaign_id, q } = req.query;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(200, parseInt(req.query.limit) || 100);
+    const offset = (page - 1) * limit;
+
     const conditions = [];
     const params = [];
     if (workspace_id) { params.push(workspace_id); conditions.push(`c.workspace_id = $${params.length}`); }
@@ -20,13 +24,43 @@ router.get('/', async (req, res) => {
       conditions.push(`(c.first_name ILIKE $${i} OR c.last_name ILIKE $${i} OR c.company ILIKE $${i} OR c.title ILIKE $${i} OR c.email ILIKE $${i})`);
     }
     const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-    const { rows } = await db.query(
-      `SELECT c.*, camp.name AS campaign_name,
-      COALESCE((SELECT STRING_AGG(l.name, ', ' ORDER BY l.name) FROM list_contacts lc JOIN lists l ON l.id = lc.list_id WHERE lc.contact_id = c.id), '') AS list_names
-      FROM contacts c LEFT JOIN campaigns camp ON camp.id = c.campaign_id ${where} ORDER BY c.created_at DESC`,
-      params
+
+    const { rows: cnt } = await db.query(
+      `SELECT COUNT(*) FROM contacts c ${where}`, params
     );
-    res.json({ items: rows });
+    const total = parseInt(cnt[0].count);
+
+    // Explicit column list — deliberately excludes engagement_data, profile_data (large JSONB)
+    const { rows } = await db.query(
+      `SELECT
+         c.id, c.first_name, c.last_name, c.company, c.title,
+         c.li_profile_url, c.li_company_url, c.email, c.website, c.location,
+         c.provider_id, c.member_urn,
+         c.already_connected, c.has_chat_history, c.chat_id,
+         c.msg_sequence, c.msg_step, c.msg_sequence_started_at, c.msgs_sent_count,
+         c.invite_sent, c.invite_approved, c.invite_withdrawn,
+         c.invite_sent_at, c.invite_approved_at, c.invite_withdrawn_at,
+         c.msg_sent, c.msg_replied, c.positive_reply,
+         c.msg_sent_at, c.msg_replied_at, c.positive_reply_at,
+         c.engagement_level, c.engagement_scraped_at,
+         c.post_likes_sent, c.comment_likes_sent, c.likes_sent_at,
+         c.conversation_stage, c.conversation_score, c.conversation_analyzed_at,
+         c.connected_via, c.campaign_id, c.target_account_id,
+         c.enriched_at, c.created_at,
+         camp.name AS campaign_name,
+         COALESCE((
+           SELECT STRING_AGG(l.name, ', ' ORDER BY l.name)
+           FROM list_contacts lc JOIN lists l ON l.id = lc.list_id
+           WHERE lc.contact_id = c.id
+         ), '') AS list_names
+       FROM contacts c
+       LEFT JOIN campaigns camp ON camp.id = c.campaign_id
+       ${where}
+       ORDER BY c.created_at DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
+    );
+    res.json({ items: rows, total, page, limit, pages: Math.ceil(total / limit) || 1 });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

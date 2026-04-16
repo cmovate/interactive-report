@@ -1,0 +1,203 @@
+/**
+ * src/routes/enrollments.js
+ *
+ * Enrollment management.
+ *
+ * POST /api/campaigns/:id/enroll         — enroll all contacts from list
+ * GET  /api/campaigns/:id/enrollments    — list enrollments with status
+ * PATCH /api/enrollments/:id             — manual status override
+ * POST  /api/enrollments/:id/message     — send manual message
+ */
+
+const express = require('express');
+const router  = express.Router();
+const db      = require('../db');
+const unipile = require('../unipile');
+
+// POST /api/campaigns/:id/enroll
+// Inserts one enrollment per contact in the campaign's list.
+router.post('/:id/enroll', async (req, res) => {
+  try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
+
+    const campId = parseInt(req.params.id);
+    const { rows: camps } = await db.query(
+      'SELECT * FROM campaigns WHERE id=$1 AND workspace_id=$2',
+      [campId, wsId]
+    );
+    if (!camps.length) return res.status(404).json({ error: 'Campaign not found' });
+    const campaign = camps[0];
+
+    if (!campaign.list_id)
+      return res.status(400).json({ error: 'Campaign has no list attached' });
+
+    // Get all contacts from the list
+    const { rows: listContacts } = await db.query(`
+      SELECT c.id, c.already_connected
+      FROM list_contacts lc
+      JOIN contacts c ON c.id = lc.contact_id
+      WHERE lc.list_id = $1 AND c.workspace_id = $2
+    `, [campaign.list_id, wsId]);
+
+    if (!listContacts.length)
+      return res.json({ enrolled: 0, skipped: 0, message: 'No contacts in list' });
+
+    let enrolled = 0, skipped = 0;
+
+    for (const c of listContacts) {
+      // already_connected → start at 'approved' (no invite needed)
+      const initialStatus = c.already_connected ? 'approved' : 'pending';
+
+      const { rowCount } = await db.query(`
+        INSERT INTO enrollments (campaign_id, contact_id, status, next_action_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (campaign_id, contact_id) DO NOTHING
+      `, [campId, c.id, initialStatus]);
+
+      if (rowCount > 0) enrolled++;
+      else skipped++;
+    }
+
+    res.json({ enrolled, skipped, total: listContacts.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/campaigns/:id/enrollments
+router.get('/:id/enrollments', async (req, res) => {
+  try {
+    const wsId = req.query.workspace_id;
+    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
+
+    const campId = parseInt(req.params.id);
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(100, parseInt(req.query.limit) || 50);
+    const offset = (page - 1) * limit;
+    const status = req.query.status || null;
+
+    const conditions = ['e.campaign_id = $1'];
+    const params     = [campId];
+
+    if (status) {
+      params.push(status);
+      conditions.push(`e.status = $${params.length}`);
+    }
+
+    const where = conditions.join(' AND ');
+
+    const { rows: total } = await db.query(
+      `SELECT COUNT(*) FROM enrollments e WHERE ${where}`, params
+    );
+
+    const { rows } = await db.query(`
+      SELECT
+        e.*,
+        c.first_name, c.last_name, c.company, c.title,
+        c.li_profile_url, c.already_connected
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      WHERE ${where}
+      ORDER BY e.next_action_at ASC, e.created_at DESC
+      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `, [...params, limit, offset]);
+
+    res.json({
+      items: rows,
+      total: parseInt(total[0].count),
+      page, limit,
+      pages: Math.ceil(parseInt(total[0].count) / limit) || 1,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// PATCH /api/enrollments/:id — manual override
+router.patch('/:id', async (req, res) => {
+  try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
+
+    const enrollId = parseInt(req.params.id);
+    const { rows: enRows } = await db.query(`
+      SELECT e.* FROM enrollments e
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE e.id = $1 AND camp.workspace_id = $2
+    `, [enrollId, wsId]);
+    if (!enRows.length) return res.status(404).json({ error: 'Enrollment not found' });
+
+    const { status, next_action_at } = req.body;
+    const sets = ['updated_at = NOW()'], vals = [enrollId];
+
+    const VALID = ['pending','invite_sent','approved','messaged','replied',
+                   'positive_reply','withdrawn','done','skipped','error'];
+    if (status) {
+      if (!VALID.includes(status))
+        return res.status(400).json({ error: `Invalid status: ${status}` });
+      vals.push(status);
+      sets.push(`status = $${vals.length}`);
+    }
+    if (next_action_at) {
+      vals.push(next_action_at);
+      sets.push(`next_action_at = $${vals.length}`);
+    }
+
+    const { rows: updated } = await db.query(
+      `UPDATE enrollments SET ${sets.join(',')} WHERE id = $1 RETURNING *`,
+      vals
+    );
+    res.json(updated[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/enrollments/:id/message — send manual message
+router.post('/:id/message', async (req, res) => {
+  try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    if (!wsId) return res.status(400).json({ error: 'workspace_id required' });
+
+    const { text } = req.body;
+    if (!text?.trim()) return res.status(400).json({ error: 'text required' });
+
+    const enrollId = parseInt(req.params.id);
+    const { rows } = await db.query(`
+      SELECT e.*, c.provider_id, c.chat_id AS contact_chat_id,
+             camp.account_id
+      FROM enrollments e
+      JOIN contacts c   ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE e.id = $1 AND camp.workspace_id = $2
+    `, [enrollId, wsId]);
+    if (!rows.length) return res.status(404).json({ error: 'Enrollment not found' });
+
+    const enr = rows[0];
+    const chatId = enr.chat_id || enr.contact_chat_id;
+
+    let msgId = null;
+    if (chatId) {
+      const r = await unipile.sendMessage(enr.account_id, chatId, text.trim());
+      msgId = r?.id || null;
+    } else if (enr.provider_id) {
+      const r = await unipile.startDirectMessage(enr.account_id, enr.provider_id, text.trim());
+      msgId = r?.message_id || null;
+      const newChatId = r?.id || r?.chat_id || null;
+      if (newChatId) {
+        await db.query(
+          `UPDATE enrollments SET chat_id=$1, updated_at=NOW() WHERE id=$2`,
+          [newChatId, enrollId]
+        );
+      }
+    } else {
+      return res.status(400).json({ error: 'No chat_id or provider_id' });
+    }
+
+    // Save message
+    await db.query(
+      `INSERT INTO enrollment_messages (enrollment_id, step_index, variant_label, text, sent_at, unipile_message_id)
+       VALUES ($1, -1, 'manual', $2, NOW(), $3)`,
+      [enrollId, text.trim(), msgId]
+    );
+
+    res.json({ success: true, unipile_message_id: msgId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+module.exports = router;

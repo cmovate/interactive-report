@@ -1,0 +1,389 @@
+/**
+ * src/jobs/processEnrollments.js
+ *
+ * The enrollment state machine — runs every 5 minutes.
+ *
+ * For every enrollment where next_action_at <= NOW() and campaign is active:
+ *   pending       → send invite  → invite_sent
+ *   invite_sent   → (if past withdraw date) withdraw → withdrawn
+ *   approved      → send message step 0 → messaged
+ *   messaged      → send next message step → messaged (current_step++)
+ *   messaged      → (no more steps) → done
+ *
+ * Webhook events (handled separately in processSignal.js):
+ *   invite_accepted → approved
+ *   message_received → replied / positive_reply
+ *
+ * Replaces: invitationSender.js + messageSender.js
+ */
+
+const db = require('../db');
+const unipile = require('../unipile');
+
+const MAX_BATCH = 50; // enrollments per run
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function jitter(ms) {
+  // ±20% random jitter to avoid looking robotic
+  return ms + (Math.random() * 0.4 - 0.2) * ms;
+}
+
+function isWithinWorkingHours(hours) {
+  if (!hours || typeof hours !== 'object') return true;
+  const now    = new Date();
+  const jsDay  = now.getDay();
+  const dayKey = String(jsDay === 0 ? 7 : jsDay);
+  const d      = hours[dayKey];
+  if (!d?.on) return false;
+  const [fH, fM] = (d.from || '09:00').split(':').map(Number);
+  const [tH, tM] = (d.to   || '18:00').split(':').map(Number);
+  const nowMins  = now.getHours() * 60 + now.getMinutes();
+  return nowMins >= fH * 60 + fM && nowMins < tH * 60 + tM;
+}
+
+function substituteTokens(text, contact) {
+  return String(text || '')
+    .replace(/\{\{first_name\}\}/g, contact.first_name || '')
+    .replace(/\{\{last_name\}\}/g,  contact.last_name  || '')
+    .replace(/\{\{company\}\}/g,    contact.company    || '')
+    .replace(/\{\{title\}\}/g,      contact.title      || '');
+}
+
+function pickVariant(variants, enrollment) {
+  if (!Array.isArray(variants) || !variants.length) return null;
+  // Use A/B assignment stored on enrollment, or pick randomly once
+  const assignments = enrollment.a_b_assignments || {};
+  const stepKey = `step_${enrollment.current_step}`;
+  if (assignments[stepKey]) {
+    return variants.find(v => v.label === assignments[stepKey]) || variants[0];
+  }
+  // Random assignment, store it
+  const picked = variants[Math.floor(Math.random() * variants.length)];
+  return picked;
+}
+
+async function setStatus(enrollmentId, status, extra = {}) {
+  const sets = ['status = $2', 'updated_at = NOW()'];
+  const vals = [enrollmentId, status];
+
+  if (extra.next_action_at !== undefined) {
+    vals.push(extra.next_action_at);
+    sets.push(`next_action_at = $${vals.length}`);
+  }
+  if (extra.invite_sent_at !== undefined) {
+    vals.push(extra.invite_sent_at);
+    sets.push(`invite_sent_at = $${vals.length}`);
+  }
+  if (extra.invite_approved_at !== undefined) {
+    vals.push(extra.invite_approved_at);
+    sets.push(`invite_approved_at = $${vals.length}`);
+  }
+  if (extra.current_step !== undefined) {
+    vals.push(extra.current_step);
+    sets.push(`current_step = $${vals.length}`);
+  }
+  if (extra.chat_id !== undefined) {
+    vals.push(extra.chat_id);
+    sets.push(`chat_id = $${vals.length}`);
+  }
+  if (extra.a_b_assignments !== undefined) {
+    vals.push(JSON.stringify(extra.a_b_assignments));
+    sets.push(`a_b_assignments = $${vals.length}`);
+  }
+
+  await db.query(
+    `UPDATE enrollments SET ${sets.join(', ')} WHERE id = $1`,
+    vals
+  );
+}
+
+async function setError(enrollmentId, message) {
+  await db.query(
+    `UPDATE enrollments SET
+       error_count = error_count + 1,
+       last_error = $2,
+       next_action_at = NOW() + INTERVAL '1 hour',
+       updated_at = NOW()
+     WHERE id = $1`,
+    [enrollmentId, message]
+  );
+  // After 5 errors, mark as error status
+  await db.query(
+    `UPDATE enrollments SET status = 'error'
+     WHERE id = $1 AND error_count >= 5`,
+    [enrollmentId]
+  );
+}
+
+async function saveEnrollmentMessage(enrollmentId, stepIndex, variantLabel, text, unipileMessageId) {
+  await db.query(
+    `INSERT INTO enrollment_messages (enrollment_id, step_index, variant_label, text, sent_at, unipile_message_id)
+     VALUES ($1, $2, $3, $4, NOW(), $5)`,
+    [enrollmentId, stepIndex, variantLabel || 'A', text, unipileMessageId || null]
+  );
+}
+
+// ── Step handlers ─────────────────────────────────────────────────────────────
+
+async function handlePending(enrollment, campaign, contact) {
+  // Already connected — skip invite, jump to approved
+  if (contact.already_connected) {
+    await setStatus(enrollment.id, 'approved', { next_action_at: new Date() });
+    console.log(`[Enrollments] #${enrollment.id} already_connected → approved immediately`);
+    return;
+  }
+
+  // Need provider_id to send invite
+  if (!contact.provider_id) {
+    console.warn(`[Enrollments] #${enrollment.id} skipped — no provider_id`);
+    await setStatus(enrollment.id, 'skipped');
+    return;
+  }
+
+  const withdrawDays = campaign.settings?.connection?.withdraw_after_days || 14;
+  const inviteNote = getInviteNote(campaign);
+
+  await unipile.sendInvitation(campaign.account_id, contact.provider_id, inviteNote);
+
+  await setStatus(enrollment.id, 'invite_sent', {
+    invite_sent_at: new Date(),
+    next_action_at: addDays(new Date(), withdrawDays),
+  });
+
+  console.log(`[Enrollments] #${enrollment.id} invite sent → ${contact.first_name} ${contact.last_name}`);
+}
+
+async function handleInviteSent(enrollment, campaign) {
+  // next_action_at is the withdraw deadline — we're past it
+  const autoWithdraw = campaign.settings?.connection?.auto_withdraw !== false;
+
+  if (autoWithdraw && contact.provider_id) {
+    try {
+      await unipile.withdrawInvitation(campaign.account_id, contact.li_profile_url);
+      console.log(`[Enrollments] #${enrollment.id} invite withdrawn`);
+    } catch (err) {
+      // Ignore withdraw failures (invite may have been accepted already)
+      console.warn(`[Enrollments] #${enrollment.id} withdraw failed: ${err.message}`);
+    }
+  }
+
+  await setStatus(enrollment.id, 'withdrawn');
+}
+
+async function handleApproved(enrollment, campaign, contact, sequence) {
+  if (!sequence) {
+    // No sequence → just mark done
+    await setStatus(enrollment.id, 'done');
+    return;
+  }
+
+  const step = sequence.steps.find(s => s.step_index === 0);
+  if (!step) {
+    await setStatus(enrollment.id, 'done');
+    return;
+  }
+
+  await sendStep(enrollment, campaign, contact, sequence, step, 0);
+}
+
+async function handleMessaged(enrollment, campaign, contact, sequence) {
+  if (!sequence) {
+    await setStatus(enrollment.id, 'done');
+    return;
+  }
+
+  const nextStepIndex = enrollment.current_step + 1;
+  const step = sequence.steps.find(s => s.step_index === nextStepIndex);
+
+  if (!step) {
+    await setStatus(enrollment.id, 'done');
+    console.log(`[Enrollments] #${enrollment.id} all steps done → done`);
+    return;
+  }
+
+  await sendStep(enrollment, campaign, contact, sequence, step, nextStepIndex);
+}
+
+async function sendStep(enrollment, campaign, contact, sequence, step, stepIndex) {
+  const variant = pickVariant(step.variants, enrollment);
+  if (!variant || !variant.text?.trim()) {
+    console.warn(`[Enrollments] #${enrollment.id} step ${stepIndex} has no text, skipping`);
+    await setStatus(enrollment.id, 'done');
+    return;
+  }
+
+  const text = substituteTokens(variant.text, contact);
+
+  let chatId = enrollment.chat_id || contact.chat_id;
+  let unipileMsgId = null;
+
+  if (chatId) {
+    const result = await unipile.sendMessage(campaign.account_id, chatId, text);
+    unipileMsgId = result?.id || null;
+  } else if (contact.provider_id) {
+    const result = await unipile.startDirectMessage(campaign.account_id, contact.provider_id, text);
+    chatId = result?.id || result?.chat_id || null;
+    unipileMsgId = result?.message_id || null;
+  } else {
+    throw new Error('No chat_id or provider_id available');
+  }
+
+  // Save chat_id if we just learned it
+  if (chatId && !enrollment.chat_id) {
+    await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2 AND chat_id IS NULL',
+      [chatId, contact.id]);
+  }
+
+  // Save what was sent
+  await saveEnrollmentMessage(enrollment.id, stepIndex, variant.label, text, unipileMsgId);
+
+  // Store A/B assignment
+  const assignments = { ...(enrollment.a_b_assignments || {}), [`step_${stepIndex}`]: variant.label };
+
+  // Calculate when to send next step
+  const nextStep = sequence.steps.find(s => s.step_index === stepIndex + 1);
+  const nextActionAt = nextStep
+    ? new Date(jitter(addDays(new Date(), nextStep.delay_days).getTime()))
+    : addDays(new Date(), 999); // far future if no next step
+
+  await setStatus(enrollment.id, 'messaged', {
+    current_step: stepIndex,
+    next_action_at: nextActionAt,
+    chat_id: chatId || enrollment.chat_id,
+    a_b_assignments: assignments,
+  });
+
+  console.log(`[Enrollments] #${enrollment.id} step ${stepIndex} sent (${variant.label}) → ${contact.first_name}`);
+}
+
+function getInviteNote(campaign) {
+  // Check if sequence has an invite step with a note
+  return campaign.invite_note || '';
+}
+
+// ── Load sequence for a campaign ─────────────────────────────────────────────
+
+async function loadSequence(sequenceId) {
+  if (!sequenceId) return null;
+  const { rows: steps } = await db.query(
+    `SELECT * FROM sequence_steps WHERE sequence_id = $1 ORDER BY step_index ASC`,
+    [sequenceId]
+  );
+  return steps.length ? { steps } : null;
+}
+
+// ── Main handler ─────────────────────────────────────────────────────────────
+
+async function handler(job) {
+  // Grab all enrollments due for action, with FOR UPDATE SKIP LOCKED
+  // to prevent multiple workers from processing the same enrollment
+  const { rows: enrollments } = await db.query(`
+    SELECT
+      e.*,
+      c.id            AS c_id,
+      c.first_name, c.last_name, c.company, c.title,
+      c.li_profile_url, c.provider_id, c.chat_id,
+      c.already_connected,
+      camp.account_id, camp.settings, camp.sequence_id,
+      camp.invite_note
+    FROM enrollments e
+    JOIN contacts c   ON c.id   = e.contact_id
+    JOIN campaigns camp ON camp.id = e.campaign_id
+    WHERE camp.status = 'active'
+      AND e.status NOT IN ('done','withdrawn','skipped','error','positive_reply','replied')
+      AND e.next_action_at <= NOW()
+    ORDER BY e.next_action_at ASC
+    LIMIT $1
+    FOR UPDATE OF e SKIP LOCKED
+  `, [MAX_BATCH]);
+
+  if (!enrollments.length) return;
+
+  console.log(`[Enrollments] Processing ${enrollments.length} enrollments`);
+
+  // Group by sequence_id to avoid loading same sequence multiple times
+  const sequenceCache = {};
+
+  for (const row of enrollments) {
+    const enrollment = {
+      id:              row.id,
+      campaign_id:     row.campaign_id,
+      contact_id:      row.contact_id,
+      status:          row.status,
+      current_step:    row.current_step,
+      next_action_at:  row.next_action_at,
+      invite_sent_at:  row.invite_sent_at,
+      chat_id:         row.chat_id,
+      a_b_assignments: row.a_b_assignments || {},
+      error_count:     row.error_count || 0,
+    };
+
+    const contact = {
+      id:                row.c_id,
+      first_name:        row.first_name,
+      last_name:         row.last_name,
+      company:           row.company,
+      title:             row.title,
+      li_profile_url:    row.li_profile_url,
+      provider_id:       row.provider_id,
+      chat_id:           row.chat_id,
+      already_connected: row.already_connected,
+    };
+
+    const campaign = {
+      id:          row.campaign_id,
+      account_id:  row.account_id,
+      sequence_id: row.sequence_id,
+      invite_note: row.invite_note,
+      settings:    typeof row.settings === 'string'
+                     ? JSON.parse(row.settings)
+                     : (row.settings || {}),
+    };
+
+    // Check working hours
+    if (!isWithinWorkingHours(campaign.settings?.hours)) {
+      // Skip silently — will retry at next run
+      continue;
+    }
+
+    // Load sequence (cached)
+    if (campaign.sequence_id && !sequenceCache[campaign.sequence_id]) {
+      sequenceCache[campaign.sequence_id] = await loadSequence(campaign.sequence_id);
+    }
+    const sequence = campaign.sequence_id ? sequenceCache[campaign.sequence_id] : null;
+
+    try {
+      switch (enrollment.status) {
+        case 'pending':
+          await handlePending(enrollment, campaign, contact);
+          break;
+        case 'invite_sent':
+          await handleInviteSent(enrollment, campaign, contact);
+          break;
+        case 'approved':
+          await handleApproved(enrollment, campaign, contact, sequence);
+          break;
+        case 'messaged':
+          await handleMessaged(enrollment, campaign, contact, sequence);
+          break;
+      }
+    } catch (err) {
+      console.error(`[Enrollments] #${enrollment.id} error: ${err.message}`);
+      await setError(enrollment.id, err.message);
+    }
+
+    // Small delay between actions to avoid hammering Unipile
+    await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
+  }
+
+  console.log(`[Enrollments] Batch complete`);
+}
+
+module.exports = { handler };

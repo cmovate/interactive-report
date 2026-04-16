@@ -13,6 +13,14 @@ const campaignsRouter          = require('./src/routes/campaigns');
 const contactsRouter           = require('./src/routes/contacts');
 const companiesRouter          = require('./src/routes/companies');
 const webhooksRouter           = require('./src/routes/webhooks');
+
+// ── V2 routes ─────────────────────────────────────────────────────────────
+const sequencesRouter      = require('./src/routes/sequences');
+const enrollmentsRouter    = require('./src/routes/enrollments');
+const signalsRouter        = require('./src/routes/signals');
+const targetAccountsRouter = require('./src/routes/targetAccounts');
+const scheduledPostsRouter = require('./src/routes/scheduledPosts');
+const webhooksV2Router     = require('./src/routes/webhooks-v2');
 const followersRouter          = require('./src/routes/followers');
 const statsRouter              = require('./src/routes/stats');
 const opportunitiesRouter      = require('./src/routes/opportunities');
@@ -108,13 +116,21 @@ app.use('/api/campaigns',          campaignsRouter);
 app.use('/api/contacts',           contactsRouter);
 app.use('/api/companies',          companiesRouter);
 app.use('/api/webhooks',           webhooksRouter);
+app.use('/api/webhooks',           webhooksV2Router);   // v2: handles all 8 events
 app.use('/api/followers',          followersRouter);
-app.use('/api/analytics',         require('./src/routes/analytics'));
+app.use('/api/analytics',          require('./src/routes/analytics'));
 app.use('/api/stats',              statsRouter);
 app.use('/api/opportunities',      opportunitiesRouter);
 app.use('/api/admin',              adminRouter);
 app.use('/api/feed',               feedRouter);
-app.use('/api/analytics',          require('./src/routes/analytics'));
+
+// ── V2 routes ──────────────────────────────────────────────────────────────
+app.use('/api/sequences',          sequencesRouter);
+app.use('/api/campaigns',          enrollmentsRouter);   // adds /:id/enroll + /:id/enrollments
+app.use('/api/enrollments',        enrollmentsRouter);   // adds /enrollments/:id PATCH + /message
+app.use('/api/signals',            signalsRouter);
+app.use('/api/target-accounts',    targetAccountsRouter);
+app.use('/api/scheduled-posts',    scheduledPostsRouter);
 app.use('/api/inbox',              inboxRouter);
 app.use('/api/hot-opportunities',  hotOpportunitiesRouter);
 app.use('/api/cleanup',            cleanupRouter);
@@ -2210,6 +2226,23 @@ ${msgColsCreate()}      invite_sent BOOLEAN DEFAULT FALSE, invite_approved BOOLE
   });
 
 console.log(`[DB] Schema ready ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ msg slots: ${MAX_MSG_SLOTS}`);
+
+// ── V2: run new schema migrations + start pg-boss ─────────────────────────
+  try {
+    const { initSchemaV2 } = require('./src/schema-v2');
+    await initSchemaV2();
+  } catch (err) {
+    console.error('[SchemaV2] Migration error:', err.message);
+  }
+
+  try {
+    const { startBoss } = require('./src/jobs/index');
+    await startBoss();
+    console.log('[Jobs] pg-boss running — enrollments + signals + inbox + posts');
+  } catch (err) {
+    console.error('[Jobs] pg-boss failed to start:', err.message);
+  }
+// ──────────────────────────────────────────────────────────────────────────
 
 // opportunityScraper disabled from auto-start — LinkedIn API quota issues
 // const opportunityScraper = require('./src/opportunityScraper');

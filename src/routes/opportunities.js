@@ -71,8 +71,6 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
     FROM contacts c
     LEFT JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE c.workspace_id = $1
-      -- removed: -- contacts from campaigns AND opportunity scraper (already_connected can be true or false)
-      AND c.campaign_id IS NULL
       ${filter}
     ORDER BY
       COALESCE(NULLIF(c.li_profile_url, ''), c.id::text),
@@ -479,12 +477,24 @@ router.post('/send-message', async (req, res) => {
       return res.status(400).json({ error: 'workspace_id required' });
 
     // Verify contact belongs to this workspace
+    // Use CROSS JOIN LATERAL so contacts without campaign_id (opportunity contacts) also work
     const { rows } = await db.query(
       `SELECT c.id, c.first_name, c.last_name, c.provider_id, c.chat_id,
-              c.already_connected, camp.account_id
+              c.already_connected, ua.account_id
        FROM contacts c
-       JOIN campaigns camp ON camp.id = c.campaign_id
-       WHERE c.id=$1 AND c.workspace_id=$2`,
+       CROSS JOIN LATERAL (
+         SELECT camp.account_id
+         FROM campaigns camp
+         WHERE camp.id = c.campaign_id
+         UNION ALL
+         SELECT ua2.account_id
+         FROM unipile_accounts ua2
+         WHERE ua2.workspace_id = c.workspace_id
+           AND c.campaign_id IS NULL
+         LIMIT 1
+       ) ua
+       WHERE c.id=$1 AND c.workspace_id=$2
+       LIMIT 1`,
       [contact_id, workspace_id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Contact not found or access denied' });
@@ -579,19 +589,6 @@ router.post('/enrich-company-ids', async (req, res) => {
 
 
 // POST /api/opportunities/scan ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ trigger immediate scan for 1st-degree connections
-router.post('/scan', async (req, res) => {
-  try {
-    const { workspace_id } = req.body;
-    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-    const oppScraper = require('../opportunityScraper');
-    oppScraper.scanWorkspace(parseInt(workspace_id))
-      .catch(e => console.error('[OppScraper] manual scan error:', e.message));
-    res.json({ status: 'started', message: 'Scanning 1st-degree connections for all target companies...' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-
-// POST /api/opportunities/scan ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ trigger immediate scan for 1st-degree connections
 router.post('/scan', async (req, res) => {
   try {
     const { workspace_id } = req.body;
