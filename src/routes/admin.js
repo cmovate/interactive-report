@@ -1016,13 +1016,18 @@ router.post('/trigger-job', async (req, res) => {
   if (!JOB_HANDLERS[job])
     return res.status(400).json({ error: `Unknown job: ${job}. Allowed: ${Object.keys(JOB_HANDLERS).join(', ')}` });
   try {
-    // Try pg-boss first, fall back to direct execution
+    // process-enrollments: always run directly to avoid pg-boss row locking conflicts
+    if (job === 'process-enrollments') {
+      JOB_HANDLERS[job]().catch(e => console.error(`[Admin] direct job ${job} error:`, e.message));
+      return res.json({ triggered: job, method: 'direct', message: `Job "${job}" running directly (preferred for enrollments)` });
+    }
+
+    // Other jobs: try pg-boss first, fall back to direct
     try {
       const { triggerJob } = require('../jobs/index');
       await triggerJob(job, {});
       return res.json({ triggered: job, method: 'pg-boss', message: `Job "${job}" queued` });
     } catch (bossErr) {
-      // pg-boss not running or send failed — execute handler directly (non-blocking)
       console.log(`[Admin] pg-boss send failed (${bossErr.message}), running ${job} directly`);
       JOB_HANDLERS[job]().catch(e => console.error(`[Admin] direct job ${job} error:`, e.message));
       return res.json({ triggered: job, method: 'direct', message: `Job "${job}" running directly`, boss_error: bossErr.message });
