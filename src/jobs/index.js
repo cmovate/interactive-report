@@ -45,6 +45,7 @@ async function startBoss() {
     console.error('[Jobs] pg-boss start FAILED:', err.message);
     console.error('[Jobs] This is non-fatal — jobs will run via direct fallback');
     boss = null;
+    lastBossError = err.message;
     return null;
   }
 
@@ -104,4 +105,7 @@ async function triggerJob(jobName, data = {}) {
 
 function getBoss() { return boss; }
 
-module.exports = { startBoss, enqueueSignal, triggerJob, getBoss };
+
+let lastBossError = null;
+function getBossError() { return lastBossError; }
+module.exports = { startBoss, enqueueSignal, triggerJob, getBoss, getBossError };

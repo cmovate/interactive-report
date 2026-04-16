@@ -1466,3 +1466,17 @@ router.get('/env-keys', (req, res) => {
     .sort();
   res.json({ keys: relevant });
 });
+
+// GET /api/admin/pg-boss-status
+router.get('/pg-boss-status', (req, res) => {
+  try {
+    const { getBoss, getBossError } = require('../jobs/index');
+    const boss = getBoss();
+    const err  = getBossError();
+    res.json({
+      running: !!boss,
+      error:   err || null,
+      message: boss ? 'pg-boss is running' : `pg-boss not running${err ? ': ' + err : ''}`,
+    });
+  } catch(e) { res.json({ running: false, error: e.message }); }
+});
