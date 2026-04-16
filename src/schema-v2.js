@@ -239,6 +239,11 @@ async function initSchemaV2() {
     `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS target_account_id INTEGER REFERENCES target_accounts(id) ON DELETE SET NULL`
   ));
 
+  // ── Engagement scoring + signal tracking on contacts ──────────────────────
+  await s('contacts.engagement_score',    () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS engagement_score    INTEGER DEFAULT 0`));
+  await s('contacts.engagement_score_7d', () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS engagement_score_7d INTEGER DEFAULT 0`));
+  await s('contacts.last_signal_at',      () => db.query(`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS last_signal_at TIMESTAMPTZ`));
+
   // ── Seed: set provider_id = URL slug for contacts missing provider_id ────
   // Allows invitationSender to send invites before full Unipile enrichment.
   // Real enrichment (enrichProfile) will OVERWRITE the slug with ACoXXX later.

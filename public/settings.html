@@ -253,7 +253,18 @@ function renderDetail() {
             onfocus="this.style.borderColor='#1D9E75'"
             onblur="this.style.borderColor='#e0e0e0'"
           />
-          <div style="font-size:11px;color:#aaa;margin-top:4px;">Used for company follow invites and engagement tracking</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;">
+            ${acc.settings?.company_page_urn
+              ? `<span style="font-size:11px;color:#1D9E75;font-weight:600;">✅ URN resolved: ${acc.settings.company_page_urn}</span>`
+              : `<span style="font-size:11px;color:#e67e22;font-weight:600;">⚠️ URN not resolved — save settings to auto-resolve</span>`
+            }
+          </div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px;">
+            Used for company follow invites.
+            <a href="/api/admin/debug-company-follow?workspace_id=${workspaceId}" target="_blank" style="color:#1D9E75;">Debug company follow →</a>
+            &nbsp;|&nbsp;
+            <a href="/api/admin/debug-senders?workspace_id=${workspaceId}" target="_blank" style="color:#1D9E75;">Debug all senders →</a>
+          </div>
         </div>
                 <div class="save-row">
           <span class="save-feedback" id="save-feedback-${acc.account_id}">&#10003; Saved</span>
@@ -263,6 +274,9 @@ function renderDetail() {
           <div style="font-size:12px;color:#888;margin-bottom:8px;">Signals &amp; Webhooks — receive LinkedIn events in the Signals feed</div>
           <button onclick="registerSignalsWebhooks()" style="background:#f0f9ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">
             📡 Register Signals Webhooks
+          </button>
+          <button onclick="resetCompanyFollowState()" style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;margin-left:8px;">
+            🔄 Reset Follow State
           </button>
           <span id="webhook-reg-feedback" style="font-size:12px;color:#888;margin-left:10px;"></span>
         </div>
@@ -389,6 +403,22 @@ async function confirmAdd() {
     errEl.textContent = err.message;
     errEl.style.display = 'block';
     btn.disabled=false; btn.textContent='Add account';
+  }
+}
+
+async function resetCompanyFollowState() {
+  const fb = document.getElementById('webhook-reg-feedback');
+  if (fb) { fb.textContent = 'Resetting…'; fb.style.color = '#888'; }
+  try {
+    const r = await fetch('/api/admin/reset-company-follow-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    }).then(r => r.json());
+    if (r.error) throw new Error(r.error);
+    if (fb) { fb.textContent = `✅ Reset ${r.reset} accounts to 'normal' state`; fb.style.color = '#059669'; }
+  } catch(e) {
+    if (fb) { fb.textContent = '❌ ' + e.message; fb.style.color = '#dc2626'; }
   }
 }
 

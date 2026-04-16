@@ -179,7 +179,7 @@ async function getPendingContactsForCampaign(campaignId, limit) {
       AND (camp.settings->'connection'->>'enabled')::boolean = true
       AND c.invite_sent       = false
       AND c.already_connected = false
-      AND c.provider_id IS NOT NULL
+      AND c.provider_id LIKE 'ACo%'
       AND c.li_profile_url IS NOT NULL
       AND c.li_profile_url != ''
     ORDER BY c.created_at ASC
