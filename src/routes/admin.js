@@ -954,3 +954,48 @@ router.post('/re-enrich-slugs', async (req, res) => {
     res.json({ queued, status: enrichment.getStatus() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/migrate-contacts-to-enrollments
+// Migrates existing contacts state to the enrollments table.
+// Body: { workspace_id: 1 } — migrates ALL campaigns in workspace
+// Maps: invite_sent=true → invite_sent, invite_approved=true → approved,
+//       msg_sent=true → messaged, msg_replied=true → replied,
+//       positive_reply=true → positive_reply
+// Idempotent: ON CONFLICT DO NOTHING
+router.post('/migrate-contacts-to-enrollments', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    // Determine status from contact flags
+    const { rows: contacts } = await db.query(`
+      SELECT c.id AS contact_id, c.campaign_id,
+             c.invite_sent, c.invite_approved, c.msg_sent, c.msg_replied,
+             c.positive_reply, c.already_connected,
+             c.invite_sent_at, c.invite_approved_at
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      WHERE camp.workspace_id = $1
+        AND c.campaign_id IS NOT NULL
+    `, [workspace_id]);
+
+    let migrated = 0, skipped = 0;
+    for (const c of contacts) {
+      let status = 'pending';
+      if (c.positive_reply)   status = 'positive_reply';
+      else if (c.msg_replied)  status = 'replied';
+      else if (c.msg_sent)     status = 'messaged';
+      else if (c.invite_approved || c.already_connected) status = 'approved';
+      else if (c.invite_sent)  status = 'invite_sent';
+
+      const { rowCount } = await db.query(`
+        INSERT INTO enrollments (campaign_id, contact_id, status, next_action_at,
+                                 invite_sent_at, invite_approved_at)
+        VALUES ($1, $2, $3, NOW(), $4, $5)
+        ON CONFLICT (campaign_id, contact_id) DO NOTHING
+      `, [c.campaign_id, c.contact_id, status,
+          c.invite_sent_at || null, c.invite_approved_at || null]);
+      rowCount > 0 ? migrated++ : skipped++;
+    }
+    res.json({ migrated, skipped, total: contacts.length, workspace_id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});

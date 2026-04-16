@@ -144,6 +144,9 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   </div>
 
   <div class="nav-section">Intelligence</div>
+  <div class="nav-item" onclick="showScreen('signals')" id="nav-signals">
+    <span class="nav-icon">📡</span> Signals
+  </div>
   <div class="nav-item" onclick="showScreen('opportunities')" id="nav-opportunities">
     <span class="nav-icon">&#128161;</span> Opportunities
     <span class="nav-new-badge">NEW</span>
@@ -172,6 +175,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   <div class="screen" id="screen-enrollments"></div>
   <div class="screen" id="screen-lists"></div>
   <div class="screen" id="screen-lists2"></div>
+  <div class="screen" id="screen-signals"></div>
   <div class="screen" id="screen-opportunities"></div>
   <div class="screen" id="screen-feed"></div>
   <div class="screen" id="screen-analytics"></div>
@@ -233,7 +237,7 @@ function showScreen(name) {
 function loadScreen(name) {
   loaded[name] = true;
   var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2', scheduler: 'post-scheduler',
-                 sequences: 'sequences', enrollments: 'enrollments'};
+                 sequences: 'sequences', enrollments: 'enrollments', signals: 'signals'};
   var fname = fileMap[name] || name;
   var frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
