@@ -999,3 +999,20 @@ router.post('/migrate-contacts-to-enrollments', async (req, res) => {
     res.json({ migrated, skipped, total: contacts.length, workspace_id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/trigger-job — manually trigger a pg-boss job
+// Body: { job: 'enrich-contacts' | 'process-enrollments' | 'compute-scores' }
+router.post('/trigger-job', async (req, res) => {
+  const { job } = req.body;
+  const ALLOWED = ['enrich-contacts','process-enrollments','compute-scores',
+                   'sync-inbox','publish-scheduled-posts','withdraw-invites'];
+  if (!ALLOWED.includes(job))
+    return res.status(400).json({ error: `Unknown job: ${job}. Allowed: ${ALLOWED.join(', ')}` });
+  try {
+    const { triggerJob } = require('../jobs/index');
+    await triggerJob(job, {});
+    res.json({ triggered: job, message: `Job "${job}" queued for immediate execution` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
