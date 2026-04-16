@@ -565,6 +565,43 @@ if (WORKSPACE_ID) {
       section.style.display = '';
     }).catch(() => {});
 }
+
+// ── System Health ─────────────────────────────────────────────────────────────
+async function loadSystemHealth() {
+  const BASE = '';
+  try {
+    const [pg, enrich, keys] = await Promise.all([
+      fetch(`${BASE}/api/admin/pg-boss-status`).then(r=>r.json()),
+      fetch(`${BASE}/api/campaigns/enrichment-status`).then(r=>r.json()),
+      fetch(`${BASE}/api/admin/env-keys`).then(r=>r.json()),
+    ]);
+
+    const checks = [
+      { label: 'pg-boss scheduler', ok: pg.running, detail: pg.running ? 'Running' : (pg.error || 'Not running') },
+      { label: 'ANTHROPIC_API_KEY', ok: keys.keys?.includes('ANTHROPIC_API_KEY'), detail: keys.keys?.includes('ANTHROPIC_API_KEY') ? 'Set' : 'Missing — AI Suggest disabled' },
+      { label: 'Enrichment', ok: true, detail: enrich.running ? `Running (${enrich.queued} in queue)` : enrich.queued > 0 ? `${enrich.queued} queued` : 'Idle' },
+    ];
+
+    const container = document.getElementById('system-health');
+    if (!container) return;
+    container.innerHTML = `
+      <h3 style="font-size:14px;font-weight:600;color:#374151;margin:0 0 12px">System Health</h3>
+      ${checks.map(c => `
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f3f4f6;">
+          <span style="font-size:16px">${c.ok ? '✅' : '❌'}</span>
+          <span style="font-size:13px;font-weight:500;color:#374151;min-width:180px">${c.label}</span>
+          <span style="font-size:12px;color:#6b7280">${c.detail}</span>
+        </div>
+      `).join('')}
+    `;
+  } catch(e) { /* silent */ }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadSystemHealth();
+  setInterval(loadSystemHealth, 30000);
+});
 </script>
+<div id="system-health" style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0;"></div>
 </body>
 </html>
