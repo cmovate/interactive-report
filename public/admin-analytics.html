@@ -195,6 +195,11 @@ let chartInstance = null;
 let filterOpts = { countries: [], companies: [] };
 let activeFilters = { country: '', company: '' };
 
+// Support being embedded in workspace context
+const _urlParams = new URLSearchParams(location.search);
+const WORKSPACE_ID = _urlParams.get('workspace_id') || null;
+const WORKSPACE_NAME = _urlParams.get('workspace_name') || null;
+
 const sortState = {
   ws:   { col: 'invites_sent', dir: 'desc' },
   acc:  { col: 'invites_sent', dir: 'desc' },
