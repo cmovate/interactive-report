@@ -455,6 +455,21 @@ router.post('/:id/fetch-all-companies', async (req, res) => {
 
 
 
+// PATCH /api/campaigns/:id/sequence — attach/detach a sequence
+router.patch('/:id/sequence', async (req, res) => {
+  try {
+    const wsId = req.body?.workspace_id || req.query.workspace_id;
+    const camp = await requireCampaign(req, res, wsId);
+    if (!camp) return;
+    const { sequence_id } = req.body;
+    const { rows } = await db.query(
+      'UPDATE campaigns SET sequence_id=$1 WHERE id=$2 AND workspace_id=$3 RETURNING *',
+      [sequence_id || null, camp.id, wsId]
+    );
+    res.json({ success: true, campaign: rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // PATCH /api/campaigns/:id/list â attach a list to an existing campaign + bulk-import contacts
 router.patch('/:id/list', async (req, res) => {
   try {
