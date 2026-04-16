@@ -173,13 +173,30 @@ async function sendBatch(accountId, workspaceId, companyPageUrn, contacts, setti
   for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
     const chunk = contacts.slice(i, i + BATCH_SIZE);
     const elements = chunk.map(c => {
+      // Try profile_data fields first, then fall back to contact columns
       let pd = {};
-      try { const raw = typeof c.profile_data === 'string' ? JSON.parse(c.profile_data) : c.profile_data; if (raw && typeof raw === 'object') pd = raw; } catch (_) {}
-      const memberUrn  = pd.member_urn  || null;
-      const providerId = pd.provider_id || null;
+      try {
+        const raw = typeof c.profile_data === 'string' ? JSON.parse(c.profile_data) : c.profile_data;
+        if (raw && typeof raw === 'object') pd = raw;
+      } catch (_) {}
+
+      // member_urn: from profile_data, or contact column, or construct from provider_id
+      const memberUrnFromPd  = pd.member_urn || null;
+      const memberUrnCol     = c.member_urn  || null;
+      const providerIdFromPd = pd.provider_id || null;
+      const providerIdCol    = c.provider_id  || null;
+
+      const memberUrn  = memberUrnFromPd  || memberUrnCol  || null;
+      const providerId = providerIdFromPd || providerIdCol || null;
+
       let inviteeMember = null;
-      if (memberUrn && memberUrn.startsWith('urn:li:'))  inviteeMember = memberUrn;
-      else if (providerId)                                inviteeMember = `urn:li:fsd_profile:${providerId}`;
+      if (memberUrn && memberUrn.startsWith('urn:li:')) {
+        inviteeMember = memberUrn;
+      } else if (providerId) {
+        // ACoXXX → urn:li:fsd_profile:ACoXXX
+        inviteeMember = `urn:li:fsd_profile:${providerId}`;
+      }
+
       return inviteeMember ? { id: c.id, inviteeMember } : null;
     }).filter(Boolean);
 
@@ -215,7 +232,8 @@ async function sendBatch(accountId, workspaceId, companyPageUrn, contacts, setti
 
 async function getPendingContacts(accountId, workspaceId, limit) {
   const { rows } = await db.query(`
-    SELECT c.id, c.first_name, c.last_name, c.invite_approved, c.campaign_id, c.profile_data
+    SELECT c.id, c.first_name, c.last_name, c.invite_approved, c.campaign_id,
+           c.profile_data, c.member_urn, c.provider_id
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
     WHERE camp.account_id   = $1
@@ -224,12 +242,17 @@ async function getPendingContacts(accountId, workspaceId, limit) {
       AND (camp.settings->'engagement'->>'follow_company')::boolean = true
       AND (
         c.invite_approved = true
+        OR c.already_connected = true
         OR (c.profile_data->>'network_distance') = '1'
+        OR (c.profile_data->>'connection_degree')::int = 1
         OR (c.profile_data->>'is_relationship')::boolean = true
       )
       AND (c.company_follow_invited = false OR c.company_follow_invited IS NULL)
-      AND c.profile_data IS NOT NULL
-      AND c.profile_data::text NOT IN ('null', '{}', '')
+      AND (
+        c.member_urn IS NOT NULL
+        OR c.provider_id LIKE 'ACo%'
+        OR (c.profile_data IS NOT NULL AND c.profile_data::text NOT IN ('null', '{}', ''))
+      )
     ORDER BY c.invite_approved DESC, c.created_at ASC
     LIMIT $3
   `, [accountId, workspaceId, limit]);
