@@ -228,9 +228,12 @@ async function runEngagementActions(enrollment, campaign, contact) {
 }
 
 function getFirstMessage(campaign, sequence) {
-  // Priority 1: sequence steps (new system)
+  // Priority 1: sequence steps (new system) — find first MESSAGE step (skip invite/engagement)
   if (sequence?.steps?.length) {
-    return { source: 'sequence', step: sequence.steps.find(s => s.step_index === 0) };
+    const msgStep = sequence.steps
+      .filter(s => s.type === 'message' || s.type === 'send_message')
+      .sort((a, b) => a.step_index - b.step_index)[0];
+    if (msgStep) return { source: 'sequence', step: msgStep };
   }
   // Priority 2: campaign.settings.messages.new (old system — still respect it)
   const msgs = campaign.settings?.messages?.new;
@@ -243,9 +246,11 @@ function getFirstMessage(campaign, sequence) {
 }
 
 function getFollowUpMessage(campaign, sequence, currentStepIndex) {
-  // Priority 1: sequence (new system)
+  // Priority 1: sequence (new system) — find next MESSAGE step after currentStepIndex
   if (sequence?.steps?.length) {
-    const next = sequence.steps.find(s => s.step_index === currentStepIndex + 1);
+    const next = sequence.steps
+      .filter(s => (s.type === 'message' || s.type === 'send_message') && s.step_index > currentStepIndex)
+      .sort((a, b) => a.step_index - b.step_index)[0];
     if (next) return { source: 'sequence', step: next };
   }
   // Priority 2: old system messages
