@@ -430,9 +430,13 @@ async function handler(job) {
     LIMIT $1
   `, [MAX_BATCH]);
 
-  if (!enrollments.length) return;
+  if (!enrollments.length) {
+    console.log('[Enrollments] No enrollments due for action (next_action_at <= NOW, not done/withdrawn)');
+    return;
+  }
 
   console.log(`[Enrollments] Processing ${enrollments.length} enrollments`);
+  console.log('[Enrollments] Statuses:', enrollments.slice(0,5).map(e => `#${e.id}:${e.status}:step${e.current_step}`).join(' '));
 
   // Group by sequence_id to avoid loading same sequence multiple times
   const sequenceCache = {};
