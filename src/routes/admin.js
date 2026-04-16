@@ -761,10 +761,10 @@ router.post('/run-migration', async (req, res) => {
     const results = [];
     for (const stmt of statements) {
       try {
-        await db.query(stmt);
-        results.push({ stmt: stmt.substring(0,60), ok: true });
+        const result = await db.query(stmt);
+        results.push({ stmt: stmt.substring(0, 60), ok: true, rows: result.rows, rowCount: result.rowCount });
       } catch(e) {
-        results.push({ stmt: stmt.substring(0,60), ok: false, err: e.message });
+        results.push({ stmt: stmt.substring(0, 60), ok: false, err: e.message });
       }
     }
     res.json({ results });
@@ -1448,10 +1448,10 @@ router.post('/analyze-replies', async (req, res) => {
 
     if (!contacts.length) return res.json({ queued: 0, message: 'All replies already analyzed' });
 
-    const { enqueueContact } = require('../conversationQueue');
+    const { enqueueReady } = require('../conversationQueue');
     let queued = 0;
     for (const c of contacts) {
-      enqueueContact(c.id, c.account_id, c.chat_id, null);
+      enqueueReady(c.id, c.account_id, c.chat_id, null);
       queued++;
     }
 
