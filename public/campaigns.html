@@ -435,7 +435,11 @@ function renderCampaigns() {
       return `<tr onclick="openCampaignModal(${c.id})">
         <td>
           <div style="font-weight:600;font-size:14px;color:#111827;">${esc(c.name)}</div>
-          <div style="font-size:11px;color:#9ca3af;margin-top:2px;">✏️ Click to view & edit</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;">
+            ${c.sequence_id ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;color:#0369a1;">📋 Sequence</span>` : ''}
+            ${(parseInt(c.enrollment_count)||0) > 0 ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:600;color:#15803d;">${parseInt(c.enrollment_count).toLocaleString()} enrolled</span>` : ''}
+            <div style="font-size:10px;color:#9ca3af;align-self:center;">✏️ Click to view</div>
+          </div>
         </td>
         <td>
           <div style="display:flex;align-items:center;gap:6px;">

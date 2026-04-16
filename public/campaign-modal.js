@@ -23,6 +23,10 @@ async function openCampaignModal(id) { _addCMStyles();
     const d = await fetch('/api/campaigns/'+id+'?workspace_id='+workspaceId).then(r=>r.json());
     if (d.error) throw new Error(d.error);
     cmData = d;
+    // Prefetch ab-analytics to get sequence_name and enriched_count for overview
+    fetch('/api/campaigns/'+id+'/ab-analytics?workspace_id='+workspaceId)
+      .then(r=>r.json()).then(an => { if(an.sequence_name) cmData.sequence_name=an.sequence_name; })
+      .catch(()=>{});
     const s = typeof d.settings==='string' ? JSON.parse(d.settings) : (d.settings||{});
     cmSettings = JSON.parse(JSON.stringify(s));
     document.getElementById('cm-name').textContent = d.name;
@@ -228,6 +232,15 @@ function buildAnalyticsHTML(data) {
       <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'total_msgs')" title="Total messages sent">
         <div class="overview-card-num">${parseInt(o.total_msgs_sent)||0}</div>
         <div class="overview-card-label">Total msgs</div>
+      </div>
+      ${total>0?`<div class="overview-card" title="Contacts with real ACoXXX LinkedIn ID — ready to invite">
+        <div class="overview-card-num" style="color:${pct>=80?'#10b981':pct>=40?'#f59e0b':'#f87171'}">${acoCount}</div>
+        <div class="overview-card-rate">${pct}% enriched</div>
+        <div class="overview-card-label">ACoXXX IDs</div>
+      </div>`:''}
+      <div class="overview-card" title="Attached sequence">
+        <div class="overview-card-num" style="font-size:12px;color:${seqName?'#1D9E75':'#94a3b8'}">${seqName||'None'}</div>
+        <div class="overview-card-label">Sequence</div>
       </div>
     </div>
     <div id="cm-kpi-drill" style="display:none;margin-top:14px;"></div>    </div><div class="analytics-section-label">A/B/C message performance</div>`;

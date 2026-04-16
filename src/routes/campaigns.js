@@ -50,7 +50,9 @@ router.get('/', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const { rows } = await db.query(
       `SELECT c.*, (SELECT name FROM lists WHERE id = c.list_id) AS list_name,
+        (SELECT name FROM sequences WHERE id = c.sequence_id) AS sequence_name,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id) AS contact_count,
+        (SELECT COUNT(*) FROM enrollments WHERE campaign_id = c.id) AS enrollment_count,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_sent = true) AS invites_sent,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND invite_approved = true) AS invites_approved,
         (SELECT COUNT(*) FROM contacts WHERE campaign_id = c.id AND msg_sent = true) AS messages_sent,
@@ -91,7 +93,8 @@ router.get('/:id/ab-analytics', async (req, res) => {
         COUNT(*) FILTER (WHERE msg_sent = true) AS messages_sent,
         COUNT(*) FILTER (WHERE msg_replied = true) AS messages_replied,
         COUNT(*) FILTER (WHERE positive_reply = true) AS positive_replies,
-        COALESCE(SUM(msgs_sent_count), 0) AS total_msgs_sent
+        COALESCE(SUM(msgs_sent_count), 0) AS total_msgs_sent,
+        COUNT(*) FILTER (WHERE provider_id LIKE 'ACo%') AS enriched_count
        FROM contacts WHERE campaign_id = $1 AND workspace_id = $2`,
       [camp.id, wsId]);
     const rawSettings = camp.settings || {};
@@ -115,7 +118,13 @@ router.get('/:id/ab-analytics', async (req, res) => {
             rate: parseInt(r.sent) > 0 ? Math.round(parseInt(r.replied) / parseInt(r.sent) * 100) : 0 })) });
       }
     }
-    res.json({ overall: overallRows[0], campaign_name: camp.name, steps });
+    // Get sequence name if attached
+    let sequenceName = null;
+    if (camp.sequence_id) {
+      const { rows: seqRows } = await db.query('SELECT name FROM sequences WHERE id=$1', [camp.sequence_id]);
+      sequenceName = seqRows[0]?.name || null;
+    }
+    res.json({ overall: overallRows[0], campaign_name: camp.name, sequence_name: sequenceName, steps });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
