@@ -123,6 +123,12 @@ async function callOpenAI(transcript, contactName) {
  * @param {string} chatId      Unipile chat ID
  */
 async function analyzeConversation(contactId, accountId, chatId) {
+  // Guard: skip silently if no API key — don't keep retrying
+  if (!ANTHROPIC_API_KEY) {
+    console.warn(`[ConvAnalyzer] ANTHROPIC_API_KEY not set — skipping contact ${contactId}. Add it to Railway Variables.`);
+    return null;
+  }
+
   // 1. Load contact name from DB
   const { rows: contactRows } = await db.query(
     'SELECT first_name, last_name FROM contacts WHERE id = $1',

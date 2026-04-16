@@ -29,21 +29,24 @@ async function startBoss() {
 
   boss = new PgBoss({
     connectionString: dbUrl,
-    ssl: dbUrl.includes('localhost') ? false : { rejectUnauthorized: false },
-    // Keep completed jobs for 7 days for visibility
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     deleteAfterDays: 7,
-    // Retry failed jobs up to 3 times with exponential backoff
     retryLimit: 3,
     retryDelay: 30,
     retryBackoff: true,
-    // Prevent startup from blocking server boot
-    noSupervisor: false,
   });
 
   boss.on('error', err => console.error('[Jobs] pg-boss error:', err.message));
 
-  await boss.start();
-  console.log('[Jobs] pg-boss started');
+  try {
+    await boss.start();
+    console.log('[Jobs] pg-boss started ✅');
+  } catch (err) {
+    console.error('[Jobs] pg-boss start FAILED:', err.message);
+    console.error('[Jobs] This is non-fatal — jobs will run via direct fallback');
+    boss = null;
+    return null;
+  }
 
   // ── Register job handlers ─────────────────────────────────────────────
   await boss.work('process-enrollments', { teamSize: 1, teamConcurrency: 1 },
