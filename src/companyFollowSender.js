@@ -130,7 +130,7 @@ async function run() {
         } else { console.log(`[CompanyFollow] ${acc.account_id}: waiting_7d — ${daysPassed.toFixed(1)}d`); continue; }
       }
 
-      if (settings.cf_state === 'normal') {
+      if (state === 'normal' || !settings.cf_state) {
         const sentThisMonth = await countSentThisMonth(acc.account_id, acc.workspace_id);
         const remaining     = MONTHLY_LIMIT - sentThisMonth;
         console.log(`[CompanyFollow] ${acc.account_id}: normal — ${sentThisMonth}/${MONTHLY_LIMIT}`);
@@ -148,7 +148,7 @@ async function run() {
         if (!contacts.length) { console.log(`[CompanyFollow] ${acc.account_id}: no pending contacts`); continue; }
         sendBatch(acc.account_id, acc.workspace_id, companyPageUrn, contacts, settings, 'normal');
       }
-      else if (settings.cf_state === 'drip') {
+      else if (state === 'drip' || settings.cf_state === 'drip') {
         const todayStr    = toDateStr(nowDate);
         const dripDate    = settings.cf_drip_date || '';
         let dripSentToday = (dripDate === todayStr) ? (settings.cf_drip_sent_today || 0) : 0;
