@@ -318,14 +318,16 @@ textarea:focus { outline: none; border-color: #1D9E75; }
     </div>
     <div class="cm-nav">
       <button class="cm-tab" data-tab="analytics" onclick="switchCMTab('analytics')">&#128200; Analytics</button>
+      <button class="cm-tab" data-tab="enrollments" onclick="switchCMTab('enrollments')">&#128100; Enrollments</button>
       <button class="cm-tab" data-tab="companies" onclick="switchCMTab('companies')">&#127970; Companies</button>
-      <button class="cm-tab" data-tab="audience"  onclick="switchCMTab('audience')">&#128100; Audience</button>
+      <button class="cm-tab" data-tab="audience"  onclick="switchCMTab('audience')">&#128203; Contacts</button>
       <button class="cm-tab" data-tab="settings"  onclick="switchCMTab('settings')">&#9881;&#65039; Settings</button>
     </div>
-    <div id="cmb-analytics" class="cm-body"></div>
-    <div id="cmb-companies" class="cm-body" style="display:none;"></div>
-    <div id="cmb-audience"  class="cm-body" style="display:none;"></div>
-    <div id="cmb-settings"  class="cm-body" style="display:none;"></div>
+    <div id="cmb-analytics"   class="cm-body"></div>
+    <div id="cmb-enrollments" class="cm-body" style="display:none;"></div>
+    <div id="cmb-companies"   class="cm-body" style="display:none;"></div>
+    <div id="cmb-audience"    class="cm-body" style="display:none;"></div>
+    <div id="cmb-settings"    class="cm-body" style="display:none;"></div>
     <div id="cm-foot" class="cm-foot" style="display:none;">
       <button class="ghost-btn" onclick="closeCM()">Close</button>
       <button class="primary-btn" id="cm-save-btn" onclick="saveCMSettings()">Save settings</button>

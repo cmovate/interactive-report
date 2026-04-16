@@ -18,7 +18,7 @@ async function openCampaignModal(id) { _addCMStyles();
   document.getElementById('cm-meta').textContent = '';
   document.getElementById('cm-st-btn').textContent = '';
   document.getElementById('cm-back').style.display = 'flex';
-  ['analytics','companies','audience','settings'].forEach(t => document.getElementById('cmb-'+t).innerHTML = '');
+  ['analytics','enrollments','companies','audience','settings'].forEach(t => document.getElementById('cmb-'+t).innerHTML = '');
   try {
     const d = await fetch('/api/campaigns/'+id+'?workspace_id='+workspaceId).then(r=>r.json());
     if (d.error) throw new Error(d.error);
@@ -57,6 +57,8 @@ async function loadCMTab(tab) {
     if (tab==='analytics') {
       const d = await fetch('/api/campaigns/'+cmId+'/ab-analytics?workspace_id='+workspaceId).then(r=>r.json());
       el.innerHTML = buildAnalyticsHTML(d);
+    } else if (tab==='enrollments') {
+      await loadCMEnrollments(el);
     } else if (tab==='companies') {
       const d = await fetch('/api/campaigns/'+cmId+'/companies?workspace_id='+workspaceId).then(r=>r.json());
       el.innerHTML = buildCompaniesHTML(d.items||[]);
@@ -68,10 +70,133 @@ async function loadCMTab(tab) {
   } catch(e) { el.innerHTML = '<div class="tab-err">Error: '+esc(e.message)+'</div>'; }
 }
 
+// ── Enrollments tab ───────────────────────────────────────────────────────────
+let _enrollPage = 1, _enrollStatus = '';
+
+async function loadCMEnrollments(el, page, status) {
+  if (!el) el = document.getElementById('cmb-enrollments');
+  if (page !== undefined) _enrollPage = page;
+  if (status !== undefined) _enrollStatus = status;
+
+  const limit = 50;
+  let url = `/api/campaigns/${cmId}/enrollments?workspace_id=${workspaceId}&limit=${limit}&page=${_enrollPage}`;
+  if (_enrollStatus) url += `&status=${_enrollStatus}`;
+
+  const [data, stats] = await Promise.all([
+    fetch(url).then(r=>r.json()),
+    fetch(`/api/admin/enrollment-stats?workspace_id=${workspaceId}`).then(r=>r.json()),
+  ]);
+
+  const campStats = (stats.by_campaign||[]).find(c=>c.name===cmData?.name)||{};
+  const byStatus = campStats.statuses || {};
+  const totalEnrolled = Object.values(byStatus).reduce((s,c)=>s+c,0);
+
+  const STATUS_COLORS = {
+    pending:'#94a3b8', invite_sent:'#34d399', approved:'#60a5fa',
+    messaged:'#fbbf24', replied:'#a78bfa', positive_reply:'#10b981',
+    done:'#475569', withdrawn:'#f87171', error:'#ef4444',
+  };
+
+  const statusBar = Object.entries(byStatus).filter(([,n])=>n>0).map(([s,n])=>
+    `<button onclick="loadCMEnrollments(null,1,'${s==='all'?'':s}')"
+       style="padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;cursor:pointer;
+              background:${STATUS_COLORS[s]||'#94a3b8'}22;color:${STATUS_COLORS[s]||'#94a3b8'};
+              border:1px solid ${STATUS_COLORS[s]||'#94a3b8'}44;
+              ${_enrollStatus===s?'outline:2px solid '+STATUS_COLORS[s]:''}"
+     >${s.replace(/_/g,' ')} <b>${n}</b></button>`
+  ).join('');
+
+  const items = data.items || [];
+  const rows = items.map(e => {
+    const name = [e.first_name,e.last_name].filter(Boolean).join(' ') || '—';
+    const link = e.li_profile_url ? `<a href="${e.li_profile_url}" target="_blank" style="color:#1D9E75;text-decoration:none">↗</a>` : '';
+    const next = e.next_action_at ? (() => {
+      const ms = new Date(e.next_action_at)-Date.now();
+      if (ms < 0) return '<span style="color:#fbbf24">due</span>';
+      if (ms < 3600000) return `${Math.round(ms/60000)}m`;
+      if (ms < 86400000) return `${Math.round(ms/3600000)}h`;
+      return `${Math.round(ms/86400000)}d`;
+    })() : '';
+    return `<tr>
+      <td><strong style="color:#f1f5f9">${name}</strong> ${link}
+        <div style="font-size:11px;color:#64748b">${e.title||''}${e.company?' · '+e.company:''}</div></td>
+      <td><span style="padding:2px 8px;border-radius:8px;font-size:11px;font-weight:600;
+          background:${STATUS_COLORS[e.status]||'#94a3b8'}22;color:${STATUS_COLORS[e.status]||'#94a3b8'}"
+        >${e.status.replace(/_/g,' ')}</span></td>
+      <td style="color:#64748b;font-size:12px">${next}</td>
+      <td style="color:#64748b;font-size:12px">${e.current_step||0}</td>
+      <td>
+        ${e.status==='error'?`<button onclick="patchEnrollment(${e.id},'pending')" style="font-size:11px;color:#1D9E75;background:none;border:none;cursor:pointer">Retry</button>`:''}
+        ${['pending','invite_sent'].includes(e.status)?`<button onclick="patchEnrollment(${e.id},'skipped')" style="font-size:11px;color:#f87171;background:none;border:none;cursor:pointer">Skip</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  const pages = data.pages || 1;
+  const pager = pages > 1 ? `<div style="display:flex;gap:6px;justify-content:center;padding:12px">
+    ${_enrollPage>1?`<button onclick="loadCMEnrollments(null,${_enrollPage-1})" style="padding:4px 12px;border:1px solid #2d3748;border-radius:5px;background:#1e2333;color:#94a3b8;cursor:pointer">← Prev</button>`:''}
+    <span style="font-size:12px;color:#64748b;align-self:center">Page ${_enrollPage}/${pages} · ${data.total} enrollments</span>
+    ${_enrollPage<pages?`<button onclick="loadCMEnrollments(null,${_enrollPage+1})" style="padding:4px 12px;border:1px solid #2d3748;border-radius:5px;background:#1e2333;color:#94a3b8;cursor:pointer">Next →</button>`:''}
+  </div>` : '';
+
+  const enroll_btn = totalEnrolled === 0
+    ? `<button onclick="enrollCampaign()" style="padding:6px 14px;background:#1D9E75;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer">⚡ Enroll contacts</button>`
+    : '';
+
+  el.innerHTML = `
+    <div style="padding:16px;border-bottom:1px solid #1e2a3a;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:12px;color:#64748b">${totalEnrolled} enrolled</span>
+      ${enroll_btn}
+      <button onclick="loadCMEnrollments(null,1,'')" style="padding:3px 10px;border-radius:10px;font-size:11px;background:${!_enrollStatus?'#1D9E75':'#1e2333'};color:${!_enrollStatus?'#fff':'#94a3b8'};border:1px solid #2d3748;cursor:pointer">All</button>
+      ${statusBar}
+    </div>
+    ${items.length ? `
+      <div style="overflow-x:auto">
+        <table class="cm-table" style="background:#0f1117">
+          <thead><tr style="background:#161b2e">
+            <th>Contact</th><th>Status</th><th>Next</th><th>Step</th><th></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>${pager}
+    ` : `<div style="text-align:center;padding:40px;color:#475569">
+      ${totalEnrolled === 0 ? 'No enrollments yet. Click "Enroll contacts" to start.' : `No enrollments with status "${_enrollStatus}"`}
+    </div>`}
+  `;
+}
+
+async function enrollCampaign() {
+  try {
+    const r = await fetch(`/api/campaigns/${cmId}/enroll`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    }).then(r=>r.json());
+    if (r.error) throw new Error(r.error);
+    alert(`Enrolled ${r.enrolled} contacts (${r.skipped} already enrolled)`);
+    cmLoaded.enrollments = false;
+    await loadCMTab('enrollments');
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function patchEnrollment(id, status) {
+  await fetch(`/api/enrollments/${id}`, {
+    method: 'PATCH', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ workspace_id: workspaceId, status, next_action_at: new Date().toISOString() }),
+  });
+  cmLoaded.enrollments = false;
+  await loadCMTab('enrollments');
+}
+
+
+
 function buildAnalyticsHTML(data) {
   const o = data.overall||{};
   const iap = parseInt(o.invites_sent)>0 ? Math.round(parseInt(o.invites_approved)/parseInt(o.invites_sent)*100) : 0;
   const rr  = parseInt(o.messages_sent)>0? Math.round(parseInt(o.messages_replied)/parseInt(o.messages_sent)*100): 0;
+  const total   = parseInt(o.total_contacts)||0;
+  const acoCount= parseInt(o.enriched_count||0);
+  const pct     = total>0 ? Math.round(acoCount/total*100) : 0;
+  const seqName = cmData?.sequence_name||(cmData?.sequence_id?`Seq #${cmData.sequence_id}`:null);
   let html = `<div class="analytics-section-label">Overview</div>
     <div class="overview-grid">
       <div class="overview-card kpi-btn" onclick="cmKpiClick(this,'all')" title="Show all contacts">
