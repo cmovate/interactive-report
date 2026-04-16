@@ -174,9 +174,10 @@ router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
           const slug = urlMatch[1];
           const profile = await getCompanyProfile(req.params.accountId, slug).catch(() => null);
           const companyId =
-            profile?.company_id ||
             profile?.id ||
+            profile?.company_id ||
             profile?.entity_urn?.match(/(\d+)$/)?.[1] ||
+            profile?.urn?.match(/(\d+)$/)?.[1] ||
             null;
           if (companyId) {
             settingsPatch.company_page_urn = `urn:li:fsd_company:${companyId}`;

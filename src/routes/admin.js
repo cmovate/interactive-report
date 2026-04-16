@@ -1322,7 +1322,7 @@ router.post('/fix-company-follow', async (req, res) => {
         const urlMatch = acc.url.match(/linkedin\.com\/company\/([^/?#]+)/);
         if (!urlMatch) { results.urn_failed++; continue; }
         const profile = await getCompanyProfile(acc.account_id, urlMatch[1]).catch(() => null);
-        const id = profile?.company_id || profile?.id || profile?.entity_urn?.match(/(\d+)$/)?.[1];
+        const id = profile?.id || profile?.company_id || profile?.entity_urn?.match(/(\d+)$/)?.[1] || profile?.urn?.match(/(\d+)$/)?.[1];
         if (id) {
           const urn = `urn:li:fsd_company:${id}`;
           await db.query(
