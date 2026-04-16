@@ -190,44 +190,123 @@ async function handleInviteSent(enrollment, campaign, contact) {
   await setStatus(enrollment.id, 'withdrawn');
 }
 
+// ── Engagement actions ────────────────────────────────────────────────────────
+
+async function runEngagementActions(enrollment, campaign, contact) {
+  const eng = campaign.settings?.engagement || {};
+  const accountId = campaign.account_id;
+  const actions = [];
+
+  if (eng.profile_view && contact.provider_id) {
+    try {
+      await unipile.viewProfile(accountId, contact.li_profile_url || contact.provider_id);
+      actions.push('profile_view');
+    } catch (e) { console.warn(`[Enrollments] #${enrollment.id} profile_view failed: ${e.message}`); }
+  }
+
+  if (eng.like_recent_post && contact.provider_id) {
+    try {
+      await unipile.likeLatestPost(accountId, contact.provider_id);
+      actions.push('like_post');
+    } catch (e) { console.warn(`[Enrollments] #${enrollment.id} like_post failed: ${e.message}`); }
+  }
+
+  if (eng.follow_company && contact.li_company_url) {
+    try {
+      await unipile.followCompany(accountId, contact.li_company_url);
+      actions.push('follow_company');
+    } catch (e) { console.warn(`[Enrollments] #${enrollment.id} follow_company failed: ${e.message}`); }
+  }
+
+  if (actions.length) {
+    console.log(`[Enrollments] #${enrollment.id} engagement: ${actions.join(', ')}`);
+  }
+  return actions;
+}
+
+function getFirstMessage(campaign, sequence) {
+  // Priority 1: sequence steps (new system)
+  if (sequence?.steps?.length) {
+    return { source: 'sequence', step: sequence.steps.find(s => s.step_index === 0) };
+  }
+  // Priority 2: campaign.settings.messages.new (old system — still respect it)
+  const msgs = campaign.settings?.messages?.new;
+  if (Array.isArray(msgs) && msgs.length) {
+    const m = msgs[0];
+    const variants = m.variants?.length ? m.variants : [{ label: 'A', text: m.text || '' }];
+    return { source: 'settings', step: { step_index: 0, type: 'message', delay_days: parseInt(m.delay) || 1, variants } };
+  }
+  return null; // no messages configured → engagement only
+}
+
+function getFollowUpMessage(campaign, sequence, currentStepIndex) {
+  // Priority 1: sequence (new system)
+  if (sequence?.steps?.length) {
+    const next = sequence.steps.find(s => s.step_index === currentStepIndex + 1);
+    if (next) return { source: 'sequence', step: next };
+  }
+  // Priority 2: old system messages
+  const msgs = campaign.settings?.messages?.new;
+  if (Array.isArray(msgs) && msgs.length > currentStepIndex + 1) {
+    const m = msgs[currentStepIndex + 1];
+    const variants = m.variants?.length ? m.variants : [{ label: 'A', text: m.text || '' }];
+    return { source: 'settings', step: { step_index: currentStepIndex + 1, type: 'message', delay_days: parseInt(m.delay) || 3, variants } };
+  }
+  return null;
+}
+
 async function handleApproved(enrollment, campaign, contact, sequence) {
-  if (!sequence) {
-    // No sequence yet — postpone 24h, don't close enrollment
-    await setStatus(enrollment.id, 'approved', {
-      next_action_at: addDays(new Date(), 1),
-    });
-    console.log(`[Enrollments] #${enrollment.id} approved but no sequence — postponed 24h`);
+  // Step 1: Run engagement actions the user configured
+  await runEngagementActions(enrollment, campaign, contact);
+
+  // Step 2: Check if there are messages to send
+  const firstMsg = getFirstMessage(campaign, sequence);
+
+  if (!firstMsg) {
+    // No messages configured — engagement only. Mark done.
+    await setStatus(enrollment.id, 'done');
+    console.log(`[Enrollments] #${enrollment.id} approved → engagement done, no messages configured`);
     return;
   }
 
-  const step = sequence.steps.find(s => s.step_index === 0);
-  if (!step) {
+  // Schedule first message after the configured delay
+  const delay = firstMsg.step?.delay_days ?? 1;
+  await setStatus(enrollment.id, 'approved', {
+    next_action_at: addDays(new Date(), delay),
+    current_step: -1, // will be set to 0 when message is sent
+  });
+
+  // If delay is 0, send immediately in next run (next_action_at = NOW)
+  if (delay === 0) {
+    await sendMessageStep(enrollment, campaign, contact, firstMsg.step, 0);
+  } else {
+    console.log(`[Enrollments] #${enrollment.id} engagement done → first message in ${delay}d`);
+  }
+}
+
+async function handleApprovedSendMessage(enrollment, campaign, contact, sequence) {
+  // Called when next_action_at has passed after engagement phase
+  const firstMsg = getFirstMessage(campaign, sequence);
+  if (!firstMsg) {
     await setStatus(enrollment.id, 'done');
     return;
   }
-
-  await sendStep(enrollment, campaign, contact, sequence, step, 0);
+  await sendMessageStep(enrollment, campaign, contact, firstMsg.step, 0);
 }
 
 async function handleMessaged(enrollment, campaign, contact, sequence) {
-  if (!sequence) {
+  const followUp = getFollowUpMessage(campaign, sequence, enrollment.current_step);
+
+  if (!followUp) {
     await setStatus(enrollment.id, 'done');
+    console.log(`[Enrollments] #${enrollment.id} all messages done → done`);
     return;
   }
 
-  const nextStepIndex = enrollment.current_step + 1;
-  const step = sequence.steps.find(s => s.step_index === nextStepIndex);
-
-  if (!step) {
-    await setStatus(enrollment.id, 'done');
-    console.log(`[Enrollments] #${enrollment.id} all steps done → done`);
-    return;
-  }
-
-  await sendStep(enrollment, campaign, contact, sequence, step, nextStepIndex);
+  await sendMessageStep(enrollment, campaign, contact, followUp.step, followUp.step.step_index);
 }
 
-async function sendStep(enrollment, campaign, contact, sequence, step, stepIndex) {
+async function sendMessageStep(enrollment, campaign, contact, step, stepIndex) {
   const variant = pickVariant(step.variants, enrollment);
   if (!variant || !variant.text?.trim()) {
     console.warn(`[Enrollments] #${enrollment.id} step ${stepIndex} has no text, skipping`);
@@ -248,26 +327,22 @@ async function sendStep(enrollment, campaign, contact, sequence, step, stepIndex
     chatId = result?.id || result?.chat_id || null;
     unipileMsgId = result?.message_id || null;
   } else {
-    throw new Error('No chat_id or provider_id available');
+    throw new Error('No chat_id or provider_id to send message');
   }
 
-  // Save chat_id if we just learned it
   if (chatId && !enrollment.chat_id) {
-    await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2 AND chat_id IS NULL',
-      [chatId, contact.id]);
+    await db.query('UPDATE contacts SET chat_id=$1 WHERE id=$2 AND chat_id IS NULL', [chatId, contact.id]);
   }
 
-  // Save what was sent
   await saveEnrollmentMessage(enrollment.id, stepIndex, variant.label, text, unipileMsgId);
 
-  // Store A/B assignment
   const assignments = { ...(enrollment.a_b_assignments || {}), [`step_${stepIndex}`]: variant.label };
 
-  // Calculate when to send next step
-  const nextStep = sequence.steps.find(s => s.step_index === stepIndex + 1);
-  const nextActionAt = nextStep
-    ? new Date(jitter(addDays(new Date(), nextStep.delay_days).getTime()))
-    : addDays(new Date(), 999); // far future if no next step
+  // Calculate next step delay
+  const followUp = getFollowUpMessage(campaign, null, stepIndex); // check settings only for timing
+  const nextActionAt = followUp
+    ? new Date(jitter(addDays(new Date(), followUp.step.delay_days || 3).getTime()))
+    : addDays(new Date(), 999);
 
   await setStatus(enrollment.id, 'messaged', {
     current_step: stepIndex,
@@ -276,7 +351,7 @@ async function sendStep(enrollment, campaign, contact, sequence, step, stepIndex
     a_b_assignments: assignments,
   });
 
-  console.log(`[Enrollments] #${enrollment.id} step ${stepIndex} sent (${variant.label}) → ${contact.first_name}`);
+  console.log(`[Enrollments] #${enrollment.id} step ${stepIndex} sent → ${contact.first_name}`);
 }
 
 function getInviteNote(campaign) {
@@ -426,7 +501,6 @@ async function handler(job) {
               break;
             }
             await handlePending(enrollment, campaign, contact);
-            // Only increment if we actually sent (check invite_sent after)
             const { rows: sentCheck } = await db.query('SELECT invite_sent FROM contacts WHERE id=$1', [contact.id]);
             if (sentCheck[0]?.invite_sent) invitesSentThisRun[limKey]++;
           } else {
@@ -438,7 +512,12 @@ async function handler(job) {
           await handleInviteSent(enrollment, campaign, contact);
           break;
         case 'approved':
-          await handleApproved(enrollment, campaign, contact, sequence);
+          // If current_step is -1, engagement was done — now send first message
+          if (enrollment.current_step === -1) {
+            await handleApprovedSendMessage(enrollment, campaign, contact, sequence);
+          } else {
+            await handleApproved(enrollment, campaign, contact, sequence);
+          }
           break;
         case 'messaged':
           await handleMessaged(enrollment, campaign, contact, sequence);

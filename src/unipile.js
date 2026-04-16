@@ -417,6 +417,42 @@ async function getCompanyJobs(accountId, companyId, companyName, limit = 40) {
 }
 
 
+/**
+ * Like the most recent post of a LinkedIn user.
+ * Used by processEnrollments engagement actions.
+ */
+async function likeLatestPost(accountId, providerId) {
+  // Get user's recent posts
+  const posts = await getUserPosts(accountId, providerId, 5);
+  if (!posts.length) {
+    console.log(`[Unipile] likeLatestPost: no posts found for ${providerId}`);
+    return null;
+  }
+  const post = posts[0];
+  const postId = post.social_id || post.id;
+  if (!postId) return null;
+  return likePost(accountId, postId, null, false, 'like');
+}
+
+/**
+ * Follow a company page given its LinkedIn URL or ID.
+ * Used by processEnrollments engagement actions.
+ */
+async function followCompany(accountId, liCompanyUrl) {
+  // Extract company ID/slug from URL
+  const match = String(liCompanyUrl || '').match(/linkedin\.com\/company\/([^/?#]+)/);
+  if (!match) return null;
+  const companySlug = match[1];
+  // Use the profile lookup to get the company URN, then follow
+  const profile = await request(`/api/v1/users/${encodeURIComponent('company:' + companySlug)}?account_id=${encodeURIComponent(accountId)}`).catch(() => null);
+  const urn = profile?.company_urn || profile?.entity_urn || null;
+  if (!urn) return null;
+  return request('/api/v1/users/follow', {
+    method: 'POST',
+    body: JSON.stringify({ account_id: accountId, user_id: urn }),
+  });
+}
+
 module.exports = {
   getAccounts,
   getAccountInfo,
@@ -439,6 +475,8 @@ module.exports = {
   startDirectMessage,
   getChatsByAttendee,
   sendCompanyFollowInvites,
+  likeLatestPost,
+  followCompany,
   getCompanyProfile,
   searchPeopleAdvanced,
   request,
