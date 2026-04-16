@@ -418,6 +418,7 @@ async function handler(job) {
       c.first_name, c.last_name, c.company, c.title,
       c.li_profile_url, c.provider_id, c.chat_id,
       c.already_connected,
+      camp.workspace_id,
       camp.account_id, camp.settings, camp.sequence_id,
       camp.invite_note
     FROM enrollments e
@@ -474,10 +475,11 @@ async function handler(job) {
     };
 
     const campaign = {
-      id:          row.campaign_id,
-      account_id:  row.account_id,
-      sequence_id: row.sequence_id,
-      invite_note: row.invite_note,
+      id:           row.campaign_id,
+      workspace_id: row.workspace_id,
+      account_id:   row.account_id,
+      sequence_id:  row.sequence_id,
+      invite_note:  row.invite_note,
       settings:    typeof row.settings === 'string'
                      ? JSON.parse(row.settings)
                      : (row.settings || {}),
