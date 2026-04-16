@@ -1455,6 +1455,11 @@ router.post('/analyze-replies', async (req, res) => {
       queued++;
     }
 
+    // Kick off processing immediately — don't wait for next poll cycle
+    const { status } = require('../conversationQueue');
+    const st = status();
+    console.log(`[Admin] analyze-replies: queued ${queued}, queue state:`, st);
+
     res.json({ queued, message: `Queued ${queued} conversations for analysis` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1479,4 +1484,12 @@ router.get('/pg-boss-status', (req, res) => {
       message: boss ? 'pg-boss is running' : `pg-boss not running${err ? ': ' + err : ''}`,
     });
   } catch(e) { res.json({ running: false, error: e.message }); }
+});
+
+// GET /api/admin/conv-queue-status
+router.get('/conv-queue-status', (req, res) => {
+  try {
+    const { status } = require('../conversationQueue');
+    res.json(status());
+  } catch(e) { res.json({ error: e.message }); }
 });
