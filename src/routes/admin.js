@@ -951,6 +951,6 @@ router.post('/re-enrich-slugs', async (req, res) => {
       enrichment.enqueue(c.id, c.account_id, c.li_profile_url);
       queued++;
     }
-    res.json({ queued, status: enrichment.status() });
+    res.json({ queued, status: enrichment.getStatus() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
