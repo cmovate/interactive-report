@@ -1579,3 +1579,89 @@ router.post('/process-one-enrollment', async (req, res) => {
     });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/send-pending-messages — directly send first message to approved enrollments
+router.post('/send-pending-messages', async (req, res) => {
+  const { workspace_id, dry_run = false } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+  try {
+    const { rows } = await db.query(`
+      SELECT e.id, e.contact_id, e.campaign_id, e.invite_approved_at,
+             c.first_name, c.last_name, c.company, c.title, c.provider_id, c.chat_id,
+             camp.account_id, camp.sequence_id
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE camp.workspace_id = $1
+        AND e.status = 'approved'
+        AND e.current_step = -1
+        AND camp.sequence_id IS NOT NULL
+      ORDER BY e.next_action_at ASC
+      LIMIT 20
+    `, [workspace_id]);
+
+    const results = [];
+
+    for (const row of rows) {
+      // Load sequence message step
+      const { rows: steps } = await db.query(
+        `SELECT * FROM sequence_steps WHERE sequence_id=$1 AND type='message' ORDER BY step_index ASC LIMIT 1`,
+        [row.sequence_id]
+      );
+      if (!steps.length) {
+        results.push({ id: row.id, skip: 'no message step' });
+        continue;
+      }
+
+      const step = steps[0];
+      const variants = step.variants || [];
+      const variant = variants[0];
+      if (!variant?.text?.trim()) {
+        results.push({ id: row.id, skip: 'no message text' });
+        continue;
+      }
+
+      const text = variant.text
+        .replace(/\{\{first_name\}\}/g, row.first_name || '')
+        .replace(/\{\{last_name\}\}/g,  row.last_name  || '')
+        .replace(/\{\{company\}\}/g,    row.company    || '')
+        .replace(/\{\{title\}\}/g,      row.title      || '');
+
+      if (dry_run) {
+        results.push({ id: row.id, name: row.first_name, text: text.slice(0, 60), action: 'would_send' });
+        continue;
+      }
+
+      try {
+        const unipile = require('../unipile');
+        let chatId = row.chat_id;
+        if (!chatId && row.provider_id) {
+          const result = await unipile.startDirectMessage(row.account_id, row.provider_id, text);
+          chatId = result?.id || result?.chat_id || null;
+        } else if (chatId) {
+          await unipile.sendMessage(row.account_id, chatId, text);
+        } else {
+          results.push({ id: row.id, skip: 'no chat_id or provider_id' });
+          continue;
+        }
+
+        // Update enrollment
+        await db.query(
+          `UPDATE enrollments SET status='messaged', current_step=1, chat_id=$2, next_action_at=NOW()+'999 days'::interval, updated_at=NOW() WHERE id=$1`,
+          [row.id, chatId]
+        );
+        if (chatId) await db.query('UPDATE contacts SET chat_id=$1 WHERE id=$2 AND chat_id IS NULL', [chatId, row.contact_id]);
+
+        results.push({ id: row.id, name: row.first_name, sent: true });
+      } catch(e) {
+        results.push({ id: row.id, name: row.first_name, error: e.message });
+        await db.query(`UPDATE enrollments SET status='error', error_message=$2, updated_at=NOW() WHERE id=$1`, [row.id, e.message]);
+      }
+
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    res.json({ processed: results.length, results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
