@@ -1708,3 +1708,39 @@ router.post('/delete-sent-messages', async (req, res) => {
     res.json({ total: rows.length, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/delete-sent-messages-fast — faster deletion using inbox_messages table
+router.post('/delete-sent-messages-fast', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    // Get message IDs from inbox_messages (stored when syncInbox ran)
+    const { rows } = await db.query(`
+      SELECT DISTINCT im.message_id, im.account_id, c.first_name
+      FROM inbox_messages im
+      JOIN inbox_threads it ON it.thread_id = im.thread_id
+      JOIN enrollments e ON e.chat_id = it.thread_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      JOIN contacts c ON c.id = e.contact_id
+      WHERE camp.workspace_id = $1
+        AND e.status = 'messaged'
+        AND im.direction = 'sent'
+        AND im.sent_at > NOW() - INTERVAL '2 hours'
+    `, [workspace_id]);
+
+    const unipile = require('../unipile');
+    const results = [];
+
+    for (const row of rows) {
+      try {
+        await unipile.deleteMessage(row.account_id, row.message_id);
+        results.push({ name: row.first_name, deleted: true, msg_id: row.message_id });
+      } catch(e) {
+        results.push({ name: row.first_name, error: e.message, msg_id: row.message_id });
+      }
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    res.json({ found: rows.length, results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
