@@ -63,25 +63,73 @@ function isWithinWorkingHours(hours) {
   return nowMins >= fH * 60 + fM && nowMins < tH * 60 + tM;
 }
 
+const DEFAULT_MSG_LIMIT = 50;
+
+async function countMessagesSentToday(accountId) {
+  const { rows } = await db.query(`
+    SELECT COALESCE(SUM(msgs_sent_count), 0) AS cnt
+    FROM contacts c
+    JOIN campaigns camp ON camp.id = c.campaign_id
+    WHERE camp.account_id = $1
+      AND c.msg_sent_at >= date_trunc('day', NOW())
+  `, [accountId]);
+  return parseInt(rows[0].cnt, 10) || 0;
+}
+
 async function runOnce() {
   const watchdog = require('./watchdog');
   watchdog.tick('messageSender');
   try {
-    const { rows: campaigns } = await db.query(
-      `SELECT id, account_id, settings FROM campaigns WHERE status = 'active'`
-    );
+    // Include workspace_id + account settings — enforce per-workspace limits
+    const { rows: campaigns } = await db.query(`
+      SELECT c.id, c.account_id, c.workspace_id, c.settings,
+             ua.settings AS account_settings
+      FROM campaigns c
+      JOIN unipile_accounts ua
+        ON  ua.account_id   = c.account_id
+        AND ua.workspace_id = c.workspace_id
+      WHERE c.status = 'active'
+    `);
+
+    // Group by workspace:account to enforce per-account daily limit
+    const byKey = {};
     for (const camp of campaigns) {
-      const settings = typeof camp.settings === 'string'
-        ? JSON.parse(camp.settings) : (camp.settings || {});
-      // Working hours only affect scheduling, not sending already-scheduled msgs
-      await processCampaign(camp, settings.messages || {}, settings.hours);
+      const key = `${camp.workspace_id}:${camp.account_id}`;
+      if (!byKey[key]) byKey[key] = {
+        accountId: camp.account_id,
+        accountSettings: camp.account_settings,
+        campaigns: []
+      };
+      byKey[key].campaigns.push(camp);
+    }
+
+    for (const { accountId, accountSettings, campaigns: accountCamps } of Object.values(byKey)) {
+      const accSettings = (typeof accountSettings === 'string'
+        ? JSON.parse(accountSettings) : accountSettings) || {};
+      const dailyLimit  = accSettings.limits?.messages ?? DEFAULT_MSG_LIMIT;
+      const sentToday   = await countMessagesSentToday(accountId);
+      let remaining     = dailyLimit - sentToday;
+
+      if (remaining <= 0) {
+        console.log(`[MsgSender] Account ${accountId.slice(0,8)}: daily limit reached (${sentToday}/${dailyLimit})`);
+        continue;
+      }
+
+      for (const camp of accountCamps) {
+        if (remaining <= 0) break;
+        const settings = typeof camp.settings === 'string'
+          ? JSON.parse(camp.settings) : (camp.settings || {});
+        const sent = await processCampaign(camp, settings.messages || {}, settings.hours, remaining);
+        remaining -= sent;
+      }
     }
   } catch (err) {
     console.error('[MsgSender] runOnce error:', err.message);
   }
 }
 
-async function processCampaign(camp, messages, hours) {
+async function processCampaign(camp, messages, hours, remaining = 999) {
+  let sent = 0;
   const SEQ = [
     { type: 'new',                   triggerCol: 'invite_approved_at',      condition: `invite_approved = true AND invite_approved_at IS NOT NULL` },
     { type: 'existing_no_history',   triggerCol: 'msg_sequence_started_at', condition: `msg_sequence_started_at IS NOT NULL` },
@@ -117,9 +165,12 @@ async function processCampaign(camp, messages, hours) {
       [camp.id, seq.type, seqMsgs.length]
     );
     for (const contact of ready) {
-      await trySendMessage(contact, camp, seqMsgs, seq.type);
+      if (sent >= remaining) break;  // daily limit reached
+      const ok = await trySendMessage(contact, camp, seqMsgs, seq.type);
+      if (ok) sent++;
     }
   }
+  return sent;
 }
 
 async function trySendMessage(contact, camp, seqMsgs, seqType) {
@@ -147,7 +198,7 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
       if (chatId) await db.query('UPDATE contacts SET chat_id = $1 WHERE id = $2', [chatId, contact.id]);
     } else {
       console.warn(`[MsgSender] contact ${contact.id} Ã¢ÂÂ no chat_id or provider_id, skipping`);
-      return;
+      return false;
     }
 
     const slotNum    = stepIndex + 1;
@@ -171,8 +222,10 @@ async function trySendMessage(contact, camp, seqMsgs, seqType) {
       ` Ã¢ÂÂ contact ${contact.id} (${contact.first_name} ${contact.last_name})` +
       ` ÃÂ· variant: ${variantLabel} ÃÂ· sequence: ${seqType}`
     );
+    return true;
   } catch (err) {
     console.error(`[MsgSender] Failed contact ${contact.id}: ${err.message}`);
+    return false;
   }
 }
 

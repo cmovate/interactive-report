@@ -13,11 +13,24 @@ const db = require('./db');
 const { sendCompanyFollowInvites } = require('./unipile');
 const { DEFAULT_WORKING_HOURS } = require('./constants');
 
-const MONTHLY_LIMIT  = 250;
+const MONTHLY_LIMIT        = 250;  // safety cap (LinkedIn max)
+const DEFAULT_DAILY_CF_LIMIT = 12;  // default if not set in account settings
 const BATCH_SIZE     = 5;
 const CHECK_INTERVAL = 30 * 60 * 1000;
 
 const activelySending = new Set();
+
+async function countSentToday(accountId) {
+  const { rows } = await db.query(`
+    SELECT COUNT(*) AS cnt
+    FROM contacts c
+    JOIN campaigns camp ON camp.id = c.campaign_id
+    WHERE camp.account_id = $1
+      AND c.company_follow_invited = true
+      AND c.company_follow_invited_at >= date_trunc('day', NOW())
+  `, [accountId]);
+  return parseInt(rows[0].cnt, 10) || 0;
+}
 
 function start() {
   console.log('[CompanyFollow] Started — checking every 30 minutes');
@@ -60,6 +73,7 @@ async function run() {
       if (activelySending.has(acc.account_id)) continue;
 
       const settings      = acc.settings || {};
+      const accSettings   = settings;   // alias for limit reading
       const companyPageUrn = settings.company_page_urn;
 
       // Working hours: allow if ANY eligible campaign is within working hours.
@@ -121,7 +135,14 @@ async function run() {
         if (remaining <= 0) {
           await patchSettings(acc.account_id, { cf_state: 'waiting_5d', cf_state_since: new Date().toISOString() }); continue;
         }
-        const contacts = await getPendingContacts(acc.account_id, Math.min(remaining, BATCH_SIZE));
+        // Daily limit from account settings
+        const dailyLimit  = (accSettings.limits?.company_follow_invites ?? DEFAULT_DAILY_CF_LIMIT);
+        const sentToday   = await countSentToday(acc.account_id);
+        if (sentToday >= dailyLimit) {
+          console.log(`[CompanyFollow] ${acc.account_id}: daily limit reached (${sentToday}/${dailyLimit})`); continue;
+        }
+        const batchSize = Math.min(remaining, BATCH_SIZE, dailyLimit - sentToday);
+        const contacts = await getPendingContacts(acc.account_id, batchSize);
         if (!contacts.length) { console.log(`[CompanyFollow] ${acc.account_id}: no pending contacts`); continue; }
         sendBatch(acc.account_id, companyPageUrn, contacts, settings, 'normal');
       }
