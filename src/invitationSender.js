@@ -74,20 +74,27 @@ async function run() {
       console.log(`[InvitationSender] Account ${accountId}: ${sentToday}/${dailyLimit} sent today, can send ${canSend} more`);
 
       let remaining = canSend;
+
+      // Count campaigns that actually have pending contacts (avoid wasting budget)
+      const activeCampaigns = [];
       for (const campaign of accountCampaigns) {
-        if (remaining <= 0) break;
-
         const hours = campaign.settings?.hours || accSettings.hours || null;
-        if (!isWithinWorkingHours(hours)) {
-          console.log(`[InvitationSender] Campaign ${campaign.id} outside working hours`);
-          continue;
-        }
+        if (!isWithinWorkingHours(hours)) continue;
+        const count = await getPendingContactsForCampaign(campaign.id, 1);
+        if (count.length) activeCampaigns.push(campaign);
+      }
 
-        const contacts = await getPendingContactsForCampaign(campaign.id, remaining);
-        if (!contacts.length) {
-          console.log(`[InvitationSender] Campaign ${campaign.id}: no pending contacts`);
-          continue;
-        }
+      if (!activeCampaigns.length) continue;
+
+      // Split daily budget evenly so all campaigns get a fair share
+      const perCampaign = Math.max(1, Math.ceil(remaining / activeCampaigns.length));
+
+      for (const campaign of activeCampaigns) {
+        if (remaining <= 0) break;
+        const budget = Math.min(perCampaign, remaining);
+
+        const contacts = await getPendingContactsForCampaign(campaign.id, budget);
+        if (!contacts.length) continue;
 
         remaining -= contacts.length;
         sendBatch(accountId, contacts);
@@ -113,6 +120,12 @@ async function sendBatch(accountId, contacts) {
         'UPDATE contacts SET invite_sent = true, invite_sent_at = NOW() WHERE id = $1',
         [contact.id]
       );
+      // Sync enrollment: if this contact has an enrollment in 'pending', move it to 'invite_sent'
+      await db.query(`
+        UPDATE enrollments SET status='invite_sent', invite_sent_at=NOW(),
+          next_action_at=NOW() + INTERVAL '14 days', updated_at=NOW()
+        WHERE contact_id=$1 AND status='pending'
+      `, [contact.id]).catch(() => {});
       console.log(`[InvitationSender] ✓ Sent to ${contact.provider_id} (contact ${contact.id}, campaign ${contact.campaign_id})`);
       await sleep(30000 + Math.random() * 60000);
     } catch (err) {

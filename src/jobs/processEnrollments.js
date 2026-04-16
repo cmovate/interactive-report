@@ -136,14 +136,24 @@ async function handlePending(enrollment, campaign, contact) {
   // Already connected — skip invite, jump to approved
   if (contact.already_connected) {
     await setStatus(enrollment.id, 'approved', { next_action_at: new Date() });
+    await db.query('UPDATE contacts SET invite_approved=true, already_connected=true WHERE id=$1', [contact.id]).catch(()=>{});
     console.log(`[Enrollments] #${enrollment.id} already_connected → approved immediately`);
     return;
   }
 
-  // Need provider_id to send invite
-  if (!contact.provider_id) {
-    console.warn(`[Enrollments] #${enrollment.id} skipped — no provider_id`);
-    await setStatus(enrollment.id, 'skipped');
+  // Need real ACoXXX provider_id — slugs fail at Unipile. Postpone until enriched.
+  if (!contact.provider_id || !contact.provider_id.startsWith('ACo')) {
+    await setStatus(enrollment.id, 'pending', { next_action_at: addDays(new Date(), 1) });
+    return;
+  }
+
+  // Guard against double-send with invitationSender
+  const { rows: check } = await db.query(
+    'SELECT invite_sent FROM contacts WHERE id=$1', [contact.id]
+  );
+  if (check[0]?.invite_sent) {
+    await setStatus(enrollment.id, 'invite_sent', { invite_sent_at: new Date(), next_action_at: addDays(new Date(), 14) });
+    console.log(`[Enrollments] #${enrollment.id} already sent by invitationSender — syncing`);
     return;
   }
 
@@ -151,6 +161,9 @@ async function handlePending(enrollment, campaign, contact) {
   const inviteNote = getInviteNote(campaign);
 
   await unipile.sendInvitation(campaign.account_id, contact.provider_id, inviteNote);
+
+  // Sync contacts table so invitationSender.countSentToday counts this invite
+  await db.query('UPDATE contacts SET invite_sent=true, invite_sent_at=NOW() WHERE id=$1', [contact.id]).catch(()=>{});
 
   await setStatus(enrollment.id, 'invite_sent', {
     invite_sent_at: new Date(),

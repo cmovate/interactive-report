@@ -72,6 +72,13 @@ async function run() {
              WHERE id = ANY($1::int[])`,
             [toApprove.map(c => c.id)]
           );
+          // Sync enrollments: move invite_sent → approved so processEnrollments sends messages
+          await db.query(`
+            UPDATE enrollments SET
+              status='approved', invite_approved_at=NOW(),
+              next_action_at=NOW(), updated_at=NOW()
+            WHERE contact_id = ANY($1::int[]) AND status='invite_sent'
+          `, [toApprove.map(c => c.id)]).catch(() => {});
           totalApproved += toApprove.length;
           console.log(`[ApprovalChecker] Account ${acc.account_id.substring(0,8)}: ${toApprove.length} newly approved`);
         }
