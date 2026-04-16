@@ -55,7 +55,8 @@ router.get('/', async (req, res) => {
         ta.*,
         (SELECT COUNT(*) FROM contacts WHERE target_account_id = ta.id)         AS contacts_count,
         (SELECT COUNT(*) FROM enrollments e JOIN contacts c ON c.id = e.contact_id
-         WHERE c.target_account_id = ta.id AND e.status NOT IN ('withdrawn','skipped','done')) AS active_enrollments
+         WHERE c.target_account_id = ta.id AND e.status NOT IN ('withdrawn','skipped','done')) AS active_enrollments,
+        (SELECT MAX(occurred_at) FROM signals WHERE actor_target_account_id = ta.id) AS last_signal_at
       FROM target_accounts ta
       WHERE ${conds.join(' AND ')}
       ORDER BY ta.${sortCol} DESC NULLS LAST

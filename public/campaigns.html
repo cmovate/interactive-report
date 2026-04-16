@@ -627,6 +627,14 @@ function resetSearch() { wizard.searchStatus=null;wizard.contacts=[];wizard.sele
 function renderStepSequence(body) {
   const engHtml=ENGAGEMENT_ACTIONS.map(a=>`<div class="engagement-item"><div><div class="eng-label">${a.label}</div>${a.sub?`<div class="eng-sub">${a.sub}</div>`:''}</div><button class="toggle${wizard.engagement[a.key]?' on':''}" id="eng-${a.key}" onclick="toggleEng('${a.key}')"></button></div>`).join('');
   body.innerHTML=`
+    <!-- New system: link to sequence -->
+    <div class="section-label">Sequence (New system)</div>
+    <div style="margin-bottom:20px;padding:12px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;">
+      <div style="font-size:12px;color:#0369a1;margin-bottom:8px;font-weight:500;">Link to a Sequence for automated follow-up after invite is accepted</div>
+      <select id="wiz-seq-select" style="width:100%;background:#fff;border:1px solid #bae6fd;border-radius:6px;padding:7px 10px;font-size:13px;color:#0f172a;" onchange="wizard.sequenceId=this.value?parseInt(this.value):null">
+        <option value="">— No sequence (manual messages only) —</option>
+      </select>
+    </div>
     <div class="conn-section">
       <div class="conn-row"><div><div class="conn-label">Send connection requests</div><div class="conn-sub">Automatically send LinkedIn invites to all prospects</div></div><button class="toggle${wizard.connectionEnabled?' on':''}" id="conn-toggle" onclick="toggleConn()"></button></div>
       <div id="conn-opts" class="conn-options" style="display:${wizard.connectionEnabled?'':'none'};">
@@ -644,6 +652,19 @@ function renderStepSequence(body) {
     </div>
     <div class="section-label" style="margin-top:20px;">Engagement actions</div>
     <div class="engagement-list">${engHtml}</div>`;
+
+  // Load sequences async
+  fetch(`/api/sequences?workspace_id=${workspaceId}`)
+    .then(r=>r.json()).then(d=>{
+      const sel = document.getElementById('wiz-seq-select');
+      if (!sel) return;
+      (d.items||[]).forEach(s=>{
+        const opt=document.createElement('option');
+        opt.value=s.id; opt.textContent=`${s.name} (${(s.steps||[]).length} steps)`;
+        if(wizard.sequenceId===s.id) opt.selected=true;
+        sel.appendChild(opt);
+      });
+    }).catch(()=>{});
 }
 function renderMsgs(msgs,canvas) {
   return msgs.map((m,i)=>{const variants=m.variants||(m.text?[{label:'A',text:m.text}]:[]);const preview=variants[0]?.text||'';const badges=variants.length>1?`<span class="variant-badge">${variants.map(v=>`<span class="vbadge vbadge-${v.label.toLowerCase()}">${v.label}</span>`).join('')}</span>`:'';return `<div class="seq-msg"><button class="seq-msg-remove" onclick="removeMsg('${canvas}',${i})">&times;</button><div class="seq-msg-delay">Wait ${m.delay} ${m.unit} ${badges}</div><div class="seq-msg-text">${esc(preview.slice(0,80))}${preview.length>80?'...':''}</div></div>`;}).join('');
@@ -729,11 +750,35 @@ async function createCampaign() {
     contacts=wizard.contacts.map(c=>({first_name:c.first_name||c.name?.split(' ')[0]||'',last_name:c.last_name||c.name?.split(' ').slice(1).join(' ')||'',company:c.company||'',title:c.headline||c.title||'',li_profile_url:c.public_profile_url||c.li_profile_url||''}));
   }
   try {
-    const res=await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId,account_id:wizard.selectedAccount,name:wizard.campaignName,audience_type:wizard.audienceType,contacts,settings:{connection:{enabled:wizard.connectionEnabled,withdraw_after_days:wizard.withdrawEnabled?parseInt(wizard.withdrawDays)||14:0,resend:wizard.resendEnabled},engagement:wizard.engagement,messages:{new:wizard.newMessages,existing_no_history:wizard.existingNoHistoryMessages,existing_with_history:wizard.existingWithHistoryMessages},hours:wizard.hours,searchConfig:wizard.audienceType==='company'?{titles:wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean),companyUrls:wizard.allCompanyUrls||[],keywordsQuery:wizard.keywordsQuery||'',nextCursor:wizard.nextCursor||null,targetCountry:wizard.targetCountry||''}:null}})}); 
+    const campBody = {
+      workspace_id: workspaceId,
+      account_id: wizard.selectedAccount,
+      name: wizard.campaignName,
+      audience_type: wizard.audienceType,
+      contacts,
+      settings: {
+        connection: {enabled:wizard.connectionEnabled,withdraw_after_days:wizard.withdrawEnabled?parseInt(wizard.withdrawDays)||14:0,resend:wizard.resendEnabled},
+        engagement: wizard.engagement,
+        messages: {new:wizard.newMessages,existing_no_history:wizard.existingNoHistoryMessages,existing_with_history:wizard.existingWithHistoryMessages},
+        hours: wizard.hours,
+        searchConfig: wizard.audienceType==='company'?{titles:wizard.searchTitles.split(',').map(s=>s.trim()).filter(Boolean),companyUrls:wizard.allCompanyUrls||[],keywordsQuery:wizard.keywordsQuery||'',nextCursor:wizard.nextCursor||null,targetCountry:wizard.targetCountry||''}:null,
+      },
+    };
+    // Attach sequence if selected
+    if (wizard.sequenceId) campBody.sequence_id = wizard.sequenceId;
+
+    const res=await fetch('/api/campaigns',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(campBody)});
     const newCamp = await res.json();
     if (!res.ok) throw new Error(newCamp.error);
     if (wizard.audienceType==='company' && (wizard.allCompanyUrls||[]).length > 4) {
       fetch(`/api/campaigns/${newCamp.id}/fetch-all-companies?workspace_id=${workspaceId}`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:workspaceId})}).catch(()=>{});
+    }
+    // Auto-enroll contacts if sequence is attached
+    if (wizard.sequenceId && newCamp.id) {
+      fetch(`/api/campaigns/${newCamp.id}/enroll`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({workspace_id: workspaceId})
+      }).catch(()=>{});
     }
     closeModal(); await load();
   } catch(err){alert('Failed: '+err.message);btn.disabled=false;btn.textContent='Create campaign';}

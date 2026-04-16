@@ -152,12 +152,12 @@ router.get('/:id/engagement-stats', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { workspace_id, account_id, name, audience_type, contacts, settings, list_id } = req.body;
+    const { workspace_id, account_id, name, audience_type, contacts, settings, list_id, sequence_id } = req.body;
     if (!workspace_id || !name) return res.status(400).json({ error: 'workspace_id and name required' });
     const { rows } = await db.query(
-      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status, list_id)
-       VALUES ($1, $2, $3, $4, $5, 'active', $6) RETURNING *`,
-      [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {}), list_id || null]);
+      `INSERT INTO campaigns (workspace_id, account_id, name, audience_type, settings, status, list_id, sequence_id)
+       VALUES ($1, $2, $3, $4, $5, 'active', $6, $7) RETURNING *`,
+      [workspace_id, account_id, name, audience_type, JSON.stringify(settings || {}), list_id || null, sequence_id || null]);
     const campaign = rows[0];
     // Ã¢ÂÂÃ¢ÂÂ If list_id provided, copy contacts from the list into this campaign Ã¢ÂÂÃ¢ÂÂ
     if (list_id) {
