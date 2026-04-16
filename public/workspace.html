@@ -242,7 +242,7 @@ function loadScreen(name) {
   loaded[name] = true;
   var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2', scheduler: 'post-scheduler',
                  sequences: 'sequences', enrollments: 'enrollments', signals: 'signals',
-                 'target-accounts': 'target-accounts', analytics: 'outreach-analytics'};
+                 'target-accounts': 'target-accounts', analytics: 'admin-analytics'};
   var fname = fileMap[name] || name;
   var frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
