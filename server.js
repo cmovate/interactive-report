@@ -16,7 +16,6 @@ const webhooksRouter           = require('./src/routes/webhooks');
 
 // ── V2 routes ─────────────────────────────────────────────────────────────
 const sequencesRouter      = require('./src/routes/sequences');
-const enrollmentsRouter    = require('./src/routes/enrollments');
 const signalsRouter        = require('./src/routes/signals');
 const targetAccountsRouter = require('./src/routes/targetAccounts');
 const scheduledPostsRouter = require('./src/routes/scheduledPosts');
@@ -126,8 +125,9 @@ app.use('/api/feed',               feedRouter);
 
 // ── V2 routes ──────────────────────────────────────────────────────────────
 app.use('/api/sequences',          sequencesRouter);
-app.use('/api/campaigns',          enrollmentsRouter);   // adds /:id/enroll + /:id/enrollments
-app.use('/api/enrollments',        enrollmentsRouter);   // adds /enrollments/:id PATCH + /message
+const { campaignRouter: enrollCampaignRouter, enrollmentRouter } = require('./src/routes/enrollments');
+app.use('/api/campaigns',          enrollCampaignRouter);   // /:id/enroll + /:id/enrollments
+app.use('/api/enrollments',        enrollmentRouter);        // /:id GET/PATCH + /:id/message
 app.use('/api/signals',            signalsRouter);
 app.use('/api/target-accounts',    targetAccountsRouter);
 app.use('/api/scheduled-posts',    scheduledPostsRouter);

@@ -160,11 +160,11 @@ async function handlePending(enrollment, campaign, contact) {
   console.log(`[Enrollments] #${enrollment.id} invite sent → ${contact.first_name} ${contact.last_name}`);
 }
 
-async function handleInviteSent(enrollment, campaign) {
+async function handleInviteSent(enrollment, campaign, contact) {
   // next_action_at is the withdraw deadline — we're past it
   const autoWithdraw = campaign.settings?.connection?.auto_withdraw !== false;
 
-  if (autoWithdraw && contact.provider_id) {
+  if (autoWithdraw && contact?.provider_id) {
     try {
       await unipile.withdrawInvitation(campaign.account_id, contact.li_profile_url);
       console.log(`[Enrollments] #${enrollment.id} invite withdrawn`);
@@ -179,8 +179,11 @@ async function handleInviteSent(enrollment, campaign) {
 
 async function handleApproved(enrollment, campaign, contact, sequence) {
   if (!sequence) {
-    // No sequence → just mark done
-    await setStatus(enrollment.id, 'done');
+    // No sequence yet — postpone 24h, don't close enrollment
+    await setStatus(enrollment.id, 'approved', {
+      next_action_at: addDays(new Date(), 1),
+    });
+    console.log(`[Enrollments] #${enrollment.id} approved but no sequence — postponed 24h`);
     return;
   }
 
