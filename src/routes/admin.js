@@ -1516,3 +1516,24 @@ router.post('/run-job-sync', async (req, res) => {
     res.status(500).json({ ok: false, error: err.message, stack: err.stack?.split('\n').slice(0,5) });
   }
 });
+
+// GET /api/admin/enroll-debug — show what processEnrollments would find
+router.get('/enroll-debug', async (req, res) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT e.id, e.status, e.current_step, e.next_action_at,
+             camp.id AS camp_id, camp.status AS camp_status,
+             camp.sequence_id, camp.settings->'hours' AS hours,
+             c.provider_id, c.chat_id
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE camp.status = 'active'
+        AND e.status NOT IN ('done','withdrawn','skipped','error','positive_reply','replied')
+        AND e.next_action_at <= NOW()
+      ORDER BY e.next_action_at ASC
+      LIMIT 10
+    `);
+    res.json({ count: rows.length, rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
