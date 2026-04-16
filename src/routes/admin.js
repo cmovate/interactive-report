@@ -108,7 +108,7 @@ router.get('/analytics', async (req, res) => {
         COUNT(ct.id) FILTER (WHERE ${pos})                      AS positive_replies
       FROM campaigns c
       LEFT JOIN workspaces       w  ON w.id          = c.workspace_id
-      LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id
+      LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id AND ua.workspace_id = c.workspace_id
       ${ctJoin}
       WHERE c.account_id IS NOT NULL
       GROUP BY c.account_id, ua.display_name, w.name
@@ -130,7 +130,7 @@ router.get('/analytics', async (req, res) => {
         COUNT(ct.id) FILTER (WHERE ${pos})      AS positive_replies
       FROM campaigns c
       LEFT JOIN workspaces       w  ON w.id          = c.workspace_id
-      LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id
+      LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id AND ua.workspace_id = c.workspace_id
       ${ctJoin}
       GROUP BY c.id, c.name, c.status, c.account_id, c.workspace_id, c.created_at, w.name, ua.display_name
       ORDER BY c.created_at DESC
