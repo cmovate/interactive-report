@@ -17,8 +17,8 @@
 const db                  = require('./db');
 const { getChatMessages } = require('./unipile');
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const MODEL          = 'gpt-4o';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const MODEL             = 'claude-haiku-4-5-20251001'; // fast + cheap for classification
 
 /**
  * Build a compact, timestamped transcript from Unipile chat messages.
@@ -86,31 +86,30 @@ async function callOpenAI(transcript, contactName) {
     `8-9: High interest / meeting intent\n` +
     `10: Meeting already confirmed`;
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
-      'Content-Type':  'application/json',
-      'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type':      'application/json',
+      'x-api-key':         ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model:       MODEL,
-      temperature: 0,
-      response_format: { type: 'json_object' }, // ensures pure JSON output
+      model:      MODEL,
+      max_tokens: 512,
+      system:     systemPrompt,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt   },
+        { role: 'user', content: userPrompt + '\n\nRespond ONLY with valid JSON, no markdown.' },
       ],
     }),
   });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`OpenAI API ${res.status}: ${text}`);
+    throw new Error(`Anthropic API ${res.status}: ${text.slice(0,200)}`);
   }
 
   const data = await res.json();
-  const raw  = data.choices?.[0]?.message?.content || '';
-  // response_format: json_object guarantees valid JSON — still clean just in case
+  const raw  = data.content?.[0]?.text || '';
   const clean = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(clean);
 }

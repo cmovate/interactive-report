@@ -1426,3 +1426,35 @@ router.post('/set-company-page-url', async (req, res) => {
     res.json({ workspace_id, slug, resolved_urn: resolvedUrn, updated: results });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/analyze-replies — retroactively analyze all unanalyzed replied contacts
+router.post('/analyze-replies', async (req, res) => {
+  const { workspace_id } = req.body;
+  try {
+    const wsFilter = workspace_id ? `AND c.workspace_id = ${parseInt(workspace_id)}` : '';
+    const { rows: contacts } = await db.query(`
+      SELECT c.id, c.chat_id,
+             ua.account_id
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      JOIN unipile_accounts ua ON ua.account_id = camp.account_id AND ua.workspace_id = camp.workspace_id
+      WHERE c.msg_replied = true
+        AND c.chat_id IS NOT NULL
+        AND (c.conversation_analyzed_at IS NULL OR c.conversation_stage IS NULL)
+        ${wsFilter}
+      ORDER BY c.msg_replied_at DESC
+      LIMIT 50
+    `);
+
+    if (!contacts.length) return res.json({ queued: 0, message: 'All replies already analyzed' });
+
+    const { enqueueContact } = require('../conversationQueue');
+    let queued = 0;
+    for (const c of contacts) {
+      enqueueContact(c.id, c.account_id, c.chat_id, null);
+      queued++;
+    }
+
+    res.json({ queued, message: `Queued ${queued} conversations for analysis` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
