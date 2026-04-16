@@ -259,6 +259,13 @@ function renderDetail() {
           <span class="save-feedback" id="save-feedback-${acc.account_id}">&#10003; Saved</span>
           <button class="save-btn" id="save-btn-${acc.account_id}" onclick="saveSettings('${acc.account_id}')">Save settings</button>
         </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee;">
+          <div style="font-size:12px;color:#888;margin-bottom:8px;">Signals &amp; Webhooks — receive LinkedIn events in the Signals feed</div>
+          <button onclick="registerSignalsWebhooks()" style="background:#f0f9ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;">
+            📡 Register Signals Webhooks
+          </button>
+          <span id="webhook-reg-feedback" style="font-size:12px;color:#888;margin-left:10px;"></span>
+        </div>
       </div>
     </div>`;
 }
@@ -382,6 +389,23 @@ async function confirmAdd() {
     errEl.textContent = err.message;
     errEl.style.display = 'block';
     btn.disabled=false; btn.textContent='Add account';
+  }
+}
+
+async function registerSignalsWebhooks() {
+  const fb = document.getElementById('webhook-reg-feedback');
+  if (fb) { fb.textContent = 'Registering…'; fb.style.color = '#888'; }
+  try {
+    const r = await fetch('/api/admin/register-signals-webhooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    }).then(r => r.json());
+    if (r.error) throw new Error(r.error);
+    const msg = `✅ ${r.registered} registered, ${r.existed} already existed${r.failed > 0 ? `, ${r.failed} failed` : ''}`;
+    if (fb) { fb.textContent = msg; fb.style.color = r.failed > 0 ? '#d97706' : '#059669'; }
+  } catch(e) {
+    if (fb) { fb.textContent = '❌ ' + e.message; fb.style.color = '#dc2626'; }
   }
 }
 

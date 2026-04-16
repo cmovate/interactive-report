@@ -1049,3 +1049,96 @@ router.get('/enrollment-stats', async (req, res) => {
     res.json({ by_status: byStatus, by_campaign: Object.values(byCampaign), total, workspace_id });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/register-signals-webhooks
+// Registers ALL 8 LinkedIn event types for the v2 signals webhook handler.
+// Idempotent — checks existing webhooks via Unipile API before registering.
+// Body: { workspace_id: 1 } — registers for all accounts in workspace
+router.post('/register-signals-webhooks', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const { request: uRequest } = require('../unipile');
+    const SERVER_URL = process.env.SERVER_URL || 'https://interactive-report-production-0c5d.up.railway.app';
+    const WEBHOOK_URL = `${SERVER_URL}/api/webhooks/unipile`;
+    const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'elvia-secret';
+
+    // All event groups to register
+    const WEBHOOK_CONFIGS = [
+      {
+        source: 'users',
+        name_suffix: 'relations_signals',
+        events: ['new_relation', 'invitation_received'],
+      },
+      {
+        source: 'messaging',
+        name_suffix: 'messages_signals',
+        events: ['message_received'],
+      },
+      {
+        source: 'users',
+        name_suffix: 'profile_signals',
+        events: ['profile_view'],
+      },
+      {
+        source: 'posts',
+        name_suffix: 'post_signals',
+        events: ['reaction_received', 'comment_received', 'post_published'],
+      },
+    ];
+
+    const { rows: accounts } = await db.query(
+      'SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id = $1',
+      [workspace_id]
+    );
+
+    // Get existing webhooks from Unipile
+    let existingWebhooks = [];
+    try {
+      const existing = await uRequest('/api/v1/webhooks');
+      existingWebhooks = Array.isArray(existing?.items) ? existing.items : [];
+    } catch(e) {
+      console.warn('[SignalsWebhooks] Could not fetch existing webhooks:', e.message);
+    }
+
+    const results = [];
+    for (const acc of accounts) {
+      for (const cfg of WEBHOOK_CONFIGS) {
+        const wName = `${cfg.name_suffix}_${acc.account_id.slice(0,8)}`;
+
+        // Check if already registered
+        const alreadyExists = existingWebhooks.some(w =>
+          w.name === wName || (w.account_ids?.includes(acc.account_id) && w.source === cfg.source)
+        );
+        if (alreadyExists) { results.push({ account: acc.display_name, config: cfg.name_suffix, status: 'exists' }); continue; }
+
+        try {
+          const data = await uRequest('/api/v1/webhooks', {
+            method: 'POST',
+            body: JSON.stringify({
+              source: cfg.source,
+              name: wName,
+              request_url: WEBHOOK_URL,
+              account_ids: [acc.account_id],
+              events: cfg.events,
+              format: 'json',
+              headers: [
+                { key: 'Content-Type',     value: 'application/json' },
+                { key: 'X-Webhook-Secret', value: WEBHOOK_SECRET },
+              ],
+            }),
+          });
+          const webhookId = data?.webhook_id || data?.id || null;
+          results.push({ account: acc.display_name, config: cfg.name_suffix, status: 'registered', webhook_id: webhookId });
+        } catch(e) {
+          results.push({ account: acc.display_name, config: cfg.name_suffix, status: 'failed', error: e.message });
+        }
+      }
+    }
+
+    const registered = results.filter(r => r.status === 'registered').length;
+    const existed    = results.filter(r => r.status === 'exists').length;
+    const failed     = results.filter(r => r.status === 'failed').length;
+    res.json({ registered, existed, failed, total: results.length, results });
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});

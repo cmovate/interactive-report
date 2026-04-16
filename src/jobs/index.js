@@ -62,7 +62,7 @@ async function startBoss() {
   await boss.schedule('process-enrollments',   '*/5 * * * *',  {}, { singletonKey: 'process-enrollments' });
   await boss.schedule('sync-inbox',            '*/10 * * * *', {}, { singletonKey: 'sync-inbox' });
   await boss.schedule('withdraw-invites',      '0 3 * * *',    {}, { singletonKey: 'withdraw-invites' });
-  await boss.schedule('enrich-contacts',       '0 */2 * * *',  {}, { singletonKey: 'enrich-contacts' }); // every 2h
+  await boss.schedule('enrich-contacts',       '30 * * * *',   {}, { singletonKey: 'enrich-contacts' }); // every hour at :30
   await boss.schedule('compute-scores',        '0 * * * *',    {}, { singletonKey: 'compute-scores' });
   await boss.schedule('publish-scheduled-posts', '* * * * *',  {}, { singletonKey: 'publish-posts' });
 
