@@ -197,14 +197,17 @@ async function runEngagementActions(enrollment, campaign, contact) {
   const accountId = campaign.account_id;
   const actions = [];
 
-  if (eng.profile_view && contact.provider_id) {
+  // Keys match ENGAGEMENT_ACTIONS in campaigns.html:
+  // view_profile, follow_company, like_posts, like_comments
+
+  if (eng.view_profile && contact.li_profile_url) {
     try {
       await unipile.viewProfile(accountId, contact.li_profile_url || contact.provider_id);
-      actions.push('profile_view');
-    } catch (e) { console.warn(`[Enrollments] #${enrollment.id} profile_view failed: ${e.message}`); }
+      actions.push('view_profile');
+    } catch (e) { console.warn(`[Enrollments] #${enrollment.id} view_profile failed: ${e.message}`); }
   }
 
-  if (eng.like_recent_post && contact.provider_id) {
+  if (eng.like_posts && contact.provider_id) {
     try {
       await unipile.likeLatestPost(accountId, contact.provider_id);
       actions.push('like_post');

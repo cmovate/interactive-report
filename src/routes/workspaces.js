@@ -155,9 +155,40 @@ router.patch('/:id/accounts/:accountId/settings', async (req, res) => {
     const { limits, company_page_url, company_page_urn } = req.body;
     if (!limits || typeof limits !== 'object')
       return res.status(400).json({ error: 'limits object required' });
+
     const settingsPatch = { limits };
-    if (typeof company_page_url === 'string') settingsPatch.company_page_url = company_page_url.trim();
-    if (typeof company_page_urn === 'string') settingsPatch.company_page_urn = company_page_urn.trim();
+
+    if (typeof company_page_url === 'string') {
+      settingsPatch.company_page_url = company_page_url.trim();
+    }
+    if (typeof company_page_urn === 'string') {
+      settingsPatch.company_page_urn = company_page_urn.trim();
+    }
+
+    // Auto-resolve company_page_url → company_page_urn if URL provided but URN missing
+    if (settingsPatch.company_page_url && !settingsPatch.company_page_urn) {
+      try {
+        const { getCompanyProfile } = require('../unipile');
+        const urlMatch = settingsPatch.company_page_url.match(/linkedin\.com\/company\/([^/?#]+)/);
+        if (urlMatch) {
+          const slug = urlMatch[1];
+          const profile = await getCompanyProfile(req.params.accountId, slug).catch(() => null);
+          const companyId =
+            profile?.company_id ||
+            profile?.id ||
+            profile?.entity_urn?.match(/(\d+)$/)?.[1] ||
+            null;
+          if (companyId) {
+            settingsPatch.company_page_urn = `urn:li:fsd_company:${companyId}`;
+            console.log(`[Settings] Resolved company URN: ${settingsPatch.company_page_urn}`);
+          }
+        }
+      } catch (e) {
+        console.warn('[Settings] company URN lookup failed:', e.message);
+        // Continue saving without URN — will be resolved on next save
+      }
+    }
+
     const { rows } = await db.query(
       `UPDATE unipile_accounts SET settings = settings || $1::jsonb
        WHERE workspace_id = $2 AND account_id = $3 RETURNING *`,
