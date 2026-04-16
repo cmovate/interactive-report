@@ -1004,15 +1004,29 @@ router.post('/migrate-contacts-to-enrollments', async (req, res) => {
 // Body: { job: 'enrich-contacts' | 'process-enrollments' | 'compute-scores' }
 router.post('/trigger-job', async (req, res) => {
   const { job } = req.body;
-  const ALLOWED = ['enrich-contacts','process-enrollments','compute-scores',
-                   'sync-inbox','publish-scheduled-posts','withdraw-invites',
-                   'sync-target-accounts'];
-  if (!ALLOWED.includes(job))
-    return res.status(400).json({ error: `Unknown job: ${job}. Allowed: ${ALLOWED.join(', ')}` });
+  const JOB_HANDLERS = {
+    'enrich-contacts':          () => require('../jobs/enrichContacts').handler(),
+    'process-enrollments':      () => require('../jobs/processEnrollments').handler({ data: {} }),
+    'compute-scores':           () => require('../jobs/computeScores').handler(),
+    'sync-inbox':               () => require('../jobs/syncInbox').handler(),
+    'publish-scheduled-posts':  () => require('../jobs/publishScheduledPosts').handler(),
+    'withdraw-invites':         () => require('../jobs/withdrawInvites').handler(),
+    'sync-target-accounts':     () => require('../jobs/syncTargetAccounts').handler(),
+  };
+  if (!JOB_HANDLERS[job])
+    return res.status(400).json({ error: `Unknown job: ${job}. Allowed: ${Object.keys(JOB_HANDLERS).join(', ')}` });
   try {
-    const { triggerJob } = require('../jobs/index');
-    await triggerJob(job, {});
-    res.json({ triggered: job, message: `Job "${job}" queued for immediate execution` });
+    // Try pg-boss first, fall back to direct execution
+    try {
+      const { triggerJob } = require('../jobs/index');
+      await triggerJob(job, {});
+      return res.json({ triggered: job, method: 'pg-boss', message: `Job "${job}" queued` });
+    } catch (bossErr) {
+      // pg-boss not running — execute handler directly (non-blocking)
+      console.log(`[Admin] pg-boss unavailable (${bossErr.message}), running ${job} directly`);
+      JOB_HANDLERS[job]().catch(e => console.error(`[Admin] direct job ${job} error:`, e.message));
+      return res.json({ triggered: job, method: 'direct', message: `Job "${job}" running directly (pg-boss unavailable)` });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

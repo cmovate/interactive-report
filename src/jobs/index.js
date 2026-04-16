@@ -21,14 +21,23 @@ let boss = null;
 async function startBoss() {
   if (boss) return boss;
 
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    console.warn('[Jobs] DATABASE_URL not set — pg-boss disabled');
+    return null;
+  }
+
   boss = new PgBoss({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
+    ssl: dbUrl.includes('localhost') ? false : { rejectUnauthorized: false },
     // Keep completed jobs for 7 days for visibility
     deleteAfterDays: 7,
     // Retry failed jobs up to 3 times with exponential backoff
     retryLimit: 3,
     retryDelay: 30,
     retryBackoff: true,
+    // Prevent startup from blocking server boot
+    noSupervisor: false,
   });
 
   boss.on('error', err => console.error('[Jobs] pg-boss error:', err.message));
