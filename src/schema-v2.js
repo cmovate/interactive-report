@@ -150,6 +150,9 @@ async function initSchemaV2() {
   await s('campaigns.sequence_id', () => db.query(
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS sequence_id INTEGER REFERENCES sequences(id) ON DELETE SET NULL`
   ));
+  await s('campaigns.invite_note', () => db.query(
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS invite_note TEXT`
+  ));
 
   // ── Signals (all inbound LinkedIn events) ────────────────────────────────
   await s('signals', () => db.query(`
