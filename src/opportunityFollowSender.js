@@ -69,9 +69,13 @@ function getMemberUrn(contact) {
       ? JSON.parse(contact.profile_data)
       : (contact.profile_data || {});
   } catch {}
-  if (pd.member_urn  && pd.member_urn.startsWith('urn:li:'))   return pd.member_urn;
-  if (pd.provider_id) return `urn:li:fsd_profile:${pd.provider_id}`;
-  if (contact.provider_id) return `urn:li:fsd_profile:${contact.provider_id}`;
+  // member_urn is always valid (full URN format)
+  if (pd.member_urn && pd.member_urn.startsWith('urn:li:')) return pd.member_urn;
+  if (contact.member_urn && contact.member_urn.startsWith('urn:li:')) return contact.member_urn;
+  // provider_id from profile_data — only use if real ACoXXX
+  if (pd.provider_id && pd.provider_id.startsWith('ACo')) return `urn:li:fsd_profile:${pd.provider_id}`;
+  // provider_id from contacts column — only use if real ACoXXX
+  if (contact.provider_id && contact.provider_id.startsWith('ACo')) return `urn:li:fsd_profile:${contact.provider_id}`;
   return null;
 }
 
@@ -232,6 +236,7 @@ async function runForWorkspace(wsId) {
         c.first_name,
         c.last_name,
         c.provider_id,
+        c.member_urn,
         c.profile_data,
         c.workspace_id,
         -- priority: 1=hot, 2=opp_company, 3=other
@@ -256,7 +261,7 @@ async function runForWorkspace(wsId) {
               SELECT id FROM campaigns WHERE account_id = $2
             ))
         AND (c.company_follow_invited = false OR c.company_follow_invited IS NULL)
-        AND c.provider_id IS NOT NULL
+        AND (c.member_urn IS NOT NULL OR c.provider_id LIKE 'ACo%')
       ORDER BY priority ASC, c.created_at ASC
       LIMIT 200
     `, [wsId, acc.account_id]).catch(e => {
