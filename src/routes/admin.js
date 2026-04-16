@@ -1770,8 +1770,12 @@ router.post('/delete-messages-by-account', async (req, res) => {
       try {
         // Get messages from chat
         const msgs = await unipile.getChatMessages(row.account_id, row.chat_id, 20);
-        // Find outbound messages
-        const outbound = msgs.filter(m => m.is_sender === true || m.sender?.is_me === true);
+        // Find outbound messages — Unipile uses is_sender=1 or from_me/is_me flags
+        const outbound = msgs.filter(m =>
+          m.is_sender === 1 || m.is_sender === true ||
+          m.from_me === true || m.is_me === true ||
+          m.sender?.is_me === true
+        );
         if (!outbound.length) {
           results.push({ name: `${row.first_name} ${row.last_name}`, skip: 'no outbound msg found', msgs_count: msgs.length });
           continue;
