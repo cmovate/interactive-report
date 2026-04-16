@@ -309,6 +309,11 @@ async function initSchemaV2() {
     console.log(`[SchemaV2] Created CMOvate sequences: Israel=${israelSeq.id} NL=${nlSeq.id}`);
   });
 
+  // Remove sequences attached without user consent
+  await s('fix.detach_datatailr_sequences', () => db.query(
+    `UPDATE campaigns SET sequence_id = NULL WHERE id IN (11, 12, 13) AND workspace_id = 4 AND sequence_id = 4`
+  ));
+
   console.log('[SchemaV2] ✓ All v2 migrations complete');
 }
 
