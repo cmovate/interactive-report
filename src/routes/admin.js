@@ -1537,3 +1537,45 @@ router.get('/enroll-debug', async (req, res) => {
     res.json({ count: rows.length, rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/process-one-enrollment — process a single enrollment synchronously
+router.post('/process-one-enrollment', async (req, res) => {
+  const { enrollment_id } = req.body;
+  try {
+    const { rows } = await db.query(`
+      SELECT e.*, c.id AS c_id, c.first_name, c.last_name, c.company, c.title,
+             c.li_profile_url, c.provider_id, c.chat_id, c.already_connected,
+             camp.account_id, camp.settings, camp.sequence_id, camp.invite_note,
+             camp.status AS camp_status
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE e.id = $1
+    `, [enrollment_id]);
+
+    if (!rows.length) return res.status(404).json({ error: 'not found' });
+    const row = rows[0];
+
+    const enrollment = { ...row, campaign_id: row.campaign_id };
+    const contact = { id: row.c_id, first_name: row.first_name, last_name: row.last_name, company: row.company, title: row.title, li_profile_url: row.li_profile_url, provider_id: row.provider_id, chat_id: row.chat_id, already_connected: row.already_connected };
+    const campaign = { id: row.campaign_id, account_id: row.account_id, sequence_id: row.sequence_id, invite_note: row.invite_note, settings: typeof row.settings === 'string' ? JSON.parse(row.settings) : (row.settings || {}) };
+
+    // Load sequence
+    let sequence = null;
+    if (campaign.sequence_id) {
+      const { rows: sr } = await db.query(`SELECT s.*, json_agg(ss.* ORDER BY ss.step_index) AS steps FROM sequences s LEFT JOIN sequence_steps ss ON ss.sequence_id = s.id WHERE s.id = $1 GROUP BY s.id`, [campaign.sequence_id]);
+      if (sr.length) sequence = { ...sr[0], steps: sr[0].steps.filter(Boolean) };
+    }
+
+    // Check what getFirstMessage would return
+    const msgStep = sequence?.steps?.filter(s => s.type === 'message' || s.type === 'send_message').sort((a,b) => a.step_index - b.step_index)[0];
+
+    return res.json({
+      enrollment: { id: enrollment.id, status: enrollment.status, current_step: enrollment.current_step },
+      campaign: { id: campaign.id, sequence_id: campaign.sequence_id },
+      sequence_steps: sequence?.steps?.map(s => ({ type: s.type, idx: s.step_index, variants: s.variants?.length })),
+      first_message_step: msgStep ? { type: msgStep.type, delay: msgStep.delay_days, variants: msgStep.variants?.length } : null,
+      contact: { has_provider: !!contact.provider_id, has_chat: !!contact.chat_id },
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
