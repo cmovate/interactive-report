@@ -126,6 +126,12 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   <div class="nav-item active" onclick="showScreen('campaigns')" id="nav-campaigns">
     <span class="nav-icon">&#128203;</span> Campaigns
   </div>
+  <div class="nav-item" onclick="showScreen('sequences')" id="nav-sequences">
+    <span class="nav-icon">&#128196;</span> Sequences
+  </div>
+  <div class="nav-item" onclick="showScreen('enrollments')" id="nav-enrollments">
+    <span class="nav-icon">&#128100;</span> Enrollments
+  </div>
   <div class="nav-item" onclick="showScreen('lists')" id="nav-lists">
     <span class="nav-icon">&#128101;</span> Lists
   </div>
@@ -162,6 +168,8 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
 
 <div class="content">
   <div class="screen active" id="screen-campaigns"></div>
+  <div class="screen" id="screen-sequences"></div>
+  <div class="screen" id="screen-enrollments"></div>
   <div class="screen" id="screen-lists"></div>
   <div class="screen" id="screen-lists2"></div>
   <div class="screen" id="screen-opportunities"></div>
@@ -224,7 +232,8 @@ function showScreen(name) {
 
 function loadScreen(name) {
   loaded[name] = true;
-  var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2', scheduler: 'post-scheduler'};
+  var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2', scheduler: 'post-scheduler',
+                 sequences: 'sequences', enrollments: 'enrollments'};
   var fname = fileMap[name] || name;
   var frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';

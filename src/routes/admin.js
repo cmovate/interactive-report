@@ -396,11 +396,11 @@ router.post('/enrich-campaign', async (req, res) => {
       [campaign_id]
     );
 
-    // Step 2: Get all contacts without provider_id
+    // Step 2: Get contacts missing real ACoXXX (includes slugs from seed migration)
     const { rows: contacts } = await db.query(
       `SELECT id, li_profile_url FROM contacts
         WHERE campaign_id = $1
-          AND (provider_id IS NULL OR provider_id = '')
+          AND (provider_id IS NULL OR provider_id = '' OR provider_id NOT LIKE 'ACo%')
           AND li_profile_url LIKE '%linkedin.com/in/%'
         ORDER BY id
         LIMIT 2000`,
@@ -888,3 +888,69 @@ router.get('/enrich-list', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/admin/enroll-campaigns — enroll contacts from multiple campaigns into enrollments
+// Body: { campaign_ids: [14,15,16,17], workspace_id: 1 }
+router.post('/enroll-campaigns', async (req, res) => {
+  const { campaign_ids, workspace_id } = req.body;
+  if (!Array.isArray(campaign_ids) || !workspace_id)
+    return res.status(400).json({ error: 'campaign_ids[] and workspace_id required' });
+  try {
+    const results = [];
+    for (const campId of campaign_ids) {
+      const { rows: camp } = await db.query(
+        'SELECT id, list_id FROM campaigns WHERE id=$1 AND workspace_id=$2',
+        [campId, workspace_id]
+      );
+      if (!camp.length) { results.push({ campaign_id: campId, error: 'not found' }); continue; }
+      if (!camp[0].list_id) { results.push({ campaign_id: campId, error: 'no list' }); continue; }
+
+      const { rows: contacts } = await db.query(`
+        SELECT c.id, c.already_connected
+        FROM list_contacts lc
+        JOIN contacts c ON c.id = lc.contact_id
+        WHERE lc.list_id = $1 AND c.workspace_id = $2
+      `, [camp[0].list_id, workspace_id]);
+
+      let enrolled = 0, skipped = 0;
+      for (const c of contacts) {
+        const status = c.already_connected ? 'approved' : 'pending';
+        const { rowCount } = await db.query(`
+          INSERT INTO enrollments (campaign_id, contact_id, status, next_action_at)
+          VALUES ($1, $2, $3, NOW())
+          ON CONFLICT (campaign_id, contact_id) DO NOTHING
+        `, [campId, c.id, status]);
+        rowCount > 0 ? enrolled++ : skipped++;
+      }
+      results.push({ campaign_id: campId, enrolled, skipped, total: contacts.length });
+    }
+    res.json({ results });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/re-enrich-slugs — re-queue contacts with slug provider_ids for real enrichment
+// Body: { workspace_id: 1 }
+router.post('/re-enrich-slugs', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const enrichment = require('../enrichment');
+    const { rows: contacts } = await db.query(`
+      SELECT c.id, c.li_profile_url, camp.account_id
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      WHERE c.workspace_id = $1
+        AND (c.provider_id IS NULL OR c.provider_id = '' OR c.provider_id NOT LIKE 'ACo%')
+        AND c.li_profile_url LIKE '%linkedin.com/in/%'
+      ORDER BY c.id
+      LIMIT 2000
+    `, [workspace_id]);
+
+    let queued = 0;
+    for (const c of contacts) {
+      enrichment.enqueue(c.id, c.account_id, c.li_profile_url);
+      queued++;
+    }
+    res.json({ queued, status: enrichment.status() });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
