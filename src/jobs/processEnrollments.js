@@ -428,7 +428,6 @@ async function handler(job) {
       AND e.next_action_at <= NOW()
     ORDER BY e.next_action_at ASC
     LIMIT $1
-    FOR UPDATE OF e SKIP LOCKED
   `, [MAX_BATCH]);
 
   if (!enrollments.length) return;
