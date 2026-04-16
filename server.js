@@ -2235,6 +2235,50 @@ console.log(`[DB] Schema ready ÃÂÃÂÃÂÃÂÃÂÃÂ�
     console.error('[SchemaV2] Migration error:', err.message);
   }
 
+  // ── Auto-fix: resolve company_page_urn for all accounts that have URL but no URN ──
+  try {
+    const { getCompanyProfile } = require('./src/unipile');
+    const { rows: accounts } = await db.query(`
+      SELECT account_id, settings->>'company_page_url' AS url
+      FROM unipile_accounts
+      WHERE settings->>'company_page_url' IS NOT NULL
+        AND settings->>'company_page_url' != ''
+        AND (settings->>'company_page_urn' IS NULL OR settings->>'company_page_urn' = '')
+    `);
+    for (const acc of accounts) {
+      try {
+        const urlMatch = acc.url.match(/linkedin\.com\/company\/([^/?#]+)/);
+        if (!urlMatch) continue;
+        const profile = await getCompanyProfile(acc.account_id, urlMatch[1]).catch(() => null);
+        const id = profile?.company_id || profile?.id || profile?.entity_urn?.match(/(\d+)$/)?.[1];
+        if (id) {
+          const urn = `urn:li:fsd_company:${id}`;
+          await db.query(
+            `UPDATE unipile_accounts SET settings = settings || jsonb_build_object('company_page_urn', $2) WHERE account_id = $1`,
+            [acc.account_id, urn]
+          );
+          console.log(`[Startup] Resolved company URN for ${acc.account_id}: ${urn}`);
+        }
+      } catch (e) { console.warn(`[Startup] URN resolve failed for ${acc.account_id}:`, e.message); }
+    }
+    if (accounts.length) console.log(`[Startup] Processed ${accounts.length} accounts for company_page_urn`);
+  } catch (e) { console.warn('[Startup] company_page_urn auto-resolve error:', e.message); }
+
+  // ── Auto-fix: reset stuck cf_state (waiting_5d/waiting_7d → normal) ───────
+  try {
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const { rowCount } = await db.query(`
+      UPDATE unipile_accounts
+      SET settings = settings
+        || jsonb_build_object('cf_state', 'normal', 'cf_state_since', $1::text, 'cf_month', $2::text)
+      WHERE (settings->>'cf_state' IN ('waiting_5d','waiting_7d'))
+         OR (settings->>'cf_month' IS NULL)
+         OR (settings->>'cf_month' != $2)
+    `, [now.toISOString(), thisMonth]);
+    if (rowCount > 0) console.log(`[Startup] Reset cf_state to normal for ${rowCount} accounts`);
+  } catch (e) { console.warn('[Startup] cf_state reset error:', e.message); }
+
   try {
     const { startBoss, triggerJob } = require('./src/jobs/index');
     await startBoss();

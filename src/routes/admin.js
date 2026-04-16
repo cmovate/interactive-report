@@ -1299,3 +1299,69 @@ router.get('/debug-senders', async (req, res) => {
     res.json({ workspace_id, campaigns, contact_stats: stats[0], today_actions: todayActions });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/fix-company-follow — resolve URN + reset cf_state for all workspaces
+// Safe to run multiple times (idempotent)
+router.post('/fix-company-follow', async (req, res) => {
+  try {
+    const { getCompanyProfile } = require('../unipile');
+    const results = { urn_resolved: 0, urn_failed: 0, state_reset: 0 };
+
+    // 1. Resolve URN for all accounts with URL but no URN
+    const { rows: accounts } = await db.query(`
+      SELECT account_id, display_name,
+             settings->>'company_page_url' AS url
+      FROM unipile_accounts
+      WHERE settings->>'company_page_url' IS NOT NULL
+        AND settings->>'company_page_url' != ''
+        AND (settings->>'company_page_urn' IS NULL OR settings->>'company_page_urn' = '')
+    `);
+
+    for (const acc of accounts) {
+      try {
+        const urlMatch = acc.url.match(/linkedin\.com\/company\/([^/?#]+)/);
+        if (!urlMatch) { results.urn_failed++; continue; }
+        const profile = await getCompanyProfile(acc.account_id, urlMatch[1]).catch(() => null);
+        const id = profile?.company_id || profile?.id || profile?.entity_urn?.match(/(\d+)$/)?.[1];
+        if (id) {
+          const urn = `urn:li:fsd_company:${id}`;
+          await db.query(
+            `UPDATE unipile_accounts SET settings = settings || jsonb_build_object('company_page_urn', $2) WHERE account_id = $1`,
+            [acc.account_id, urn]
+          );
+          results.urn_resolved++;
+          console.log(`[FixCompanyFollow] ${acc.display_name}: URN = ${urn}`);
+        } else {
+          results.urn_failed++;
+        }
+      } catch (e) { results.urn_failed++; }
+    }
+
+    // 2. Reset stuck cf_state
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const { rowCount } = await db.query(`
+      UPDATE unipile_accounts
+      SET settings = settings
+        || jsonb_build_object('cf_state', 'normal', 'cf_state_since', $1::text, 'cf_month', $2::text)
+      WHERE (settings->>'cf_state' IN ('waiting_5d', 'waiting_7d'))
+         OR (settings->>'cf_month' IS NULL)
+         OR (settings->>'cf_month' != $2)
+    `, [now.toISOString(), thisMonth]);
+    results.state_reset = rowCount;
+
+    // 3. Show current status
+    const { rows: status } = await db.query(`
+      SELECT account_id, display_name,
+             settings->>'company_page_urn' AS urn,
+             settings->>'cf_state'         AS cf_state,
+             settings->>'cf_month'         AS cf_month
+      FROM unipile_accounts
+      WHERE settings->>'company_page_url' IS NOT NULL
+        AND settings->>'company_page_url' != ''
+      ORDER BY display_name
+    `);
+
+    res.json({ results, accounts_with_company_url: status });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
