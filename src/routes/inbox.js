@@ -331,7 +331,16 @@ router.post('/:threadId/ai-suggest', async (req, res) => {
     const context = [thread.contact_title, thread.contact_company].filter(Boolean).join(' at ');
 
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-    if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+
+    // Fallback: rule-based suggestion when no API key configured
+    if (!ANTHROPIC_API_KEY) {
+      const lastMsg = msgs.length ? msgs[msgs.length - 1] : null;
+      const isHebrew = lastMsg && /[\u05D0-\u05EA]/.test(lastMsg.content);
+      const fallback = isHebrew
+        ? `תודה על הנכונות להתחבר! אשמח לספר לך יותר על מה שאנחנו עושים ב${thread.contact_company || 'החברה שלנו'} ולבדוק האם יש ערך שנוכל להביא לך. נשמע רלוונטי?`
+        : `Thanks for connecting! I'd love to share more about what we're doing and explore if there's a fit. Would you be open to a quick 15-min call this week?`;
+      return res.json({ suggestion: fallback, fallback: true });
+    }
 
     const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
