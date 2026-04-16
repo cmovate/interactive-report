@@ -63,7 +63,7 @@ async function run() {
       const accSettings = (typeof accountSettings === 'string' ? JSON.parse(accountSettings) : accountSettings) || {};
 
       const dailyLimit = accSettings.limits?.connection_requests ?? DEFAULT_DAILY_LIMIT;
-      const sentToday  = await countSentToday(accountId);
+      const sentToday  = await countSentToday(accountId, workspaceId);
       const canSend    = dailyLimit - sentToday;
 
       if (canSend <= 0) {
@@ -143,15 +143,16 @@ function isWithinWorkingHours(hours) {
   return nowMin >= fromH * 60 + fromM && nowMin < toH * 60 + toM;
 }
 
-async function countSentToday(accountId) {
+async function countSentToday(accountId, workspaceId) {
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.account_id = $1
+    WHERE camp.account_id   = $1
+      AND camp.workspace_id = $2
       AND c.invite_sent = true
       AND c.invite_sent_at >= date_trunc('day', NOW())
-  `, [accountId]);
+  `, [accountId, workspaceId]);
   return parseInt(rows[0].cnt, 10);
 }
 

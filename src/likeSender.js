@@ -54,9 +54,9 @@ async function run(campaignId, options = {}) {
     const { rows: todayRows } = await db.query(
       `SELECT COALESCE(SUM(COALESCE(post_likes_sent,0)+COALESCE(comment_likes_sent,0)),0) AS n
         FROM contacts
-        WHERE campaign_id IN (SELECT id FROM campaigns WHERE account_id = $1 AND status='active')
+        WHERE campaign_id IN (SELECT id FROM campaigns WHERE account_id = $1 AND workspace_id = $2 AND status='active')
         AND likes_sent_at >= CURRENT_DATE`,
-      [campaign.account_id]
+      [campaign.account_id, campaign.workspace_id]
     );
     const sentToday = parseInt(todayRows[0]?.n || 0);
     const remaining = dailyLimit - sentToday;

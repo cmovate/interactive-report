@@ -20,15 +20,16 @@ const CHECK_INTERVAL = 30 * 60 * 1000;
 
 const activelySending = new Set();
 
-async function countSentToday(accountId) {
+async function countSentToday(accountId, workspaceId) {
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.account_id = $1
+    WHERE camp.account_id   = $1
+      AND camp.workspace_id = $2
       AND c.company_follow_invited = true
       AND c.company_follow_invited_at >= date_trunc('day', NOW())
-  `, [accountId]);
+  `, [accountId, workspaceId]);
   return parseInt(rows[0].cnt, 10) || 0;
 }
 
@@ -38,15 +39,16 @@ function start() {
   setInterval(run, CHECK_INTERVAL);
 }
 
-async function countSentThisMonth(accountId) {
+async function countSentThisMonth(accountId, workspaceId) {
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.account_id = $1
+    WHERE camp.account_id   = $1
+      AND camp.workspace_id = $2
       AND c.company_follow_invited = true
       AND c.company_follow_invited_at >= date_trunc('month', NOW())
-  `, [accountId]);
+  `, [accountId, workspaceId]);
   return parseInt(rows[0].cnt, 10);
 }
 
@@ -129,7 +131,7 @@ async function run() {
       }
 
       if (settings.cf_state === 'normal') {
-        const sentThisMonth = await countSentThisMonth(acc.account_id);
+        const sentThisMonth = await countSentThisMonth(acc.account_id, acc.workspace_id);
         const remaining     = MONTHLY_LIMIT - sentThisMonth;
         console.log(`[CompanyFollow] ${acc.account_id}: normal — ${sentThisMonth}/${MONTHLY_LIMIT}`);
         if (remaining <= 0) {
@@ -137,14 +139,14 @@ async function run() {
         }
         // Daily limit from account settings
         const dailyLimit  = (accSettings.limits?.company_follow_invites ?? DEFAULT_DAILY_CF_LIMIT);
-        const sentToday   = await countSentToday(acc.account_id);
+        const sentToday   = await countSentToday(acc.account_id, acc.workspace_id);
         if (sentToday >= dailyLimit) {
           console.log(`[CompanyFollow] ${acc.account_id}: daily limit reached (${sentToday}/${dailyLimit})`); continue;
         }
         const batchSize = Math.min(remaining, BATCH_SIZE, dailyLimit - sentToday);
-        const contacts = await getPendingContacts(acc.account_id, batchSize);
+        const contacts = await getPendingContacts(acc.account_id, acc.workspace_id, batchSize);
         if (!contacts.length) { console.log(`[CompanyFollow] ${acc.account_id}: no pending contacts`); continue; }
-        sendBatch(acc.account_id, companyPageUrn, contacts, settings, 'normal');
+        sendBatch(acc.account_id, acc.workspace_id, companyPageUrn, contacts, settings, 'normal');
       }
       else if (settings.cf_state === 'drip') {
         const todayStr    = toDateStr(nowDate);
@@ -156,15 +158,15 @@ async function run() {
         }
         const canSendToday = 5 - dripSentToday;
         if (canSendToday <= 0) { console.log(`[CompanyFollow] ${acc.account_id}: drip — already sent 5 today`); continue; }
-        const contacts = await getPendingContacts(acc.account_id, canSendToday);
+        const contacts = await getPendingContacts(acc.account_id, acc.workspace_id, canSendToday);
         if (!contacts.length) { console.log(`[CompanyFollow] ${acc.account_id}: drip — no pending contacts`); continue; }
-        sendBatch(acc.account_id, companyPageUrn, contacts, settings, 'drip');
+        sendBatch(acc.account_id, acc.workspace_id, companyPageUrn, contacts, settings, 'drip');
       }
     }
   } catch (err) { console.error('[CompanyFollow] Error in run():', err.message); }
 }
 
-async function sendBatch(accountId, companyPageUrn, contacts, settings, mode) {
+async function sendBatch(accountId, workspaceId, companyPageUrn, contacts, settings, mode) {
   activelySending.add(accountId);
   console.log(`[CompanyFollow] Sending ${contacts.length} follow invites for ${accountId} (mode: ${mode})`);
 
@@ -205,18 +207,19 @@ async function sendBatch(accountId, companyPageUrn, contacts, settings, mode) {
   }
 
   if (mode === 'normal') {
-    const nowSent = await countSentThisMonth(accountId);
+    const nowSent = await countSentThisMonth(accountId, workspaceId);
     if (nowSent >= MONTHLY_LIMIT) await patchSettings(accountId, { cf_state: 'waiting_5d', cf_state_since: new Date().toISOString() });
   }
   activelySending.delete(accountId);
 }
 
-async function getPendingContacts(accountId, limit) {
+async function getPendingContacts(accountId, workspaceId, limit) {
   const { rows } = await db.query(`
     SELECT c.id, c.first_name, c.last_name, c.invite_approved, c.campaign_id, c.profile_data
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.account_id = $1
+    WHERE camp.account_id   = $1
+      AND camp.workspace_id = $2
       AND camp.status = 'active'
       AND (camp.settings->'engagement'->>'follow_company')::boolean = true
       AND (
@@ -228,8 +231,8 @@ async function getPendingContacts(accountId, limit) {
       AND c.profile_data IS NOT NULL
       AND c.profile_data::text NOT IN ('null', '{}', '')
     ORDER BY c.invite_approved DESC, c.created_at ASC
-    LIMIT $2
-  `, [accountId, limit]);
+    LIMIT $3
+  `, [accountId, workspaceId, limit]);
   return rows;
 }
 

@@ -64,7 +64,7 @@ async function run() {
       const accSettings = (typeof accountSettings === 'string' ? JSON.parse(accountSettings) : accountSettings) || {};
 
       const dailyLimit  = accSettings.limits?.profile_views ?? DEFAULT_DAILY_LIMIT;
-      const viewedToday = await countViewedToday(accountId);
+      const viewedToday = await countViewedToday(accountId, workspaceId);
       let canView       = dailyLimit - viewedToday;
 
       if (canView <= 0) {
@@ -148,14 +148,15 @@ async function getPendingContacts(campaignIds, limit) {
   return rows;
 }
 
-async function countViewedToday(accountId) {
+async function countViewedToday(accountId, workspaceId) {
   const { rows } = await db.query(`
     SELECT COUNT(*) AS cnt
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.account_id = $1
+    WHERE camp.account_id   = $1
+      AND camp.workspace_id = $2
       AND c.last_profile_view_at >= date_trunc('day', NOW())
-  `, [accountId]);
+  `, [accountId, workspaceId]);
   return parseInt(rows[0].cnt, 10);
 }
 

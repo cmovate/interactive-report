@@ -65,14 +65,15 @@ function isWithinWorkingHours(hours) {
 
 const DEFAULT_MSG_LIMIT = 50;
 
-async function countMessagesSentToday(accountId) {
+async function countMessagesSentToday(accountId, workspaceId) {
   const { rows } = await db.query(`
     SELECT COALESCE(SUM(msgs_sent_count), 0) AS cnt
     FROM contacts c
     JOIN campaigns camp ON camp.id = c.campaign_id
-    WHERE camp.account_id = $1
+    WHERE camp.account_id   = $1
+      AND camp.workspace_id = $2
       AND c.msg_sent_at >= date_trunc('day', NOW())
-  `, [accountId]);
+  `, [accountId, workspaceId]);
   return parseInt(rows[0].cnt, 10) || 0;
 }
 
@@ -97,17 +98,18 @@ async function runOnce() {
       const key = `${camp.workspace_id}:${camp.account_id}`;
       if (!byKey[key]) byKey[key] = {
         accountId: camp.account_id,
+        workspaceId: camp.workspace_id,
         accountSettings: camp.account_settings,
         campaigns: []
       };
       byKey[key].campaigns.push(camp);
     }
 
-    for (const { accountId, accountSettings, campaigns: accountCamps } of Object.values(byKey)) {
+    for (const { accountId, workspaceId, accountSettings, campaigns: accountCamps } of Object.values(byKey)) {
       const accSettings = (typeof accountSettings === 'string'
         ? JSON.parse(accountSettings) : accountSettings) || {};
       const dailyLimit  = accSettings.limits?.messages ?? DEFAULT_MSG_LIMIT;
-      const sentToday   = await countMessagesSentToday(accountId);
+      const sentToday   = await countMessagesSentToday(accountId, workspaceId);
       let remaining     = dailyLimit - sentToday;
 
       if (remaining <= 0) {
