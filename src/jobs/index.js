@@ -74,6 +74,9 @@ async function startBoss() {
   await boss.work('sync-target-accounts', { teamSize: 1, teamConcurrency: 1 },
     require('./syncTargetAccounts').handler);
 
+  await boss.work('send-pending-messages', { teamSize: 1, teamConcurrency: 1 },
+    require('./sendPendingMessages').handler);
+
   // ── Schedule recurring jobs ───────────────────────────────────────────
   await boss.schedule('process-enrollments',   '*/5 * * * *',  {}, { singletonKey: 'process-enrollments' });
   await boss.schedule('sync-inbox',            '*/10 * * * *', {}, { singletonKey: 'sync-inbox' });
@@ -82,6 +85,7 @@ async function startBoss() {
   await boss.schedule('compute-scores',        '0 * * * *',    {}, { singletonKey: 'compute-scores' });
   await boss.schedule('publish-scheduled-posts', '* * * * *',  {}, { singletonKey: 'publish-posts' });
   await boss.schedule('sync-target-accounts',  '0 */6 * * *',  {}, { singletonKey: 'sync-target-accounts' }); // every 6h
+  await boss.schedule('send-pending-messages', '*/10 * * * *', {}, { singletonKey: 'send-pending-messages' }); // every 10min
 
   console.log('[Jobs] All jobs scheduled');
   return boss;

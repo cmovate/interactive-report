@@ -1005,6 +1005,7 @@ router.post('/migrate-contacts-to-enrollments', async (req, res) => {
 router.post('/trigger-job', async (req, res) => {
   const { job } = req.body;
   const JOB_HANDLERS = {
+    'send-pending-messages':    () => require('../jobs/sendPendingMessages').handler(),
     'enrich-contacts':          () => require('../jobs/enrichContacts').handler(),
     'process-enrollments':      () => require('../jobs/processEnrollments').handler({ data: {} }),
     'compute-scores':           () => require('../jobs/computeScores').handler(),
