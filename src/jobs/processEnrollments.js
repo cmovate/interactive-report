@@ -295,9 +295,37 @@ async function loadSequence(sequenceId) {
   return steps.length ? { steps } : null;
 }
 
+// ── Daily limit helpers (per workspace + account) ─────────────────────────────
+
+async function countInvitesSentToday(accountId, workspaceId) {
+  const { rows } = await db.query(`
+    SELECT COUNT(*) AS n FROM contacts c
+    JOIN campaigns camp ON camp.id = c.campaign_id
+    WHERE c.invite_sent_at >= CURRENT_DATE
+      AND camp.account_id  = $1
+      AND camp.workspace_id = $2
+  `, [accountId, workspaceId]);
+  return parseInt(rows[0]?.n || 0);
+}
+
+async function getDailyLimit(accountId, workspaceId) {
+  const { rows } = await db.query(
+    `SELECT settings FROM unipile_accounts WHERE account_id=$1 AND workspace_id=$2`,
+    [accountId, workspaceId]
+  );
+  const settings = rows[0]?.settings;
+  const parsed = typeof settings === 'string' ? JSON.parse(settings) : (settings || {});
+  return parsed.limits?.connection_requests ?? 20;
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 async function handler(job) {
+  // First: sync enrollment statuses from contacts table (catches invitationSender/approvalChecker events)
+  await syncEnrollmentsFromContacts().catch(err =>
+    console.warn('[Enrollments] sync failed:', err.message)
+  );
+
   // Grab all enrollments due for action, with FOR UPDATE SKIP LOCKED
   // to prevent multiple workers from processing the same enrollment
   const { rows: enrollments } = await db.query(`
@@ -326,6 +354,12 @@ async function handler(job) {
 
   // Group by sequence_id to avoid loading same sequence multiple times
   const sequenceCache = {};
+
+  // Track how many invites we've sent this run per account+workspace
+  // (in addition to what was already sent today)
+  const invitesSentThisRun = {}; // key: "accountId:workspaceId"
+  const dailyLimitCache   = {}; // key: "accountId:workspaceId"
+  const dailySentCache    = {}; // key: "accountId:workspaceId" — fetched once per key
 
   for (const row of enrollments) {
     const enrollment = {
@@ -377,9 +411,29 @@ async function handler(job) {
 
     try {
       switch (enrollment.status) {
-        case 'pending':
-          await handlePending(enrollment, campaign, contact);
+        case 'pending': {
+          // Enforce daily invite limit before sending
+          const limKey = `${campaign.account_id}:${campaign.workspace_id || '?'}`;
+          if (campaign.workspace_id) {
+            if (!dailyLimitCache[limKey]) {
+              dailyLimitCache[limKey] = await getDailyLimit(campaign.account_id, campaign.workspace_id);
+              dailySentCache[limKey]  = await countInvitesSentToday(campaign.account_id, campaign.workspace_id);
+              invitesSentThisRun[limKey] = 0;
+            }
+            const canSend = dailyLimitCache[limKey] - dailySentCache[limKey] - invitesSentThisRun[limKey];
+            if (canSend <= 0) {
+              console.log(`[Enrollments] ${limKey} daily limit reached — skipping pending enrollments`);
+              break;
+            }
+            await handlePending(enrollment, campaign, contact);
+            // Only increment if we actually sent (check invite_sent after)
+            const { rows: sentCheck } = await db.query('SELECT invite_sent FROM contacts WHERE id=$1', [contact.id]);
+            if (sentCheck[0]?.invite_sent) invitesSentThisRun[limKey]++;
+          } else {
+            await handlePending(enrollment, campaign, contact);
+          }
           break;
+        }
         case 'invite_sent':
           await handleInviteSent(enrollment, campaign, contact);
           break;
@@ -403,3 +457,63 @@ async function handler(job) {
 }
 
 module.exports = { handler };
+
+/**
+ * Sync enrollment statuses from contacts table.
+ * Called at the start of each run to catch events from invitationSender/messageSender/approvalChecker.
+ */
+async function syncEnrollmentsFromContacts() {
+  // invite_sent but enrollment still pending
+  await db.query(`
+    UPDATE enrollments e
+    SET    status = 'invite_sent',
+           invite_sent_at = COALESCE(e.invite_sent_at, c.invite_sent_at, NOW()),
+           next_action_at = COALESCE(e.next_action_at, NOW() + INTERVAL '14 days'),
+           updated_at = NOW()
+    FROM   contacts c
+    JOIN   campaigns camp ON camp.id = c.campaign_id
+    WHERE  e.contact_id = c.id
+      AND  e.campaign_id = c.campaign_id
+      AND  c.invite_sent = true
+      AND  e.status = 'pending'
+  `);
+
+  // invite_approved but enrollment still invite_sent
+  await db.query(`
+    UPDATE enrollments e
+    SET    status = 'approved',
+           invite_approved_at = COALESCE(e.invite_approved_at, NOW()),
+           next_action_at = NOW(),
+           updated_at = NOW()
+    FROM   contacts c
+    WHERE  e.contact_id = c.id
+      AND  e.campaign_id = c.campaign_id
+      AND  (c.invite_approved = true OR c.already_connected = true)
+      AND  e.status = 'invite_sent'
+  `);
+
+  // msg_sent but enrollment still approved  
+  await db.query(`
+    UPDATE enrollments e
+    SET    status = 'messaged',
+           next_action_at = NOW() + INTERVAL '999 days',
+           updated_at = NOW()
+    FROM   contacts c
+    WHERE  e.contact_id = c.id
+      AND  e.campaign_id = c.campaign_id
+      AND  c.msg_sent = true
+      AND  e.status = 'approved'
+  `);
+
+  // msg_replied but enrollment still messaged
+  await db.query(`
+    UPDATE enrollments e
+    SET    status = 'replied',
+           updated_at = NOW()
+    FROM   contacts c
+    WHERE  e.contact_id = c.id
+      AND  e.campaign_id = c.campaign_id
+      AND  c.msg_replied = true
+      AND  e.status = 'messaged'
+  `);
+}
