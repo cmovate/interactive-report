@@ -1022,10 +1022,10 @@ router.post('/trigger-job', async (req, res) => {
       await triggerJob(job, {});
       return res.json({ triggered: job, method: 'pg-boss', message: `Job "${job}" queued` });
     } catch (bossErr) {
-      // pg-boss not running — execute handler directly (non-blocking)
-      console.log(`[Admin] pg-boss unavailable (${bossErr.message}), running ${job} directly`);
+      // pg-boss not running or send failed — execute handler directly (non-blocking)
+      console.log(`[Admin] pg-boss send failed (${bossErr.message}), running ${job} directly`);
       JOB_HANDLERS[job]().catch(e => console.error(`[Admin] direct job ${job} error:`, e.message));
-      return res.json({ triggered: job, method: 'direct', message: `Job "${job}" running directly (pg-boss unavailable)` });
+      return res.json({ triggered: job, method: 'direct', message: `Job "${job}" running directly`, boss_error: bossErr.message });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
