@@ -1801,3 +1801,17 @@ router.post('/delete-messages-by-account', async (req, res) => {
     res.json({ account: account_name, total: rows.length, results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/detach-sequence — remove sequence from campaigns
+router.post('/detach-sequence', async (req, res) => {
+  const { campaign_ids, workspace_id } = req.body;
+  if (!campaign_ids || !workspace_id) return res.status(400).json({ error: 'campaign_ids + workspace_id required' });
+  try {
+    const ids = Array.isArray(campaign_ids) ? campaign_ids : [campaign_ids];
+    const { rowCount } = await db.query(
+      `UPDATE campaigns SET sequence_id = NULL WHERE id = ANY($1) AND workspace_id = $2`,
+      [ids, workspace_id]
+    );
+    res.json({ updated: rowCount, campaign_ids: ids });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
