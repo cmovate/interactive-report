@@ -1458,3 +1458,11 @@ router.post('/analyze-replies', async (req, res) => {
     res.json({ queued, message: `Queued ${queued} conversations for analysis` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// GET /api/admin/env-keys — list which env vars are set (names only, not values)
+router.get('/env-keys', (req, res) => {
+  const relevant = Object.keys(process.env)
+    .filter(k => /API|KEY|SECRET|TOKEN|DSN|URL|PASS|AUTH/i.test(k))
+    .sort();
+  res.json({ keys: relevant });
+});
