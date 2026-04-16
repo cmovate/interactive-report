@@ -110,11 +110,11 @@ const FOLLOW_BATCH = 20;
 
 async function runCompanyFollowInvites(campaignId, accountId, companyPageUrn) {
   const { rows: toFollow } = await db.query(
-    `SELECT id, provider_id FROM contacts
+    `SELECT id, provider_id, member_urn FROM contacts
      WHERE campaign_id = $1
        AND invite_approved = true
        AND company_follow_invited = false
-       AND provider_id IS NOT NULL AND provider_id != ''
+       AND (member_urn IS NOT NULL OR provider_id LIKE 'ACo%')
      ORDER BY RANDOM()
      LIMIT $2`,
     [campaignId, FOLLOW_BATCH]
@@ -125,8 +125,22 @@ async function runCompanyFollowInvites(campaignId, accountId, companyPageUrn) {
     return 0;
   }
 
-  // inviteeMember format: urn:li:fsd_profile:{provider_id}
-  const memberUrns = toFollow.map(c => `urn:li:fsd_profile:${c.provider_id}`);
+  // Build URNs — prefer member_urn, fall back to urn:li:fsd_profile:ACoXXX
+  const elements = toFollow
+    .map(c => {
+      const urn = c.member_urn?.startsWith('urn:li:') ? c.member_urn
+        : c.provider_id?.startsWith('ACo') ? `urn:li:fsd_profile:${c.provider_id}`
+        : null;
+      return urn ? { id: c.id, urn } : null;
+    })
+    .filter(Boolean);
+
+  if (!elements.length) {
+    console.log(`[EngagementScraper] Company follow: no valid URNs found`);
+    return 0;
+  }
+
+  const memberUrns = elements.map(e => e.urn);
 
   try {
     await unipile.sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns);
@@ -134,10 +148,10 @@ async function runCompanyFollowInvites(campaignId, accountId, companyPageUrn) {
       `UPDATE contacts
          SET company_follow_invited = true, company_follow_invited_at = NOW()
        WHERE id = ANY($1::int[])`,
-      [toFollow.map(c => c.id)]
+      [elements.map(e => e.id)]
     );
-    console.log(`[EngagementScraper] Company follow invites sent: ${toFollow.length}`);
-    return toFollow.length;
+    console.log(`[EngagementScraper] Company follow invites sent: ${elements.length}`);
+    return elements.length;
   } catch (err) {
     console.error(`[EngagementScraper] Company follow invite error: ${err.message}`);
     return 0;
