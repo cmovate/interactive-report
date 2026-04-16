@@ -1498,3 +1498,21 @@ router.get('/conv-queue-status', (req, res) => {
     res.json(status());
   } catch(e) { res.json({ error: e.message }); }
 });
+
+// POST /api/admin/run-job-sync — run a job synchronously and return the result
+router.post('/run-job-sync', async (req, res) => {
+  const { job } = req.body;
+  const HANDLERS = {
+    'process-enrollments': () => require('../jobs/processEnrollments').handler({ data: {} }),
+    'enrich-contacts':     () => require('../jobs/enrichContacts').handler(),
+    'compute-scores':      () => require('../jobs/computeScores').handler(),
+    'sync-target-accounts':() => require('../jobs/syncTargetAccounts').handler(),
+  };
+  if (!HANDLERS[job]) return res.status(400).json({ error: `Unknown job: ${job}` });
+  try {
+    const result = await HANDLERS[job]();
+    res.json({ ok: true, result: result || 'completed (no return value)' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message, stack: err.stack?.split('\n').slice(0,5) });
+  }
+});
