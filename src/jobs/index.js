@@ -100,6 +100,8 @@ async function enqueueSignal(payload, workspaceId) {
  */
 async function triggerJob(jobName, data = {}) {
   if (!boss) throw new Error('Jobs not started');
+  // pg-boss v12: ensure queue exists before sending
+  try { await boss.createQueue(jobName); } catch (_) {}
   return boss.send(jobName, data);
 }
 
