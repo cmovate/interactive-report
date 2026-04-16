@@ -349,7 +349,7 @@ calStart = new Date(calStart.getFullYear(), calStart.getMonth(), 1); // first of
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   await loadAccounts();
-  load();
+  await load();
   renderCalendar();
   renderAll();
   setDefaultDT();
@@ -366,12 +366,68 @@ async function loadAccounts() {
   } catch(e) {}
 }
 
-// ── Storage ───────────────────────────────────────────────────────────────────
-function load() { try { posts = JSON.parse(localStorage.getItem(SK)||'[]'); } catch(e) { posts = []; } }
-function save() { localStorage.setItem(SK, JSON.stringify(posts)); }
+// ── Storage — API backed ──────────────────────────────────────────────────────
+async function load() {
+  try {
+    const d = await fetch(`/api/scheduled-posts?workspace_id=${wsId}`).then(r=>r.json());
+    posts = (d.items || []).map(apiToLocal);
+    // Migrate any leftover localStorage posts to DB
+    try {
+      const old = JSON.parse(localStorage.getItem(SK)||'[]');
+      if (old.length) {
+        for (const p of old) { if (!posts.find(x => x._old_id === p.id)) await apiCreate(p, true); }
+        localStorage.removeItem(SK);
+        const d2 = await fetch(`/api/scheduled-posts?workspace_id=${wsId}`).then(r=>r.json());
+        posts = (d2.items || []).map(apiToLocal);
+      }
+    } catch(e) {}
+  } catch(e) { posts = []; }
+}
+function save() { /* no-op — all writes go directly to API */ }
 
-// ── Post CRUD ─────────────────────────────────────────────────────────────────
-function savePost() {
+function apiToLocal(p) {
+  return {
+    id: String(p.id),
+    _db_id: p.id,
+    ws: wsId,
+    account_id: p.account_id,
+    account_name: accounts.find(a=>a.account_id===p.account_id)?.display_name || p.account_id,
+    content: p.content,
+    status: p.status,
+    scheduled_at: p.scheduled_at,
+    comments: (p.comments||[]).map(c=>({
+      id: String(c.id), _db_id: c.id,
+      account_id: c.account_id,
+      account_name: accounts.find(a=>a.account_id===c.account_id)?.display_name || c.account_id,
+      content: c.content, status: c.status, scheduled_at: c.scheduled_at,
+    })),
+    created_at: p.created_at,
+  };
+}
+
+async function apiCreate(postObj, isMigration=false) {
+  const r = await fetch('/api/scheduled-posts', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      workspace_id: wsId,
+      account_id: postObj.account_id,
+      content: postObj.content,
+      status: postObj.status,
+      scheduled_at: postObj.scheduled_at || null,
+    }),
+  }).then(r=>r.json());
+  const postId = r.id;
+  if (!postId) return;
+  for (const c of postObj.comments||[]) {
+    await fetch(`/api/scheduled-posts/${postId}/comments`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: wsId, account_id: c.account_id, content: c.content, scheduled_at: c.scheduled_at||null }),
+    });
+  }
+}
+
+// ── Post CRUD — API backed ─────────────────────────────────────────────────────
+async function savePost() {
   const content = document.getElementById('post-content').value.trim();
   if (!content) { toast('Write some content first','error'); return; }
   const accountId = document.getElementById('compose-account').value;
@@ -379,37 +435,46 @@ function savePost() {
   const dt = mode==='schedule' ? document.getElementById('schedule-dt').value : null;
   if (mode==='schedule' && !dt) { toast('Select a date & time','error'); return; }
 
-  // Collect scheduled comments
   const comments = collectComments();
-
-  const postObj = {
-    id: editingId || Date.now().toString(),
-    ws: wsId,
-    account_id: accountId,
-    account_name: acc?.display_name || '',
-    content,
-    status: mode==='schedule' ? 'scheduled' : 'draft',
-    scheduled_at: dt,
-    comments,
-    created_at: editingId ? (posts.find(p=>p.id===editingId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
-  };
+  const status = mode==='schedule' ? 'scheduled' : 'draft';
 
   if (editingId) {
-    const i = posts.findIndex(p=>p.id===editingId);
-    if (i>=0) posts[i] = postObj; else posts.unshift(postObj);
+    const existing = posts.find(p=>p.id===editingId);
+    const dbId = existing?._db_id;
+    if (dbId) {
+      await fetch(`/api/scheduled-posts/${dbId}`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ workspace_id: wsId, account_id: accountId, content, status, scheduled_at: dt||null }),
+      });
+    }
   } else {
-    posts.unshift(postObj);
+    const r = await fetch('/api/scheduled-posts', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ workspace_id: wsId, account_id: accountId, content, status, scheduled_at: dt||null }),
+    }).then(r=>r.json());
+    const postId = r.id;
+    if (postId) {
+      for (const c of comments) {
+        await fetch(`/api/scheduled-posts/${postId}/comments`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ workspace_id: wsId, account_id: c.account_id||accountId, content: c.content, scheduled_at: c.scheduled_at||null }),
+        });
+      }
+    }
   }
 
-  save(); renderAll(); renderCalendar(); closeCompose();
+  await load(); renderAll(); renderCalendar(); closeCompose();
   toast(mode==='schedule' ? '📅 Post scheduled!' : '💾 Draft saved!', 'success');
 }
 
-function deletePost(id, e) {
+async function deletePost(id, e) {
   e.stopPropagation();
   if (!confirm('Delete this post and all its scheduled comments?')) return;
-  posts = posts.filter(p=>p.id!==id);
-  save(); renderAll(); renderCalendar();
+  const p = posts.find(x=>x.id===id);
+  if (p?._db_id) {
+    await fetch(`/api/scheduled-posts/${p._db_id}?workspace_id=${wsId}`, { method: 'DELETE' });
+  }
+  await load(); renderAll(); renderCalendar();
   toast('Deleted');
 }
 
@@ -500,11 +565,14 @@ function collectComments() {
   }).filter(c=>c.content);
 }
 
-function deleteComment(postId, commentId, e) {
+async function deleteComment(postId, commentId, e) {
   e.stopPropagation();
   const p = posts.find(x=>x.id===postId); if(!p) return;
-  p.comments = (p.comments||[]).filter(c=>c.id!==commentId);
-  save(); renderAll();
+  const c = (p.comments||[]).find(x=>x.id===commentId);
+  if (c?._db_id) {
+    await fetch(`/api/scheduled-posts/comments/${c._db_id}?workspace_id=${wsId}`, { method: 'DELETE' });
+  }
+  await load(); renderAll();
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
