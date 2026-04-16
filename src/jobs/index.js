@@ -58,6 +58,9 @@ async function startBoss() {
   await boss.work('process-signal', { teamSize: 3, teamConcurrency: 3 },
     require('./processSignal').handler);
 
+  await boss.work('sync-target-accounts', { teamSize: 1, teamConcurrency: 1 },
+    require('./syncTargetAccounts').handler);
+
   // ── Schedule recurring jobs ───────────────────────────────────────────
   await boss.schedule('process-enrollments',   '*/5 * * * *',  {}, { singletonKey: 'process-enrollments' });
   await boss.schedule('sync-inbox',            '*/10 * * * *', {}, { singletonKey: 'sync-inbox' });
@@ -65,6 +68,7 @@ async function startBoss() {
   await boss.schedule('enrich-contacts',       '30 * * * *',   {}, { singletonKey: 'enrich-contacts' }); // every hour at :30
   await boss.schedule('compute-scores',        '0 * * * *',    {}, { singletonKey: 'compute-scores' });
   await boss.schedule('publish-scheduled-posts', '* * * * *',  {}, { singletonKey: 'publish-posts' });
+  await boss.schedule('sync-target-accounts',  '0 */6 * * *',  {}, { singletonKey: 'sync-target-accounts' }); // every 6h
 
   console.log('[Jobs] All jobs scheduled');
   return boss;

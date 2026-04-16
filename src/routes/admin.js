@@ -1005,7 +1005,8 @@ router.post('/migrate-contacts-to-enrollments', async (req, res) => {
 router.post('/trigger-job', async (req, res) => {
   const { job } = req.body;
   const ALLOWED = ['enrich-contacts','process-enrollments','compute-scores',
-                   'sync-inbox','publish-scheduled-posts','withdraw-invites'];
+                   'sync-inbox','publish-scheduled-posts','withdraw-invites',
+                   'sync-target-accounts'];
   if (!ALLOWED.includes(job))
     return res.status(400).json({ error: `Unknown job: ${job}. Allowed: ${ALLOWED.join(', ')}` });
   try {

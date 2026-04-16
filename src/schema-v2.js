@@ -60,6 +60,9 @@ async function initSchemaV2() {
   await s('idx_ta_score', () => db.query(
     `CREATE INDEX IF NOT EXISTS idx_ta_score ON target_accounts(workspace_id, engagement_score_7d DESC)`
   ));
+  await s('uniq_ta_company_id', () => db.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS uniq_ta_company_id ON target_accounts(workspace_id, li_company_id) WHERE li_company_id IS NOT NULL`
+  ));
 
   // ── Sequences ────────────────────────────────────────────────────────────
   await s('sequences', () => db.query(`
