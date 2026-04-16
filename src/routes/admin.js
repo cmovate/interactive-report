@@ -1016,3 +1016,36 @@ router.post('/trigger-job', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// GET /api/admin/enrollment-stats?workspace_id=1
+// Returns enrollment status breakdown across all campaigns in a workspace
+router.get('/enrollment-stats', async (req, res) => {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        e.status,
+        COUNT(*) AS count,
+        c.name AS campaign_name,
+        c.id   AS campaign_id
+      FROM enrollments e
+      JOIN campaigns c ON c.id = e.campaign_id
+      WHERE c.workspace_id = $1
+      GROUP BY e.status, c.id, c.name
+      ORDER BY c.id, e.status
+    `, [workspace_id]);
+
+    // Aggregate by status
+    const byStatus = {};
+    const byCampaign = {};
+    for (const r of rows) {
+      byStatus[r.status] = (byStatus[r.status] || 0) + parseInt(r.count);
+      if (!byCampaign[r.campaign_id]) byCampaign[r.campaign_id] = { name: r.campaign_name, statuses: {} };
+      byCampaign[r.campaign_id].statuses[r.status] = parseInt(r.count);
+    }
+
+    const total = Object.values(byStatus).reduce((s,c) => s+c, 0);
+    res.json({ by_status: byStatus, by_campaign: Object.values(byCampaign), total, workspace_id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});

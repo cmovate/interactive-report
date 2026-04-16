@@ -147,6 +147,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div class="loading-overlay" style="grid-column:1/-1;">Loading analytics…</div>
   </div>
 
+  <!-- Outreach funnel -->
+  <div class="section" id="funnel-section" style="display:none;margin-bottom:24px;background:white;border:1px solid #e5e5e5;border-radius:10px;padding:20px;"></div>
+
   <!-- Timeline chart -->
   <div class="section" id="chart-section">
     <div class="section-head">
@@ -333,9 +336,45 @@ function render() {
   const { summary, by_workspace, by_account, by_campaign, timeline } = state.data;
   renderKPIs(summary);
   renderChart(timeline);
+  renderFunnel(summary);
   renderWsTable(by_workspace);
   renderAccTable(by_account);
   renderCampTable(by_campaign);
+}
+
+function renderFunnel(s) {
+  const el = document.getElementById('funnel-section');
+  if (!el) return;
+  const steps = [
+    { label: 'Contacts Added',   val: n(s.contacts_added),   color: '#64748b' },
+    { label: 'Invites Sent',     val: n(s.invites_sent),     color: '#1D9E75' },
+    { label: 'Approved',         val: n(s.invites_approved), color: '#3B82F6' },
+    { label: 'Messages Sent',    val: n(s.messages_sent),    color: '#8B5CF6' },
+    { label: 'Replied',          val: n(s.messages_replied), color: '#F59E0B' },
+    { label: 'Positive Replies', val: n(s.positive_replies), color: '#10B981' },
+  ].filter(s => s.val > 0);
+
+  if (!steps.length) { el.style.display='none'; return; }
+  el.style.display = '';
+
+  const max = steps[0].val || 1;
+  el.innerHTML = `
+    <h3 style="font-size:13px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Outreach Funnel</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;">
+      ${steps.map((step, i) => {
+        const pct = Math.round(step.val / max * 100);
+        const convPct = i > 0 ? Math.round(step.val / steps[i-1].val * 100) : 100;
+        return `<div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-size:12px;color:#555;font-weight:500">${step.label}</span>
+            <span style="font-size:12px;font-weight:700;color:#222">${num(step.val)}${i>0?` <span style="color:#999;font-weight:400;font-size:11px">(${convPct}%)</span>`:''}</span>
+          </div>
+          <div style="height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${step.color};border-radius:4px;transition:width .4s"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
 }
 
 function renderKPIs(s) {
