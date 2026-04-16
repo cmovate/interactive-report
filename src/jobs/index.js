@@ -13,7 +13,7 @@
  *   process-signal        — on-demand    — handle a single Unipile webhook event
  */
 
-const PgBoss = require('pg-boss');
+const { PgBoss } = require('pg-boss');
 const db = require('../db');
 
 let boss = null;
