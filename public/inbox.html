@@ -287,25 +287,13 @@ async function aiSuggest() {
   const input = document.getElementById('reply-input');
   sendingAI=true; btn.disabled=true; btn.textContent='⏳ Thinking…';
   try {
-    const r = await fetch('/api/inbox/'+currentThread.id+'/messages?workspace_id='+workspaceId);
-    const d = await r.json();
-    const hist = (d.messages||[]).slice(-8).map(m=>(m.direction==='sent'?'Me':'Them')+': '+m.content).join('\n');
-    const name = ((currentThread.first_name||'')+' '+(currentThread.last_name||'')).trim()||'this person';
-    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const r = await fetch('/api/inbox/'+currentThread.id+'/ai-suggest', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514', max_tokens:600,
-        messages:[{role:'user', content:
-          'Write a short, warm, professional LinkedIn reply to '+name+
-          ' ('+( currentThread.contact_title||'')+' at '+(currentThread.contact_company||'')+').\n'+
-          'Conversation so far:\n'+hist+'\n\n'+
-          '2-4 sentences. Natural tone. No subject line or greeting needed. Just the message body.'
-        }]
-      })
+      body: JSON.stringify({ workspace_id: workspaceId })
     });
-    const j = await aiRes.json();
-    const s = j?.content?.[0]?.text||'';
-    if (s && input) input.value = s;
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error || 'AI suggest failed');
+    if (d.suggestion && input) input.value = d.suggestion;
   } catch(e) { alert('AI Suggest failed: '+e.message); }
   finally { sendingAI=false; btn.disabled=false; btn.textContent='🤖 AI Suggest'; }
 }

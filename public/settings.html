@@ -291,6 +291,14 @@ function renderDetail() {
           </div>
           <span id="job-run-feedback" style="font-size:11px;color:#888;margin-top:4px;display:block;"></span>
         </div>
+
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid #eee;">
+          <div style="font-size:12px;color:#888;margin-bottom:8px;">Conversation Intelligence</div>
+          <button onclick="analyzeReplies()" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;">
+            🧠 Analyze Replies (AI)
+          </button>
+          <span id="analyze-feedback" style="font-size:11px;color:#888;margin-left:8px;"></span>
+        </div>
       </div>
     </div>`;
 }
@@ -445,6 +453,22 @@ async function registerSignalsWebhooks() {
     if (r.error) throw new Error(r.error);
     const msg = `✅ ${r.registered} registered, ${r.existed} already existed${r.failed > 0 ? `, ${r.failed} failed` : ''}`;
     if (fb) { fb.textContent = msg; fb.style.color = r.failed > 0 ? '#d97706' : '#059669'; }
+  } catch(e) {
+    if (fb) { fb.textContent = '❌ ' + e.message; fb.style.color = '#dc2626'; }
+  }
+}
+
+async function analyzeReplies() {
+  const fb = document.getElementById('analyze-feedback');
+  if (fb) { fb.textContent = 'Analyzing…'; fb.style.color = '#888'; }
+  try {
+    const r = await fetch('/api/admin/analyze-replies', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspace_id: wsId }),
+    }).then(r => r.json());
+    if (r.error) throw new Error(r.error);
+    if (fb) { fb.textContent = `✅ ${r.message}`; fb.style.color = '#059669'; }
+    setTimeout(() => { if (fb) fb.textContent = ''; }, 8000);
   } catch(e) {
     if (fb) { fb.textContent = '❌ ' + e.message; fb.style.color = '#dc2626'; }
   }

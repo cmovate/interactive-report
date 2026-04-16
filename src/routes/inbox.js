@@ -297,6 +297,74 @@ router.get('/:threadId/messages', async (req, res) => {
 });
 
 /**
+ * POST /api/inbox/:threadId/ai-suggest
+ * Server-side Claude call (avoids CORS + hides API key from browser)
+ */
+router.post('/:threadId/ai-suggest', async (req, res) => {
+  try {
+    const { workspace_id } = req.body;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    // Load thread + recent messages
+    const { rows: tRows } = await db.query(
+      `SELECT t.id, t.account_id,
+              c.first_name, c.last_name, c.title AS contact_title, c.company AS contact_company
+       FROM inbox_threads t
+       LEFT JOIN contacts c ON c.chat_id = t.thread_id
+       WHERE t.id = $1 AND t.workspace_id = $2 LIMIT 1`,
+      [req.params.threadId, workspace_id]
+    );
+    if (!tRows.length) return res.status(404).json({ error: 'Thread not found' });
+    const thread = tRows[0];
+
+    const { rows: msgs } = await db.query(
+      `SELECT direction, content FROM inbox_messages
+       WHERE thread_id = $1 ORDER BY sent_at DESC LIMIT 10`,
+      [thread.id]
+    );
+
+    const history = msgs.reverse()
+      .map(m => `${m.direction === 'sent' ? 'Me' : 'Them'}: ${m.content}`)
+      .join('\n');
+
+    const name = [thread.first_name, thread.last_name].filter(Boolean).join(' ') || 'this person';
+    const context = [thread.contact_title, thread.contact_company].filter(Boolean).join(' at ');
+
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set' });
+
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: `Write a short, warm, professional LinkedIn reply to ${name}${context ? ` (${context})` : ''}.\n\nConversation so far:\n${history}\n\n2-4 sentences. Natural tone. No subject line or greeting needed. Just the message body. Match the language of the conversation.`,
+        }],
+      }),
+    });
+
+    if (!aiRes.ok) {
+      const t = await aiRes.text();
+      throw new Error(`Anthropic ${aiRes.status}: ${t.slice(0, 200)}`);
+    }
+
+    const data = await aiRes.json();
+    const suggestion = data.content?.[0]?.text?.trim() || '';
+    res.json({ suggestion });
+  } catch (err) {
+    console.error('[Inbox] AI suggest error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /api/inbox/:threadId/reply
  * body: { workspace_id, content }
  */
@@ -314,16 +382,18 @@ router.post('/:threadId/reply', async (req, res) => {
     if (!tRows.length) return res.status(404).json({ error: 'Thread not found' });
     const thread = tRows[0];
 
-    // Send via Unipile
-    await sendMessage(thread.account_id, thread.thread_id, content.trim());
+    // Send via Unipile — returns the sent message with real ID
+    const sendResult = await sendMessage(thread.account_id, thread.thread_id, content.trim());
+    const realMsgId = sendResult?.id || sendResult?.message_id || `local_${Date.now()}`;
 
-    // Record in DB
+    // Record in DB — use real Unipile message ID to prevent sync duplicates
     const now = new Date().toISOString();
     const { rows: msgRows } = await db.query(
       `INSERT INTO inbox_messages (thread_id, unipile_msg_id, direction, content, sent_at)
        VALUES ($1, $2, 'sent', $3, $4)
+       ON CONFLICT (unipile_msg_id) DO UPDATE SET content = EXCLUDED.content
        RETURNING *`,
-      [thread.id, `local_${Date.now()}`, content.trim(), now]
+      [thread.id, realMsgId, content.trim(), now]
     );
 
     // Update thread preview
