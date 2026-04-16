@@ -1214,3 +1214,88 @@ router.get('/debug-company-follow', async (req, res) => {
     res.json({ workspace_id, report });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
+
+// POST /api/admin/reset-company-follow-state
+// Resets cf_state to 'normal' for all accounts in a workspace
+// Body: { workspace_id: 2 }
+router.post('/reset-company-follow-state', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const { rows: accounts } = await db.query(
+      'SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id = $1',
+      [workspace_id]
+    );
+    for (const acc of accounts) {
+      const now = new Date();
+      const thisMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      await db.query(
+        `UPDATE unipile_accounts SET settings = settings || $1::jsonb WHERE account_id = $2`,
+        [JSON.stringify({
+          cf_state: 'normal',
+          cf_state_since: now.toISOString(),
+          cf_month: thisMonth,
+          cf_drip_date: '',
+          cf_drip_sent_today: 0,
+        }), acc.account_id]
+      );
+    }
+    res.json({ reset: accounts.length, accounts: accounts.map(a => a.display_name) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/admin/debug-senders?workspace_id=2
+// Full diagnostic of all senders for a workspace
+router.get('/debug-senders', async (req, res) => {
+  const { workspace_id } = req.query;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  try {
+    const today = new Date().toISOString().slice(0,10);
+
+    // Campaigns + settings summary
+    const { rows: campaigns } = await db.query(`
+      SELECT id, name, status,
+        (settings->'connection'->>'enabled')::boolean AS invite_enabled,
+        (settings->'engagement'->>'view_profile')::boolean AS view_profile,
+        (settings->'engagement'->>'like_posts')::boolean AS like_posts,
+        (settings->'engagement'->>'follow_company')::boolean AS follow_company,
+        jsonb_array_length(COALESCE(settings->'messages'->'new', '[]'::jsonb)) AS msgs_new,
+        jsonb_array_length(COALESCE(settings->'messages'->'existing_no_history', '[]'::jsonb)) AS msgs_existing,
+        sequence_id
+      FROM campaigns WHERE workspace_id = $1
+    `, [workspace_id]);
+
+    // Contact readiness stats
+    const { rows: stats } = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE provider_id LIKE 'ACo%') AS enriched,
+        COUNT(*) FILTER (WHERE provider_id NOT LIKE 'ACo%' OR provider_id IS NULL) AS not_enriched,
+        COUNT(*) FILTER (WHERE invite_sent = true) AS invited,
+        COUNT(*) FILTER (WHERE invite_approved = true) AS approved,
+        COUNT(*) FILTER (WHERE already_connected = true) AS already_connected,
+        COUNT(*) FILTER (WHERE company_follow_invited = true) AS follow_invited,
+        COUNT(*) FILTER (WHERE msg_sent = true) AS messaged,
+        COUNT(*) FILTER (WHERE msg_sequence IS NOT NULL) AS has_msg_sequence,
+        COUNT(*) FILTER (WHERE msg_scheduled_send_at IS NOT NULL AND msg_scheduled_send_at <= NOW()) AS ready_to_msg
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      WHERE camp.workspace_id = $1
+    `, [workspace_id]);
+
+    // Today's actions per account
+    const { rows: todayActions } = await db.query(`
+      SELECT ua.display_name,
+        COUNT(*) FILTER (WHERE c.invite_sent_at >= CURRENT_DATE) AS invites_today,
+        COUNT(*) FILTER (WHERE c.invite_approved_at >= CURRENT_DATE) AS approved_today,
+        COUNT(*) FILTER (WHERE c.msg_sent_at >= CURRENT_DATE) AS msgs_today,
+        COUNT(*) FILTER (WHERE c.company_follow_invited_at >= CURRENT_DATE) AS follows_today
+      FROM contacts c
+      JOIN campaigns camp ON camp.id = c.campaign_id
+      JOIN unipile_accounts ua ON ua.account_id = camp.account_id AND ua.workspace_id = camp.workspace_id
+      WHERE camp.workspace_id = $1
+      GROUP BY ua.display_name
+    `, [workspace_id]);
+
+    res.json({ workspace_id, campaigns, contact_stats: stats[0], today_actions: todayActions });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
