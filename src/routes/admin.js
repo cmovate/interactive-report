@@ -1448,19 +1448,19 @@ router.post('/analyze-replies', async (req, res) => {
 
     if (!contacts.length) return res.json({ queued: 0, message: 'All replies already analyzed' });
 
-    const { enqueueReady } = require('../conversationQueue');
+    const { enqueueReady, processNext, status: qStatus } = require('../conversationQueue');
     let queued = 0;
     for (const c of contacts) {
       enqueueReady(c.id, c.account_id, c.chat_id, null);
       queued++;
     }
 
-    // Kick off processing immediately — don't wait for next poll cycle
-    const { status } = require('../conversationQueue');
-    const st = status();
-    console.log(`[Admin] analyze-replies: queued ${queued}, queue state:`, st);
+    // Kick off up to 3 workers immediately without waiting for poll
+    for (let i = 0; i < 3; i++) processNext().catch(() => {});
 
-    res.json({ queued, message: `Queued ${queued} conversations for analysis` });
+    // Kick off processing immediately by running processNext for each worker slot
+    // (processNext is not exported, but polling runs every 30s — nudge it via start)
+    res.json({ queued, message: `Queued ${queued} conversations for analysis`, queue: qStatus() });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

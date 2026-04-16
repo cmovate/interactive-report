@@ -46,7 +46,7 @@ function buildTranscript(messages, contactName) {
 /**
  * Call the OpenAI API (gpt-4o) and parse the JSON response.
  */
-async function callOpenAI(transcript, contactName) {
+async function callClaude(transcript, contactName) {
   if (!OPENAI_API_KEY) {
     throw new Error('OPENAI_API_KEY is not set in environment variables');
   }
@@ -146,11 +146,17 @@ async function analyzeConversation(contactId, accountId, chatId) {
     console.warn(`[ConvAnalyzer] Could not fetch messages for chat ${chatId}: ${err.message}`);
   }
 
+  // Skip if no messages — nothing to analyze
+  if (!messages.length) {
+    console.warn(`[ConvAnalyzer] No messages for contact ${contactId} chat ${chatId} — skipping`);
+    return null;
+  }
+
   // 3. Build transcript
   const transcript = buildTranscript(messages, name);
 
-  // 4. Call OpenAI
-  const result = await callOpenAI(transcript, name);
+  // 4. Call Claude
+  const result = await callClaude(transcript, name);
 
   // 5. Validate stage
   const VALID_STAGES = [

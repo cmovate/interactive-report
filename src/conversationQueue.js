@@ -143,4 +143,4 @@ function status() {
   return { total, ready, waiting, running, workers: MAX_WORKERS };
 }
 
-module.exports = { enqueueContact, enqueueReady, start, stop, status };
+module.exports = { enqueueContact, enqueueReady, processNext, start, stop, status };
