@@ -236,6 +236,68 @@ async function initSchemaV2() {
     `ALTER TABLE contacts ADD COLUMN IF NOT EXISTS target_account_id INTEGER REFERENCES target_accounts(id) ON DELETE SET NULL`
   ));
 
+  // ── Seed: set provider_id = URL slug for contacts missing provider_id ────
+  // Allows invitationSender to send invites before full Unipile enrichment.
+  // Real enrichment (enrichProfile) will OVERWRITE the slug with ACoXXX later.
+  await s('seed.provider_id_from_slug', async () => {
+    const { rowCount } = await db.query(`
+      UPDATE contacts
+      SET provider_id = regexp_replace(
+        li_profile_url,
+        '.*linkedin\\.com/in/([^/?#/]+).*',
+        '\\1'
+      )
+      WHERE (provider_id IS NULL OR provider_id = '')
+        AND li_profile_url LIKE '%linkedin.com/in/%'
+        AND li_profile_url ~ 'linkedin\\.com/in/[^/?#]+'
+    `);
+    if (rowCount > 0) console.log(`[SchemaV2] Seeded provider_id slug for ${rowCount} contacts`);
+  });
+
+  // ── Seed: CMOvate sequences ───────────────────────────────────────────────
+  // Creates default sequences for workspace 1 if they don't exist yet.
+  await s('seed.cmo_sequences', async () => {
+    // Check if CMOvate workspace exists
+    const { rows: ws } = await db.query('SELECT id FROM workspaces WHERE id = 1 LIMIT 1');
+    if (!ws.length) return;
+
+    // Check if sequences already exist
+    const { rows: existing } = await db.query(
+      `SELECT id FROM sequences WHERE workspace_id = 1 AND name LIKE 'CMOvate%' LIMIT 1`
+    );
+    if (existing.length) return; // already seeded
+
+    // Create Israel sequence (invite only for now)
+    const { rows: [israelSeq] } = await db.query(`
+      INSERT INTO sequences (workspace_id, name, description)
+      VALUES (1, 'CMOvate Israel — Invite Only',
+              'שליחת invite בלבד. הודעות ייתווספו בשלב הבא.')
+      RETURNING id
+    `);
+    await db.query(`
+      INSERT INTO sequence_steps (sequence_id, step_index, type, delay_days, variants)
+      VALUES ($1, 0, 'invite', 0, '[]')
+    `, [israelSeq.id]);
+
+    // Create Netherlands sequence (invite only)
+    const { rows: [nlSeq] } = await db.query(`
+      INSERT INTO sequences (workspace_id, name, description)
+      VALUES (1, 'CMOvate Netherlands — Invite Only',
+              'Invite only. Messages to be added once we have replies.')
+      RETURNING id
+    `);
+    await db.query(`
+      INSERT INTO sequence_steps (sequence_id, step_index, type, delay_days, variants)
+      VALUES ($1, 0, 'invite', 0, '[]')
+    `, [nlSeq.id]);
+
+    // Attach sequences to campaigns
+    await db.query(`UPDATE campaigns SET sequence_id = $1 WHERE id IN (14, 15) AND workspace_id = 1`, [israelSeq.id]);
+    await db.query(`UPDATE campaigns SET sequence_id = $1 WHERE id IN (16, 17) AND workspace_id = 1`, [nlSeq.id]);
+
+    console.log(`[SchemaV2] Created CMOvate sequences: Israel=${israelSeq.id} NL=${nlSeq.id}`);
+  });
+
   console.log('[SchemaV2] ✓ All v2 migrations complete');
 }
 
