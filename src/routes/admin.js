@@ -1719,13 +1719,13 @@ router.post('/delete-sent-messages-fast', async (req, res) => {
       SELECT DISTINCT im.message_id, im.account_id, c.first_name
       FROM inbox_messages im
       JOIN inbox_threads it ON it.thread_id = im.thread_id
-      JOIN enrollments e ON e.chat_id = it.thread_id
+      JOIN enrollments e ON e.chat_id::text = it.thread_id::text
       JOIN campaigns camp ON camp.id = e.campaign_id
       JOIN contacts c ON c.id = e.contact_id
       WHERE camp.workspace_id = $1
         AND e.status = 'messaged'
         AND im.direction = 'sent'
-        AND im.sent_at > NOW() - INTERVAL '2 hours'
+        AND im.sent_at > NOW() - INTERVAL '3 hours'
     `, [workspace_id]);
 
     const unipile = require('../unipile');
