@@ -80,7 +80,7 @@ async function run(campaignId = null) {
   console.log('[EngagementScraper] Starting run...');
 
   try {
-    let query = `SELECT c.id, c.account_id, c.name, c.settings FROM campaigns c WHERE c.status = 'active'`;
+    let query = `SELECT c.id, c.account_id, c.workspace_id, c.name, c.settings FROM campaigns c WHERE c.status = 'active'`;
     const qp = [];
     if (campaignId) { qp.push(campaignId); query += ` AND c.id = $${qp.length}`; }
 
@@ -147,10 +147,10 @@ async function runCompanyFollowInvites(campaignId, accountId, companyPageUrn) {
 async function processCampaign(campaign) {
   console.log(`[EngagementScraper] Campaign ${campaign.id}: "${campaign.name}"`);
 
-  // Load company page URN and org ID
+  // Load company page URN from workspace-specific account settings
   const { rows: accRows } = await db.query(
-    'SELECT settings FROM unipile_accounts WHERE account_id = $1',
-    [campaign.account_id]
+    'SELECT settings FROM unipile_accounts WHERE account_id = $1 AND workspace_id = $2',
+    [campaign.account_id, campaign.workspace_id]
   );
   const companyPageUrn = accRows[0]?.settings?.company_page_urn || null;
   const asOrgId        = companyPageUrn?.match(/(\d+)$/)?.[1] || null;

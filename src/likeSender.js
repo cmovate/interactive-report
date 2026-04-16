@@ -31,7 +31,7 @@ async function run(campaignId, options = {}) {
 
   try {
     const { rows: campRows } = await db.query(
-      'SELECT id, account_id, settings FROM campaigns WHERE id = $1', [campaignId]
+      'SELECT id, account_id, workspace_id, settings FROM campaigns WHERE id = $1', [campaignId]
     );
     if (!campRows.length) return { error: 'Campaign not found' };
 
@@ -42,11 +42,10 @@ async function run(campaignId, options = {}) {
       doLikeComments: !!eng.like_comments,
     };
 
-
-    // Read daily limit from account settings
+    // Read daily limit from account settings — use workspace-specific row
     const { rows: accRows } = await db.query(
-      'SELECT settings FROM unipile_accounts WHERE account_id = $1',
-      [campaign.account_id]
+      'SELECT settings FROM unipile_accounts WHERE account_id = $1 AND workspace_id = $2',
+      [campaign.account_id, campaign.workspace_id]
     );
     const accSettings = accRows[0]?.settings || {};
     const dailyLimit  = accSettings.limits?.likes ?? 15;

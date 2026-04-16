@@ -28,10 +28,14 @@ async function run() {
   watchdog.tick('invitationSender');
   console.log('[InvitationSender] Running check...');
   try {
+    // Include workspace_id in query + join with correct workspace settings row
     const { rows: campaigns } = await db.query(`
-      SELECT c.id, c.account_id, c.name, c.workspace_id, c.settings
+      SELECT c.id, c.account_id, c.name, c.workspace_id, c.settings,
+             ua.settings AS account_settings
       FROM campaigns c
-      JOIN unipile_accounts ua ON ua.account_id = c.account_id
+      JOIN unipile_accounts ua
+        ON  ua.account_id   = c.account_id
+        AND ua.workspace_id = c.workspace_id
       WHERE c.status = 'active'
         AND (c.settings->'connection'->>'enabled')::boolean = true
     `);
@@ -41,23 +45,22 @@ async function run() {
       return;
     }
 
-    const byAccount = {};
+    // Group by workspace_id + account_id so each workspace is processed independently
+    // Key format: "workspaceId:accountId"
+    const byKey = {};
     for (const camp of campaigns) {
-      if (!byAccount[camp.account_id]) byAccount[camp.account_id] = [];
-      byAccount[camp.account_id].push(camp);
+      const key = `${camp.workspace_id}:${camp.account_id}`;
+      if (!byKey[key]) byKey[key] = { accountId: camp.account_id, workspaceId: camp.workspace_id, accountSettings: camp.account_settings, campaigns: [] };
+      byKey[key].campaigns.push(camp);
     }
 
-    for (const [accountId, accountCampaigns] of Object.entries(byAccount)) {
+    for (const { accountId, workspaceId, accountSettings, campaigns: accountCampaigns } of Object.values(byKey)) {
       if (activelySending.has(accountId)) {
         console.log(`[InvitationSender] Account ${accountId} already sending, skipping`);
         continue;
       }
 
-      const { rows: accRows } = await db.query(
-        'SELECT settings FROM unipile_accounts WHERE account_id = $1',
-        [accountId]
-      );
-      const accSettings = accRows[0]?.settings || {};
+      const accSettings = (typeof accountSettings === 'string' ? JSON.parse(accountSettings) : accountSettings) || {};
 
       const dailyLimit = accSettings.limits?.connection_requests ?? DEFAULT_DAILY_LIMIT;
       const sentToday  = await countSentToday(accountId);

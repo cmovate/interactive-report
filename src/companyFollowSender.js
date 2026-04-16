@@ -43,9 +43,11 @@ async function run() {
   console.log('[CompanyFollow] Running check...');
   try {
     const { rows: accounts } = await db.query(`
-      SELECT DISTINCT ua.account_id, ua.settings
+      SELECT DISTINCT ua.account_id, ua.workspace_id, ua.settings
       FROM unipile_accounts ua
-      JOIN campaigns c ON c.account_id = ua.account_id
+      JOIN campaigns c
+        ON  c.account_id   = ua.account_id
+        AND c.workspace_id = ua.workspace_id
       WHERE c.status = 'active'
         AND (c.settings->'engagement'->>'follow_company')::boolean = true
         AND ua.settings->>'company_page_urn' IS NOT NULL
