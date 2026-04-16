@@ -1063,28 +1063,16 @@ router.post('/register-signals-webhooks', async (req, res) => {
     const WEBHOOK_URL = `${SERVER_URL}/api/webhooks/unipile`;
     const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'elvia-secret';
 
-    // All event groups to register
+    // Each event registered separately — Unipile requires one event per webhook for non-messaging sources
+    // source: 'messaging' supports events array; source: 'users'/'posts' needs one event each
     const WEBHOOK_CONFIGS = [
-      {
-        source: 'users',
-        name_suffix: 'relations_signals',
-        events: ['new_relation', 'invitation_received'],
-      },
-      {
-        source: 'messaging',
-        name_suffix: 'messages_signals',
-        events: ['message_received'],
-      },
-      {
-        source: 'users',
-        name_suffix: 'profile_signals',
-        events: ['profile_view'],
-      },
-      {
-        source: 'posts',
-        name_suffix: 'post_signals',
-        events: ['reaction_received', 'comment_received', 'post_published'],
-      },
+      { source: 'users',     name_suffix: 'new_relation',         events: ['new_relation'] },
+      { source: 'users',     name_suffix: 'invitation_received',  events: ['invitation_received'] },
+      { source: 'messaging', name_suffix: 'message_received',     events: ['message_received'] },
+      { source: 'users',     name_suffix: 'profile_view',         events: ['profile_view'] },
+      { source: 'posts',     name_suffix: 'reaction_received',    events: ['reaction_received'] },
+      { source: 'posts',     name_suffix: 'comment_received',     events: ['comment_received'] },
+      { source: 'posts',     name_suffix: 'post_published',       events: ['post_published'] },
     ];
 
     const { rows: accounts } = await db.query(

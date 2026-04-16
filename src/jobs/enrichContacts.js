@@ -12,7 +12,7 @@
 const db = require('../db');
 const unipile = require('../unipile');
 
-const BATCH = 200; // per run — enough to cover ~2h of enrichment at 7s/contact = ~1700 contacts
+const BATCH = 400; // per run
 
 async function handler() {
   // Get contacts that need REAL enrichment (missing ACoXXX)
