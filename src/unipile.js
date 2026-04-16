@@ -213,6 +213,13 @@ async function withdrawInvitation(accountId, linkedinUrl) {
   );
 }
 
+async function deleteChat(accountId, chatId) {
+  return request(`/api/v1/chats/${encodeURIComponent(chatId)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ account_id: accountId }),
+  });
+}
+
 async function deleteMessage(accountId, messageId) {
   return request(`/api/v1/messages/${encodeURIComponent(messageId)}`, {
     method: 'DELETE',
@@ -468,6 +475,7 @@ module.exports = {
   searchPeopleByCompany,
   lookupCompany,
   getChatMessages,
+  deleteChat,
   deleteMessage,
   enrichProfile,
   viewProfile,
