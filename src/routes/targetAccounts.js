@@ -19,7 +19,7 @@ const db      = require('../db');
 // GET /api/target-accounts?workspace_id=&sort=&list_id=
 router.get('/', async (req, res) => {
   try {
-    const { workspace_id, sort = 'engagement_score_7d', list_id } = req.query;
+    const { workspace_id, sort = 'engagement_score_7d', list_id, search } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
 
     const page   = Math.max(1, parseInt(req.query.page)  || 1);
@@ -29,9 +29,12 @@ router.get('/', async (req, res) => {
     const conds  = ['ta.workspace_id = $1'];
     const params = [workspace_id];
 
+    if (search) {
+      params.push(`%${search}%`);
+      conds.push(`(ta.name ILIKE $${params.length} OR ta.industry ILIKE $${params.length} OR ta.website ILIKE $${params.length})`);
+    }
+
     if (list_id) {
-      // TODO: link target_accounts to lists
-      // For now, filter by contacts in the list
       params.push(list_id);
       conds.push(`ta.id IN (
         SELECT DISTINCT c.target_account_id FROM contacts c
