@@ -2118,3 +2118,91 @@ router.post('/analytics/insights', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// POST /api/admin/classify-replies — retroactively classify existing 'replied' enrollments
+router.post('/classify-replies', async (req, res) => {
+  const { workspace_id, limit = 50 } = req.body;
+  res.json({ status: 'started', workspace_id });
+
+  (async () => {
+    const https = require('https');
+    const unipile = require('../unipile');
+
+    // Get all 'replied' enrollments without positive_reply classification
+    const wsFilter = workspace_id ? 'AND camp.workspace_id = $1' : '';
+    const p = workspace_id ? [workspace_id] : [];
+    const limitClause = `LIMIT ${parseInt(limit)||50}`;
+
+    const { rows: enrollments } = await db.query(`
+      SELECT
+        e.id AS enrollment_id,
+        c.chat_id,
+        c.first_name, c.last_name,
+        camp.account_id,
+        camp.workspace_id
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE e.status = 'replied'
+        AND (c.positive_reply IS NULL OR c.positive_reply = false)
+        ${wsFilter}
+      ORDER BY e.updated_at DESC
+      ${limitClause}
+    `, p);
+
+    console.log(`[ClassifyReplies] Processing ${enrollments.length} replied enrollments`);
+    let classified = 0;
+
+    for (const enr of enrollments) {
+      try {
+        // Get last message from contact
+        let messageText = '';
+        if (enr.chat_id) {
+          const { rows: msgs } = await db.query(`
+            SELECT body FROM inbox_messages
+            WHERE thread_id = $1 AND sender_type != 'me'
+            ORDER BY sent_at DESC LIMIT 1
+          `, [enr.chat_id]);
+          messageText = msgs[0]?.body || '';
+        }
+
+        if (!messageText || messageText.trim().length < 3) continue;
+
+        // Call AI
+        const body = JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 10,
+          system: `Classify LinkedIn replies as POSITIVE (interested, wants call/demo, says yes) or NOT_POSITIVE (rejection, auto-reply, not interested). Reply ONLY: POSITIVE or NOT_POSITIVE`,
+          messages: [{ role: 'user', content: `LinkedIn reply: "${messageText.slice(0, 500)}"` }]
+        });
+
+        const result = await new Promise((resolve, reject) => {
+          const r = https.request({
+            hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Length': Buffer.byteLength(body) }
+          }, (res2) => {
+            let d = ''; res2.on('data', c => d += c);
+            res2.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+          });
+          r.on('error', reject);
+          r.write(body); r.end();
+        });
+
+        const verdict = result.content?.[0]?.text?.trim().toUpperCase();
+
+        if (verdict === 'POSITIVE') {
+          await db.query(`UPDATE enrollments SET status='positive_reply', updated_at=NOW() WHERE id=$1 AND status='replied'`, [enr.enrollment_id]);
+          await db.query(`UPDATE contacts SET positive_reply=true, positive_reply_at=NOW(), conversation_stage='positive' WHERE id=(SELECT contact_id FROM enrollments WHERE id=$1)`, [enr.enrollment_id]);
+          classified++;
+          console.log(`[ClassifyReplies] ✅ ${enr.first_name} ${enr.last_name}: POSITIVE`);
+        }
+
+        await new Promise(r => setTimeout(r, 300)); // rate limit
+      } catch(e) {
+        console.warn(`[ClassifyReplies] enrollment #${enr.enrollment_id}: ${e.message}`);
+      }
+    }
+
+    console.log(`[ClassifyReplies] Done — ${classified}/${enrollments.length} positive`);
+  })();
+});

@@ -207,6 +207,99 @@ async function handleMessageReceived(payload, workspaceId) {
   }
 
   console.log(`[Signal] message_received: enrollment #${enrollmentId} → replied`);
+
+  // AI classification — is this a positive reply?
+  const messageText = payload.message || payload.text || payload.body || '';
+  if (messageText && messageText.trim().length > 3) {
+    classifyReply(enrollmentId, messageText, chatId).catch(e =>
+      console.warn('[Signal] classify reply error:', e.message)
+    );
+  }
+}
+
+// ── AI Positive Reply Classification ─────────────────────────────────────────
+
+async function classifyReply(enrollmentId, messageText, chatId) {
+  const https = require('https');
+
+  // Fetch conversation history for context (last 5 messages)
+  let conversationContext = '';
+  if (chatId) {
+    try {
+      const { rows: msgs } = await db.query(`
+        SELECT sender_type, body, sent_at
+        FROM inbox_messages
+        WHERE thread_id = $1
+        ORDER BY sent_at DESC LIMIT 5
+      `, [chatId]);
+      if (msgs.length) {
+        conversationContext = msgs.reverse().map(m =>
+          `[${m.sender_type === 'me' ? 'We' : 'Them'}]: ${m.body}`
+        ).join('\n');
+      }
+    } catch(e) { /* best effort */ }
+  }
+
+  const prompt = conversationContext
+    ? `Conversation:
+${conversationContext}
+
+Latest reply: "${messageText}"`
+    : `LinkedIn reply: "${messageText}"`;
+
+  const body = JSON.stringify({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 10,
+    system: `You classify LinkedIn message replies as positive or not.
+POSITIVE = genuinely interested: wants a call/demo, asks for info, says yes/sure/interested, schedules meeting.
+NOT POSITIVE = rejection, wrong person, auto-reply, out of office, polite decline, no interest.
+Reply with ONLY the word: POSITIVE or NOT_POSITIVE`,
+    messages: [{ role: 'user', content: prompt }]
+  });
+
+  const result = await new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, (res) => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+
+  const verdict = result.content?.[0]?.text?.trim().toUpperCase();
+  console.log(`[Signal] AI classify enrollment #${enrollmentId}: "${messageText.slice(0,60)}" → ${verdict}`);
+
+  if (verdict === 'POSITIVE') {
+    // Update enrollment to positive_reply
+    await db.query(`
+      UPDATE enrollments SET
+        status = 'positive_reply',
+        updated_at = NOW()
+      WHERE id = $1 AND status IN ('replied', 'messaged')
+    `, [enrollmentId]);
+
+    // Update contact fields
+    await db.query(`
+      UPDATE contacts SET
+        positive_reply    = true,
+        positive_reply_at = NOW(),
+        conversation_stage = 'positive'
+      WHERE id = (SELECT contact_id FROM enrollments WHERE id = $1)
+        AND (positive_reply IS NULL OR positive_reply = false)
+    `, [enrollmentId]);
+
+    console.log(`[Signal] ✅ Positive reply detected! enrollment #${enrollmentId} → positive_reply`);
+  }
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
