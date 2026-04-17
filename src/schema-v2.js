@@ -181,6 +181,9 @@ async function initSchemaV2() {
   await s('opportunity_contacts.aco_id', () => db.query(
     `ALTER TABLE opportunity_contacts ADD COLUMN IF NOT EXISTS aco_id TEXT`
   ));
+  await s('list_companies.opp_last_synced_at', () => db.query(
+    `ALTER TABLE list_companies ADD COLUMN IF NOT EXISTS opp_last_synced_at TIMESTAMPTZ`
+  ));
 
   // ── Signals (all inbound LinkedIn events) ────────────────────────────────
   await s('signals', () => db.query(`

@@ -26,16 +26,19 @@ async function handler() {
     );
     if (!accounts.length) continue;
 
+    // Rotation: 10 companies per run, oldest opp_last_synced_at first (NULL = never synced)
     const { rows: companies } = await db.query(`
       SELECT DISTINCT ON (lc.company_linkedin_id)
-        lc.company_linkedin_id, lc.company_name
+        lc.company_linkedin_id, lc.company_name, MIN(lc.opp_last_synced_at) as opp_last_synced_at
       FROM list_companies lc
       JOIN lists l ON l.id = lc.list_id AND l.workspace_id = lc.workspace_id
       WHERE lc.workspace_id = $1
         AND l.type = 'companies'
         AND lc.company_linkedin_id IS NOT NULL
         AND lc.company_linkedin_id != ''
-      ORDER BY lc.company_linkedin_id
+      GROUP BY lc.company_linkedin_id, lc.company_name
+      ORDER BY MIN(lc.opp_last_synced_at) ASC NULLS FIRST
+      LIMIT 10
     `, [workspace_id]);
 
     console.log(`[Opportunities] WS${workspace_id}: ${companies.length} companies, ${accounts.length} accounts — alternating`);
@@ -135,6 +138,13 @@ async function handler() {
         console.warn(`[Opportunities] ${account.display_name} @ ${company.company_name}: ${e.message}`);
         await new Promise(r => setTimeout(r, 3000));
       }
+
+      // Mark company as synced for rotation — always, regardless of success/failure
+      await db.query(
+        `UPDATE list_companies SET opp_last_synced_at = NOW()
+         WHERE workspace_id = $1 AND company_linkedin_id = $2`,
+        [workspace_id, company.company_linkedin_id]
+      ).catch(() => {});
     }
   }
 
