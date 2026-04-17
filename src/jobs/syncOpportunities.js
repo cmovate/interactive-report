@@ -54,7 +54,10 @@ async function handler() {
               api: 'classic',
               category: 'people',
               filters: {
-                currentCompany: [String(company.company_linkedin_id)],
+                currentCompany: [(() => {
+                  const raw = company.company_linkedin_id;
+                  try { const p = JSON.parse(raw); return String(p.id || p); } catch(e) { return String(raw); }
+                })()],
                 network_distance: ['DISTANCE_1']
               },
               limit: 50
@@ -97,44 +100,13 @@ async function handler() {
               last_name  = COALESCE(NULLIF(EXCLUDED.last_name,''),  opportunity_contacts.last_name)
           `, [
             workspace_id,
-            company.company_linkedin_id,
+            (() => { try { const p = JSON.parse(company.company_linkedin_id); return String(p.id||p); } catch(e) { return String(company.company_linkedin_id); } })(),
             company.company_name,
             liUrl, slug, acoId,
             firstName, lastName, title,
             account.account_id,
             account.display_name,
           ]);
-
-          // Verify actual 1st-degree connection via enrichProfile
-          // search DISTANCE_1 filter is unreliable — this is the source of truth
-          let isRealConnection = false;
-          try {
-            const profile = await unipile.enrichProfile(account.account_id, liUrl);
-            isRealConnection = profile?.network_distance === 'FIRST_DEGREE' ||
-                               profile?.is_relationship === true;
-            // Also grab ACoXXX while we're here
-            if (profile?.provider_id?.startsWith('ACo') && !acoId) {
-              acoId = profile.provider_id;
-              await db.query(
-                `UPDATE opportunity_contacts SET aco_id=$1 WHERE workspace_id=$2 AND li_profile_url=$3`,
-                [acoId, workspace_id, liUrl]
-              ).catch(() => {});
-            }
-            await new Promise(r => setTimeout(r, 500));
-          } catch(e) {
-            // If enrichProfile fails, keep the contact but mark unverified
-            isRealConnection = true; // benefit of doubt from DISTANCE_1 search
-          }
-
-          if (!isRealConnection) {
-            // Remove false-positive from opportunity_contacts
-            await db.query(
-              `DELETE FROM opportunity_contacts WHERE workspace_id=$1 AND li_profile_url=$2 AND connected_via_account_id=$3`,
-              [workspace_id, liUrl, account.account_id]
-            ).catch(() => {});
-            console.log(`[Opportunities] removed false positive: ${liUrl} (not FIRST_DEGREE)`);
-            continue;
-          }
 
           // Also upsert into main contacts table (campaign_id=NULL = workspace pool)
           // These contacts will NEVER be enrolled in campaigns automatically
