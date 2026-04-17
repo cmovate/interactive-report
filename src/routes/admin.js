@@ -1864,3 +1864,16 @@ router.post('/sync-opportunities-test', async (req, res) => {
     res.json({ results });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/test-search-first-degree — debug raw Unipile response
+router.post('/test-search-first-degree', async (req, res) => {
+  const { workspace_id, company_linkedin_id } = req.body;
+  try {
+    const { rows: accts } = await db.query(
+      `SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1`, [workspace_id]
+    );
+    if (!accts.length) return res.status(400).json({ error: 'no accounts' });
+    const people = await require('../unipile').searchFirstDegreeAtCompany(accts[0].account_id, company_linkedin_id, 3);
+    res.json({ count: people.length, sample: people[0] || null });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
