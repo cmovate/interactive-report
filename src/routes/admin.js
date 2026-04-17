@@ -1893,18 +1893,21 @@ router.post('/test-relations', async (req, res) => {
     if (!accts.length) return res.status(400).json({ error: 'no accounts' });
     const unipile = require('../unipile');
     // Try Unipile's relations endpoint
-    // Try multiple Unipile endpoint variations
-    const endpoints = [
-      `/api/v1/linkedin/relations?account_id=${encodeURIComponent(accts[0].account_id)}&limit=5`,
-      `/api/v1/users?account_id=${encodeURIComponent(accts[0].account_id)}&relation=DISTANCE_1&limit=5`,
-      `/api/v1/linkedin/network?account_id=${encodeURIComponent(accts[0].account_id)}&limit=5`,
+    // Probe Unipile API — list all available endpoints
+    const probes = [
+      `/api/v1/linkedin/search?account_id=${encodeURIComponent(accts[0].account_id)}`,
+      `/api/v1/linkedin?account_id=${encodeURIComponent(accts[0].account_id)}`,
+      `/api/v1/accounts/${encodeURIComponent(accts[0].account_id)}/connections?limit=3`,
+      `/api/v1/connections?account_id=${encodeURIComponent(accts[0].account_id)}&limit=3`,
+      `/api/v1/linkedin/connections?account_id=${encodeURIComponent(accts[0].account_id)}&limit=3`,
     ];
     const results = {};
-    for (const ep of endpoints) {
+    for (const ep of probes) {
       try {
-        results[ep] = await unipile._request(ep);
+        const d = await unipile._request(ep);
+        results[ep.split('?')[0]] = d?.items ? `items[${d.items.length}] keys=${Object.keys(d.items[0]||{}).slice(0,5).join(',')}` : JSON.stringify(d).slice(0,100);
       } catch(e) {
-        results[ep] = { error: e.message.slice(0, 80) };
+        results[ep.split('?')[0]] = e.message.slice(0,60);
       }
     }
     res.json(results);
