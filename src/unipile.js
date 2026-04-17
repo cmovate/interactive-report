@@ -237,7 +237,15 @@ async function startDirectMessage(accountId, providerId, text) {
   // Unipile POST /api/v1/chats requires multipart/form-data, not JSON
   const form = new FormData();
   form.append('account_id', accountId);
-  form.append('attendees_ids', providerId);
+  // If providerId is a slug (not ACoXXX), send as LinkedIn profile URL
+  if (providerId && !providerId.startsWith('ACo')) {
+    const liUrl = providerId.startsWith('http')
+      ? providerId
+      : `https://www.linkedin.com/in/${providerId}`;
+    form.append('attendees_ids', liUrl);
+  } else {
+    form.append('attendees_ids', providerId);
+  }
   form.append('text', text);
   const url = `${UNIPILE_DSN}/api/v1/chats`;
   const res = await fetch(url, {
