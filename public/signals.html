@@ -8,355 +8,309 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
 
-.header { padding: 20px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-.header h1 { font-size: 20px; font-weight: 600; color: #f1f5f9; }
-.header p  { font-size: 13px; color: #64748b; margin-top: 2px; }
-.header-right { display: flex; gap: 8px; align-items: center; }
+/* ── Header ── */
+.header { padding: 18px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.header-left h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+.header-left p  { font-size: 12px; color: #475569; margin-top: 3px; }
+.header-right   { display: flex; gap: 8px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
+.btn-ghost  { background: #1a2035; color: #94a3b8; border: 1px solid #253047; }
+.btn-ghost:hover { background: #1e2845; color: #e2e8f0; }
+.btn-green { background: #1D9E75; color: #fff; }
+.btn-green:hover { background: #188a65; }
+.ts { font-size: 11px; color: #334155; }
 
-.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
-.btn-secondary { background: #1e2333; color: #94a3b8; border: 1px solid #2d3748; }
-.btn-secondary:hover { background: #252c3f; color: #e2e8f0; }
-.btn-primary { background: #1D9E75; color: #fff; }
-.btn-primary:hover { background: #17875f; }
+/* ── Stats strip ── */
+.stats-strip { display: flex; gap: 8px; padding: 14px 24px 0; flex-wrap: wrap; }
+.stat-card { background: #141928; border: 1px solid #1e2a3a; border-radius: 10px; padding: 12px 16px; cursor: pointer; transition: all .15s; min-width: 80px; }
+.stat-card:hover { border-color: #2a3f5f; }
+.stat-card.active { border-color: var(--c); background: #0d1624; }
+.stat-icon { font-size: 15px; margin-bottom: 5px; }
+.stat-val  { font-size: 22px; font-weight: 700; color: #f1f5f9; line-height: 1; }
+.stat-label{ font-size: 10px; color: #475569; margin-top: 3px; text-transform: uppercase; letter-spacing: .5px; }
+.stat-known{ font-size: 10px; color: #1D9E75; margin-top: 2px; }
 
-.content { padding: 16px 24px; }
+/* ── Toolbar ── */
+.toolbar { display: flex; gap: 8px; padding: 14px 24px 0; align-items: center; flex-wrap: wrap; }
+.filter-pill { background: #141928; border: 1px solid #1e2a3a; border-radius: 20px; padding: 5px 13px; font-size: 12px; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.filter-pill:hover { border-color: #2a3f5f; color: #e2e8f0; }
+.filter-pill.active { background: #0d2a1f; border-color: #1D9E75; color: #1D9E75; }
+.toolbar-spacer { flex: 1; }
+select.filter-sel { background: #141928; border: 1px solid #1e2a3a; border-radius: 7px; color: #94a3b8; font-size: 12px; padding: 5px 10px; cursor: pointer; }
+select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; }
+.known-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; cursor: pointer; }
+.known-toggle input { accent-color: #1D9E75; }
 
-/* Stats strip */
-.stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-.stat { background: #161b2e; border: 1px solid #1e2a3a; border-radius: 8px; padding: 12px 16px; min-width: 100px; cursor: pointer; transition: border-color .15s; }
-.stat:hover { border-color: #2d4a6e; }
-.stat.active { border-color: #1D9E75; background: #0d1e17; }
-.stat-val { font-size: 20px; font-weight: 700; color: #f1f5f9; }
-.stat-label { font-size: 11px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: .4px; }
-.stat-icon { font-size: 16px; margin-bottom: 4px; }
+/* ── Signal list ── */
+.content { padding: 12px 24px 24px; }
+.signal-list { display: flex; flex-direction: column; gap: 6px; }
 
-/* Filters row */
-.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
-.filter-label { font-size: 12px; color: #64748b; }
-select.filter-sel { background: #1e2333; border: 1px solid #2d3748; border-radius: 6px; color: #e2e8f0; font-size: 12px; padding: 6px 10px; cursor: pointer; }
-select.filter-sel:focus { outline: none; border-color: #1D9E75; }
+/* ── Signal card ── */
+.sig-card { background: #141928; border: 1px solid #1e2a3a; border-radius: 10px; padding: 14px 16px; display: flex; align-items: flex-start; gap: 14px; transition: border-color .15s; position: relative; }
+.sig-card:hover { border-color: #2a3f5f; }
+.sig-card.known { border-left: 3px solid #1D9E75; }
+.sig-card.positive { border-left: 3px solid #F59E0B; background: #13160e; }
+.sig-card.derived-badge::after { content: 'DERIVED'; position: absolute; top: 8px; right: 10px; font-size: 9px; color: #334155; letter-spacing: .5px; }
 
-/* Signal list */
-.signal-list { display: flex; flex-direction: column; gap: 2px; }
+.sig-type-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; background: #1a2035; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-top: 1px; }
 
-.signal-item { background: #161b2e; border: 1px solid #1e2a3a; border-radius: 8px; padding: 12px 16px; display: flex; align-items: flex-start; gap: 12px; transition: border-color .15s; }
-.signal-item:hover { border-color: #2d3a52; }
-.signal-item.known { border-left: 3px solid #1D9E75; }
+.sig-body { flex: 1; min-width: 0; }
+.sig-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sig-name { font-size: 14px; font-weight: 600; color: #f1f5f9; }
+.sig-name a { color: #1D9E75; text-decoration: none; }
+.sig-name a:hover { text-decoration: underline; }
+.sig-type-label { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+.sig-sub  { font-size: 12px; color: #64748b; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sig-msg  { font-size: 12px; color: #94a3b8; margin-top: 6px; background: #1a2035; border-radius: 6px; padding: 7px 10px; border-left: 2px solid #253047; font-style: italic; max-width: 600px; }
+.sig-meta { font-size: 11px; color: #334155; margin-top: 6px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sig-camp { color: #2563EB; font-size: 11px; }
+.sig-acct { color: #475569; font-size: 11px; }
 
-.signal-icon { font-size: 18px; flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; background: #1e2333; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+.known-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #1D9E75; background: #0d2a1f; border: 1px solid #1a4a30; border-radius: 10px; padding: 1px 7px; }
 
-.signal-body { flex: 1; min-width: 0; }
-.signal-who { font-size: 13px; font-weight: 600; color: #f1f5f9; }
-.signal-who a { color: #1D9E75; text-decoration: none; }
-.signal-who a:hover { text-decoration: underline; }
-.signal-what { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-.signal-what .company { color: #60a5fa; font-weight: 500; }
-.signal-content { font-size: 12px; color: #64748b; margin-top: 4px; background: #0f1117; padding: 6px 10px; border-radius: 5px; line-height: 1.5; max-height: 60px; overflow: hidden; cursor: pointer; }
-.signal-content.expanded { max-height: none; }
+/* ── Actions ── */
+.sig-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: flex-start; margin-top: 2px; flex-wrap: wrap; max-width: 160px; justify-content: flex-end; }
+.act-btn { padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; white-space: nowrap; }
+.act-primary { background: #1D9E75; color: #fff; }
+.act-primary:hover { background: #188a65; }
+.act-secondary { background: #1a2035; color: #94a3b8; border: 1px solid #253047; }
+.act-secondary:hover { background: #1e2845; color: #e2e8f0; }
+.act-dismiss { background: transparent; color: #334155; border: 1px solid #1a2035; }
+.act-dismiss:hover { color: #64748b; border-color: #253047; }
 
-.signal-meta { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
-.signal-time { font-size: 11px; color: #475569; }
-.signal-type-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: .5px; }
-
-.badge-profile_view    { background: #1e2a3a; color: #7dd3fc; }
-.badge-post_like       { background: #1a1a00; color: #fde68a; }
-.badge-post_comment    { background: #160d2e; color: #c4b5fd; }
-.badge-invite_received { background: #0d2240; color: #93c5fd; }
-.badge-invite_accepted { background: #0d2a1f; color: #6ee7b7; }
-.badge-message_received{ background: #1a1000; color: #fcd34d; }
-.badge-company_follow  { background: #0d1a35; color: #818cf8; }
-
-.signal-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-.signal-tag { font-size: 10px; background: #0d2a1f; color: #34d399; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
-.action-btn-sm { background: #1e2333; border: 1px solid #2d3748; color: #94a3b8; padding: 4px 8px; border-radius: 5px; font-size: 11px; cursor: pointer; white-space: nowrap; }
-.action-btn-sm:hover { background: #252c3f; color: #e2e8f0; }
-
-/* Pagination */
-.pagination { display: flex; gap: 6px; justify-content: center; margin-top: 16px; align-items: center; }
-.page-btn { background: #1e2333; border: 1px solid #2d3748; color: #94a3b8; padding: 6px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; }
-.page-btn.active { background: #1D9E75; color: #fff; border-color: #1D9E75; }
-.page-info { font-size: 12px; color: #64748b; }
-
-/* Empty */
-.empty { text-align: center; padding: 60px 20px; color: #475569; }
-.empty-icon { font-size: 40px; margin-bottom: 12px; }
+/* ── Empty / Loading ── */
+.empty { text-align: center; padding: 60px 20px; color: #334155; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.empty-text { font-size: 15px; color: #475569; margin-bottom: 6px; }
+.empty-sub  { font-size: 12px; color: #2d3a52; }
 .loading { text-align: center; padding: 40px; color: #475569; font-size: 13px; }
 
-/* Add-to-list modal */
-.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal { background: #161b2e; border: 1px solid #1e2a3a; border-radius: 12px; padding: 28px; width: 360px; }
-.modal h2 { font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
-.modal p { font-size: 13px; color: #64748b; margin-bottom: 16px; }
-.modal select { width: 100%; background: #0f1117; border: 1px solid #2d3748; border-radius: 7px; color: #e2e8f0; font-size: 13px; padding: 9px 12px; margin-bottom: 16px; }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-
-/* Toast */
-.toast { position: fixed; bottom: 24px; right: 24px; background: #1e2a3a; border: 1px solid #2d3748; color: #e2e8f0; padding: 12px 18px; border-radius: 8px; font-size: 13px; z-index: 999; animation: fi .2s; }
-.toast.success { border-color: #1D9E75; color: #34d399; }
-.toast.error { border-color: #ef4444; color: #f87171; }
-@keyframes fi { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* ── Pagination ── */
+.pager { display: flex; gap: 6px; justify-content: center; margin-top: 16px; }
+.page-btn { background: #141928; border: 1px solid #1e2a3a; border-radius: 6px; color: #64748b; font-size: 12px; padding: 5px 12px; cursor: pointer; transition: all .15s; }
+.page-btn:hover { border-color: #2a3f5f; color: #e2e8f0; }
+.page-btn.active { background: #1D9E75; border-color: #1D9E75; color: #fff; }
 </style>
 </head>
 <body>
 
 <div class="header">
-  <div>
-    <h1>Signals</h1>
-    <p>Inbound LinkedIn events — profile views, likes, invites, messages</p>
+  <div class="header-left">
+    <h1>⚡ Signals</h1>
+    <p>LinkedIn intent events — who engaged, when, and what to do next</p>
   </div>
   <div class="header-right">
-    <span id="refresh-indicator" style="font-size:11px;color:#475569"></span>
-    <button class="btn btn-secondary" onclick="load()">↻ Refresh</button>
+    <span class="ts" id="ts-label">—</span>
+    <button class="btn btn-ghost" onclick="load()">↻ Refresh</button>
   </div>
+</div>
+
+<div class="stats-strip" id="stats-strip">
+  <div class="stat-card active" style="--c:#1D9E75" data-type="all" onclick="setType('all',this)">
+    <div class="stat-icon">⚡</div>
+    <div class="stat-val" id="stat-all">—</div>
+    <div class="stat-label">All Signals</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <label class="known-toggle">
+    <input type="checkbox" id="known-only" onchange="load()"> Known contacts only
+  </label>
+  <div class="toolbar-spacer"></div>
+  <select class="filter-sel" id="limit-sel" onchange="load()">
+    <option value="25">25 per page</option>
+    <option value="50" selected>50 per page</option>
+    <option value="100">100 per page</option>
+  </select>
 </div>
 
 <div class="content">
-  <!-- Stats strip -->
-  <div class="stats" id="statsStrip"></div>
-
-  <!-- Filters -->
-  <div class="filters">
-    <span class="filter-label">Filter:</span>
-    <select class="filter-sel" id="typeFilter" onchange="onFilterChange()">
-      <option value="">All types</option>
-      <option value="invite_accepted">Invite Accepted</option>
-      <option value="message_received">Message Received</option>
-      <option value="invite_received">Invite Received</option>
-      <option value="profile_view">Profile View</option>
-      <option value="post_like">Post Like</option>
-      <option value="post_comment">Post Comment</option>
-      <option value="company_follow">Company Follow</option>
-    </select>
-    <select class="filter-sel" id="knownFilter" onchange="onFilterChange()">
-      <option value="">All contacts</option>
-      <option value="true">Known contacts only</option>
-      <option value="false">Unknown only</option>
-    </select>
-    <select class="filter-sel" id="limitSel" onchange="onFilterChange()">
-      <option value="50">50 per page</option>
-      <option value="100">100 per page</option>
-    </select>
+  <div id="signal-list" class="signal-list">
+    <div class="loading">Loading signals…</div>
   </div>
-
-  <div id="signalList"></div>
-  <div class="pagination" id="paginationEl" style="display:none"></div>
-</div>
-
-<!-- Add to list modal -->
-<div class="modal-bg" id="addModal" style="display:none">
-  <div class="modal">
-    <h2 id="addModalTitle">Add to List</h2>
-    <p>Choose a list to add this contact to. If they don't exist yet, they'll be created.</p>
-    <select id="addListSelect"></select>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="doAddToList()">Add to List</button>
-    </div>
-  </div>
+  <div id="pager" class="pager"></div>
 </div>
 
 <script>
-const params  = new URLSearchParams(location.search);
-const WS_ID   = params.get('workspace_id') || 1;
-const BASE    = '';
+const WS_ID = parseInt(new URLSearchParams(location.search).get('workspace_id')) || 1;
+const WS_NAME = new URLSearchParams(location.search).get('workspace_name') || '';
+let currentType = 'all';
+let currentPage = 1;
+let signalSource = 'real';
 
-let currentPage  = 1;
-let totalPages   = 1;
-let activeType   = '';
-let addingSignalId = null;
-let lists        = [];
-
-const TYPE_META = {
-  profile_view:     { icon: '👁',  label: 'viewed your profile' },
-  post_like:        { icon: '👍',  label: 'liked your post' },
-  post_comment:     { icon: '💬',  label: 'commented on your post' },
-  invite_received:  { icon: '📨',  label: 'sent you a connection request' },
-  invite_accepted:  { icon: '🤝',  label: 'accepted your connection request' },
-  message_received: { icon: '✉️',  label: 'sent you a message' },
-  company_follow:   { icon: '🏢',  label: 'followed your company page' },
+const SIGNAL_META = {
+  invite_accepted:    { icon: '🤝', label: 'Accepted Invite',    color: '#1D9E75' },
+  message_received:   { icon: '💬', label: 'Replied',            color: '#3B82F6' },
+  positive_reply:     { icon: '⭐', label: 'Positive Reply',     color: '#F59E0B' },
+  profile_view:       { icon: '👁️', label: 'Viewed Profile',    color: '#8B5CF6' },
+  invitation_received:{ icon: '🔔', label: 'Sent Us Invite',     color: '#EC4899' },
+  reaction_received:  { icon: '👍', label: 'Liked Post',         color: '#F97316' },
+  comment_received:   { icon: '💭', label: 'Commented',          color: '#06B6D4' },
+  company_follow:     { icon: '🏢', label: 'Followed Company',   color: '#6366F1' },
+  new_relation:       { icon: '✅', label: 'Connected',          color: '#10B981' },
 };
 
-async function api(path, opts={}) {
-  const r = await fetch(BASE + path, { headers: {'Content-Type':'application/json'}, ...opts });
-  return r.json();
-}
-
-function toast(msg, type='') {
-  const t = document.createElement('div');
-  t.className = 'toast' + (type ? ' '+type : '');
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
+const ACTION_FOR = {
+  invite_accepted:    { label: '💬 Send Message', action: 'send_message' },
+  message_received:   { label: '↗ Open Chat',    action: 'open_chat'    },
+  positive_reply:     { label: '↗ Open Chat',    action: 'open_chat'    },
+  profile_view:       { label: '➕ Send Invite',  action: 'send_invite'  },
+  invitation_received:{ label: '✅ Accept',       action: 'accept_invite'},
+  reaction_received:  { label: '➕ Send Invite',  action: 'send_invite'  },
+  comment_received:   { label: '💬 Reply',        action: 'send_message' },
+  company_follow:     { label: '➕ Send Invite',  action: 'send_invite'  },
+  new_relation:       { label: '💬 Send Message', action: 'send_message' },
+};
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-function timeAgo(ts) {
+function ago(ts) {
   if (!ts) return '';
-  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
-  if (diff < 60)    return 'Just now';
-  if (diff < 3600)  return Math.floor(diff/60) + 'm ago';
-  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-  if (diff < 86400*7) return Math.floor(diff/86400) + 'd ago';
-  return new Date(ts).toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  const d = Math.round((Date.now() - new Date(ts)) / 1000);
+  if (d < 60)   return `${d}s ago`;
+  if (d < 3600) return `${Math.round(d/60)}m ago`;
+  if (d < 86400)return `${Math.round(d/3600)}h ago`;
+  return `${Math.round(d/86400)}d ago`;
 }
 
-// ── Load stats ─────────────────────────────────────────────────────────────
+function setType(t, el) {
+  currentType = t; currentPage = 1;
+  document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+  el?.classList.add('active');
+  load();
+}
+
 async function loadStats() {
-  const types = ['invite_accepted','message_received','invite_received','profile_view','post_like','post_comment','company_follow'];
-  const counts = await Promise.all(types.map(t =>
-    api(`/api/signals?workspace_id=${WS_ID}&type=${t}&limit=1`).then(d => ({ type: t, count: d.total || 0 }))
-  ));
-  const total = counts.reduce((s,c) => s + c.count, 0);
+  try {
+    const data = await fetch(`/api/signals/stats?workspace_id=${WS_ID}`).then(r=>r.json());
+    const strip = document.getElementById('stats-strip');
+    const d = data.derived || {};
+    const types = [
+      { type: 'all',            icon: '⚡', label: 'All',          val: d.total || data.total_real || 0 },
+      { type: 'positive_reply', icon: '⭐', label: 'Positive',     val: d.positive_replies || 0, c: '#F59E0B' },
+      { type: 'message_received',icon:'💬',  label: 'Replied',      val: d.replies || 0, c: '#3B82F6' },
+      { type: 'invite_accepted', icon: '🤝', label: 'Connections',  val: d.connections || 0, c: '#1D9E75' },
+      ...data.real_signals.filter(s => !['positive_reply','message_received','invite_accepted','new_relation'].includes(s.type))
+        .map(s => ({ type: s.type, icon: SIGNAL_META[s.type]?.icon||'📌', label: SIGNAL_META[s.type]?.label||s.type, val: parseInt(s.n), c: SIGNAL_META[s.type]?.color }))
+    ].filter(t => t.val > 0 || t.type === 'all');
 
-  const strip = document.getElementById('statsStrip');
-  const allCard = `<div class="stat ${!activeType?'active':''}" onclick="setTypeFilter('')">
-    <div class="stat-icon">📊</div>
-    <div class="stat-val">${total}</div>
-    <div class="stat-label">All signals</div>
-  </div>`;
-  const typeCards = counts.filter(c=>c.count>0).map(c => {
-    const m = TYPE_META[c.type] || { icon: '📌', label: c.type };
-    const label = c.type.replace(/_/g,' ');
-    return `<div class="stat ${activeType===c.type?'active':''}" onclick="setTypeFilter('${c.type}')">
-      <div class="stat-icon">${m.icon}</div>
-      <div class="stat-val">${c.count}</div>
-      <div class="stat-label">${label}</div>
-    </div>`;
-  }).join('');
-  strip.innerHTML = allCard + typeCards;
+    strip.innerHTML = types.map((t,i) => `
+      <div class="stat-card ${i===0?'active':''}" style="--c:${t.c||'#1D9E75'}"
+           data-type="${t.type}" onclick="setType('${t.type}',this)">
+        <div class="stat-icon">${t.icon}</div>
+        <div class="stat-val">${t.val.toLocaleString()}</div>
+        <div class="stat-label">${t.label}</div>
+      </div>
+    `).join('');
+    document.getElementById('stat-all')?.replaceWith?.();
+  } catch(e) { console.warn('stats error', e); }
 }
 
-// ── Load feed ──────────────────────────────────────────────────────────────
 async function load() {
-  document.getElementById('signalList').innerHTML = '<div class="loading">Loading signals…</div>';
+  const limit = parseInt(document.getElementById('limit-sel')?.value||50);
+  const knownOnly = document.getElementById('known-only')?.checked;
+  document.getElementById('signal-list').innerHTML = '<div class="loading">Loading signals…</div>';
 
-  const type    = document.getElementById('typeFilter').value;
-  const known   = document.getElementById('knownFilter').value;
-  const limit   = parseInt(document.getElementById('limitSel').value) || 50;
+  let url = `/api/signals?workspace_id=${WS_ID}&page=${currentPage}&limit=${limit}`;
+  if (currentType !== 'all') url += `&type=${currentType}`;
+  if (knownOnly) url += '&is_known=true';
 
-  let url = `/api/signals?workspace_id=${WS_ID}&limit=${limit}&page=${currentPage}`;
-  if (type)  url += `&type=${type}`;
-  if (known) url += `&is_known=${known}`;
+  try {
+    const data = await fetch(url).then(r=>r.json());
+    signalSource = data.source || 'real';
+    document.getElementById('ts-label').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    renderList(data.items || [], data.total, limit);
+    renderPager(data.total, limit, data.page);
+  } catch(e) {
+    document.getElementById('signal-list').innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Error loading signals</div><div class="empty-sub">${esc(e.message)}</div></div>`;
+  }
+}
 
-  const data   = await api(url);
-  const items  = data.items || [];
-  totalPages   = data.pages || 1;
-
-  document.getElementById('refresh-indicator').textContent =
-    `${data.total || 0} total · updated ${new Date().toLocaleTimeString()}`;
-
+function renderList(items, total, limit) {
+  const list = document.getElementById('signal-list');
   if (!items.length) {
-    document.getElementById('signalList').innerHTML = `
-      <div class="empty">
-        <div class="empty-icon">📡</div>
-        <div style="font-size:14px">No signals yet</div>
-        <div style="font-size:12px;margin-top:6px;color:#334155">LinkedIn events will appear here as they arrive via webhooks</div>
-      </div>`;
-    document.getElementById('paginationEl').style.display = 'none';
+    list.innerHTML = `<div class="empty">
+      <div class="empty-icon">📡</div>
+      <div class="empty-text">No signals yet</div>
+      <div class="empty-sub">LinkedIn events will appear here as they arrive via webhooks</div>
+    </div>`;
     return;
   }
 
-  const html = items.map(s => {
-    const m    = TYPE_META[s.type] || { icon: '📌', label: s.type };
-    const who  = s.first_name || s.actor_name || 'Someone';
-    const whoFull = [s.first_name, s.last_name].filter(Boolean).join(' ') || s.actor_name || 'Unknown';
-    const liUrl   = s.contact_li_url || s.actor_li_url;
-    const company = s.company || s.target_account_name || '';
+  list.innerHTML = items.map(s => {
+    const meta   = SIGNAL_META[s.type] || { icon: '📌', label: s.type, color: '#64748b' };
+    const action = ACTION_FOR[s.type];
+    const name   = s.actor_name || [s.first_name, s.last_name].filter(Boolean).join(' ') || 'Unknown';
+    const liUrl  = s.actor_li_url || s.contact_li_url || '';
+    const company= s.contact_company || '';
+    const title  = s.contact_title || s.actor_headline || '';
+    const sub    = [title, company].filter(Boolean).join(' @ ');
+    const isPositive = s.type === 'positive_reply';
+    const chatId = s.chat_id || null;
+    const enrId  = s.enrollment_id || null;
 
-    return `<div class="signal-item ${s.is_known ? 'known' : ''}">
-      <div class="signal-icon">${m.icon}</div>
-      <div class="signal-body">
-        <div class="signal-who">
-          ${liUrl
-            ? `<a href="${esc(liUrl)}" target="_blank">${esc(whoFull)}</a>`
-            : esc(whoFull)}
-          ${company ? `<span style="color:#64748b;font-weight:400"> · </span><span class="company">${esc(company)}</span>` : ''}
+    return `<div class="sig-card ${s.is_known?'known':''} ${isPositive?'positive':''} ${s.source==='derived'?'derived-badge':''}" id="sig-${s.id}">
+      <div class="sig-type-icon" style="background:${meta.color}22;color:${meta.color}">${meta.icon}</div>
+      <div class="sig-body">
+        <div class="sig-top">
+          <div class="sig-name">
+            ${liUrl ? `<a href="${esc(liUrl)}" target="_blank">${esc(name)}</a>` : esc(name)}
+          </div>
+          <span class="sig-type-label" style="background:${meta.color}22;color:${meta.color}">${meta.label}</span>
+          ${s.is_known ? `<span class="known-badge">✓ Known</span>` : ''}
         </div>
-        <div class="signal-what">${m.label}</div>
-        ${s.content ? `<div class="signal-content" onclick="this.classList.toggle('expanded')">${esc(s.content.slice(0,200))}${s.content.length>200?'…':''}</div>` : ''}
-        ${s.post_url ? `<div style="margin-top:4px"><a href="${esc(s.post_url)}" target="_blank" style="font-size:11px;color:#1D9E75">View post ↗</a></div>` : ''}
-        <div class="signal-meta">
-          <span class="signal-type-badge badge-${s.type}">${s.type.replace(/_/g,' ')}</span>
-          <span class="signal-time">${timeAgo(s.occurred_at || s.created_at)}</span>
-          ${s.is_known ? '<span style="font-size:10px;background:#0d2a1f;color:#34d399;padding:2px 6px;border-radius:10px;font-weight:600">In your lists</span>' : ''}
+        ${sub ? `<div class="sig-sub">${esc(sub)}</div>` : ''}
+        ${s.content ? `<div class="sig-msg">${esc(s.content.slice(0,200))}</div>` : ''}
+        <div class="sig-meta">
+          <span>${ago(s.occurred_at || s.created_at)}</span>
+          ${s.campaign_name ? `<span class="sig-camp">📋 ${esc(s.campaign_name)}</span>` : ''}
+          ${s.account_name  ? `<span class="sig-acct">via ${esc(s.account_name)}</span>` : ''}
         </div>
       </div>
-      <div class="signal-actions">
-        ${!s.is_known ? `<button class="action-btn-sm" onclick="openAddModal(${s.id}, '${esc(whoFull)}')">+ Add to list</button>` : ''}
-        ${liUrl ? `<a href="${esc(liUrl)}" target="_blank" class="action-btn-sm" style="text-decoration:none">View profile</a>` : ''}
+      <div class="sig-actions">
+        ${action ? `<button class="act-btn act-primary" onclick="handleAction('${action.action}','${esc(s.id)}','${esc(chatId||'')}','${esc(liUrl)}','${esc(name)}')">${action.label}</button>` : ''}
+        ${s.enrollment_id ? `<button class="act-btn act-secondary" onclick="goToEnrollment(${enrId})">View</button>` : ''}
+        <button class="act-btn act-dismiss" onclick="dismiss('${s.id}')">✕</button>
       </div>
     </div>`;
   }).join('');
-
-  document.getElementById('signalList').innerHTML = `<div class="signal-list">${html}</div>`;
-  renderPagination(data.total, limit);
 }
 
-function renderPagination(total, limit) {
-  const el = document.getElementById('paginationEl');
-  if (totalPages <= 1) { el.style.display = 'none'; return; }
-  el.style.display = 'flex';
-  let html = '';
-  if (currentPage > 1) html += `<button class="page-btn" onclick="goPage(${currentPage-1})">← Prev</button>`;
-  html += `<span class="page-info">Page ${currentPage} of ${totalPages} · ${total} signals</span>`;
-  if (currentPage < totalPages) html += `<button class="page-btn" onclick="goPage(${currentPage+1})">Next →</button>`;
-  el.innerHTML = html;
+function renderPager(total, limit, page) {
+  const pages = Math.ceil(total / limit);
+  const pager = document.getElementById('pager');
+  if (pages <= 1) { pager.innerHTML = ''; return; }
+  pager.innerHTML = Array.from({length: Math.min(pages,10)}, (_,i) => i+1)
+    .map(p => `<button class="page-btn ${p===page?'active':''}" onclick="goPage(${p})">${p}</button>`)
+    .join('');
 }
 
 function goPage(p) { currentPage = p; load(); }
 
-function setTypeFilter(type) {
-  activeType = type;
-  document.getElementById('typeFilter').value = type;
-  currentPage = 1;
-  load();
-  loadStats();
-}
-
-function onFilterChange() { currentPage = 1; load(); }
-
-// ── Add to list modal ──────────────────────────────────────────────────────
-async function openAddModal(signalId, name) {
-  addingSignalId = signalId;
-  document.getElementById('addModalTitle').textContent = `Add ${name} to List`;
-
-  if (!lists.length) {
-    const d = await api(`/api/lists?workspace_id=${WS_ID}`);
-    lists = d.items || [];
+function handleAction(action, sigId, chatId, liUrl, name) {
+  if (action === 'open_chat' && chatId) {
+    window.parent?.postMessage({ type: 'open-inbox-contact', action: 'open_inbox_contact', chat_id: chatId, name }, '*');
+  } else if (action === 'open_chat') {
+    window.parent?.postMessage({ type: 'open-inbox-contact', action: 'open_inbox_contact', li_profile_url: liUrl, name }, '*');
+  } else {
+    alert(`Action "${action}" for ${name} — coming soon`);
   }
-
-  const sel = document.getElementById('addListSelect');
-  sel.innerHTML = lists.map(l => `<option value="${l.id}">${esc(l.name)} (${l.contact_count||0} contacts)</option>`).join('');
-  document.getElementById('addModal').style.display = 'flex';
 }
 
-function closeAddModal() {
-  document.getElementById('addModal').style.display = 'none';
-  addingSignalId = null;
+function goToEnrollment(enrId) {
+  window.parent?.postMessage({ type: 'show-enrollment', enrollment_id: enrId }, '*');
 }
 
-async function doAddToList() {
-  const listId = parseInt(document.getElementById('addListSelect').value);
-  if (!listId || !addingSignalId) return;
-
-  const r = await api(`/api/signals/${addingSignalId}/add-to-list`, {
-    method: 'POST',
-    body: JSON.stringify({ workspace_id: WS_ID, list_id: listId }),
-  });
-
-  if (r.error) { toast(r.error, 'error'); return; }
-  toast('Contact added to list', 'success');
-  closeAddModal();
-  load();
+function dismiss(sigId) {
+  const card = document.getElementById(`sig-${sigId}`);
+  if (card) card.style.opacity = '0.3';
+  fetch(`/api/signals/${sigId}/dismiss`, { method: 'POST' }).catch(()=>{});
 }
 
-// ── Auto-refresh every 2 minutes ───────────────────────────────────────────
-setInterval(() => { if (currentPage === 1) load(); }, 120000);
-
-// ── Init ───────────────────────────────────────────────────────────────────
+// Init
 loadStats();
 load();
+setInterval(load, 60000);
 </script>
 </body>
 </html>

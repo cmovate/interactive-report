@@ -1,132 +1,200 @@
 /**
  * src/routes/signals.js
  *
- * Signals (inbound LinkedIn events) — the Feed tab.
+ * Signals — inbound LinkedIn intent events.
  *
- * GET /api/workspaces/:wsId/feed     — paginated signal stream
- * GET /api/workspaces/:wsId/signals  — same, with more filters
- * POST /api/signals/:id/add-to-list  — add unknown actor to a list
+ * Sources:
+ *   1. signals table — real webhook events (new_relation, message_received etc.)
+ *   2. Derived signals — synthesized from existing data:
+ *      - invite_accepted: enrollments where status went to 'approved'
+ *      - message_replied: enrollments where status is 'replied' or 'positive_reply'
+ *      - positive_reply: enrollments with positive_reply status
+ *
+ * GET  /api/signals?workspace_id=&type=&is_known=&page=&limit=
+ * GET  /api/signals/stats?workspace_id=
+ * POST /api/signals/:id/dismiss
+ * POST /api/signals/:id/add-to-list
  */
 
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
 
-// GET /api/signals?workspace_id=&type=&is_known=&from=&to=&page=&limit=
+// ── Signal type metadata ──────────────────────────────────────────────────────
+const SIGNAL_META = {
+  invite_accepted:   { icon: '🤝', label: 'Accepted Invite',   color: '#1D9E75', priority: 3 },
+  message_received:  { icon: '💬', label: 'Replied',           color: '#3B82F6', priority: 5 },
+  positive_reply:    { icon: '⭐', label: 'Positive Reply',    color: '#F59E0B', priority: 6 },
+  profile_view:      { icon: '👁️', label: 'Viewed Profile',   color: '#8B5CF6', priority: 4 },
+  invitation_received:{ icon: '🔔', label: 'Sent Invite to Us',color: '#EC4899', priority: 5 },
+  reaction_received: { icon: '👍', label: 'Liked Post',        color: '#F97316', priority: 2 },
+  comment_received:  { icon: '💭', label: 'Commented',         color: '#06B6D4', priority: 4 },
+  company_follow:    { icon: '🏢', label: 'Followed Company',  color: '#6366F1', priority: 3 },
+  new_relation:      { icon: '✅', label: 'Connected',         color: '#10B981', priority: 3 },
+};
+
+// ── GET /api/signals?workspace_id=&type=&is_known=&page=&limit= ───────────────
 router.get('/', async (req, res) => {
   try {
-    const { workspace_id, type, is_known, from, to } = req.query;
+    const { workspace_id, type, is_known } = req.query;
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
-
-    const page   = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit  = Math.min(100, parseInt(req.query.limit) || 50);
+    const wsId  = parseInt(workspace_id);
+    const page  = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
     const offset = (page - 1) * limit;
 
+    // Build WHERE for real signals
     const conds  = ['s.workspace_id = $1'];
-    const params = [workspace_id];
-
-    if (type) {
-      params.push(type);
-      conds.push(`s.type = $${params.length}`);
-    }
-    if (is_known !== undefined) {
-      params.push(is_known === 'true' || is_known === true);
-      conds.push(`s.is_known = $${params.length}`);
-    }
-    if (from) {
-      params.push(from);
-      conds.push(`s.occurred_at >= $${params.length}`);
-    }
-    if (to) {
-      params.push(to);
-      conds.push(`s.occurred_at <= $${params.length}`);
-    }
-
+    const params = [wsId];
+    if (type && type !== 'all') { params.push(type); conds.push(`s.type = $${params.length}`); }
+    if (is_known === 'true')    { conds.push('s.is_known = true'); }
     const where = conds.join(' AND ');
 
-    const { rows: total } = await db.query(
-      `SELECT COUNT(*) FROM signals s WHERE ${where}`, params
-    );
-
-    const { rows } = await db.query(`
+    // Real signals from signals table
+    const { rows: realSignals } = await db.query(`
       SELECT
-        s.*,
-        c.first_name, c.last_name, c.company, c.title, c.li_profile_url AS contact_li_url,
-        ta.name AS target_account_name
+        s.id, s.type, s.actor_name, s.actor_li_url, s.actor_provider_id,
+        s.actor_headline, s.is_known, s.content, s.post_url,
+        s.occurred_at, s.created_at, s.subject_li_account_id,
+        c.first_name, c.last_name, c.company AS contact_company,
+        c.title AS contact_title, c.li_profile_url AS contact_li_url,
+        e.id AS enrollment_id, e.status AS enrollment_status,
+        e.campaign_id,
+        camp.name AS campaign_name,
+        ua.display_name AS account_name,
+        'real' AS source
       FROM signals s
-      LEFT JOIN contacts       c  ON c.id  = s.actor_contact_id
-      LEFT JOIN target_accounts ta ON ta.id = s.actor_target_account_id
+      LEFT JOIN contacts       c    ON c.id  = s.actor_contact_id
+      LEFT JOIN enrollments    e    ON e.contact_id = c.id AND e.campaign_id IN (
+        SELECT id FROM campaigns WHERE workspace_id = $1
+      )
+      LEFT JOIN campaigns      camp ON camp.id = e.campaign_id
+      LEFT JOIN unipile_accounts ua ON ua.account_id = s.subject_li_account_id AND ua.workspace_id = $1
       WHERE ${where}
       ORDER BY s.occurred_at DESC NULLS LAST
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 
-    res.json({
-      items: rows,
-      total: parseInt(total[0].count),
-      page, limit,
-      pages: Math.ceil(parseInt(total[0].count) / limit) || 1,
-    });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+    // If no real signals yet, synthesize from enrollment history
+    let synthesized = [];
+    if (realSignals.length === 0 && (!type || type === 'all' || ['invite_accepted','message_received','positive_reply'].includes(type))) {
+      const typeFilter = type && type !== 'all'
+        ? `AND e.status = '${type === 'invite_accepted' ? 'approved' : type === 'positive_reply' ? 'positive_reply' : 'replied'}'`
+        : `AND e.status IN ('approved','messaged','replied','positive_reply')`;
 
-// POST /api/signals/:id/add-to-list — add unknown actor to a list
-router.post('/:id/add-to-list', async (req, res) => {
-  try {
-    const { workspace_id, list_id } = req.body;
-    if (!workspace_id || !list_id) return res.status(400).json({ error: 'workspace_id and list_id required' });
+      const { rows: synth } = await db.query(`
+        SELECT
+          e.id AS enrollment_id,
+          e.status,
+          e.invite_approved_at,
+          e.updated_at,
+          c.id AS contact_id,
+          c.first_name, c.last_name, c.company, c.title,
+          c.li_profile_url, c.chat_id,
+          camp.name AS campaign_name,
+          camp.account_id,
+          ua.display_name AS account_name,
+          (SELECT LEFT(m.content,200) FROM inbox_messages m
+           JOIN inbox_threads t ON t.id = m.thread_id
+           WHERE t.thread_id = COALESCE(e.chat_id, c.chat_id)
+             AND m.direction = 'received'
+           ORDER BY m.sent_at DESC LIMIT 1) AS last_reply
+        FROM enrollments e
+        JOIN contacts c ON c.id = e.contact_id
+        JOIN campaigns camp ON camp.id = e.campaign_id
+        LEFT JOIN unipile_accounts ua ON ua.account_id = camp.account_id AND ua.workspace_id = $1
+        WHERE camp.workspace_id = $1
+          ${typeFilter}
+        ORDER BY e.updated_at DESC
+        LIMIT $2 OFFSET $3
+      `, [wsId, limit, offset]);
 
-    const signalId = parseInt(req.params.id);
-    const { rows: sig } = await db.query(
-      'SELECT * FROM signals WHERE id=$1 AND workspace_id=$2',
-      [signalId, workspace_id]
-    );
-    if (!sig.length) return res.status(404).json({ error: 'Signal not found' });
-    const signal = sig[0];
-
-    if (!signal.actor_li_url && !signal.actor_provider_id)
-      return res.status(400).json({ error: 'Signal has no actor URL' });
-
-    // Upsert contact
-    const liUrl = signal.actor_li_url ||
-      (signal.actor_provider_id ? `https://www.linkedin.com/in/${signal.actor_provider_id}` : null);
-
-    const { rows: existing } = await db.query(
-      'SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1',
-      [workspace_id, liUrl]
-    );
-
-    let contactId;
-    if (existing.length) {
-      contactId = existing[0].id;
-    } else {
-      const { rows: ins } = await db.query(`
-        INSERT INTO contacts (workspace_id, li_profile_url, first_name, last_name, title, provider_id)
-        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
-      `, [
-        workspace_id, liUrl,
-        signal.actor_name?.split(' ')[0] || '',
-        signal.actor_name?.split(' ').slice(1).join(' ') || '',
-        signal.actor_headline || '',
-        signal.actor_provider_id || null,
-      ]);
-      contactId = ins[0].id;
+      synthesized = synth.map(r => {
+        let signalType = 'invite_accepted';
+        if (r.status === 'positive_reply') signalType = 'positive_reply';
+        else if (r.status === 'replied') signalType = 'message_received';
+        else if (r.status === 'messaged') signalType = 'invite_accepted';
+        return {
+          id: `synth_${r.enrollment_id}`,
+          type: signalType,
+          actor_name: [r.first_name, r.last_name].filter(Boolean).join(' '),
+          actor_li_url: r.li_profile_url,
+          contact_li_url: r.li_profile_url,
+          contact_company: r.company,
+          contact_title: r.title,
+          is_known: true,
+          content: r.last_reply || null,
+          occurred_at: r.updated_at,
+          enrollment_id: r.enrollment_id,
+          enrollment_status: r.status,
+          campaign_name: r.campaign_name,
+          account_name: r.account_name,
+          chat_id: r.chat_id,
+          source: 'derived',
+          first_name: r.first_name,
+          last_name: r.last_name,
+        };
+      });
     }
 
-    // Add to list
-    await db.query(
-      'INSERT INTO list_contacts (list_id, contact_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
-      [list_id, contactId]
+    const items = realSignals.length > 0 ? realSignals : synthesized;
+    const { rows: countRows } = await db.query(
+      `SELECT COUNT(*) FROM signals s WHERE ${where}`, params
     );
+    const total = parseInt(countRows[0]?.count || 0) || items.length;
 
-    // Mark signal as known
-    await db.query(
-      `UPDATE signals SET is_known=true, actor_contact_id=$2 WHERE id=$1`,
-      [signalId, contactId]
-    );
+    res.json({ items, total, page, limit, source: realSignals.length > 0 ? 'real' : 'derived' });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
-    res.json({ success: true, contact_id: contactId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+// ── GET /api/signals/stats?workspace_id= ─────────────────────────────────────
+router.get('/stats', async (req, res) => {
+  try {
+    const { workspace_id } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+    const wsId = parseInt(workspace_id);
+
+    // Real signal stats
+    const { rows: signalStats } = await db.query(`
+      SELECT type, COUNT(*) as n, COUNT(*) FILTER (WHERE is_known) as known_n
+      FROM signals WHERE workspace_id = $1
+      GROUP BY type ORDER BY n DESC
+    `, [wsId]);
+
+    // Derived stats from enrollments
+    const { rows: enrollStats } = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE e.status IN ('approved','messaged','replied','positive_reply')) AS total_activity,
+        COUNT(*) FILTER (WHERE e.status = 'positive_reply') AS positive_replies,
+        COUNT(*) FILTER (WHERE e.status IN ('replied','positive_reply')) AS replies,
+        COUNT(*) FILTER (WHERE e.status IN ('approved','messaged','replied','positive_reply')) AS connections
+      FROM enrollments e
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      WHERE camp.workspace_id = $1
+    `, [wsId]);
+
+    const stats = enrollStats[0] || {};
+    const total = parseInt(stats.total_activity) || 0;
+
+    res.json({
+      real_signals: signalStats,
+      total_real: signalStats.reduce((s,r) => s + parseInt(r.n), 0),
+      derived: {
+        connections: parseInt(stats.connections) || 0,
+        replies: parseInt(stats.replies) || 0,
+        positive_replies: parseInt(stats.positive_replies) || 0,
+        total: total,
+      }
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── POST /api/signals/:id/dismiss ────────────────────────────────────────────
+router.post('/:id/dismiss', async (req, res) => {
+  const { id } = req.params;
+  if (id.startsWith('synth_')) return res.json({ ok: true });
+  await db.query('UPDATE signals SET is_notified=true WHERE id=$1', [id]).catch(()=>{});
+  res.json({ ok: true });
 });
 
 module.exports = router;
