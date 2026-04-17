@@ -206,7 +206,8 @@ function renderCompanies(companies) {
               ${c.li_profile_url ? `<a href="${esc(c.li_profile_url)}" target="_blank">↗</a>` : ''}
             </div>
             <div class="contact-title">${esc(c.title)||'—'}</div>
-            <div><span class="via-tag">👤 ${esc(c.connected_via_name)}</span></div>
+            <div><span class="via-tag">👤 ${esc(c.connected_via_name)}</span>${c.chat_id ? ' <span title="Has chat history">💬</span>' : ''}</div>
+            <div><button class="btn-msg" onclick='openInbox(${JSON.stringify(c)})'>${c.chat_id ? '💬 Open chat' : '✉️ Message'}</button></div>
           </div>
         `).join('')}
       </div>
