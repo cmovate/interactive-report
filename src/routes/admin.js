@@ -1893,7 +1893,20 @@ router.post('/test-relations', async (req, res) => {
     if (!accts.length) return res.status(400).json({ error: 'no accounts' });
     const unipile = require('../unipile');
     // Try Unipile's relations endpoint
-    const data = await unipile._request(`/api/v1/linkedin/relations?account_id=${encodeURIComponent(accts[0].account_id)}&limit=5`);
-    res.json({ sample: data });
+    // Try multiple Unipile endpoint variations
+    const endpoints = [
+      `/api/v1/linkedin/relations?account_id=${encodeURIComponent(accts[0].account_id)}&limit=5`,
+      `/api/v1/users?account_id=${encodeURIComponent(accts[0].account_id)}&relation=DISTANCE_1&limit=5`,
+      `/api/v1/linkedin/network?account_id=${encodeURIComponent(accts[0].account_id)}&limit=5`,
+    ];
+    const results = {};
+    for (const ep of endpoints) {
+      try {
+        results[ep] = await unipile._request(ep);
+      } catch(e) {
+        results[ep] = { error: e.message.slice(0, 80) };
+      }
+    }
+    res.json(results);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
