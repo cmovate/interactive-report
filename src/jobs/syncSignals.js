@@ -152,13 +152,6 @@ async function handler() {
         // Their LinkedIn URL
         const otherLiUrl = `https://www.linkedin.com/in/${otherProviderId}`;
 
-        // Check if already a signal
-        const { rows: existing } = await db.query(
-          `SELECT id FROM signals WHERE workspace_id=$1 AND actor_provider_id=$2 AND type='inbound_message' AND created_at > NOW()-'30 days'::interval LIMIT 1`,
-          [acc.workspace_id, otherProviderId]
-        );
-        if (existing.length) continue;
-
         // Check if this person is in our workspace (known contact in a campaign)
         const knownContact = await isKnownContact(otherProviderId, acc.workspace_id);
 
