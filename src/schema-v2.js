@@ -184,6 +184,16 @@ async function initSchemaV2() {
   await s('list_companies.opp_last_synced_at', () => db.query(
     `ALTER TABLE list_companies ADD COLUMN IF NOT EXISTS opp_last_synced_at TIMESTAMPTZ`
   ));
+  await s('contacts.unique_campaign_idx', () => db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_campaign
+    ON contacts (workspace_id, li_profile_url, campaign_id)
+    WHERE campaign_id IS NOT NULL
+  `));
+  await s('contacts.unique_pool_idx', () => db.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_pool
+    ON contacts (workspace_id, li_profile_url)
+    WHERE campaign_id IS NULL
+  `));
 
   // ── Signals (all inbound LinkedIn events) ────────────────────────────────
   await s('signals', () => db.query(`
