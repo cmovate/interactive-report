@@ -2253,3 +2253,14 @@ router.get('/debug-unipile', async (req, res) => {
     res.json({ ok: true, path: uPath, keys: Object.keys(data || {}), sample: JSON.stringify(data).slice(0, 500) });
   } catch(e) { res.json({ ok: false, path: uPath, error: e.message.slice(0,200) }); }
 });
+
+// POST /api/admin/run-sync-signals — trigger syncSignals job immediately
+router.post('/run-sync-signals', async (req, res) => {
+  res.json({ status: 'started' });
+  (async () => {
+    try {
+      const { handler } = require('../jobs/syncSignals');
+      await handler();
+    } catch(e) { console.error('[run-sync-signals] error:', e.message); }
+  })();
+});
