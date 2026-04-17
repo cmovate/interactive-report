@@ -144,6 +144,50 @@ function triggerInboxSync(workspace_id, account_id) {
   req.end();
 }
 
+// After successful send: ensure contact + thread exist in inbox tables
+async function upsertContactToInbox(workspace_id, account_id, provider_id, li_profile_url, chat_id, first_name, last_name, title) {
+  try {
+    // 1. Upsert contact into contacts table (campaign_id=NULL = workspace pool)
+    const { rows: existing } = await db.query(
+      `SELECT id FROM contacts WHERE workspace_id=$1 AND li_profile_url=$2 LIMIT 1`,
+      [workspace_id, li_profile_url]
+    );
+    let contactId;
+    if (existing.length) {
+      contactId = existing[0].id;
+      // Update chat_id if we have it
+      if (chat_id) {
+        await db.query(`UPDATE contacts SET chat_id=$1 WHERE id=$2 AND (chat_id IS NULL OR chat_id='')`,
+          [chat_id, contactId]);
+      }
+    } else {
+      const { rows: ins } = await db.query(`
+        INSERT INTO contacts (workspace_id, campaign_id, first_name, last_name, title, li_profile_url, provider_id, chat_id, already_connected)
+        VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true)
+        ON CONFLICT (workspace_id, li_profile_url) DO UPDATE
+          SET chat_id = COALESCE(NULLIF(EXCLUDED.chat_id,''), contacts.chat_id),
+              already_connected = true
+        RETURNING id
+      `, [workspace_id, first_name||'', last_name||'', title||'', li_profile_url, provider_id||null, chat_id||null]);
+      contactId = ins[0]?.id;
+    }
+    if (!contactId || !chat_id) return;
+
+    // 2. Upsert inbox_thread
+    await db.query(`
+      INSERT INTO inbox_threads (workspace_id, contact_id, account_id, thread_id, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (workspace_id, contact_id, account_id) DO UPDATE
+        SET thread_id = EXCLUDED.thread_id,
+            updated_at = NOW()
+    `, [workspace_id, contactId, account_id, chat_id]);
+
+    console.log('[Opportunities] upserted to inbox:', li_profile_url, 'chat:', chat_id);
+  } catch(e) {
+    console.warn('[Opportunities] upsertContactToInbox error:', e.message);
+  }
+}
+
 // POST /api/opportunities/send-dm
 // Sends a LinkedIn DM to a contact. Uses existing chat_id if available,
 // otherwise tries to open a new conversation.
@@ -171,6 +215,14 @@ router.post('/send-dm', async (req, res) => {
     const target = acoId || slug;
     if (!target) return res.status(400).json({ error: 'Cannot extract identifier from provider_id or li_profile_url' });
 
+    // Lookup contact info for inbox upsert
+    const { rows: ocInfo } = await db.query(
+      `SELECT first_name, last_name, title, li_profile_url, aco_id
+       FROM opportunity_contacts WHERE workspace_id=$1 AND provider_id=$2 LIMIT 1`,
+      [workspace_id, provider_id || slug]
+    ).catch(() => ({ rows: [] }));
+    const ocContact = ocInfo?.[0] || {};
+
     // Determine which account to use
     let accId = account_id;
     if (!accId) {
@@ -190,7 +242,9 @@ router.post('/send-dm', async (req, res) => {
     );
     if (ocRows[0]?.chat_id) {
       await unipile.sendMessage(accId, ocRows[0].chat_id, message.trim());
-      return res.json({ success: true, chat_id: ocRows[0].chat_id, method: 'existing_chat', sync: triggerInboxSync(workspace_id, accId) });
+      upsertContactToInbox(workspace_id, accId, target, ocContact.li_profile_url||li_profile_url, ocRows[0].chat_id, ocContact.first_name, ocContact.last_name, ocContact.title);
+      triggerInboxSync(workspace_id, accId);
+      return res.json({ success: true, chat_id: ocRows[0].chat_id, method: 'existing_chat' });
     }
 
     // Step 2: check inbox_threads
@@ -203,7 +257,8 @@ router.post('/send-dm', async (req, res) => {
     );
     if (thrRows[0]?.thread_id) {
       await unipile.sendMessage(accId, thrRows[0].thread_id, message.trim());
-      return res.json({ success: true, chat_id: thrRows[0].thread_id, method: 'inbox_thread', sync: triggerInboxSync(workspace_id, accId) });
+      triggerInboxSync(workspace_id, accId);
+      return res.json({ success: true, chat_id: thrRows[0].thread_id, method: 'inbox_thread' });
     }
 
     // Step 3: look up existing chat on Unipile
@@ -217,6 +272,7 @@ router.post('/send-dm', async (req, res) => {
          WHERE workspace_id=$2 AND provider_id=$3 AND connected_via_account_id=$4`,
         [chatId, workspace_id, target, accId]
       ).catch(() => {});
+      upsertContactToInbox(workspace_id, accId, target, ocContact.li_profile_url||li_profile_url, chatId, ocContact.first_name, ocContact.last_name, ocContact.title);
       triggerInboxSync(workspace_id, accId);
       return res.json({ success: true, chat_id: chatId, method: 'unipile_lookup' });
     }
@@ -231,6 +287,7 @@ router.post('/send-dm', async (req, res) => {
         [chatId, workspace_id, target, accId]
       ).catch(() => {});
     }
+    upsertContactToInbox(workspace_id, accId, target, ocContact.li_profile_url||li_profile_url, chatId, ocContact.first_name, ocContact.last_name, ocContact.title);
     triggerInboxSync(workspace_id, accId);
     return res.json({ success: true, chat_id: chatId, method: 'new_dm' });
 
