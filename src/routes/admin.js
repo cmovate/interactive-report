@@ -1959,3 +1959,16 @@ router.post('/enrich-opportunity-contacts', async (req, res) => {
     }
   })();
 });
+
+// POST /api/admin/get-aco-id — resolve ACoXXX for a LinkedIn profile URL
+router.post('/get-aco-id', async (req, res) => {
+  const { workspace_id, li_profile_url } = req.body;
+  try {
+    const { rows: accts } = await db.query(
+      `SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1`, [workspace_id]
+    );
+    const unipile = require('../unipile');
+    const enriched = await unipile.enrichProfile(accts[0].account_id, li_profile_url);
+    res.json({ provider_id: enriched?.provider_id, raw: enriched });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
