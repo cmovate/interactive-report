@@ -261,38 +261,20 @@ async function startDirectMessage(accountId, providerId, text) {
 }
 
 async function getChatsByAttendee(accountId, providerId) {
-  // Method 1: use /api/v1/users/{provider_id}/chats — direct lookup for this attendee
+  // ONLY use /api/v1/users/{provider_id}/chats — direct, reliable lookup.
+  // Fallback scan was REMOVED — scanning 200 chats returns false positives (wrong person).
   try {
     const params = new URLSearchParams({ account_id: accountId });
     const data = await request(`/api/v1/users/${encodeURIComponent(providerId)}/chats?${params}`);
     const items = Array.isArray(data?.items) ? data.items : [];
     if (items.length > 0) {
-      console.log(`[Unipile] getChatsByAttendee via /users/chats: found ${items.length} chat(s) for ${providerId}`);
-      return items;
+      console.log(`[Unipile] getChatsByAttendee: found ${items.length} chat(s) for ${providerId}`);
     }
+    return items;
   } catch(e) {
-    console.log(`[Unipile] getChatsByAttendee /users/chats failed (${e.message}), trying fallback`);
+    console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId} (${e.message})`);
+    return [];
   }
-
-  // Method 2: search recent chats with larger limit and attendee_provider_id filter
-  try {
-    const params = new URLSearchParams({ account_id: accountId, limit: '200' });
-    const data = await request(`/api/v1/chats?${params}`);
-    const items = Array.isArray(data?.items) ? data.items : [];
-    const match = items.find(c =>
-      c.attendee_provider_id === providerId ||
-      (c.attendees || []).some(a => a.provider_id === providerId)
-    );
-    if (match) {
-      console.log(`[Unipile] getChatsByAttendee via /chats scan: found chat ${match.id} for ${providerId}`);
-      return [match];
-    }
-  } catch(e) {
-    console.log(`[Unipile] getChatsByAttendee /chats scan failed: ${e.message}`);
-  }
-
-  console.log(`[Unipile] getChatsByAttendee: no chat found for ${providerId}`);
-  return [];
 }
 
 async function sendCompanyFollowInvites(accountId, companyPageUrn, memberUrns) {
