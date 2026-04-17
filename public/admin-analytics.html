@@ -555,17 +555,42 @@ if (WORKSPACE_ID) {
         withdrawn:      { label: 'Withdrawn',     color: '#f87171' },
       };
       const ORDER = ['pending','invite_sent','approved','messaged','replied','positive_reply','done','withdrawn'];
+      const total = data.total || 1;
+      const invited = data.by_status['invite_sent'] || 0;
+      const approved = data.by_status['approved'] || 0;
+      const approvalRate = invited > 0 ? Math.round(approved / invited * 100) : 0;
       funnel.innerHTML = ORDER
         .filter(s => data.by_status[s] > 0)
         .map(s => {
           const meta = STATUS_META[s] || { label: s, color: '#888' };
           const n    = data.by_status[s];
+          const pctOfTotal = Math.round(n / total * 100);
           return `<div style="background:#f9fafb;border:1px solid #e5e5e5;border-radius:8px;padding:10px 16px;min-width:90px;text-align:center;">
             <div style="font-size:20px;font-weight:700;color:${meta.color}">${n.toLocaleString()}</div>
             <div style="font-size:11px;color:#888;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">${meta.label}</div>
+            ${s !== 'pending' ? `<div style="font-size:10px;color:#bbb;margin-top:2px">${pctOfTotal}% of total</div>` : ''}
+          </div>`;
+        }).join('') +
+        (approvalRate > 0 ? `<div style="display:flex;align-items:center;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;min-width:90px;text-align:center;flex-direction:column;justify-content:center;">
+          <div style="font-size:20px;font-weight:700;color:#16a34a">${approvalRate}%</div>
+          <div style="font-size:11px;color:#888;margin-top:2px;text-transform:uppercase;letter-spacing:.04em">Approval Rate</div>
+        </div>` : '');
+      section.style.display = '';
+      // Campaign breakdown below pipeline (if multiple campaigns)
+      if (data.by_campaign && data.by_campaign.length > 1) {
+        const campBreak = document.createElement('div');
+        campBreak.style.cssText = 'margin-top:12px;border-top:1px solid #e5e5e5;padding-top:10px;';
+        campBreak.innerHTML = data.by_campaign.map(c => {
+          const inv = c.statuses.invite_sent || 0;
+          const msg = c.statuses.messaged || 0;
+          const rep = c.statuses.replied || 0;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;">
+            <span style="color:#555;font-weight:500">${c.name}</span>
+            <span style="color:#888">${inv} invited · ${msg} messaged · <b style="color:#1D9E75">${rep} replied</b></span>
           </div>`;
         }).join('');
-      section.style.display = '';
+        section.appendChild(campBreak);
+      }
     }).catch(() => {});
 }
 
