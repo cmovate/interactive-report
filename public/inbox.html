@@ -404,15 +404,23 @@ function sendNewDM(providerId, wsId) {
   var content = (document.getElementById('reply-input')?.value || '').trim();
   if (!content) return;
   var accId = selectedAccount;
-  // Fallback: if no account selected, try the first available account
+  // Fallback 1: use currentThread account_id (set by showEmptyChat via Opportunities)
+  if (!accId && currentThread && currentThread._accountId) accId = currentThread._accountId;
+  // Fallback 2: use first loaded account
   if (!accId && accounts && accounts.length > 0) {
     accId = accounts[0].account_id;
     setAccount(accId);
   }
-  if (!accId) { 
-    // Try to get from the workspace accounts API
-    alert('אין חשבון מחובר. אנא בחר חשבון בראש המסך.');
-    return; 
+  if (!accId) {
+    // Fallback 3: fetch from API directly
+    fetch('/api/workspaces/' + wsId + '/accounts')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var first = (d.items || d)[0];
+        if (first) { accId = first.account_id; sendNewDM(providerId, wsId); }
+        else alert('אין חשבון מחובר.');
+      });
+    return;
   }
   var btn = document.querySelector('.send-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
@@ -495,7 +503,7 @@ function showEmptyChat(data, pid, url, wid, accountId) {
           '<button class="send-btn" onclick="sendNewDM(' + JSON.stringify(pid) + ',' + JSON.stringify(wid) + ')">Send ▶</button>' +
         '</div>' +
       '</div>';
-    currentThread = { id: null, provider_id: pid, li_profile_url: url, first_name: data.first_name, last_name: data.last_name, _newContact: true };
+    currentThread = { id: null, provider_id: pid, li_profile_url: url, first_name: data.first_name, last_name: data.last_name, _newContact: true, _accountId: accountId };
   }
 }
 
