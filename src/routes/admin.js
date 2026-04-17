@@ -1929,3 +1929,33 @@ router.post('/test-relations', async (req, res) => {
     res.json(results);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/enrich-opportunity-contacts — fill aco_id via enrichProfile for contacts missing it
+router.post('/enrich-opportunity-contacts', async (req, res) => {
+  const { workspace_id } = req.body;
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+  res.json({ status: 'started' });
+  // Run in background
+  (async () => {
+    const unipile = require('../unipile');
+    const { rows: contacts } = await db.query(`
+      SELECT oc.id, oc.li_profile_url, oc.connected_via_account_id
+      FROM opportunity_contacts oc
+      WHERE oc.workspace_id=$1 AND (oc.aco_id IS NULL OR oc.aco_id='')
+      LIMIT 20
+    `, [workspace_id]);
+    for (const c of contacts) {
+      try {
+        const enriched = await unipile.enrichProfile(c.connected_via_account_id, c.li_profile_url);
+        const acoId = enriched?.provider_id?.startsWith('ACo') ? enriched.provider_id : null;
+        if (acoId) {
+          await db.query(`UPDATE opportunity_contacts SET aco_id=$1 WHERE id=$2`, [acoId, c.id]);
+          console.log(`[EnrichOpp] ${c.li_profile_url} → ${acoId}`);
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      } catch(e) {
+        console.warn(`[EnrichOpp] ${c.li_profile_url}: ${e.message}`);
+      }
+    }
+  })();
+});
