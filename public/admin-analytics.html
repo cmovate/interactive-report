@@ -171,7 +171,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <!-- By workspace -->
   <div class="section">
     <div class="section-head">
-      <div><div class="section-title">By Workspace</div><div class="section-sub" id="ws-sub">—</div></div>
+      <div id="ws-section"><div class="section-title">By Workspace</div><div class="section-sub" id="ws-sub">—</div></div>
     </div>
     <div id="ws-table-wrap"><div class="loading-overlay">Loading…</div></div>
   </div>
@@ -349,6 +349,9 @@ function render() {
   renderKPIs(summary);
   renderChart(timeline);
   renderFunnel(summary);
+  // Hide "By Workspace" section when viewing a specific workspace (redundant)
+  const wsSection = document.getElementById('ws-section');
+  if (wsSection) wsSection.style.display = WORKSPACE_ID ? 'none' : '';
   renderWsTable(by_workspace);
   renderAccTable(by_account);
   renderCampTable(by_campaign);
@@ -452,7 +455,7 @@ const TABLE_COLS = [
   { key: 'contacts_added',   label: 'Contacts' },
   { key: 'invites_sent',     label: 'Invites' },
   { key: 'invites_approved', label: 'Approved',  rate: ['invites_approved','invites_sent'] },
-  { key: 'messages_sent',    label: 'Messages' },
+  { key: 'messages_sent',    label: 'Messages',  rate: ['messages_sent','invites_approved'] },
   { key: 'messages_replied', label: 'Replied',   rate: ['messages_replied','messages_sent'] },
   { key: 'positive_replies', label: 'Positive',  rate: ['positive_replies','messages_replied'] },
 ];
