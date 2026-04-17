@@ -2239,3 +2239,17 @@ router.post('/debug-webhook-register', async (req, res) => {
     res.json({ ok: false, error: e.message, body_sent: body });
   }
 });
+
+// GET /api/admin/debug-unipile?workspace_id=&path=  — probe Unipile endpoints
+router.get('/debug-unipile', async (req, res) => {
+  const { workspace_id, path: uPath } = req.query;
+  if (!workspace_id || !uPath) return res.status(400).json({ error: 'workspace_id and path required' });
+  const { rows } = await db.query('SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]);
+  if (!rows.length) return res.status(400).json({ error: 'no account' });
+  const { request: uRequest } = require('../unipile');
+  try {
+    const sep = uPath.includes('?') ? '&' : '?';
+    const data = await uRequest(`${uPath}${sep}account_id=${rows[0].account_id}`);
+    res.json({ ok: true, path: uPath, keys: Object.keys(data || {}), sample: JSON.stringify(data).slice(0, 500) });
+  } catch(e) { res.json({ ok: false, path: uPath, error: e.message.slice(0,200) }); }
+});
