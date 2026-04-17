@@ -43,7 +43,7 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; }
 
 .contacts-table { border-top: 1px solid #1e2a3a; display: none; }
 .contacts-table.open { display: block; }
-.contact-row { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #131929; align-items: center; font-size: 12px; }
+.contact-row { display: grid; grid-template-columns: 1fr 2fr 1fr auto; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #131929; align-items: center; font-size: 12px; }
 .contact-row:last-child { border-bottom: none; }
 .contact-row:hover { background: #131929; }
 .contact-name { font-weight: 500; color: #e2e8f0; }
@@ -51,10 +51,13 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; }
 .contact-name a:hover { opacity: 1; }
 .contact-title { color: #94a3b8; }
 .via-tag { display: inline-flex; align-items: center; gap: 4px; background: #0d1e17; border: 1px solid #1D9E75; color: #1D9E75; border-radius: 12px; padding: 2px 8px; font-size: 10px; font-weight: 500; }
-.col-header { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 12px; padding: 8px 16px; background: #0f1620; border-top: 1px solid #1e2a3a; }
+.col-header { display: grid; grid-template-columns: 1fr 2fr 1fr auto; gap: 12px; padding: 8px 16px; background: #0f1620; border-top: 1px solid #1e2a3a; }
 .col-header span { font-size: 10px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: .5px; }
 
 .empty { text-align: center; padding: 60px 24px; color: #475569; }
+.btn-msg { background:#1D9E75;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap; }
+.btn-msg:hover { background:#17875f; }
+.chat-badge { font-size:12px; }
 .empty-icon { font-size: 40px; margin-bottom: 12px; }
 .empty h3 { font-size: 15px; color: #64748b; margin-bottom: 6px; }
 .empty p { font-size: 13px; }
@@ -194,7 +197,7 @@ function renderCompanies(companies) {
       </div>
       <div class="contacts-table" id="table-${i}">
         <div class="col-header">
-          <span>Name</span><span>Title</span><span>Connected via</span>
+          <span>Name</span><span>Title</span><span>Connected via</span><span></span>
         </div>
         ${co.connections.map(c => `
           <div class="contact-row">
@@ -216,6 +219,22 @@ function toggleCard(i) {
   const chev  = document.getElementById('chev-' + i);
   table.classList.toggle('open');
   chev.classList.toggle('open');
+}
+
+function openInbox(contact) {
+  // Pass control to parent workspace — switch to inbox and open this contact
+  const payload = {
+    action: 'open_inbox_contact',
+    chat_id: contact.chat_id || null,
+    provider_id: contact.provider_id || null,
+    li_profile_url: contact.li_profile_url || null,
+    account_id: contact.connected_via_account_id,
+    name: ((contact.first_name||'') + ' ' + (contact.last_name||'')).trim() || contact.title || 'Contact'
+  };
+  // Send to parent frame (workspace.html)
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage(payload, '*');
+  }
 }
 
 function esc(s) {

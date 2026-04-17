@@ -44,6 +44,7 @@ router.get('/', async (req, res) => {
         oc.company_linkedin_id,
         oc.first_name, oc.last_name, oc.title,
         oc.li_profile_url, oc.provider_id,
+        oc.chat_id,
         oc.connected_via_account_id,
         oc.connected_via_name,
         oc.last_seen_at

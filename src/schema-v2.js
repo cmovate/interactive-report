@@ -175,6 +175,9 @@ async function initSchemaV2() {
   await s('opportunity_contacts.idx_ws', () => db.query(
     `CREATE INDEX IF NOT EXISTS idx_opp_contacts_ws ON opportunity_contacts(workspace_id, company_linkedin_id)`
   ));
+  await s('opportunity_contacts.chat_id', () => db.query(
+    `ALTER TABLE opportunity_contacts ADD COLUMN IF NOT EXISTS chat_id TEXT`
+  ));
 
   // ── Signals (all inbound LinkedIn events) ────────────────────────────────
   await s('signals', () => db.query(`

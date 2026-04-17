@@ -113,3 +113,49 @@ async function handler() {
 }
 
 module.exports = { handler };
+
+// After all contacts are upserted, look up existing chats for those without one
+async function lookupChats(workspace_id) {
+  // Get all opportunity contacts that have no chat_id yet
+  const { rows: contacts } = await db.query(`
+    SELECT oc.id, oc.provider_id, oc.li_profile_url,
+           oc.connected_via_account_id
+    FROM opportunity_contacts oc
+    WHERE oc.workspace_id = $1
+      AND oc.provider_id IS NOT NULL
+      AND oc.provider_id != ''
+      AND (oc.chat_id IS NULL OR oc.chat_id = '')
+    LIMIT 100
+  `, [workspace_id]);
+
+  if (!contacts.length) return;
+  console.log(`[Opportunities] Looking up chats for ${contacts.length} contacts in WS${workspace_id}`);
+
+  for (const c of contacts) {
+    try {
+      const chats = await unipile.getChatsByAttendee(c.connected_via_account_id, c.provider_id);
+      const chatId = chats?.[0]?.id || null;
+      if (chatId) {
+        await db.query(
+          `UPDATE opportunity_contacts SET chat_id=$1 WHERE id=$2`,
+          [chatId, c.id]
+        );
+      }
+      await new Promise(r => setTimeout(r, 500));
+    } catch(e) {
+      // silent — chat lookup is best-effort
+    }
+  }
+}
+
+const _origHandler = module.exports.handler;
+module.exports.handler = async function() {
+  await _origHandler();
+  // After sync, lookup chats for all workspaces
+  const { rows: wsList } = await db.query(
+    `SELECT DISTINCT workspace_id FROM opportunity_contacts WHERE (chat_id IS NULL OR chat_id='') AND provider_id IS NOT NULL`
+  );
+  for (const { workspace_id } of wsList) {
+    await lookupChats(workspace_id);
+  }
+};

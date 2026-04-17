@@ -253,8 +253,12 @@ init();
 
 // Listen for cross-iframe messages
 window.addEventListener('message', function(ev) {
-  if (!ev.data || ev.data.type !== 'open-inbox-contact') return;
+  if (!ev.data) return;
+  // Support both old and new action names
+  if (ev.data.type !== 'open-inbox-contact' && ev.data.action !== 'open_inbox_contact') return;
   var data = ev.data;
+  // Normalise to expected format for inbox
+  data.type = 'open-inbox-contact';
   // Switch to inbox tab first
   showScreen('inbox');
   // Retry sending until inbox iframe is ready (up to 3 seconds)
