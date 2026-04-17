@@ -173,13 +173,16 @@ async function upsertContactToInbox(workspace_id, account_id, provider_id, li_pr
     }
     if (!contactId || !chat_id) return;
 
-    // 2. Upsert inbox_thread
+    // 2. Upsert inbox_thread — unique key is thread_id
     await db.query(`
-      INSERT INTO inbox_threads (workspace_id, contact_id, account_id, thread_id, updated_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (workspace_id, contact_id, account_id) DO UPDATE
-        SET thread_id = EXCLUDED.thread_id,
-            updated_at = NOW()
+      INSERT INTO inbox_threads (workspace_id, contact_id, account_id, thread_id, updated_at, last_message_at)
+      VALUES ($1, $2, $3, $4, NOW(), NOW())
+      ON CONFLICT (thread_id) DO UPDATE
+        SET contact_id     = EXCLUDED.contact_id,
+            account_id     = EXCLUDED.account_id,
+            workspace_id   = EXCLUDED.workspace_id,
+            updated_at     = NOW(),
+            last_message_at = NOW()
     `, [workspace_id, contactId, account_id, chat_id]);
 
     console.log('[Opportunities] upserted to inbox:', li_profile_url, 'chat:', chat_id);
