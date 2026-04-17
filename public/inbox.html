@@ -319,10 +319,11 @@ window.addEventListener('message', function(ev) {
   var providerId = ev.data.provider_id;
   var liUrl      = ev.data.li_profile_url;
   var wsId       = ev.data.workspace_id || workspaceId;
+  var accountId  = ev.data.account_id || null;
   if (!providerId && !liUrl) return;
 
-  setTimeout(function() {
-    var accountId = ev.data.account_id || null;
+  // Switch to the right account first, then open
+  function doOpen() {
     // Step 1: search loaded threads in memory
     var found = threads.find(function(t){
       if (!t.li_profile_url && !t.provider_id) return false;
@@ -331,45 +332,55 @@ window.addEventListener('message', function(ev) {
              (liUrl && t.li_profile_url === liUrl);
     });
     if (found) {
-      if (accountId && accountId !== selectedAccount) setAccount(accountId);
-      setTimeout(function(){
-        openThread(found.id);
-        var el = document.getElementById('ti-' + found.id);
-        if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
-      }, accountId && accountId !== selectedAccount ? 300 : 0);
+      openThread(found.id);
+      var el = document.getElementById('ti-' + found.id);
+      if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
       return;
     }
 
     // Step 2: DB + Unipile lookup
     var accParam = (accountId||selectedAccount) ? '&account_id=' + encodeURIComponent(accountId||selectedAccount) : '';
     fetch('/api/inbox/by-provider?provider_id=' + encodeURIComponent(providerId||'') + '&workspace_id=' + encodeURIComponent(wsId) + accParam)
-    .then(r=>r.json()).then(function(res){
+    .then(function(r){ return r.json(); })
+    .then(function(res){
       if (res.thread && res.thread.id) {
-        if (accountId && accountId !== selectedAccount) setAccount(accountId);
-        setTimeout(function(){
-          loadThreads().then(function(){
-            openThread(res.thread.id);
-            setTimeout(function(){var el=document.getElementById('ti-'+res.thread.id);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},300);
-          });
-        }, accountId && accountId !== selectedAccount ? 300 : 0);
-        return;
-      }
-      if (res.unipile_chat_id) {
-        var msgs=document.getElementById('messages');
-        if(msgs)msgs.innerHTML='<div style="color:#aaa;text-align:center;padding:40px">Loading conversation...</div>';
-        fetch('/api/inbox/sync?workspace_id='+wsId,{method:'POST'})
-        .then(function(){return new Promise(function(r){setTimeout(r,2500);})})
-        .then(function(){return loadThreads();})
-        .then(function(){
-          var s=threads.find(function(t){return t.li_profile_url&&t.li_profile_url.includes(providerId);});
-          if(s){ if(accountId&&accountId!==selectedAccount)setAccount(accountId); setTimeout(function(){openThread(s.id);},accountId?300:0); }
-          else showEmptyChat(ev.data, providerId, liUrl, wsId, accountId);
+        loadThreads().then(function(){
+          openThread(res.thread.id);
+          setTimeout(function(){
+            var el = document.getElementById('ti-' + res.thread.id);
+            if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+          }, 300);
         });
         return;
       }
+      if (res.unipile_chat_id) {
+        var msgs = document.getElementById('messages');
+        if (msgs) msgs.innerHTML = '<div style="color:#aaa;text-align:center;padding:40px">Loading conversation...</div>';
+        fetch('/api/inbox/sync?workspace_id=' + wsId, {method:'POST'})
+          .then(function(){ return new Promise(function(r){ setTimeout(r, 2500); }); })
+          .then(function(){ return loadThreads(); })
+          .then(function(){
+            var s = threads.find(function(t){ return t.li_profile_url && t.li_profile_url.includes(providerId); });
+            if (s) openThread(s.id);
+            else showEmptyChat(ev.data, providerId, liUrl, wsId, accountId);
+          });
+        return;
+      }
+      // No existing chat — show empty compose window
       showEmptyChat(ev.data, providerId, liUrl, wsId, accountId);
-    }).catch(function(){ showEmptyChat(ev.data, providerId, liUrl, wsId, accountId); });
-  }, 400);
+    })
+    .catch(function(){ showEmptyChat(ev.data, providerId, liUrl, wsId, accountId); });
+  }
+
+  // Switch account if needed, then open after threads load
+  if (accountId && accountId !== selectedAccount) {
+    setAccount(accountId);
+    // Wait for account switch + thread reload
+    setTimeout(doOpen, 800);
+  } else {
+    // Threads may still be loading — wait briefly then open
+    setTimeout(doOpen, 300);
+  }
 });
 
 // Send new DM to contact not yet in inbox
