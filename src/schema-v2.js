@@ -189,6 +189,9 @@ async function initSchemaV2() {
     ON contacts (workspace_id, li_profile_url, campaign_id)
     WHERE campaign_id IS NOT NULL
   `));
+  await s('enrollments.error_message', () => db.query(
+    `ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS error_message TEXT`
+  ));
   await s('contacts.unique_pool_idx', () => db.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_unique_pool
     ON contacts (workspace_id, li_profile_url)
