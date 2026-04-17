@@ -132,7 +132,7 @@ tr:hover td { background: #161b2e; }
     <button class="ftab" onclick="setFilter('approved')">Approved</button>
     <button class="ftab" onclick="setFilter('messaged')">Messaged</button>
     <button class="ftab" onclick="setFilter('replied')">Replied</button>
-    <button class="ftab" onclick="setFilter('positive_reply')">✅ Positive</button>
+    <button class="ftab" onclick="setFilter('positive_reply')" style="background:rgba(16,185,129,0.12);color:#10b981;border-color:#10b981;">⭐ Positive</button>
     <button class="ftab" onclick="setFilter('withdrawn')">Withdrawn</button>
     <button class="ftab" onclick="setFilter('done')">Done</button>
     <button class="ftab" onclick="setFilter('error')">Error</button>
@@ -243,6 +243,14 @@ async function loadStats() {
   const replied  = statusData.find(s=>s.status==='replied')?.count || 0;
   const positive = statusData.find(s=>s.status==='positive_reply')?.count || 0;
 
+  // Update positive tab badge
+  const posBtn = document.querySelector('.ftab[onclick*="positive_reply"]');
+  if (posBtn) {
+    posBtn.innerHTML = positive > 0
+      ? `⭐ Positive <span style="background:#10b981;color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-left:4px">${positive}</span>`
+      : '⭐ Positive';
+  }
+
   strip.innerHTML = [
     { val: total,    label: 'Enrolled' },
     { val: invited,  label: 'Invite Sent' },
@@ -290,12 +298,25 @@ async function load() {
       else { nextTxt = `${Math.round(ms/86400000)}d`; nextClass = 'later'; }
     }
 
-    return `<tr>
-      <td><div class="contact-name">${esc(name)} ${url}</div><div class="contact-sub">${esc(sub)}</div></td>
+    // Show last reply for positive/replied rows
+    const replyPreview = e.last_reply
+      ? `<div style="margin-top:4px;font-size:11px;color:#94a3b8;font-style:italic;max-width:300px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="${esc(e.last_reply)}">💬 ${esc(e.last_reply)}</div>`
+      : '';
+
+    const isPositive = e.status === 'positive_reply';
+
+    return `<tr style="${isPositive ? 'background:rgba(16,185,129,0.06);' : ''}">
+      <td>
+        <div class="contact-name">${isPositive ? '⭐ ' : ''}${esc(name)} ${url}</div>
+        <div class="contact-sub">${esc(sub)}</div>
+        ${replyPreview}
+      </td>
       <td><span class="status status-${e.status}">${e.status.replace(/_/g,' ')}</span></td>
       <td class="next-action ${nextClass}">${nextTxt}</td>
       <td>${e.current_step || 0}</td>
       <td><div class="row-actions">
+        ${isPositive && e.chat_id
+          ? `<button class="action-btn" style="background:#1D9E75;color:#fff" onclick="openChatFromEnrollment('${e.chat_id}','${esc(name)}','${e.li_profile_url||''}')">💬 Open chat</button>` : ''}
         ${e.status === 'error' ? `<button class="action-btn" onclick="retryEnrollment(${e.id})">Retry</button>` : ''}
         ${['pending','invite_sent','approved','messaged'].includes(e.status)
           ? `<button class="action-btn" onclick="skipEnrollment(${e.id})">Skip</button>` : ''}
@@ -344,6 +365,21 @@ function setFilter(status) {
 }
 
 // ── Enrollment actions ─────────────────────────────────────────────────────
+function openChatFromEnrollment(chatId, name, liUrl) {
+  // Navigate parent workspace to Inbox and open this chat
+  const payload = {
+    type: 'open-inbox-contact',
+    action: 'open_inbox_contact',
+    chat_id: chatId,
+    provider_id: null,
+    li_profile_url: liUrl || null,
+    name: name || 'Contact'
+  };
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage(payload, '*');
+  }
+}
+
 async function retryEnrollment(id) {
   await api(`/api/enrollments/${id}`, { method: 'PATCH', body: JSON.stringify({ workspace_id: WS_ID, status: 'pending', next_action_at: new Date().toISOString() }) });
   toast('Enrollment reset to pending', 'success');
