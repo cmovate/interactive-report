@@ -65,11 +65,21 @@ campaignRouter.get('/:id/enrollments', async (req, res) => {
 
     const { rows: cnt } = await db.query(`SELECT COUNT(*) FROM enrollments e WHERE ${where}`, params);
     const { rows } = await db.query(`
-      SELECT e.*, c.first_name, c.last_name, c.company, c.title,
-             c.li_profile_url, c.already_connected, c.provider_id
+      SELECT e.id, e.status, e.current_step, e.next_action_at,
+             e.invite_sent_at, e.invite_approved_at, e.error_message,
+             e.campaign_id, e.contact_id,
+             COALESCE(e.chat_id, c.chat_id) AS chat_id,
+             c.first_name, c.last_name, c.company, c.title,
+             c.li_profile_url, c.already_connected, c.provider_id,
+             (SELECT LEFT(m.content, 200)
+              FROM inbox_messages m
+              JOIN inbox_threads t ON t.id = m.thread_id
+              WHERE t.thread_id = COALESCE(e.chat_id, c.chat_id)
+                AND m.direction = 'received'
+              ORDER BY m.sent_at DESC LIMIT 1) AS last_reply
       FROM enrollments e JOIN contacts c ON c.id = e.contact_id
       WHERE ${where}
-      ORDER BY e.next_action_at ASC, e.created_at DESC
+      ORDER BY e.updated_at DESC
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 
