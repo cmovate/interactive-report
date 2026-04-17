@@ -77,6 +77,9 @@ async function startBoss() {
   await boss.work('sync-opportunities', { teamSize: 1, teamConcurrency: 1 },
     require('./syncOpportunities').handler);
 
+  await boss.work('classify-replies', { teamSize: 1, teamConcurrency: 1 },
+    require('./classifyReplies').handler);
+
   // ── Schedule recurring jobs ───────────────────────────────────────────
   await boss.schedule('process-enrollments',   '*/5 * * * *',  {}, { singletonKey: 'process-enrollments' });
   await boss.schedule('sync-inbox',            '*/10 * * * *', {}, { singletonKey: 'sync-inbox' });
@@ -86,6 +89,7 @@ async function startBoss() {
   await boss.schedule('publish-scheduled-posts', '* * * * *',  {}, { singletonKey: 'publish-posts' });
   await boss.schedule('sync-target-accounts',  '0 */6 * * *',  {}, { singletonKey: 'sync-target-accounts' });
   await boss.schedule('sync-opportunities',    '0 */2 * * *',  {}, { singletonKey: 'sync-opportunities' }); // every 2h
+  await boss.schedule('classify-replies',      '15 * * * *',   {}, { singletonKey: 'classify-replies' }); // every hour at :15
 
   console.log('[Jobs] All jobs scheduled');
   return boss;
