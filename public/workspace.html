@@ -150,7 +150,10 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   <div class="nav-item" onclick="showScreen('target-accounts')" id="nav-target-accounts">
     <span class="nav-icon">🏢</span> Target Accounts
   </div>
-<div class="nav-item" onclick="showScreen('feed')" id="nav-feed">
+<div class="nav-item" onclick="showScreen('opportunities')" id="nav-opportunities">
+    <span class="nav-icon">🎯</span> Opportunities
+  </div>
+  <div class="nav-item" onclick="showScreen('feed')" id="nav-feed">
     <span class="nav-icon">&#128240;</span> Feed
   </div>
   <div class="nav-item" onclick="showScreen('analytics')" id="nav-analytics">
@@ -176,6 +179,7 @@ body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans
   <div class="screen" id="screen-lists2"></div>
   <div class="screen" id="screen-signals"></div>
   <div class="screen" id="screen-target-accounts"></div>
+  <div class="screen" id="screen-opportunities"></div>
   <div class="screen" id="screen-feed"></div>
   <div class="screen" id="screen-analytics"></div>
   <div class="screen" id="screen-inbox"></div>
@@ -237,7 +241,7 @@ function loadScreen(name) {
   loaded[name] = true;
   var fileMap = {lists: 'lists-ui', lists2: 'lists2-v2', scheduler: 'post-scheduler',
                  sequences: 'sequences', enrollments: 'enrollments', signals: 'signals',
-                 'target-accounts': 'target-accounts', analytics: 'admin-analytics'};
+                 'target-accounts': 'target-accounts', opportunities: 'opportunities', analytics: 'admin-analytics'};
   var fname = fileMap[name] || name;
   var frame = document.createElement('iframe');
   frame.style.cssText = 'width:100%;height:100vh;border:none;';
