@@ -28,16 +28,19 @@ async function handler() {
 
     // Rotation: 10 companies per run, oldest opp_last_synced_at first (NULL = never synced)
     const { rows: companies } = await db.query(`
-      SELECT DISTINCT ON (lc.company_linkedin_id)
-        lc.company_linkedin_id, lc.company_name, MIN(lc.opp_last_synced_at) as opp_last_synced_at
-      FROM list_companies lc
-      JOIN lists l ON l.id = lc.list_id AND l.workspace_id = lc.workspace_id
-      WHERE lc.workspace_id = $1
-        AND l.type = 'companies'
-        AND lc.company_linkedin_id IS NOT NULL
-        AND lc.company_linkedin_id != ''
-      GROUP BY lc.company_linkedin_id, lc.company_name
-      ORDER BY MIN(lc.opp_last_synced_at) ASC NULLS FIRST
+      SELECT company_linkedin_id, company_name, opp_last_synced_at
+      FROM (
+        SELECT DISTINCT ON (lc.company_linkedin_id)
+          lc.company_linkedin_id, lc.company_name, lc.opp_last_synced_at
+        FROM list_companies lc
+        JOIN lists l ON l.id = lc.list_id AND l.workspace_id = lc.workspace_id
+        WHERE lc.workspace_id = $1
+          AND l.type = 'companies'
+          AND lc.company_linkedin_id IS NOT NULL
+          AND lc.company_linkedin_id != ''
+        ORDER BY lc.company_linkedin_id
+      ) sub
+      ORDER BY opp_last_synced_at ASC NULLS FIRST
       LIMIT 10
     `, [workspace_id]);
 
