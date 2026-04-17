@@ -2091,28 +2091,29 @@ router.get('/analytics/stale', async (req, res) => {
 router.post('/analytics/insights', async (req, res) => {
   const { data, workspace } = req.body;
   try {
-    const fetch2 = require('node-fetch');
-    const resp = await fetch2('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 600,
-        system: `You are a B2B marketing analyst specializing in LinkedIn outreach for Israeli tech companies. 
-Analyze campaign data and provide 5 sharp, actionable insights in plain text.
-Each insight should be on its own line, starting with an emoji (🟢 for positive, 🟡 for attention, 🔴 for urgent, 🎯 for action).
-Be specific, use the numbers, and focus on what to DO next — not just what happened.
-Keep each insight under 2 sentences. No headers or markdown. Just the 5 insight lines.`,
-        messages: [{ role: 'user', content: `Analyze this LinkedIn outreach campaign data for ${workspace || 'this workspace'}:\n\n${data}` }]
-      })
+    const https = require('https');
+    const msgBody = JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      system: `You are a B2B marketing analyst specializing in LinkedIn outreach for Israeli tech companies. Analyze campaign data and provide 5 sharp, actionable insights in plain text. Each insight should be on its own line, starting with an emoji (🟢 for positive, 🟡 for attention, 🔴 for urgent, 🎯 for action). Be specific, use the numbers, and focus on what to DO next. Keep each insight under 2 sentences. No headers or markdown. Just the 5 insight lines.`,
+      messages: [{ role: 'user', content: `Analyze this LinkedIn outreach data for ${workspace || 'this workspace'}:\n\n${data}` }]
     });
-    const ai = await resp.json();
-    const insights = ai.content?.[0]?.text || '';
-    res.json({ insights });
+
+    const result = await new Promise((resolve, reject) => {
+      const r = https.request({
+        hostname: 'api.anthropic.com', path: '/v1/messages', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'Content-Length': Buffer.byteLength(msgBody) }
+      }, (res2) => {
+        let d = '';
+        res2.on('data', c => d += c);
+        res2.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+      });
+      r.on('error', reject);
+      r.write(msgBody);
+      r.end();
+    });
+
+    res.json({ insights: result.content?.[0]?.text || '' });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
