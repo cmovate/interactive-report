@@ -372,15 +372,31 @@ window.addEventListener('message', function(ev) {
     .catch(function(){ showEmptyChat(ev.data, providerId, liUrl, wsId, accountId); });
   }
 
-  // Switch account if needed, then open after threads load
-  if (accountId && accountId !== selectedAccount) {
-    setAccount(accountId);
-    // Wait for account switch + thread reload
-    setTimeout(doOpen, 800);
-  } else {
-    // Threads may still be loading — wait briefly then open
-    setTimeout(doOpen, 300);
+  // Wait for threads to be loaded, then open
+  function waitAndOpen(retries) {
+    if (threads && threads.length > 0) {
+      // Switch account if needed first
+      if (accountId && accountId !== selectedAccount) {
+        setAccount(accountId);
+        setTimeout(doOpen, 600);
+      } else {
+        doOpen();
+      }
+    } else if (retries > 0) {
+      setTimeout(function() { waitAndOpen(retries - 1); }, 300);
+    } else {
+      // Threads still empty — just show empty compose
+      if (accountId && accountId !== selectedAccount) {
+        setAccount(accountId);
+        setTimeout(function() { showEmptyChat(ev.data, providerId, liUrl, wsId, accountId); }, 600);
+      } else {
+        showEmptyChat(ev.data, providerId, liUrl, wsId, accountId);
+      }
+    }
   }
+
+  // Start checking after a small initial delay
+  setTimeout(function() { waitAndOpen(15); }, 200);
 });
 
 // Send new DM to contact not yet in inbox
