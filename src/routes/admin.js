@@ -1817,3 +1817,50 @@ router.post('/detach-sequence', async (req, res) => {
     res.json({ updated: rowCount, campaign_ids: ids });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/sync-opportunities-test — run sync on specific company IDs only
+router.post('/sync-opportunities-test', async (req, res) => {
+  const { workspace_id, company_linkedin_ids } = req.body;
+  if (!workspace_id || !company_linkedin_ids?.length)
+    return res.status(400).json({ error: 'workspace_id and company_linkedin_ids required' });
+  try {
+    const unipile = require('../unipile');
+    const { rows: accounts } = await db.query(
+      `SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id=$1 ORDER BY id`,
+      [workspace_id]
+    );
+    const results = [];
+    for (const companyId of company_linkedin_ids) {
+      const { rows: comp } = await db.query(
+        `SELECT company_name FROM list_companies WHERE workspace_id=$1 AND company_linkedin_id=$2 LIMIT 1`,
+        [workspace_id, String(companyId)]
+      );
+      const companyName = comp[0]?.company_name || companyId;
+      for (const acc of accounts) {
+        try {
+          const people = await unipile.searchFirstDegreeAtCompany(acc.account_id, companyId, 20);
+          for (const p of people) {
+            const pid = p.public_identifier || p.identifier || p.provider_id;
+            if (!pid) continue;
+            await db.query(`
+              INSERT INTO opportunity_contacts
+                (workspace_id, company_linkedin_id, company_name, li_profile_url, provider_id,
+                 first_name, last_name, title, connected_via_account_id, connected_via_name, last_seen_at)
+              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+              ON CONFLICT (workspace_id, li_profile_url, connected_via_account_id)
+              DO UPDATE SET last_seen_at=NOW(), title=COALESCE(NULLIF(EXCLUDED.title,''),opportunity_contacts.title)
+            `, [workspace_id, String(companyId), companyName,
+                `https://www.linkedin.com/in/${pid}`, pid,
+                p.first_name||'', p.last_name||'', p.headline||p.title||'',
+                acc.account_id, acc.display_name]);
+          }
+          results.push({ company: companyName, account: acc.display_name, found: people.length });
+          await new Promise(r => setTimeout(r, 1000));
+        } catch(e) {
+          results.push({ company: companyName, account: acc.display_name, error: e.message });
+        }
+      }
+    }
+    res.json({ results });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
