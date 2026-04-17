@@ -69,6 +69,10 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; 
 .known-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #1D9E75; background: #0d2a1f; border: 1px solid #1a4a30; border-radius: 10px; padding: 1px 7px; }
 
 /* ── Actions ── */
+.ai-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
+.ai-hot  { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
+.ai-warm { background: #451a03; color: #fb923c; border: 1px solid #9a3412; }
+.ai-cold { background: #1a1a2e; color: #475569; border: 1px solid #253047; }
 .sig-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: flex-start; margin-top: 2px; flex-wrap: wrap; max-width: 160px; justify-content: flex-end; }
 .act-btn { padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; white-space: nowrap; }
 .act-primary { background: #1D9E75; color: #fff; }
@@ -245,11 +249,18 @@ function renderList(items, total, limit) {
     const company= s.contact_company || '';
     const title  = s.contact_title || s.actor_headline || '';
     const sub    = [title, company].filter(Boolean).join(' @ ');
-    const isPositive = s.type === 'positive_reply';
+    const isPositive = s.type === 'positive_reply' || s.ai_priority === 'HOT';
     const chatId = s.chat_id || null;
     const enrId  = s.enrollment_id || null;
 
-    return `<div class="sig-card ${s.is_known?'known':''} ${isPositive?'positive':''} ${s.source==='derived'?'derived-badge':''}" id="sig-${s.id}">
+    // AI priority badge
+    const aiPri = s.ai_priority;
+    const aiBadge = aiPri === 'HOT'  ? `<span class="ai-badge ai-hot">🔥 HOT</span>`
+                  : aiPri === 'WARM' ? `<span class="ai-badge ai-warm">🌡️ WARM</span>`
+                  : aiPri === 'COLD' ? `<span class="ai-badge ai-cold">❄️ COLD</span>`
+                  : '';
+
+    return `<div class="sig-card ${s.is_known?'known':''} ${isPositive?'positive':''}" id="sig-${s.id}">
       <div class="sig-type-icon" style="background:${meta.color}22;color:${meta.color}">${meta.icon}</div>
       <div class="sig-body">
         <div class="sig-top">
@@ -257,18 +268,21 @@ function renderList(items, total, limit) {
             ${liUrl ? `<a href="${esc(liUrl)}" target="_blank">${esc(name)}</a>` : esc(name)}
           </div>
           <span class="sig-type-label" style="background:${meta.color}22;color:${meta.color}">${meta.label}</span>
+          ${aiBadge}
           ${s.is_known ? `<span class="known-badge">✓ Known</span>` : ''}
         </div>
         ${sub ? `<div class="sig-sub">${esc(sub)}</div>` : ''}
+        ${s.ai_reason ? `<div style="font-size:11px;color:#64748b;margin-top:4px;font-style:italic">🤖 ${esc(s.ai_reason)}</div>` : ''}
         ${s.content ? `<div class="sig-msg">${esc(s.content.slice(0,200))}</div>` : ''}
         <div class="sig-meta">
           <span>${ago(s.occurred_at || s.created_at)}</span>
-          ${s.campaign_name ? `<span class="sig-camp">📋 ${esc(s.campaign_name)}</span>` : ''}
           ${s.account_name  ? `<span class="sig-acct">via ${esc(s.account_name)}</span>` : ''}
+          ${s.ai_fit_score ? `<span style="color:#475569">fit: ${s.ai_fit_score}/10</span>` : ''}
         </div>
       </div>
       <div class="sig-actions">
-        ${action ? `<button class="act-btn act-primary" onclick="handleAction('${action.action}','${esc(s.id)}','${esc(chatId||'')}','${esc(liUrl)}','${esc(name)}')">${action.label}</button>` : ''}
+        ${aiPri === 'HOT' ? `<button class="act-btn act-primary" style="background:#dc2626" onclick="handleAction('reply_now','${esc(String(s.id))}','${esc(chatId||'')}','${esc(liUrl)}','${esc(name)}')">🔥 Reply Now</button>` : ''}
+        ${action && aiPri !== 'HOT' ? `<button class="act-btn act-primary" onclick="handleAction('${action.action}','${esc(String(s.id))}','${esc(chatId||'')}','${esc(liUrl)}','${esc(name)}')">${action.label}</button>` : ''}
         ${s.enrollment_id ? `<button class="act-btn act-secondary" onclick="goToEnrollment(${enrId})">View</button>` : ''}
         <button class="act-btn act-dismiss" onclick="dismiss('${s.id}')">✕</button>
       </div>

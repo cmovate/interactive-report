@@ -21,7 +21,10 @@ const router  = express.Router();
 const db      = require('../db');
 
 // ── Signal type metadata ──────────────────────────────────────────────────────
+// ── Signal type metadata ──────────────────────────────────────────────────────
 const SIGNAL_META = {
+  inbound_message:   { icon: '💌', label: 'Wrote to Us',       color: '#EC4899', priority: 8 },
+  unsolicited_message:{ icon: '📩', label: 'New Message',       color: '#EC4899', priority: 7 },
   invite_accepted:   { icon: '🤝', label: 'Accepted Invite',   color: '#1D9E75', priority: 3 },
   message_received:  { icon: '💬', label: 'Replied',           color: '#3B82F6', priority: 5 },
   positive_reply:    { icon: '⭐', label: 'Positive Reply',    color: '#F59E0B', priority: 6 },
@@ -56,6 +59,7 @@ router.get('/', async (req, res) => {
         s.id, s.type, s.actor_name, s.actor_li_url, s.actor_provider_id,
         s.actor_headline, s.is_known, s.content, s.post_url,
         s.occurred_at, s.created_at, s.subject_li_account_id,
+        s.ai_priority, s.ai_action, s.ai_reason, s.ai_fit_score,
         c.first_name, c.last_name, c.company AS contact_company,
         c.title AS contact_title, c.li_profile_url AS contact_li_url,
         e.id AS enrollment_id, e.status AS enrollment_status,

@@ -231,6 +231,13 @@ async function initSchemaV2() {
   await s('idx_signals_contact', () => db.query(
     `CREATE INDEX IF NOT EXISTS idx_signals_contact ON signals(actor_contact_id)`
   ));
+  await s('signals.ai_cols', () => db.query(
+    `ALTER TABLE signals
+       ADD COLUMN IF NOT EXISTS ai_priority TEXT,
+       ADD COLUMN IF NOT EXISTS ai_action   TEXT,
+       ADD COLUMN IF NOT EXISTS ai_reason   TEXT,
+       ADD COLUMN IF NOT EXISTS ai_fit_score INTEGER`
+  ));
   await s('idx_signals_known', () => db.query(
     `CREATE INDEX IF NOT EXISTS idx_signals_known ON signals(workspace_id, is_known, occurred_at DESC)`
   ));
