@@ -105,7 +105,14 @@ router.get('/', async (req, res) => {
         LEFT JOIN unipile_accounts ua ON ua.account_id = camp.account_id AND ua.workspace_id = $1
         WHERE camp.workspace_id = $1
           ${typeFilter}
-        ORDER BY e.updated_at DESC
+        ORDER BY
+          CASE e.status
+            WHEN 'positive_reply' THEN 1
+            WHEN 'replied'        THEN 2
+            WHEN 'messaged'       THEN 3
+            ELSE 4
+          END,
+          e.updated_at DESC
         LIMIT $2 OFFSET $3
       `, [wsId, limit, offset]);
 
