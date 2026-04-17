@@ -217,12 +217,14 @@ function fmt(d) { return d.toISOString().slice(0,10); }
 function addDays(d, n) { const r = new Date(d); r.setDate(r.getDate()+n); return r; }
 function n(v) { return parseInt(v)||0; }
 function num(v) { return n(v).toLocaleString(); }
-function pct(a, b) { const bn = n(b); return bn > 0 ? (Math.round(n(a)/bn*100)+'%') : '—'; }
+function pct(a, b) { const bn = n(b); if (bn <= 0) return '—'; const v = Math.round(n(a)/bn*100); return v + '%'; }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function ratePill(v, denom) {
   const p = denom > 0 ? n(v)/denom : 0;
   const cls = p >= 0.15 ? 'rate-high' : p >= 0.05 ? 'rate-mid' : 'rate-low';
-  return `<span class="rate-pill ${cls}">${pct(v, denom)}</span>`;
+  const display = p > 1 ? '>' + Math.min(Math.round(p*100), 999) + '%' : pct(v, denom);
+  const title = p > 1 ? `${n(v)} sent to ${denom} approved (includes prior connections)` : '';
+  return `<span class="rate-pill ${cls}" title="${title}">${display}</span>`;
 }
 
 // ── Autocomplete filter ────────────────────────────────────────────
@@ -394,6 +396,7 @@ function renderFunnel(s) {
 
 function renderKPIs(s) {
   const approvalRate = s.invites_sent > 0 ? Math.round(n(s.invites_approved)/n(s.invites_sent)*100) : 0;
+  const msgRate      = s.invites_approved > 0 ? Math.round(n(s.messages_sent)/n(s.invites_approved)*100) : 0;
   const replyRate    = s.messages_sent > 0 ? Math.round(n(s.messages_replied)/n(s.messages_sent)*100) : 0;
   const posRate      = s.messages_replied > 0 ? Math.round(n(s.positive_replies)/n(s.messages_replied)*100) : 0;
   const periodLabel  = state.from && state.to ? `${state.from} → ${state.to}` : state.from ? `from ${state.from}` : 'All time';
@@ -403,7 +406,7 @@ function renderKPIs(s) {
     <div class="kpi-card"><div class="kpi-label">Contacts Added</div><div class="kpi-value">${num(s.contacts_added)}</div></div>
     <div class="kpi-card"><div class="kpi-label">Invites Sent</div><div class="kpi-value">${num(s.invites_sent)}</div></div>
     <div class="kpi-card highlight"><div class="kpi-label">Approved</div><div class="kpi-value">${num(s.invites_approved)}</div><div class="kpi-sub">${approvalRate}% rate</div></div>
-    <div class="kpi-card"><div class="kpi-label">Messages Sent</div><div class="kpi-value">${num(s.messages_sent)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Messages Sent</div><div class="kpi-value">${num(s.messages_sent)}</div><div class="kpi-sub">${msgRate > 0 ? msgRate+'% of approved' : ''}</div></div>
     <div class="kpi-card"><div class="kpi-label">Replied</div><div class="kpi-value">${num(s.messages_replied)}</div><div class="kpi-sub">${replyRate}% rate</div></div>
     <div class="kpi-card highlight"><div class="kpi-label">Positive Replies</div><div class="kpi-value">${num(s.positive_replies)}</div><div class="kpi-sub">${posRate}% of replies</div></div>
   `;
