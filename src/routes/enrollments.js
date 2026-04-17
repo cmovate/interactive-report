@@ -100,14 +100,16 @@ enrollmentRouter.get('/', async (req, res) => {
     const { rows } = await db.query(`
       SELECT e.id, e.status, e.current_step, e.next_action_at,
              e.invite_sent_at, e.invite_approved_at, e.error_message,
-             e.campaign_id, e.contact_id, e.chat_id,
+             e.campaign_id, e.contact_id,
+             COALESCE(e.chat_id, c.chat_id) AS chat_id,
              c.first_name, c.last_name, c.company, c.li_profile_url,
              c.title, c.provider_id,
              camp.name AS campaign_name, camp.account_id,
              (SELECT LEFT(m.content, 200)
               FROM inbox_messages m
               JOIN inbox_threads t ON t.id = m.thread_id
-              WHERE t.thread_id = c.chat_id AND m.direction = 'received'
+              WHERE t.thread_id = COALESCE(e.chat_id, c.chat_id)
+                AND m.direction = 'received'
               ORDER BY m.sent_at DESC LIMIT 1) AS last_reply
       FROM enrollments e
       JOIN contacts  c    ON c.id    = e.contact_id
