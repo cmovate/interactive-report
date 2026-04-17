@@ -118,6 +118,27 @@ async function handler() {
 
 module.exports = { handler };
 
+// After sync: enrich aco_id for contacts missing it
+async function enrichAcoIds(workspace_id) {
+  const { rows: contacts } = await db.query(`
+    SELECT oc.id, oc.li_profile_url, oc.connected_via_account_id
+    FROM opportunity_contacts oc
+    WHERE oc.workspace_id=$1 AND (oc.aco_id IS NULL OR oc.aco_id='')
+    LIMIT 20
+  `, [workspace_id]);
+  for (const c of contacts) {
+    try {
+      const enriched = await unipile.enrichProfile(c.connected_via_account_id, c.li_profile_url);
+      const acoId = enriched?.provider_id?.startsWith('ACo') ? enriched.provider_id : null;
+      if (acoId) {
+        await db.query(`UPDATE opportunity_contacts SET aco_id=$1 WHERE id=$2`, [acoId, c.id]);
+        console.log(`[Opportunities] aco_id resolved: ${c.li_profile_url} → ${acoId}`);
+      }
+      await new Promise(r => setTimeout(r, 800));
+    } catch(e) { /* silent */ }
+  }
+}
+
 // After all contacts are upserted, look up existing chats for those without one
 async function lookupChats(workspace_id) {
   // Get all opportunity contacts that have no chat_id yet
@@ -161,5 +182,6 @@ module.exports.handler = async function() {
   );
   for (const { workspace_id } of wsList) {
     await lookupChats(workspace_id);
+    await enrichAcoIds(workspace_id);
   }
 };
