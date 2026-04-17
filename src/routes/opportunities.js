@@ -280,8 +280,30 @@ router.post('/send-dm', async (req, res) => {
       return res.json({ success: true, chat_id: chatId, method: 'unipile_lookup' });
     }
 
+    // Step 4: cold message — need ACoXXX for startDirectMessage
+    // If we only have slug, enrich first to get ACoXXX
+    let finalTarget = acoId || target;
+    if (!finalTarget?.startsWith('ACo')) {
+      try {
+        const liUrl = ocContact.li_profile_url || li_profile_url ||
+          (slug ? `https://www.linkedin.com/in/${slug}` : null);
+        if (liUrl) {
+          const enriched = await unipile.enrichProfile(accId, liUrl);
+          const enrichedAco = enriched?.provider_id?.startsWith('ACo') ? enriched.provider_id : null;
+          if (enrichedAco) {
+            finalTarget = enrichedAco;
+            // Save for next time
+            await db.query(
+              `UPDATE opportunity_contacts SET aco_id=$1 WHERE workspace_id=$2 AND provider_id=$3`,
+              [enrichedAco, workspace_id, slug]
+            ).catch(() => {});
+          }
+        }
+      } catch(e) { /* proceed with slug */ }
+    }
+
     // Step 4: start new DM
-    const result = await unipile.startDirectMessage(accId, target, message.trim());
+    const result = await unipile.startDirectMessage(accId, finalTarget, message.trim());
     const chatId = result?.id || result?.chat_id || null;
     if (chatId) {
       await db.query(
