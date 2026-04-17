@@ -110,3 +110,93 @@ router.get('/stats', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/opportunities/send-dm
+// Sends a LinkedIn DM to a contact. Uses existing chat_id if available,
+// otherwise tries to open a new conversation.
+router.post('/send-dm', async (req, res) => {
+  const { workspace_id, account_id, provider_id, li_profile_url, message } = req.body;
+  if (!workspace_id || !message?.trim())
+    return res.status(400).json({ error: 'workspace_id and message required' });
+  if (!provider_id && !li_profile_url)
+    return res.status(400).json({ error: 'provider_id or li_profile_url required' });
+
+  const unipile = require('../unipile');
+
+  try {
+    // Determine target identifier
+    const target = provider_id || li_profile_url.match(/\/in\/([^/?#]+)/)?.[1];
+    if (!target) return res.status(400).json({ error: 'Cannot extract identifier from li_profile_url' });
+
+    // Determine which account to use
+    let accId = account_id;
+    if (!accId) {
+      const { rows } = await db.query(
+        `SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1`, [workspace_id]
+      );
+      if (!rows.length) return res.status(400).json({ error: 'No accounts in workspace' });
+      accId = rows[0].account_id;
+    }
+
+    // Step 1: check opportunity_contacts for existing chat_id
+    const { rows: ocRows } = await db.query(
+      `SELECT chat_id FROM opportunity_contacts
+       WHERE workspace_id=$1 AND provider_id=$2 AND connected_via_account_id=$3 AND chat_id IS NOT NULL
+       LIMIT 1`,
+      [workspace_id, target, accId]
+    );
+    if (ocRows[0]?.chat_id) {
+      await unipile.sendMessage(accId, ocRows[0].chat_id, message.trim());
+      return res.json({ success: true, chat_id: ocRows[0].chat_id, method: 'existing_chat' });
+    }
+
+    // Step 2: check inbox_threads
+    const { rows: thrRows } = await db.query(
+      `SELECT t.thread_id FROM inbox_threads t
+       JOIN contacts c ON c.id = t.contact_id
+       WHERE t.workspace_id=$1 AND t.account_id=$2 AND c.provider_id=$3
+       LIMIT 1`,
+      [workspace_id, accId, target]
+    );
+    if (thrRows[0]?.thread_id) {
+      await unipile.sendMessage(accId, thrRows[0].thread_id, message.trim());
+      return res.json({ success: true, chat_id: thrRows[0].thread_id, method: 'inbox_thread' });
+    }
+
+    // Step 3: look up existing chat on Unipile
+    const chats = await unipile.getChatsByAttendee(accId, target).catch(() => []);
+    if (chats.length) {
+      const chatId = chats[0].id;
+      await unipile.sendMessage(accId, chatId, message.trim());
+      // Cache it
+      await db.query(
+        `UPDATE opportunity_contacts SET chat_id=$1
+         WHERE workspace_id=$2 AND provider_id=$3 AND connected_via_account_id=$4`,
+        [chatId, workspace_id, target, accId]
+      ).catch(() => {});
+      return res.json({ success: true, chat_id: chatId, method: 'unipile_lookup' });
+    }
+
+    // Step 4: start new DM
+    const result = await unipile.startDirectMessage(accId, target, message.trim());
+    const chatId = result?.id || result?.chat_id || null;
+    if (chatId) {
+      await db.query(
+        `UPDATE opportunity_contacts SET chat_id=$1
+         WHERE workspace_id=$2 AND provider_id=$3 AND connected_via_account_id=$4`,
+        [chatId, workspace_id, target, accId]
+      ).catch(() => {});
+    }
+    return res.json({ success: true, chat_id: chatId, method: 'new_dm' });
+
+  } catch(e) {
+    console.error('[Opportunities] send-dm error:', e.message);
+    if (e.message?.includes('subscription_required') || e.message?.includes('403')) {
+      return res.status(400).json({
+        error: 'subscription_required',
+        detail: 'No existing conversation found. LinkedIn requires an existing chat to send messages without Premium.'
+      });
+    }
+    res.status(500).json({ error: e.message });
+  }
+});
