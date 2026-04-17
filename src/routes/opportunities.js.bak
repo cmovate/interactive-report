@@ -60,24 +60,49 @@ async function findContactsAtCompany(workspace_id, company_name, company_linkedi
     params.push(company_name);
     filter = `AND LOWER(TRIM(c.company)) = LOWER(TRIM($2))`;
   }
+
   const { rows } = await db.query(`
     SELECT DISTINCT ON (COALESCE(NULLIF(c.li_profile_url, ''), c.id::text))
       c.id, c.first_name, c.last_name, c.company, c.title,
       c.li_profile_url, c.email, c.chat_id, c.provider_id,
-      c.campaign_id, c.msg_replied, c.invite_approved,
-      COALESCE(camp.name,'')   AS campaign_name,
-      COALESCE(camp.status,'') AS campaign_status,
-      camp.account_id
+      c.already_connected, c.invite_approved,
+      c.campaign_id, c.msg_replied,
+      c.connected_via,
+      COALESCE(camp.name,'')        AS campaign_name,
+      COALESCE(camp.status,'')      AS campaign_status,
+      camp.account_id,
+      ua.display_name               AS account_name
     FROM contacts c
     LEFT JOIN campaigns camp ON camp.id = c.campaign_id
+    LEFT JOIN unipile_accounts ua
+           ON ua.account_id = camp.account_id
+          AND ua.workspace_id = camp.workspace_id
     WHERE c.workspace_id = $1
+      -- Only show verified connections:
+      -- either confirmed via campaign approval, or scanned from LinkedIn 1st-degree
+      AND (
+        c.already_connected = true
+        OR c.invite_approved = true
+        OR (c.connected_via IS NOT NULL AND jsonb_array_length(c.connected_via) > 0)
+      )
       ${filter}
     ORDER BY
       COALESCE(NULLIF(c.li_profile_url, ''), c.id::text),
-      CASE WHEN camp.status = 'active' THEN 0 ELSE 1 END,
+      CASE WHEN c.already_connected THEN 0
+           WHEN c.invite_approved   THEN 1
+           ELSE 2 END,
       c.created_at DESC
   `, params);
-  return rows;
+
+  // Normalise: build connected_via from DB column OR from campaign account
+  return rows.map(r => {
+    let via = r.connected_via;
+    if (!via || !Array.isArray(via) || via.length === 0) {
+      // Fallback: use campaign account as the connection source
+      via = r.account_id ? [{ account_id: r.account_id, name: r.account_name || r.account_id }] : [];
+    }
+    return { ...r, connected_via: via };
+  });
 }
 
 // GET /api/opportunities?workspace_id=X

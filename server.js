@@ -22,7 +22,6 @@ const scheduledPostsRouter = require('./src/routes/scheduledPosts');
 const webhooksV2Router     = require('./src/routes/webhooks-v2');
 const followersRouter          = require('./src/routes/followers');
 const statsRouter              = require('./src/routes/stats');
-const opportunitiesRouter      = require('./src/routes/opportunities');
 const adminRouter              = require('./src/routes/admin');
 const feedRouter               = require('./src/routes/feed');
 const inboxRouter              = require('./src/routes/inbox');
@@ -119,7 +118,6 @@ app.use('/api/webhooks',           webhooksV2Router);   // v2: handles all 8 eve
 app.use('/api/followers',          followersRouter);
 app.use('/api/analytics',          require('./src/routes/analytics'));
 app.use('/api/stats',              statsRouter);
-app.use('/api/opportunities',      opportunitiesRouter);
 app.use('/api/admin',              adminRouter);
 app.use('/api/feed',               feedRouter);
 
