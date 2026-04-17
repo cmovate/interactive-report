@@ -2264,3 +2264,43 @@ router.post('/run-sync-signals', async (req, res) => {
     } catch(e) { console.error('[run-sync-signals] error:', e.message); }
   })();
 });
+
+// GET /api/admin/debug-sync-signals — dry run syncSignals to see what it finds
+router.get('/debug-sync-signals', async (req, res) => {
+  const { request } = require('../unipile');
+  const { getAccountInfo } = require('../unipile');
+
+  const { rows: accs } = await db.query(
+    `SELECT account_id, display_name, workspace_id FROM unipile_accounts WHERE workspace_id=$1`,
+    [req.query.workspace_id || 2]
+  );
+  if (!accs.length) return res.json({ error: 'no accounts' });
+
+  const results = [];
+  for (const acc of accs) {
+    try {
+      const chatsData = await request(`/api/v1/chats?account_id=${acc.account_id}&limit=20`);
+      const chats = chatsData?.items || [];
+
+      let chatSamples = [];
+      for (const chat of chats.slice(0,5)) {
+        if (chat.type !== 0) continue;
+        const msgsData = await request(`/api/v1/chats/${chat.id}/messages?account_id=${acc.account_id}&limit=3`);
+        const msgs = msgsData?.items || [];
+        const mostRecent = msgs[0];
+        chatSamples.push({
+          chat_id: chat.id,
+          attendee_provider_id: chat.attendee_provider_id?.slice(0,20),
+          msg_count: msgs.length,
+          most_recent_is_sender: mostRecent?.is_sender,
+          most_recent_text: mostRecent?.text?.slice(0,60),
+          last_from_them: mostRecent?.is_sender === 0,
+        });
+      }
+      results.push({ account: acc.display_name, total_chats: chats.length, samples: chatSamples });
+    } catch(e) {
+      results.push({ account: acc.display_name, error: e.message });
+    }
+  }
+  res.json(results);
+});
