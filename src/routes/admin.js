@@ -1851,7 +1851,7 @@ router.post('/sync-opportunities-test', async (req, res) => {
               DO UPDATE SET last_seen_at=NOW(), title=COALESCE(NULLIF(EXCLUDED.title,''),opportunity_contacts.title)
             `, [workspace_id, String(companyId), companyName,
                 `https://www.linkedin.com/in/${pid}`, pid,
-                p.first_name||'', p.last_name||'', p.headline||p.title||'',
+                p.first_name||p.firstName||'', p.last_name||p.lastName||'', p.headline||p.title||p.occupation||'',
                 acc.account_id, acc.display_name]);
           }
           results.push({ company: companyName, account: acc.display_name, found: people.length });

@@ -87,9 +87,9 @@ async function handler() {
               company.company_name,
               liUrl,
               pid,
-              p.first_name || '',
-              p.last_name  || '',
-              p.headline   || p.title || '',
+              p.first_name || p.firstName || '',
+              p.last_name  || p.lastName  || '',
+              p.headline   || p.title     || p.occupation || '',
               account.account_id,
               account.display_name,
             ]);
@@ -100,8 +100,8 @@ async function handler() {
             console.log(`[Opportunities] WS${workspace_id} ${account.display_name} @ ${company.company_name}: ${people.length} 1st-degree connections`);
           }
 
-          // Rate limit between calls
-          await new Promise(r => setTimeout(r, 1500));
+          // Rate limit between calls (avoid 429)
+          await new Promise(r => setTimeout(r, 3000));
         } catch(e) {
           console.warn(`[Opportunities] WS${workspace_id} ${account.display_name} @ ${company.company_name}: ${e.message}`);
           await new Promise(r => setTimeout(r, 2000));
