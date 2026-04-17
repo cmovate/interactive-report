@@ -51,10 +51,15 @@ async function handler() {
 
     console.log(`[Opportunities] WS${workspace_id}: ${companies.length} companies, ${accounts.length} accounts`);
 
-    for (const company of companies) {
-      for (const account of accounts) {
+    // Loop accounts FIRST, then companies.
+    // This ensures each account finishes all its companies before the next account starts,
+    // avoiding LinkedIn rate limits caused by rapid switching between accounts.
+    for (const account of accounts) {
+      console.log(`[Opportunities] WS${workspace_id} starting account: ${account.display_name}`);
+
+      for (const company of companies) {
         try {
-          // This uses DISTANCE_1 filter — only genuine 1st-degree connections
+          // DISTANCE_1 filter — only genuine 1st-degree connections
           const people = await unipile.searchFirstDegreeAtCompany(
             account.account_id,
             company.company_linkedin_id,
@@ -66,7 +71,6 @@ async function handler() {
             if (!pid) continue;
             const liUrl = `https://www.linkedin.com/in/${pid}`;
 
-            // Upsert into opportunity_contacts
             await db.query(`
               INSERT INTO opportunity_contacts (
                 workspace_id, company_linkedin_id, company_name,
@@ -78,15 +82,14 @@ async function handler() {
               ON CONFLICT (workspace_id, li_profile_url, connected_via_account_id)
               DO UPDATE SET
                 last_seen_at = NOW(),
-                title = COALESCE(NULLIF(EXCLUDED.title,''), opportunity_contacts.title),
+                title      = COALESCE(NULLIF(EXCLUDED.title,''),      opportunity_contacts.title),
                 first_name = COALESCE(NULLIF(EXCLUDED.first_name,''), opportunity_contacts.first_name),
                 last_name  = COALESCE(NULLIF(EXCLUDED.last_name,''),  opportunity_contacts.last_name)
             `, [
               workspace_id,
               company.company_linkedin_id,
               company.company_name,
-              liUrl,
-              pid,
+              liUrl, pid,
               p.first_name || p.firstName || '',
               p.last_name  || p.lastName  || '',
               p.headline   || p.title     || p.occupation || '',
@@ -97,42 +100,42 @@ async function handler() {
           }
 
           if (people.length > 0) {
-            console.log(`[Opportunities] WS${workspace_id} ${account.display_name} @ ${company.company_name}: ${people.length} 1st-degree connections`);
-            // Queue enrichment for contacts missing names
+            console.log(`[Opportunities] WS${workspace_id} ${account.display_name} @ ${company.company_name}: ${people.length} connections`);
+            // Enrich names in background for contacts that came back nameless
             for (const p of people) {
               const pid = p.public_identifier || p.identifier || p.provider_id;
-              if (!pid) continue;
+              if (!pid || p.first_name || p.firstName) continue;
               const liUrl = `https://www.linkedin.com/in/${pid}`;
-              if (!p.first_name && !p.firstName) {
-                // Update names via enrichProfile in background
-                unipile.enrichProfile(account.account_id, liUrl).then(async enriched => {
-                  if (enriched?.first_name || enriched?.firstName) {
-                    await db.query(`
-                      UPDATE opportunity_contacts SET
-                        first_name = COALESCE(NULLIF($2,''), first_name),
-                        last_name  = COALESCE(NULLIF($3,''), last_name),
-                        title      = COALESCE(NULLIF($4,''), title)
-                      WHERE workspace_id=$1 AND li_profile_url=$5
-                    `, [
-                      workspace_id,
-                      enriched.first_name || enriched.firstName || '',
-                      enriched.last_name  || enriched.lastName  || '',
-                      enriched.headline   || enriched.occupation || '',
-                      liUrl
-                    ]);
-                  }
-                }).catch(() => {});
-                await new Promise(r => setTimeout(r, 500));
-              }
+              unipile.enrichProfile(account.account_id, liUrl).then(async enriched => {
+                if (!enriched?.first_name && !enriched?.firstName) return;
+                await db.query(`
+                  UPDATE opportunity_contacts SET
+                    first_name = COALESCE(NULLIF($2,''), first_name),
+                    last_name  = COALESCE(NULLIF($3,''), last_name),
+                    title      = COALESCE(NULLIF($4,''), title)
+                  WHERE workspace_id=$1 AND li_profile_url=$5
+                `, [workspace_id,
+                    enriched.first_name || enriched.firstName || '',
+                    enriched.last_name  || enriched.lastName  || '',
+                    enriched.headline   || enriched.occupation || '',
+                    liUrl]);
+              }).catch(() => {});
+              await new Promise(r => setTimeout(r, 300));
             }
           }
 
-          // Rate limit between calls (avoid 429)
-          await new Promise(r => setTimeout(r, 3000));
+          // Delay between company calls for this account
+          await new Promise(r => setTimeout(r, 2000));
         } catch(e) {
           console.warn(`[Opportunities] WS${workspace_id} ${account.display_name} @ ${company.company_name}: ${e.message}`);
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, 3000));
         }
+      }
+
+      // Longer pause between accounts — LinkedIn rate limits are per-account
+      if (accounts.indexOf(account) < accounts.length - 1) {
+        console.log(`[Opportunities] WS${workspace_id} ${account.display_name} done — waiting 60s before next account`);
+        await new Promise(r => setTimeout(r, 60000));
       }
     }
   }

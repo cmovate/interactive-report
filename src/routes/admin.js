@@ -1830,13 +1830,15 @@ router.post('/sync-opportunities-test', async (req, res) => {
       [workspace_id]
     );
     const results = [];
-    for (const companyId of company_linkedin_ids) {
+    // account→company order to avoid rate limiting between accounts
+    for (const acc of accounts) {
+      for (const companyId of company_linkedin_ids) {
       const { rows: comp } = await db.query(
         `SELECT company_name FROM list_companies WHERE workspace_id=$1 AND company_linkedin_id=$2 LIMIT 1`,
         [workspace_id, String(companyId)]
       );
       const companyName = comp[0]?.company_name || companyId;
-      for (const acc of accounts) {
+      {
         try {
           const people = await unipile.searchFirstDegreeAtCompany(acc.account_id, companyId, 20);
           for (const p of people) {
@@ -1860,6 +1862,9 @@ router.post('/sync-opportunities-test', async (req, res) => {
           results.push({ company: companyName, account: acc.display_name, error: e.message });
         }
       }
+      }
+      // Wait between accounts
+      await new Promise(r => setTimeout(r, 5000));
     }
     res.json({ results });
   } catch(e) { res.status(500).json({ error: e.message }); }
