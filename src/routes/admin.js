@@ -1861,6 +1861,9 @@ router.post('/sync-opportunities-test', async (req, res) => {
           const slug  = p.public_identifier || p.identifier;
           if (!slug && !acoId) continue;
           const liUrl = `https://www.linkedin.com/in/${slug || acoId}`;
+          const fn = p.first_name||p.firstName||'';
+          const ln = p.last_name||p.lastName||'';
+          const tt = p.headline||p.title||'';
           await db.query(`
             INSERT INTO opportunity_contacts (workspace_id,company_linkedin_id,company_name,li_profile_url,provider_id,aco_id,first_name,last_name,title,connected_via_account_id,connected_via_name,last_seen_at)
             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
@@ -1871,9 +1874,19 @@ router.post('/sync-opportunities-test', async (req, res) => {
               first_name=COALESCE(NULLIF(EXCLUDED.first_name,''),opportunity_contacts.first_name),
               last_name=COALESCE(NULLIF(EXCLUDED.last_name,''),opportunity_contacts.last_name)
           `, [workspace_id, String(companyId), nameMap[companyId]||'',
-              liUrl, slug, acoId,
-              p.first_name||p.firstName||'', p.last_name||p.lastName||'',
-              p.headline||p.title||'', account.account_id, account.display_name]);
+              liUrl, slug, acoId, fn, ln, tt,
+              account.account_id, account.display_name]);
+          // Also upsert to main contacts table (campaign_id=NULL, never enrolled)
+          await db.query(`
+            INSERT INTO contacts (workspace_id,campaign_id,first_name,last_name,title,company,li_profile_url,provider_id,already_connected)
+            VALUES ($1,NULL,$2,$3,$4,$5,$6,$7,true)
+            ON CONFLICT (workspace_id,li_profile_url) DO UPDATE SET
+              first_name=COALESCE(NULLIF(EXCLUDED.first_name,''),contacts.first_name),
+              last_name=COALESCE(NULLIF(EXCLUDED.last_name,''),contacts.last_name),
+              title=COALESCE(NULLIF(EXCLUDED.title,''),contacts.title),
+              company=COALESCE(NULLIF(EXCLUDED.company,''),contacts.company),
+              already_connected=true
+          `, [workspace_id,fn,ln,tt,nameMap[companyId]||'',liUrl,slug||acoId]);
         }
         results.push({ company: nameMap[companyId]||companyId, account: account.display_name, found: people.length });
         await new Promise(r => setTimeout(r, 1500));

@@ -76,6 +76,10 @@ async function handler() {
           if (!slug && !acoId) continue;
           const liUrl = `https://www.linkedin.com/in/${slug || acoId}`;
 
+          const firstName = p.first_name || p.firstName || '';
+          const lastName  = p.last_name  || p.lastName  || '';
+          const title     = p.headline   || p.title     || '';
+
           await db.query(`
             INSERT INTO opportunity_contacts (
               workspace_id, company_linkedin_id, company_name,
@@ -96,11 +100,29 @@ async function handler() {
             company.company_linkedin_id,
             company.company_name,
             liUrl, slug, acoId,
-            p.first_name || p.firstName || '',
-            p.last_name  || p.lastName  || '',
-            p.headline   || p.title     || '',
+            firstName, lastName, title,
             account.account_id,
             account.display_name,
+          ]);
+
+          // Also upsert into main contacts table (campaign_id=NULL = workspace pool)
+          // These contacts will NEVER be enrolled in campaigns automatically
+          await db.query(`
+            INSERT INTO contacts
+              (workspace_id, campaign_id, first_name, last_name, title,
+               company, li_profile_url, provider_id, already_connected)
+            VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, true)
+            ON CONFLICT (workspace_id, li_profile_url) DO UPDATE SET
+              first_name       = COALESCE(NULLIF(EXCLUDED.first_name,''), contacts.first_name),
+              last_name        = COALESCE(NULLIF(EXCLUDED.last_name,''),  contacts.last_name),
+              title            = COALESCE(NULLIF(EXCLUDED.title,''),      contacts.title),
+              company          = COALESCE(NULLIF(EXCLUDED.company,''),    contacts.company),
+              already_connected = true
+          `, [
+            workspace_id,
+            firstName, lastName, title,
+            company.company_name,
+            liUrl, slug || acoId,
           ]);
         }
 
