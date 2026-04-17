@@ -154,7 +154,7 @@ async function handler() {
 
         // Check if already a signal
         const { rows: existing } = await db.query(
-          `SELECT id FROM signals WHERE workspace_id=$1 AND actor_provider_id=$2 AND type='inbound_message' AND created_at > NOW()-'7 days'::interval LIMIT 1`,
+          `SELECT id FROM signals WHERE workspace_id=$1 AND actor_provider_id=$2 AND type='inbound_message' AND created_at > NOW()-'30 days'::interval LIMIT 1`,
           [acc.workspace_id, otherProviderId]
         );
         if (existing.length) continue;
@@ -176,7 +176,7 @@ async function handler() {
 
         // Only signal if their message is recent (within 7 days)
         const msgDate = new Date(theirLastMsg.timestamp || theirLastMsg.created_at || 0);
-        if (Date.now() - msgDate.getTime() > 7 * 24 * 60 * 60 * 1000) continue;
+        if (Date.now() - msgDate.getTime() > 30 * 24 * 60 * 60 * 1000) continue;
 
         const messageText = theirLastMsg.text || theirLastMsg.body || '';
 
@@ -193,9 +193,7 @@ async function handler() {
         const score = await aiScoreSignal(personData, messageText, acc.workspace_name);
         await new Promise(r => setTimeout(r, 300));
 
-        // Skip cold signals with no message
-        if (!score && !messageText) continue;
-        if (score?.priority === 'COLD' && !messageText) continue;
+        if (!messageText) continue;
 
         // Save signal
         const signalType = knownContact ? 'inbound_message' : 'unsolicited_message';
