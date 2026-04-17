@@ -154,6 +154,28 @@ async function initSchemaV2() {
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS invite_note TEXT`
   ));
 
+  await s('opportunity_contacts', () => db.query(`
+    CREATE TABLE IF NOT EXISTS opportunity_contacts (
+      id                       SERIAL PRIMARY KEY,
+      workspace_id             INTEGER NOT NULL,
+      company_linkedin_id      TEXT    NOT NULL,
+      company_name             TEXT    NOT NULL DEFAULT '',
+      li_profile_url           TEXT    NOT NULL,
+      provider_id              TEXT,
+      first_name               TEXT    NOT NULL DEFAULT '',
+      last_name                TEXT    NOT NULL DEFAULT '',
+      title                    TEXT    NOT NULL DEFAULT '',
+      connected_via_account_id TEXT    NOT NULL,
+      connected_via_name       TEXT    NOT NULL DEFAULT '',
+      last_seen_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (workspace_id, li_profile_url, connected_via_account_id)
+    )
+  `));
+  await s('opportunity_contacts.idx_ws', () => db.query(
+    `CREATE INDEX IF NOT EXISTS idx_opp_contacts_ws ON opportunity_contacts(workspace_id, company_linkedin_id)`
+  ));
+
   // ── Signals (all inbound LinkedIn events) ────────────────────────────────
   await s('signals', () => db.query(`
     CREATE TABLE IF NOT EXISTS signals (

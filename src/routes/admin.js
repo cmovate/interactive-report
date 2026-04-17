@@ -1013,6 +1013,7 @@ router.post('/trigger-job', async (req, res) => {
     'publish-scheduled-posts':  () => require('../jobs/publishScheduledPosts').handler(),
     'withdraw-invites':         () => require('../jobs/withdrawInvites').handler(),
     'sync-target-accounts':     () => require('../jobs/syncTargetAccounts').handler(),
+    'sync-opportunities':       () => require('../jobs/syncOpportunities').handler(),
   };
   if (!JOB_HANDLERS[job])
     return res.status(400).json({ error: `Unknown job: ${job}. Allowed: ${Object.keys(JOB_HANDLERS).join(', ')}` });
@@ -1508,6 +1509,7 @@ router.post('/run-job-sync', async (req, res) => {
     'enrich-contacts':     () => require('../jobs/enrichContacts').handler(),
     'compute-scores':      () => require('../jobs/computeScores').handler(),
     'sync-target-accounts':() => require('../jobs/syncTargetAccounts').handler(),
+    'sync-opportunities':  () => require('../jobs/syncOpportunities').handler(),
   };
   if (!HANDLERS[job]) return res.status(400).json({ error: `Unknown job: ${job}` });
   try {
