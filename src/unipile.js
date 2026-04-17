@@ -473,6 +473,7 @@ module.exports = {
   searchPeople,
   searchPeopleByKeywords,
   searchPeopleByCompany,
+  searchFirstDegreeAtCompany,
   lookupCompany,
   getChatMessages,
   deleteChat,
