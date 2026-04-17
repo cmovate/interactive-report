@@ -207,7 +207,8 @@ function renderCompanies(companies) {
             </div>
             <div class="contact-title">${esc(c.title)||'—'}</div>
             <div><span class="via-tag">👤 ${esc(c.connected_via_name)}</span>${c.chat_id ? ' <span title="Has chat history">💬</span>' : ''}</div>
-            <div><button class="btn-msg" onclick='openInbox(${JSON.stringify(c)})'>${c.chat_id ? '💬 Open chat' : '✉️ Message'}</button></div>
+            <div><button class="btn-msg" onclick='openInbox(JSON.parse(this.dataset.contact))'
+              data-contact='${esc(JSON.stringify(c))}'>${c.chat_id ? '💬 Open chat' : '✉️ Message'}</button></div>
           </div>
         `).join('')}
       </div>
