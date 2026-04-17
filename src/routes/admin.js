@@ -46,15 +46,15 @@ router.get('/filter-options', async (req, res) => {
 // GET /api/admin/analytics?from=YYYY-MM-DD&to=YYYY-MM-DD&country=&company=
 router.get('/analytics', async (req, res) => {
   try {
-    const from    = req.query.from    || null;  // date or null
-    const to      = req.query.to      || null;  // date or null
-    const country = req.query.country || null;  // ILIKE filter on contacts.location
-    const company = req.query.company || null;  // ILIKE filter on contacts.company
+    const from        = req.query.from         || null;
+    const to          = req.query.to           || null;
+    const country     = req.query.country      || null;
+    const company     = req.query.company      || null;
+    const workspace_id = req.query.workspace_id ? parseInt(req.query.workspace_id) : null;
 
-    // $1 = from, $2 = to, $3 = country, $4 = company
-    const p = [from, to, country, company];
+    // $1=from, $2=to, $3=country, $4=company, $5=workspace_id
+    const p = [from, to, country, company, workspace_id];
 
-    // Date-range conditions on _at timestamp columns ($1/$2 = date bounds)
     const inv  = `ct.invite_sent    = true AND ($1::date IS NULL OR ct.invite_sent_at    >= $1::date) AND ($2::date IS NULL OR ct.invite_sent_at    < $2::date + interval '1 day')`;
     const appr = `ct.invite_approved= true AND ($1::date IS NULL OR ct.invite_approved_at>= $1::date) AND ($2::date IS NULL OR ct.invite_approved_at< $2::date + interval '1 day')`;
     const msgs = `ct.msg_sent       = true AND ($1::date IS NULL OR ct.msg_sent_at        >= $1::date) AND ($2::date IS NULL OR ct.msg_sent_at        < $2::date + interval '1 day')`;
@@ -62,14 +62,16 @@ router.get('/analytics', async (req, res) => {
     const pos  = `ct.positive_reply = true AND ($1::date IS NULL OR ct.positive_reply_at  >= $1::date) AND ($2::date IS NULL OR ct.positive_reply_at  < $2::date + interval '1 day')`;
     const added= `($1::date IS NULL OR ct.created_at >= $1::date) AND ($2::date IS NULL OR ct.created_at < $2::date + interval '1 day')`;
 
-    // Pre-filtered contacts subquery ($3/$4 = country/company ILIKE filters)
-    // Using a subquery in the JOIN lets us keep LEFT JOIN semantics while
-    // restricting which contacts contribute to the aggregate counts.
+    // workspace_id filter ($5)
+    const wsFilter = `($5::int IS NULL OR c.workspace_id = $5::int)`;
+
+    // Contacts subquery — also filtered by workspace when provided
     const ctJoin = `
       LEFT JOIN (
         SELECT * FROM contacts
         WHERE ($3::text IS NULL OR location ILIKE '%' || $3 || '%')
           AND ($4::text IS NULL OR company  ILIKE '%' || $4 || '%')
+          AND ($5::int  IS NULL OR workspace_id = $5::int)
       ) ct ON ct.campaign_id = c.id
     `;
 
@@ -87,8 +89,9 @@ router.get('/analytics', async (req, res) => {
         COUNT(ct.id) FILTER (WHERE ${repl})                     AS messages_replied,
         COUNT(ct.id) FILTER (WHERE ${pos})                      AS positive_replies
       FROM workspaces w
-      LEFT JOIN campaigns c ON c.workspace_id = w.id
+      LEFT JOIN campaigns c ON c.workspace_id = w.id AND ${wsFilter}
       ${ctJoin}
+      WHERE ($5::int IS NULL OR w.id = $5::int)
       GROUP BY w.id, w.name
       ORDER BY (COUNT(ct.id) FILTER (WHERE ${inv})) DESC NULLS LAST
     `, p);
@@ -110,7 +113,7 @@ router.get('/analytics', async (req, res) => {
       LEFT JOIN workspaces       w  ON w.id          = c.workspace_id
       LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id AND ua.workspace_id = c.workspace_id
       ${ctJoin}
-      WHERE c.account_id IS NOT NULL
+      WHERE c.account_id IS NOT NULL AND ${wsFilter}
       GROUP BY c.account_id, ua.display_name, w.name
       ORDER BY (COUNT(ct.id) FILTER (WHERE ${inv})) DESC NULLS LAST
     `, p);
@@ -132,6 +135,7 @@ router.get('/analytics', async (req, res) => {
       LEFT JOIN workspaces       w  ON w.id          = c.workspace_id
       LEFT JOIN unipile_accounts ua ON ua.account_id = c.account_id AND ua.workspace_id = c.workspace_id
       ${ctJoin}
+      WHERE ${wsFilter}
       GROUP BY c.id, c.name, c.status, c.account_id, c.workspace_id, c.created_at, w.name, ua.display_name
       ORDER BY c.created_at DESC
     `, p);
@@ -140,10 +144,11 @@ router.get('/analytics', async (req, res) => {
     // $1/$2 = effectiveFrom/To, $3/$4 = country/company
     const effectiveFrom = from || (() => { const d = new Date(); d.setDate(d.getDate()-29); return d.toISOString().slice(0,10); })();
     const effectiveTo   = to   || new Date().toISOString().slice(0,10);
-    const tp = [effectiveFrom, effectiveTo, country, company];
+    const tp = [effectiveFrom, effectiveTo, country, company, workspace_id];
 
     const ctFilter = `($3::text IS NULL OR location ILIKE '%' || $3 || '%')
-        AND ($4::text IS NULL OR company  ILIKE '%' || $4 || '%')`;
+        AND ($4::text IS NULL OR company  ILIKE '%' || $4 || '%')
+        AND ($5::int  IS NULL OR workspace_id = $5::int)`;
 
     const { rows: timeline } = await db.query(`
       WITH ds AS (
