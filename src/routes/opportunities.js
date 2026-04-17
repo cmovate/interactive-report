@@ -752,6 +752,14 @@ router.post('/send-dm', async (req, res) => {
     res.json({ success: true, chat_id: newChatId, method: 'new_dm' });
   } catch(err) {
     console.error('[send-dm] error:', err.message);
+    // LinkedIn 403 subscription_required = no existing chat thread found,
+    // LinkedIn requires an existing conversation or Premium to cold-message connections
+    if (err.message?.includes('subscription_required') || err.message?.includes('403')) {
+      return res.status(400).json({
+        error: 'No existing conversation found with this contact. LinkedIn only allows messaging contacts you\'ve previously chatted with, or requires LinkedIn Premium for new conversations. Try connecting with them first via a campaign.',
+        code: 'no_existing_chat'
+      });
+    }
     res.status(500).json({ error: err.message });
   }
 });

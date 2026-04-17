@@ -82,6 +82,44 @@ campaignRouter.get('/:id/enrollments', async (req, res) => {
 
 const enrollmentRouter = express.Router();
 
+// GET /api/enrollments?workspace_id=&campaign_id=&status=&limit=&offset=
+enrollmentRouter.get('/', async (req, res) => {
+  try {
+    const { workspace_id, campaign_id, status, limit = 50, offset = 0 } = req.query;
+    if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
+
+    let where = 'WHERE camp.workspace_id = $1';
+    const params = [workspace_id];
+
+    if (campaign_id) { params.push(campaign_id); where += ` AND e.campaign_id = $${params.length}`; }
+    if (status)      { params.push(status);      where += ` AND e.status = $${params.length}`; }
+
+    params.push(parseInt(limit));  const limitN  = params.length;
+    params.push(parseInt(offset)); const offsetN = params.length;
+
+    const { rows } = await db.query(`
+      SELECT e.id, e.status, e.current_step, e.next_action_at,
+             e.invite_sent_at, e.invite_approved_at, e.error_message,
+             e.campaign_id, e.contact_id, e.chat_id,
+             c.first_name, c.last_name, c.company, c.li_profile_url,
+             camp.name AS campaign_name, camp.account_id
+      FROM enrollments e
+      JOIN contacts  c    ON c.id    = e.contact_id
+      JOIN campaigns camp ON camp.id = e.campaign_id
+      ${where}
+      ORDER BY e.updated_at DESC
+      LIMIT $${limitN} OFFSET $${offsetN}
+    `, params);
+
+    const { rows: countRows } = await db.query(
+      `SELECT COUNT(*) AS n FROM enrollments e JOIN campaigns camp ON camp.id = e.campaign_id ${where.split('LIMIT')[0]}`,
+      params.slice(0, -2)
+    );
+
+    res.json({ items: rows, total: parseInt(countRows[0]?.n || 0), limit: parseInt(limit), offset: parseInt(offset) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // GET /api/enrollments/:id
 enrollmentRouter.get('/:id', async (req, res) => {
   try {
