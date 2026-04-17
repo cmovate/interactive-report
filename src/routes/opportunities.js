@@ -124,9 +124,19 @@ router.post('/send-dm', async (req, res) => {
   const unipile = require('../unipile');
 
   try {
-    // Determine target identifier
-    const target = provider_id || li_profile_url.match(/\/in\/([^/?#]+)/)?.[1];
-    if (!target) return res.status(400).json({ error: 'Cannot extract identifier from li_profile_url' });
+    // Resolve ACoXXX from opportunity_contacts (needed for Unipile messaging)
+    const slug = provider_id || li_profile_url?.match(/\/in\/([^/?#]+)/)?.[1];
+    let acoId = null;
+    if (slug) {
+      const { rows: ocLookup } = await db.query(
+        `SELECT aco_id FROM opportunity_contacts WHERE workspace_id=$1 AND provider_id=$2 AND aco_id IS NOT NULL LIMIT 1`,
+        [workspace_id, slug]
+      );
+      acoId = ocLookup[0]?.aco_id || null;
+    }
+    // Use ACoXXX if available, else fall back to slug
+    const target = acoId || slug;
+    if (!target) return res.status(400).json({ error: 'Cannot extract identifier from provider_id or li_profile_url' });
 
     // Determine which account to use
     let accId = account_id;

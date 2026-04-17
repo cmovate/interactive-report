@@ -69,21 +69,25 @@ async function handler() {
         }
 
         for (const p of people) {
-          const pid = p.public_identifier || p.identifier;
-          if (!pid) continue;
-          const liUrl = `https://www.linkedin.com/in/${pid}`;
+          // p.id = ACoXXX (needed for messaging)
+          // p.public_identifier = slug (needed for LinkedIn URL)
+          const acoId = p.id?.startsWith('ACo') ? p.id : null;
+          const slug  = p.public_identifier || p.identifier;
+          if (!slug && !acoId) continue;
+          const liUrl = `https://www.linkedin.com/in/${slug || acoId}`;
 
           await db.query(`
             INSERT INTO opportunity_contacts (
               workspace_id, company_linkedin_id, company_name,
-              li_profile_url, provider_id,
+              li_profile_url, provider_id, aco_id,
               first_name, last_name, title,
               connected_via_account_id, connected_via_name,
               last_seen_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
             ON CONFLICT (workspace_id, li_profile_url, connected_via_account_id)
             DO UPDATE SET
               last_seen_at = NOW(),
+              aco_id     = COALESCE(NULLIF(EXCLUDED.aco_id,''),     opportunity_contacts.aco_id),
               title      = COALESCE(NULLIF(EXCLUDED.title,''),      opportunity_contacts.title),
               first_name = COALESCE(NULLIF(EXCLUDED.first_name,''), opportunity_contacts.first_name),
               last_name  = COALESCE(NULLIF(EXCLUDED.last_name,''),  opportunity_contacts.last_name)
@@ -91,7 +95,7 @@ async function handler() {
             workspace_id,
             company.company_linkedin_id,
             company.company_name,
-            liUrl, pid,
+            liUrl, slug, acoId,
             p.first_name || p.firstName || '',
             p.last_name  || p.lastName  || '',
             p.headline   || p.title     || '',
