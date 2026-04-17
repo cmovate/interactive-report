@@ -1,10 +1,9 @@
 /**
- * syncOpportunities.js
+ * syncOpportunities.js — runs every 2 hours
  *
- * Runs every 2 hours.
- * For each workspace, for each account:
- *   ONE search call with ALL company IDs + DISTANCE_1 filter.
- *   2 calls per workspace (one per account) instead of account × company.
+ * For each company: search PEOPLE with company + DISTANCE_1.
+ * Alternates between accounts per company so no single account
+ * gets rate-limited.
  */
 
 const db      = require('../db');
@@ -27,29 +26,26 @@ async function handler() {
     );
     if (!accounts.length) continue;
 
-    // Get all company IDs for this workspace in one query
     const { rows: companies } = await db.query(`
-      SELECT DISTINCT lc.company_linkedin_id, lc.company_name
+      SELECT DISTINCT ON (lc.company_linkedin_id)
+        lc.company_linkedin_id, lc.company_name
       FROM list_companies lc
       JOIN lists l ON l.id = lc.list_id AND l.workspace_id = lc.workspace_id
       WHERE lc.workspace_id = $1
         AND l.type = 'companies'
         AND lc.company_linkedin_id IS NOT NULL
         AND lc.company_linkedin_id != ''
+      ORDER BY lc.company_linkedin_id
     `, [workspace_id]);
 
-    if (!companies.length) continue;
+    console.log(`[Opportunities] WS${workspace_id}: ${companies.length} companies, ${accounts.length} accounts — alternating`);
 
-    // Build lookup: company_linkedin_id → company_name
-    const companyMap = {};
-    for (const c of companies) companyMap[c.company_linkedin_id] = c.company_name;
-    const allCompanyIds = companies.map(c => c.company_linkedin_id);
+    for (let i = 0; i < companies.length; i++) {
+      const company = companies[i];
+      // Alternate account per company
+      const account = accounts[i % accounts.length];
 
-    console.log(`[Opportunities] WS${workspace_id}: ${allCompanyIds.length} companies, ${accounts.length} accounts`);
-
-    for (const account of accounts) {
       try {
-        // ONE search call per account — all company IDs + DISTANCE_1
         const data = await unipile._request(
           '/api/v1/linkedin/search?account_id=' + encodeURIComponent(account.account_id),
           {
@@ -58,25 +54,23 @@ async function handler() {
               api: 'classic',
               category: 'people',
               filters: {
-                currentCompany: allCompanyIds.map(String),
+                currentCompany: [String(company.company_linkedin_id)],
                 network_distance: ['DISTANCE_1']
               },
-              limit: 100
+              limit: 50
             })
           }
         );
 
         const people = Array.isArray(data?.items) ? data.items : [];
-        console.log(`[Opportunities] WS${workspace_id} ${account.display_name}: ${people.length} 1st-degree connections found across all companies`);
+
+        if (people.length > 0) {
+          console.log(`[Opportunities] ${account.display_name} @ ${company.company_name}: ${people.length} connections`);
+        }
 
         for (const p of people) {
-          const pid = p.public_identifier || p.id;
-          if (!pid || pid.startsWith('ACo')) continue; // skip non-slug IDs
-
-          // Determine which company this person works at
-          const companyId = p.current_positions?.[0]?.company_id
-            || allCompanyIds.find(id => p.headline?.includes(companyMap[id]) || p.current_positions?.some(pos => pos.company_id === id));
-          const companyName = companyId ? companyMap[companyId] : (p.current_positions?.[0]?.company || '');
+          const pid = p.public_identifier || p.identifier;
+          if (!pid) continue;
           const liUrl = `https://www.linkedin.com/in/${pid}`;
 
           await db.query(`
@@ -95,49 +89,27 @@ async function handler() {
               last_name  = COALESCE(NULLIF(EXCLUDED.last_name,''),  opportunity_contacts.last_name)
           `, [
             workspace_id,
-            companyId || '',
-            companyName,
-            liUrl,
-            pid,
+            company.company_linkedin_id,
+            company.company_name,
+            liUrl, pid,
             p.first_name || p.firstName || '',
             p.last_name  || p.lastName  || '',
-            p.headline   || p.title     || p.occupation || '',
+            p.headline   || p.title     || '',
             account.account_id,
             account.display_name,
           ]);
         }
 
-        // Enrich names in background for nameless contacts
-        for (const p of people) {
-          if (p.first_name || p.firstName) continue;
-          const pid = p.public_identifier || p.id;
-          if (!pid || pid.startsWith('ACo')) continue;
-          const liUrl = `https://www.linkedin.com/in/${pid}`;
-          unipile.enrichProfile(account.account_id, liUrl).then(async enriched => {
-            if (!enriched?.first_name && !enriched?.firstName) return;
-            await db.query(`
-              UPDATE opportunity_contacts SET
-                first_name = COALESCE(NULLIF($2,''), first_name),
-                last_name  = COALESCE(NULLIF($3,''), last_name),
-                title      = COALESCE(NULLIF($4,''), title)
-              WHERE workspace_id=$1 AND li_profile_url=$5
-            `, [workspace_id,
-                enriched.first_name || enriched.firstName || '',
-                enriched.last_name  || enriched.lastName  || '',
-                enriched.headline   || enriched.occupation || '',
-                liUrl]);
-          }).catch(() => {});
-          await new Promise(r => setTimeout(r, 200));
-        }
-
-        // Short delay between accounts
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 1500));
 
       } catch(e) {
-        console.warn(`[Opportunities] WS${workspace_id} ${account.display_name}: ${e.message}`);
+        console.warn(`[Opportunities] ${account.display_name} @ ${company.company_name}: ${e.message}`);
+        await new Promise(r => setTimeout(r, 3000));
       }
     }
   }
+
+  console.log('[Opportunities] Sync complete');
 }
 
 module.exports = { handler };
