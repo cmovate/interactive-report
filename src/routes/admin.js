@@ -1990,3 +1990,130 @@ router.post('/get-aco-id', async (req, res) => {
     res.json({ provider_id: enriched?.provider_id, raw: enriched });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// ─── Advanced Analytics Endpoints ────────────────────────────────────────────
+
+// GET /api/admin/analytics/journey?workspace_id=
+// Average days between each funnel stage
+router.get('/analytics/journey', async (req, res) => {
+  const ws = parseInt(req.query.workspace_id) || null;
+  const wsFilter = ws ? 'AND campaign_id IN (SELECT id FROM campaigns WHERE workspace_id=$1)' : '';
+  const p = ws ? [ws] : [];
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        ROUND(AVG(EXTRACT(EPOCH FROM (invite_approved_at - invite_sent_at))/86400)::numeric, 1) AS days_invite_to_approve,
+        ROUND(AVG(EXTRACT(EPOCH FROM (msg_sent_at - invite_approved_at))/86400)::numeric, 1)   AS days_approve_to_message,
+        ROUND(AVG(EXTRACT(EPOCH FROM (msg_replied_at - msg_sent_at))/86400)::numeric, 1)        AS days_message_to_reply,
+        COUNT(*) FILTER (WHERE invite_sent = true)     AS total_invited,
+        COUNT(*) FILTER (WHERE invite_approved = true) AS total_approved,
+        COUNT(*) FILTER (WHERE msg_sent = true)        AS total_messaged,
+        COUNT(*) FILTER (WHERE msg_replied = true)     AS total_replied
+      FROM contacts
+      WHERE invite_sent_at IS NOT NULL
+        ${ws ? 'AND workspace_id = $1' : ''}
+    `, p);
+    // Best day of week for approvals and replies
+    const { rows: dayRows } = await db.query(`
+      SELECT
+        TO_CHAR(invite_approved_at, 'Dy') AS day,
+        EXTRACT(DOW FROM invite_approved_at) AS dow,
+        COUNT(*) AS approvals,
+        COUNT(*) FILTER (WHERE msg_replied_at IS NOT NULL) AS replies
+      FROM contacts
+      WHERE invite_approved_at IS NOT NULL
+        ${ws ? 'AND workspace_id = $1' : ''}
+      GROUP BY day, dow ORDER BY dow
+    `, p);
+    res.json({ journey: rows[0], by_day: dayRows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/admin/analytics/velocity?workspace_id=
+// Week-over-week change for each KPI
+router.get('/analytics/velocity', async (req, res) => {
+  const ws = parseInt(req.query.workspace_id) || null;
+  const wsFilter = ws ? 'AND workspace_id = $1' : '';
+  const p = ws ? [ws] : [];
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE invite_sent_at >= NOW()-'7 days'::interval)     AS inv_this_week,
+        COUNT(*) FILTER (WHERE invite_sent_at BETWEEN NOW()-'14 days'::interval AND NOW()-'7 days'::interval) AS inv_last_week,
+        COUNT(*) FILTER (WHERE invite_approved_at >= NOW()-'7 days'::interval)  AS apr_this_week,
+        COUNT(*) FILTER (WHERE invite_approved_at BETWEEN NOW()-'14 days'::interval AND NOW()-'7 days'::interval) AS apr_last_week,
+        COUNT(*) FILTER (WHERE msg_sent_at >= NOW()-'7 days'::interval)         AS msg_this_week,
+        COUNT(*) FILTER (WHERE msg_sent_at BETWEEN NOW()-'14 days'::interval AND NOW()-'7 days'::interval)        AS msg_last_week,
+        COUNT(*) FILTER (WHERE msg_replied_at >= NOW()-'7 days'::interval)      AS rep_this_week,
+        COUNT(*) FILTER (WHERE msg_replied_at BETWEEN NOW()-'14 days'::interval AND NOW()-'7 days'::interval)     AS rep_last_week
+      FROM contacts
+      WHERE 1=1 ${wsFilter}
+    `, p);
+    res.json(rows[0]);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/admin/analytics/stale?workspace_id=
+// Stale pipeline — contacts pending too long
+router.get('/analytics/stale', async (req, res) => {
+  const ws = parseInt(req.query.workspace_id) || null;
+  const wsFilter = ws ? 'AND c.workspace_id = $1' : '';
+  const p = ws ? [ws] : [];
+  try {
+    const { rows } = await db.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE e.status='pending' AND e.created_at < NOW()-'14 days'::interval) AS stale_14d,
+        COUNT(*) FILTER (WHERE e.status='pending' AND e.created_at < NOW()-'30 days'::interval) AS stale_30d,
+        COUNT(*) FILTER (WHERE e.status='pending' AND e.created_at < NOW()-'60 days'::interval) AS stale_60d,
+        COUNT(*) FILTER (WHERE e.status='pending')                                               AS total_pending,
+        COUNT(*) FILTER (WHERE e.status='invite_sent' AND e.updated_at < NOW()-'14 days'::interval) AS stuck_invited
+      FROM enrollments e
+      JOIN contacts c ON c.id = e.contact_id
+      WHERE 1=1 ${wsFilter}
+    `, p);
+    // Project future conversions
+    const { rows: rates } = await db.query(`
+      SELECT
+        CASE WHEN COUNT(*) FILTER (WHERE invite_sent=true) > 0
+          THEN ROUND(COUNT(*) FILTER (WHERE invite_approved=true)::numeric / 
+               COUNT(*) FILTER (WHERE invite_sent=true) * 100, 1) END AS approval_rate,
+        CASE WHEN COUNT(*) FILTER (WHERE msg_sent=true) > 0
+          THEN ROUND(COUNT(*) FILTER (WHERE msg_replied=true)::numeric / 
+               COUNT(*) FILTER (WHERE msg_sent=true) * 100, 1) END AS reply_rate
+      FROM contacts
+      WHERE 1=1 ${wsFilter}
+    `, p);
+    res.json({ stale: rows[0], rates: rates[0] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/admin/analytics/insights — AI-generated insights via Claude
+router.post('/analytics/insights', async (req, res) => {
+  const { data, workspace } = req.body;
+  try {
+    const fetch2 = require('node-fetch');
+    const resp = await fetch2('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: `You are a B2B marketing analyst specializing in LinkedIn outreach for Israeli tech companies. 
+Analyze campaign data and provide 5 sharp, actionable insights in plain text.
+Each insight should be on its own line, starting with an emoji (🟢 for positive, 🟡 for attention, 🔴 for urgent, 🎯 for action).
+Be specific, use the numbers, and focus on what to DO next — not just what happened.
+Keep each insight under 2 sentences. No headers or markdown. Just the 5 insight lines.`,
+        messages: [{ role: 'user', content: `Analyze this LinkedIn outreach campaign data for ${workspace || 'this workspace'}:\n\n${data}` }]
+      })
+    });
+    const ai = await resp.json();
+    const insights = ai.content?.[0]?.text || '';
+    res.json({ insights });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});

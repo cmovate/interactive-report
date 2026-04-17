@@ -628,11 +628,235 @@ async function loadSystemHealth() {
   } catch(e) { /* silent */ }
 }
 
+// ── Advanced Analytics ───────────────────────────────────────────────────────
+function deltaArrow(curr, prev) {
+  const c = parseInt(curr)||0, p = parseInt(prev)||0;
+  if (p === 0) return c > 0 ? '<span style="color:#22c55e">new</span>' : '';
+  const pct = Math.round((c - p) / p * 100);
+  const col = pct >= 0 ? '#22c55e' : '#ef4444';
+  const arrow = pct >= 0 ? '↑' : '↓';
+  return `<span style="color:${col};font-size:11px;font-weight:600">${arrow}${Math.abs(pct)}% vs last week</span>`;
+}
+
+async function loadAdvancedAnalytics() {
+  if (!WORKSPACE_ID) return;
+  const adv = document.getElementById('advanced-section');
+  const aiSec = document.getElementById('ai-insights-section');
+  if (adv) adv.style.display = '';
+  if (aiSec) aiSec.style.display = '';
+
+  try {
+    const [vel, jour, stale] = await Promise.all([
+      fetch(`/api/admin/analytics/velocity?workspace_id=${WORKSPACE_ID}`).then(r=>r.json()),
+      fetch(`/api/admin/analytics/journey?workspace_id=${WORKSPACE_ID}`).then(r=>r.json()),
+      fetch(`/api/admin/analytics/stale?workspace_id=${WORKSPACE_ID}`).then(r=>r.json()),
+    ]);
+
+    // Week-over-week velocity
+    const vGrid = document.getElementById('velocity-grid');
+    if (vGrid) vGrid.innerHTML = [
+      { label: 'Invites (7d)',  curr: vel.inv_this_week,  prev: vel.inv_last_week },
+      { label: 'Approved (7d)', curr: vel.apr_this_week,  prev: vel.apr_last_week },
+      { label: 'Messages (7d)', curr: vel.msg_this_week,  prev: vel.msg_last_week },
+      { label: 'Replies (7d)',  curr: vel.rep_this_week,  prev: vel.rep_last_week },
+    ].map(m => `<div style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">${m.label}</div>
+      <div style="font-size:26px;font-weight:700;color:#111;line-height:1">${parseInt(m.curr)||0}</div>
+      <div style="margin-top:4px">${deltaArrow(m.curr, m.prev)}</div>
+    </div>`).join('');
+
+    // Journey time card
+    const jCard = document.getElementById('journey-card');
+    if (jCard && jour.journey) {
+      const j = jour.journey;
+      const steps = [
+        { label: 'Invite → Approved', days: j.days_invite_to_approve, color: '#1D9E75' },
+        { label: 'Approved → Messaged', days: j.days_approve_to_message, color: '#3B82F6' },
+        { label: 'Messaged → Reply', days: j.days_message_to_reply, color: '#8B5CF6' },
+      ];
+      const totalDays = steps.reduce((s, x) => s + (parseFloat(x.days)||0), 0);
+      jCard.innerHTML = `
+        <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:14px">⏱ Average Journey Time</div>
+        ${steps.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f5;">
+          <span style="font-size:12px;color:#555">${s.label}</span>
+          <span style="font-size:16px;font-weight:700;color:${s.color}">${s.days != null ? s.days+'d' : '—'}</span>
+        </div>`).join('')}
+        <div style="display:flex;justify-content:space-between;margin-top:10px;">
+          <span style="font-size:12px;color:#888">Total end-to-end</span>
+          <span style="font-size:16px;font-weight:700;color:#111">${totalDays > 0 ? totalDays.toFixed(1)+'d' : '—'}</span>
+        </div>`;
+    }
+
+    // Best day card
+    const bdCard = document.getElementById('bestday-card');
+    if (bdCard && jour.by_day?.length) {
+      const days = jour.by_day;
+      const maxApr = Math.max(...days.map(d => parseInt(d.approvals)||0)) || 1;
+      bdCard.innerHTML = `
+        <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:14px">📅 Best Day for Approvals</div>
+        ${days.map(d => {
+          const val = parseInt(d.approvals)||0;
+          const pct = Math.round(val/maxApr*100);
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:11px;color:#888;min-width:28px">${d.day}</span>
+            <div style="flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${pct}%;background:#1D9E75;border-radius:4px;"></div>
+            </div>
+            <span style="font-size:12px;font-weight:600;color:#333;min-width:24px;text-align:right">${val}</span>
+          </div>`;
+        }).join('')}`;
+    }
+
+    // Stale pipeline card
+    const sCard = document.getElementById('stale-card');
+    if (sCard && stale.stale) {
+      const s = stale.stale;
+      const r = stale.rates;
+      const stale14 = parseInt(s.stale_14d)||0;
+      const stale30 = parseInt(s.stale_30d)||0;
+      const pending = parseInt(s.total_pending)||0;
+      const approvalR = parseFloat(r?.approval_rate)||0;
+      const replyR = parseFloat(r?.reply_rate)||0;
+      const projApproved = Math.round(pending * approvalR / 100);
+      const projReplied = Math.round(projApproved * replyR / 100);
+      const stuckInv = parseInt(s.stuck_invited)||0;
+      sCard.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:12px">⚠️ Stale Pipeline</div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;">
+              ${stale14 > 0 ? `<div style="text-align:center;background:#fef9c3;border-radius:8px;padding:10px 16px;"><div style="font-size:22px;font-weight:700;color:#ca8a04">${stale14.toLocaleString()}</div><div style="font-size:11px;color:#888;margin-top:2px">Pending 14+ days</div></div>` : ''}
+              ${stale30 > 0 ? `<div style="text-align:center;background:#fee2e2;border-radius:8px;padding:10px 16px;"><div style="font-size:22px;font-weight:700;color:#dc2626">${stale30.toLocaleString()}</div><div style="font-size:11px;color:#888;margin-top:2px">Pending 30+ days</div></div>` : ''}
+              ${stuckInv > 0 ? `<div style="text-align:center;background:#fef3c7;border-radius:8px;padding:10px 16px;"><div style="font-size:22px;font-weight:700;color:#d97706">${stuckInv.toLocaleString()}</div><div style="font-size:11px;color:#888;margin-top:2px">Invite stuck 14d+</div></div>` : ''}
+            </div>
+          </div>
+          ${projApproved > 0 ? `<div>
+            <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:12px">🔮 Projected Pipeline</div>
+            <div style="display:flex;gap:16px;">
+              <div style="text-align:center;background:#f0fdf4;border-radius:8px;padding:10px 16px;"><div style="font-size:22px;font-weight:700;color:#16a34a">${projApproved.toLocaleString()}</div><div style="font-size:11px;color:#888;margin-top:2px">Est. approvals</div></div>
+              <div style="text-align:center;background:#eff6ff;border-radius:8px;padding:10px 16px;"><div style="font-size:22px;font-weight:700;color:#2563eb">${projReplied.toLocaleString()}</div><div style="font-size:11px;color:#888;margin-top:2px">Est. replies</div></div>
+            </div>
+          </div>` : ''}
+        </div>`;
+    }
+
+    // Load AI insights after data is ready
+    loadAIInsights(vel, jour.journey, stale);
+
+  } catch(e) { console.error('Advanced analytics error:', e); }
+}
+
+async function loadAIInsights(vel, journey, stale) {
+  const el = document.getElementById('ai-insights-content');
+  const loading = document.getElementById('ai-loading');
+  if (!el) return;
+  if (loading) loading.textContent = 'Analyzing…';
+  el.innerHTML = '<div style="color:#475569;font-style:italic">Generating insights…</div>';
+
+  try {
+    // Build a concise data summary for Claude
+    const enrollEl = document.getElementById('ws-enroll-funnel');
+    const kpiEl = document.getElementById('kpi-grid');
+    const dataSummary = `
+Workspace: ${WORKSPACE_NAME || 'Unknown'}
+Period: Last 30 days
+
+KPIs: ${kpiEl?.innerText?.replace(/\n/g,' ').slice(0,300) || 'N/A'}
+
+Week-over-week:
+- Invites this week: ${vel.inv_this_week}, last week: ${vel.inv_last_week}
+- Approvals this week: ${vel.apr_this_week}, last week: ${vel.apr_last_week}
+- Messages this week: ${vel.msg_this_week}, last week: ${vel.msg_last_week}
+- Replies this week: ${vel.rep_this_week}, last week: ${vel.rep_last_week}
+
+Journey times:
+- Invite to Approval: ${journey?.days_invite_to_approve || '?'} days avg
+- Approval to Message: ${journey?.days_approve_to_message || '?'} days avg
+- Message to Reply: ${journey?.days_message_to_reply || '?'} days avg
+
+Stale pipeline:
+- Pending 14+ days: ${stale?.stale?.stale_14d || 0}
+- Pending 30+ days: ${stale?.stale?.stale_30d || 0}
+- Stuck invites 14d+: ${stale?.stale?.stuck_invited || 0}
+`.trim();
+
+    const response = await fetch('/api/admin/analytics/insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: dataSummary, workspace: WORKSPACE_NAME })
+    });
+    const result = await response.json();
+    if (loading) loading.textContent = '';
+    if (result.insights) {
+      el.innerHTML = result.insights.split('\n').filter(l=>l.trim()).map(line => {
+        // Bold the first part if it starts with emoji or number
+        const clean = line.trim();
+        if (!clean) return '';
+        return `<div style="display:flex;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.06);">
+          <span style="min-width:20px">${clean.match(/^[0-9🔴🟡🟢⚠️✅🎯📈]/u) ? clean[0] : '•'}</span>
+          <span>${clean.replace(/^[0-9]\. |^[🔴🟡🟢⚠️✅🎯📈•]/u, '').trim()}</span>
+        </div>`;
+      }).join('');
+    } else {
+      el.innerHTML = '<div style="color:#ef4444">Could not generate insights</div>';
+    }
+  } catch(e) {
+    if (loading) loading.textContent = '';
+    el.innerHTML = '<div style="color:#475569">AI insights unavailable</div>';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadSystemHealth();
   setInterval(loadSystemHealth, 30000);
+  if (WORKSPACE_ID) {
+    setTimeout(loadAdvancedAnalytics, 500);
+  }
 });
 </script>
+<!-- Advanced Analytics: AI Insights -->
+<div id="ai-insights-section" style="display:none;background:#0f172a;border-radius:12px;padding:20px;margin:20px 0;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <span style="font-size:20px;">🤖</span>
+    <span style="font-size:14px;font-weight:700;color:#e2e8f0;letter-spacing:.3px;">AI Campaign Insights</span>
+    <span id="ai-loading" style="font-size:11px;color:#64748b;margin-left:4px;"></span>
+  </div>
+  <div id="ai-insights-content" style="font-size:13px;color:#cbd5e1;line-height:1.7;"></div>
+</div>
+
+<!-- Advanced Analytics: WoW + Journey + Stale -->
+<div id="advanced-section" style="display:none;margin:20px 0;display:none;">
+  <!-- Row 1: WoW velocity -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" id="velocity-grid"></div>
+  <!-- Row 2: Journey times -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div id="journey-card" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;"></div>
+    <div id="bestday-card" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;"></div>
+  </div>
+  <!-- Row 3: Stale pipeline -->
+  <div id="stale-card" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;margin-bottom:16px;"></div>
+</div>
+
+<!-- Advanced Analytics: AI Insights -->
+<div id="ai-insights-section" style="display:none;background:#0f172a;border-radius:12px;padding:20px;margin:20px 0;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <span style="font-size:20px;">🤖</span>
+    <span style="font-size:14px;font-weight:700;color:#e2e8f0;letter-spacing:.3px;">AI Campaign Insights</span>
+    <span id="ai-loading" style="font-size:11px;color:#64748b;margin-left:4px;"></span>
+  </div>
+  <div id="ai-insights-content" style="font-size:13px;color:#cbd5e1;line-height:1.7;"></div>
+</div>
+
+<!-- WoW velocity + Journey + Stale -->
+<div id="advanced-section" style="display:none;margin:20px 0;">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;" id="velocity-grid"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+    <div id="journey-card" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;"></div>
+    <div id="bestday-card" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;"></div>
+  </div>
+  <div id="stale-card" style="background:#fff;border:1px solid #e5e5e5;border-radius:10px;padding:18px;margin-bottom:16px;"></div>
+</div>
+
 <div id="system-health" style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:20px 0;"></div>
 </body>
 </html>
