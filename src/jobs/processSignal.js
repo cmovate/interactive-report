@@ -227,14 +227,14 @@ async function classifyReply(enrollmentId, messageText, chatId) {
   if (chatId) {
     try {
       const { rows: msgs } = await db.query(`
-        SELECT sender_type, body, sent_at
+        SELECT direction, content, sent_at
         FROM inbox_messages
         WHERE thread_id = $1
         ORDER BY sent_at DESC LIMIT 5
       `, [chatId]);
       if (msgs.length) {
         conversationContext = msgs.reverse().map(m =>
-          `[${m.sender_type === 'me' ? 'We' : 'Them'}]: ${m.body}`
+          `[${m.direction === 'sent' ? 'We' : 'Them'}]: ${m.content}`
         ).join('\n');
       }
     } catch(e) { /* best effort */ }

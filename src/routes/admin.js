@@ -2159,8 +2159,8 @@ router.post('/classify-replies', async (req, res) => {
         let messageText = '';
         if (enr.chat_id) {
           const { rows: msgs } = await db.query(`
-            SELECT body FROM inbox_messages
-            WHERE thread_id = $1 AND sender_type != 'me'
+            SELECT content AS body FROM inbox_messages
+            WHERE thread_id = $1 AND direction = 'received'
             ORDER BY sent_at DESC LIMIT 1
           `, [enr.chat_id]);
           messageText = msgs[0]?.body || '';
