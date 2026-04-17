@@ -111,6 +111,39 @@ router.get('/stats', async (req, res) => {
 
 module.exports = router;
 
+// Helper: send and then sync inbox in background
+async function sendAndSync(res, workspace_id, accId, chatId, method, sendFn) {
+  await sendFn();
+  res.json({ success: true, chat_id: chatId, method });
+  // Trigger inbox sync in background so message appears in Inbox immediately
+  const fetch2 = require('node-fetch');
+  const BASE = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN
+    : 'http://localhost:' + (process.env.PORT || 3000);
+  fetch2(BASE + '/api/inbox/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace_id, account_id: accId })
+  }).catch(() => {});
+}
+
+// Trigger inbox sync in background after sending a message
+function triggerInboxSync(workspace_id, account_id) {
+  // Use internal HTTP call so inbox_threads table gets updated immediately
+  const http = require('http');
+  const body = JSON.stringify({ workspace_id: parseInt(workspace_id), account_id });
+  const req = http.request({
+    hostname: 'localhost',
+    port: parseInt(process.env.PORT || 3000),
+    path: '/api/inbox/sync',
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+  }, () => {});
+  req.on('error', () => {});
+  req.write(body);
+  req.end();
+}
+
 // POST /api/opportunities/send-dm
 // Sends a LinkedIn DM to a contact. Uses existing chat_id if available,
 // otherwise tries to open a new conversation.
@@ -157,7 +190,7 @@ router.post('/send-dm', async (req, res) => {
     );
     if (ocRows[0]?.chat_id) {
       await unipile.sendMessage(accId, ocRows[0].chat_id, message.trim());
-      return res.json({ success: true, chat_id: ocRows[0].chat_id, method: 'existing_chat' });
+      return res.json({ success: true, chat_id: ocRows[0].chat_id, method: 'existing_chat', sync: triggerInboxSync(workspace_id, accId) });
     }
 
     // Step 2: check inbox_threads
@@ -170,7 +203,7 @@ router.post('/send-dm', async (req, res) => {
     );
     if (thrRows[0]?.thread_id) {
       await unipile.sendMessage(accId, thrRows[0].thread_id, message.trim());
-      return res.json({ success: true, chat_id: thrRows[0].thread_id, method: 'inbox_thread' });
+      return res.json({ success: true, chat_id: thrRows[0].thread_id, method: 'inbox_thread', sync: triggerInboxSync(workspace_id, accId) });
     }
 
     // Step 3: look up existing chat on Unipile
@@ -184,6 +217,7 @@ router.post('/send-dm', async (req, res) => {
          WHERE workspace_id=$2 AND provider_id=$3 AND connected_via_account_id=$4`,
         [chatId, workspace_id, target, accId]
       ).catch(() => {});
+      triggerInboxSync(workspace_id, accId);
       return res.json({ success: true, chat_id: chatId, method: 'unipile_lookup' });
     }
 
@@ -197,6 +231,7 @@ router.post('/send-dm', async (req, res) => {
         [chatId, workspace_id, target, accId]
       ).catch(() => {});
     }
+    triggerInboxSync(workspace_id, accId);
     return res.json({ success: true, chat_id: chatId, method: 'new_dm' });
 
   } catch(e) {

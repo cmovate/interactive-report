@@ -455,14 +455,26 @@ function sendNewDM(providerId, wsId) {
       msgs.scrollTop = msgs.scrollHeight;
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Send ▶'; }
-    // If we got a chat_id, try to load the thread
+    // Reload threads after send — server triggers inbox sync in background
+    // Wait 3s to give sync time to complete, then reload and open thread
     if (d.chat_id) {
       setTimeout(function() {
         loadThreads().then(function() {
-          var t = threads.find(function(th) { return th.provider_id === providerId || (th.li_profile_url && th.li_profile_url.includes(providerId)); });
-          if (t) openThread(t.id);
+          var t = threads.find(function(th) {
+            return th.provider_id === providerId ||
+                   th.chat_id === d.chat_id ||
+                   (th.li_profile_url && th.li_profile_url.includes(providerId));
+          });
+          if (t) {
+            openThread(t.id);
+            var el = document.getElementById('ti-' + t.id);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
         });
-      }, 1000);
+      }, 3000);
+    } else {
+      // No chat_id yet — still reload after delay
+      setTimeout(loadThreads, 3000);
     }
   }).catch(function(err) {
     if (btn) { btn.disabled = false; btn.textContent = 'Send ▶'; }
