@@ -468,6 +468,7 @@ async function followCompany(accountId, liCompanyUrl) {
 }
 
 module.exports = {
+  _request: request,
   getAccounts,
   getAccountInfo,
   searchPeople,

@@ -1882,3 +1882,18 @@ router.post('/test-search-first-degree', async (req, res) => {
     res.json({ count: people.length, sample: people[0] || null });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
+
+// POST /api/admin/test-relations — test Unipile relations endpoint
+router.post('/test-relations', async (req, res) => {
+  const { workspace_id } = req.body;
+  try {
+    const { rows: accts } = await db.query(
+      `SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1`, [workspace_id]
+    );
+    if (!accts.length) return res.status(400).json({ error: 'no accounts' });
+    const unipile = require('../unipile');
+    // Try Unipile's relations endpoint
+    const data = await unipile._request(`/api/v1/linkedin/relations?account_id=${encodeURIComponent(accts[0].account_id)}&limit=5`);
+    res.json({ sample: data });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
