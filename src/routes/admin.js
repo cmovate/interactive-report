@@ -1818,55 +1818,66 @@ router.post('/detach-sequence', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/admin/sync-opportunities-test — run sync on specific company IDs only
+// POST /api/admin/sync-opportunities-test — one call per account with all company IDs
 router.post('/sync-opportunities-test', async (req, res) => {
   const { workspace_id, company_linkedin_ids } = req.body;
-  if (!workspace_id || !company_linkedin_ids?.length)
-    return res.status(400).json({ error: 'workspace_id and company_linkedin_ids required' });
+  if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
   try {
     const unipile = require('../unipile');
     const { rows: accounts } = await db.query(
       `SELECT account_id, display_name FROM unipile_accounts WHERE workspace_id=$1 ORDER BY id`,
       [workspace_id]
     );
-    const results = [];
-    // account→company order to avoid rate limiting between accounts
-    for (const acc of accounts) {
-      for (const companyId of company_linkedin_ids) {
-      const { rows: comp } = await db.query(
-        `SELECT company_name FROM list_companies WHERE workspace_id=$1 AND company_linkedin_id=$2 LIMIT 1`,
-        [workspace_id, String(companyId)]
+
+    // Use provided IDs or fetch all from DB
+    let ids = company_linkedin_ids;
+    if (!ids?.length) {
+      const { rows: comps } = await db.query(
+        `SELECT DISTINCT company_linkedin_id FROM list_companies lc JOIN lists l ON l.id=lc.list_id WHERE lc.workspace_id=$1 AND l.type='companies' AND company_linkedin_id IS NOT NULL AND company_linkedin_id!=''`,
+        [workspace_id]
       );
-      const companyName = comp[0]?.company_name || companyId;
-      {
-        try {
-          const people = await unipile.searchFirstDegreeAtCompany(acc.account_id, companyId, 20);
-          for (const p of people) {
-            const pid = p.public_identifier || p.identifier || p.provider_id;
-            if (!pid) continue;
-            await db.query(`
-              INSERT INTO opportunity_contacts
-                (workspace_id, company_linkedin_id, company_name, li_profile_url, provider_id,
-                 first_name, last_name, title, connected_via_account_id, connected_via_name, last_seen_at)
-              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
-              ON CONFLICT (workspace_id, li_profile_url, connected_via_account_id)
-              DO UPDATE SET last_seen_at=NOW(), title=COALESCE(NULLIF(EXCLUDED.title,''),opportunity_contacts.title)
-            `, [workspace_id, String(companyId), companyName,
-                `https://www.linkedin.com/in/${pid}`, pid,
-                p.first_name||p.firstName||'', p.last_name||p.lastName||'', p.headline||p.title||p.occupation||'',
-                acc.account_id, acc.display_name]);
-          }
-          results.push({ company: companyName, account: acc.display_name, found: people.length });
-          await new Promise(r => setTimeout(r, 1000));
-        } catch(e) {
-          results.push({ company: companyName, account: acc.display_name, error: e.message });
-        }
-      }
-      }
-      // Wait between accounts
-      await new Promise(r => setTimeout(r, 5000));
+      ids = comps.map(c => c.company_linkedin_id);
     }
-    res.json({ results });
+    if (!ids.length) return res.json({ error: 'no company IDs' });
+
+    const results = [];
+    for (const acc of accounts) {
+      try {
+        const data = await unipile._request(
+          '/api/v1/linkedin/search?account_id=' + encodeURIComponent(acc.account_id),
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              api: 'classic', category: 'people',
+              filters: { currentCompany: ids.map(String), network_distance: ['DISTANCE_1'] },
+              limit: 50
+            })
+          }
+        );
+        const people = data?.items || [];
+        for (const p of people) {
+          const pid = p.public_identifier || p.id;
+          if (!pid || pid.startsWith('ACo')) continue;
+          const companyId = p.current_positions?.[0]?.company_id || ids.find(id => p.current_positions?.some(pos => pos.company_id === id)) || '';
+          await db.query(`
+            INSERT INTO opportunity_contacts (workspace_id,company_linkedin_id,company_name,li_profile_url,provider_id,first_name,last_name,title,connected_via_account_id,connected_via_name,last_seen_at)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())
+            ON CONFLICT (workspace_id,li_profile_url,connected_via_account_id)
+            DO UPDATE SET last_seen_at=NOW(), title=COALESCE(NULLIF(EXCLUDED.title,''),opportunity_contacts.title),
+              first_name=COALESCE(NULLIF(EXCLUDED.first_name,''),opportunity_contacts.first_name),
+              last_name=COALESCE(NULLIF(EXCLUDED.last_name,''),opportunity_contacts.last_name)
+          `, [workspace_id, String(companyId), p.current_positions?.[0]?.company||'',
+              `https://www.linkedin.com/in/${pid}`, pid,
+              p.first_name||p.firstName||'', p.last_name||p.lastName||'',
+              p.headline||p.title||'', acc.account_id, acc.display_name]);
+        }
+        results.push({ account: acc.display_name, found: people.length });
+        await new Promise(r => setTimeout(r, 2000));
+      } catch(e) {
+        results.push({ account: acc.display_name, error: e.message });
+      }
+    }
+    res.json({ results, company_ids_searched: ids.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
