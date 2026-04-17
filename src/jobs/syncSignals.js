@@ -28,14 +28,13 @@ async function fetchChats(accountId, limit = 50) {
   }
 }
 
-// ── Fetch last message in a chat ──────────────────────────────────────────────
-async function fetchLastMessage(accountId, chatId) {
+// ── Fetch messages in a chat ─────────────────────────────────────────────────
+async function fetchLastMessages(accountId, chatId, limit = 5) {
   const { request } = require('../unipile');
   try {
-    const data = await request(`/api/v1/chats/${chatId}/messages?account_id=${accountId}&limit=3`);
-    const msgs = Array.isArray(data?.items) ? data.items : [];
-    return msgs.find(m => m.sender_id !== accountId) || msgs[0] || null;
-  } catch(e) { return null; }
+    const data = await request(`/api/v1/chats/${chatId}/messages?account_id=${accountId}&limit=${limit}`);
+    return Array.isArray(data?.items) ? data.items : [];
+  } catch(e) { return []; }
 }
 
 // ── AI Score a signal ─────────────────────────────────────────────────────────
@@ -113,10 +112,8 @@ async function enrichPerson(accountId, providerIdOrUrl) {
 
 // ── Main handler ──────────────────────────────────────────────────────────────
 async function handler() {
-  // Get all workspaces with active accounts
   const { rows: accounts } = await db.query(`
-    SELECT ua.account_id, ua.display_name, ua.workspace_id, w.name AS workspace_name,
-           ua.provider_id AS our_provider_id
+    SELECT ua.account_id, ua.display_name, ua.workspace_id, w.name AS workspace_name
     FROM unipile_accounts ua
     JOIN workspaces w ON w.id = ua.workspace_id
     WHERE ua.status = 'active' OR ua.status IS NULL
@@ -124,6 +121,18 @@ async function handler() {
 
   if (!accounts.length) { console.log('[SyncSignals] No active accounts'); return; }
   console.log(`[SyncSignals] Scanning ${accounts.length} accounts`);
+
+  // Fetch our own provider_id for each account
+  const { getAccountInfo } = require('../unipile');
+  for (const acc of accounts) {
+    try {
+      const info = await getAccountInfo(acc.account_id);
+      acc.our_provider_id = info?.connection_params?.user_id
+        || info?.user_id
+        || info?.provider_id
+        || null;
+    } catch(e) { acc.our_provider_id = null; }
+  }
 
   let totalNew = 0;
 
@@ -133,16 +142,15 @@ async function handler() {
       console.log(`[SyncSignals] ${acc.display_name}: ${chats.length} chats`);
 
       for (const chat of chats) {
-        // Skip group chats
-        if (chat.type !== 0 && chat.type !== 'ONE_TO_ONE') continue;
+        // Skip group chats (type !== 0)
+        if (chat.type !== 0) continue;
 
-        // Find the other participant (not us)
-        const attendees = chat.attendees || [];
-        const other = attendees.find(a => a.provider_id !== acc.our_provider_id);
-        if (!other) continue;
-
-        const otherProviderId = other.provider_id || other.id;
+        // The other person's provider_id is directly on the chat
+        const otherProviderId = chat.attendee_provider_id;
         if (!otherProviderId) continue;
+
+        // Their LinkedIn URL
+        const otherLiUrl = `https://www.linkedin.com/in/${otherProviderId}`;
 
         // Check if already a signal
         const { rows: existing } = await db.query(
@@ -157,21 +165,26 @@ async function handler() {
         // Skip if they're an enrolled contact actively in campaign (handled elsewhere)
         if (knownContact?.enrollment_status && ['messaged','replied','positive_reply'].includes(knownContact.enrollment_status)) continue;
 
-        // Get last message to check if THEY initiated
-        const lastMsg = await fetchLastMessage(acc.account_id, chat.id || chat.chat_id);
-        if (!lastMsg) continue;
+        // Get recent messages in this chat
+        const chatId = chat.id;
+        const msgs = await fetchLastMessages(acc.account_id, chatId, 5);
+        if (!msgs.length) continue;
 
-        // Only signal if THEY sent the last message (they initiated contact)
-        const theyInitiated = lastMsg.sender_id !== acc.our_provider_id && lastMsg.sender_id !== acc.account_id;
-        if (!theyInitiated && !knownContact) continue;
+        // Find the most recent message from THEM (is_sender=0 means they sent it)
+        const theirLastMsg = msgs.find(m => m.is_sender === 0 || m.is_sender === false);
+        if (!theirLastMsg) continue;
 
-        const messageText = lastMsg.text || lastMsg.body || lastMsg.content || '';
+        // Only signal if their message is recent (within 7 days)
+        const msgDate = new Date(theirLastMsg.timestamp || theirLastMsg.created_at || 0);
+        if (Date.now() - msgDate.getTime() > 7 * 24 * 60 * 60 * 1000) continue;
+
+        const messageText = theirLastMsg.text || theirLastMsg.body || '';
 
         // Enrich person if not known
         let personData = knownContact ? {
           name: [knownContact.first_name, knownContact.last_name].filter(Boolean).join(' '),
           title: knownContact.title, company: knownContact.company,
-          provider_id: otherProviderId, li_url: other.li_url || null,
+          provider_id: otherProviderId, li_url: otherLiUrl,
         } : await enrichPerson(acc.account_id, otherProviderId);
 
         await new Promise(r => setTimeout(r, 200));
@@ -185,8 +198,8 @@ async function handler() {
         if (score?.priority === 'COLD' && !messageText) continue;
 
         // Save signal
-        const signalType = theyInitiated ? 'inbound_message' : 'unsolicited_message';
-        const rawData = { chat_id: chat.id, score, person: personData, last_message: messageText?.slice(0,500) };
+        const signalType = knownContact ? 'inbound_message' : 'unsolicited_message';
+        const rawData = { chat_id: chatId, score, person: personData, last_message: messageText?.slice(0,500) };
 
         await db.query(`
           INSERT INTO signals (
