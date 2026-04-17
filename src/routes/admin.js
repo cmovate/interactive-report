@@ -2208,3 +2208,34 @@ router.post('/classify-replies', async (req, res) => {
     console.log(`[ClassifyReplies] Done — ${classified}/${enrollments.length} positive`);
   })();
 });
+
+// POST /api/admin/debug-webhook-register — test different webhook formats
+router.post('/debug-webhook-register', async (req, res) => {
+  const { workspace_id, source, events, extra } = req.body;
+  const { request: uRequest } = require('../unipile');
+  const SERVER_URL = process.env.SERVER_URL || 'https://interactive-report-production-0c5d.up.railway.app';
+  const WEBHOOK_URL = `${SERVER_URL}/api/webhooks/unipile`;
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'elvia-secret';
+
+  const { rows: accounts } = await db.query(
+    'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1', [workspace_id]
+  );
+  if (!accounts.length) return res.status(400).json({ error: 'no accounts' });
+
+  const body = {
+    source,
+    name: `debug_${source}_${Date.now()}`,
+    request_url: WEBHOOK_URL,
+    account_ids: [accounts[0].account_id],
+    format: 'json',
+    headers: [{ key: 'x-webhook-secret', value: WEBHOOK_SECRET }],
+    ...(events ? { events } : {}),
+    ...(extra || {}),
+  };
+  try {
+    const data = await uRequest('/api/v1/webhooks', { method: 'POST', body: JSON.stringify(body) });
+    res.json({ ok: true, data, body_sent: body });
+  } catch(e) {
+    res.json({ ok: false, error: e.message, body_sent: body });
+  }
+});
