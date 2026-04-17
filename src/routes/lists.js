@@ -264,6 +264,44 @@ router.post('/:id/companies', async (req, res) => {
       added++;
     }
     res.json({ added, skipped });
+
+    // Auto-resolve company_linkedin_id in background for newly added companies
+    if (added > 0) {
+      (async () => {
+        try {
+          const { rows: accts } = await db.query(
+            'SELECT account_id FROM unipile_accounts WHERE workspace_id=$1 LIMIT 1',
+            [workspace_id]
+          );
+          if (!accts.length) return;
+          const accountId = accts[0].account_id;
+          const { rows: unresolved } = await db.query(
+            `SELECT id, company_name, li_company_url FROM list_companies
+             WHERE list_id=$1 AND workspace_id=$2
+               AND (company_linkedin_id IS NULL OR company_linkedin_id = '')
+             ORDER BY created_at DESC LIMIT 50`,
+            [req.params.id, workspace_id]
+          );
+          for (const comp of unresolved) {
+            try {
+              const slug = (comp.li_company_url||'').match(/\/company\/([^\/\?#]+)/)?.[1] || comp.company_name;
+              const companyData = await lookupCompany(accountId, slug, comp.company_name);
+              let companyId = companyData;
+              if (companyData && typeof companyData === 'object') companyId = companyData.id || companyData.universalName;
+              if (companyId) {
+                await db.query('UPDATE list_companies SET company_linkedin_id=$1 WHERE id=$2', [String(companyId), comp.id]);
+                console.log('[Lists] auto-resolved company ID for:', comp.company_name, '->', companyId);
+              }
+              await new Promise(r => setTimeout(r, 500));
+            } catch(e) {
+              console.warn('[Lists] auto-resolve failed for', comp.company_name, e.message);
+            }
+          }
+        } catch(e) {
+          console.warn('[Lists] auto-resolve bg error:', e.message);
+        }
+      })();
+    }
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
