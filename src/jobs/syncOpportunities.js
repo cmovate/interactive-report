@@ -98,6 +98,33 @@ async function handler() {
 
           if (people.length > 0) {
             console.log(`[Opportunities] WS${workspace_id} ${account.display_name} @ ${company.company_name}: ${people.length} 1st-degree connections`);
+            // Queue enrichment for contacts missing names
+            for (const p of people) {
+              const pid = p.public_identifier || p.identifier || p.provider_id;
+              if (!pid) continue;
+              const liUrl = `https://www.linkedin.com/in/${pid}`;
+              if (!p.first_name && !p.firstName) {
+                // Update names via enrichProfile in background
+                unipile.enrichProfile(account.account_id, liUrl).then(async enriched => {
+                  if (enriched?.first_name || enriched?.firstName) {
+                    await db.query(`
+                      UPDATE opportunity_contacts SET
+                        first_name = COALESCE(NULLIF($2,''), first_name),
+                        last_name  = COALESCE(NULLIF($3,''), last_name),
+                        title      = COALESCE(NULLIF($4,''), title)
+                      WHERE workspace_id=$1 AND li_profile_url=$5
+                    `, [
+                      workspace_id,
+                      enriched.first_name || enriched.firstName || '',
+                      enriched.last_name  || enriched.lastName  || '',
+                      enriched.headline   || enriched.occupation || '',
+                      liUrl
+                    ]);
+                  }
+                }).catch(() => {});
+                await new Promise(r => setTimeout(r, 500));
+              }
+            }
           }
 
           // Rate limit between calls (avoid 429)
