@@ -2456,7 +2456,8 @@ router.post('/classify-signals', async (req, res) => {
           }, (res2) => { let d=''; res2.on('data',c=>d+=c); res2.on('end',()=>{try{resolve(JSON.parse(d))}catch(e){reject(e)}}); });
           r.on('error',reject); r.write(body); r.end();
         });
-        const score = JSON.parse((result.content?.[0]?.text||'{}').trim());
+        const rawText = (result.content?.[0]?.text||'{}').trim().replace(/```json|```/g,'').trim();
+        const score = JSON.parse(rawText);
         await db.query(
           `UPDATE signals SET ai_priority=$1, ai_action=$2, ai_reason=$3, ai_fit_score=$4 WHERE id=$5`,
           [score.priority||null, score.action||null, score.reason||null,
@@ -2471,4 +2472,38 @@ router.post('/classify-signals', async (req, res) => {
     }
     console.log(`[ClassifySignals] Done — ${done}/${rows.length} classified`);
   })();
+});
+
+// GET /api/admin/classify-signals/status — sync classify one signal and return result
+router.get('/classify-signals/test', async (req, res) => {
+  const https = require('https');
+  const wsId = parseInt(req.query.workspace_id) || 2;
+  const { rows } = await db.query(
+    `SELECT id, actor_name, actor_headline, content, type, actor_li_url
+     FROM signals WHERE workspace_id=$1 AND ai_priority IS NULL AND content IS NOT NULL
+     LIMIT 1`, [wsId]
+  );
+  if (!rows.length) return res.json({ msg: 'no unscored signals' });
+  const sig = rows[0];
+  const person = { name: sig.actor_name, title: sig.actor_headline };
+  const body = JSON.stringify({
+    model: 'claude-haiku-4-5-20251001', max_tokens: 120,
+    system: 'B2B LinkedIn classifier. Return JSON only (no markdown): {"priority":"HOT"|"WARM"|"COLD","action":"reply_now"|"add_to_campaign"|"ignore","reason":"one sentence","fit_score":5}',
+    messages: [{ role:'user', content:`Person: ${JSON.stringify(person)}\nMessage: "${(sig.content||'').slice(0,300)}"` }]
+  });
+  try {
+    const result = await new Promise((resolve, reject) => {
+      const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','Content-Length':Buffer.byteLength(body)}
+      }, (res2) => { let d=''; res2.on('data',c=>d+=c); res2.on('end',()=>{try{resolve(JSON.parse(d))}catch(e){reject(e)}}); });
+      r.on('error',reject); r.write(body); r.end();
+    });
+    const rawText = (result.content?.[0]?.text||'{}').trim().replace(/```json|```/g,'').trim();
+    const score = JSON.parse(rawText);
+    // Update DB
+    await db.query(`UPDATE signals SET ai_priority=$1,ai_action=$2,ai_reason=$3,ai_fit_score=$4 WHERE id=$5`,
+      [score.priority||null, score.action||null, score.reason||null,
+       typeof score.fit_score==='number'?score.fit_score:null, sig.id]);
+    res.json({ signal: sig, raw_response: result.content?.[0]?.text, score, updated: true });
+  } catch(e) { res.json({ error: e.message, signal: sig }); }
 });
