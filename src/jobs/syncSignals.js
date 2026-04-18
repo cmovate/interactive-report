@@ -108,29 +108,30 @@ async function handler() {
           continue;
         }
 
-        // Skip if already saved
+        // Skip if already saved this month
         const { rows: dup } = await db.query(
-          'SELECT id FROM signals WHERE workspace_id=$1 AND actor_provider_id=$2 AND created_at > NOW() - interval \'30 days\' LIMIT 1',
+          "SELECT id FROM signals WHERE workspace_id=$1 AND actor_provider_id=$2 AND created_at > NOW() - INTERVAL '30 days' LIMIT 1",
           [acc.workspace_id, otherProviderId]
         );
-        if (dup.length) continue;
+        if (dup.length) { continue; }
 
-        // Known contact?
+        // Known contact? Check in contacts (may or may not be enrolled)
         const { rows: known } = await db.query(
-          'SELECT c.id, c.first_name, c.last_name, c.title, c.company' +
-          ' FROM contacts c JOIN enrollments e ON e.contact_id = c.id' +
-          ' JOIN campaigns camp ON camp.id = e.campaign_id' +
-          ' WHERE camp.workspace_id=$1 AND c.provider_id=$2 LIMIT 1',
+          'SELECT c.id, c.first_name, c.last_name, c.title, c.company, c.li_profile_url' +
+          ' FROM contacts c' +
+          ' WHERE c.workspace_id=$1 AND c.provider_id=$2 LIMIT 1',
           [acc.workspace_id, otherProviderId]
         );
         const knownContact = known[0] || null;
 
-        // Enrich if unknown
+        // Build person data
         const person = knownContact ? {
           name: [knownContact.first_name, knownContact.last_name].filter(Boolean).join(' '),
           title: knownContact.title,
           company: knownContact.company,
-        } : await enrichPerson(acc.account_id, otherProviderId);
+          li_url: knownContact.li_profile_url || null,
+        } : { li_url: null, name: null, title: null, company: null };
+        // Note: skip enrichProfile for unknown — ACoXXX IDs don't work as LinkedIn URLs
 
         await new Promise(r => setTimeout(r, 200));
 
