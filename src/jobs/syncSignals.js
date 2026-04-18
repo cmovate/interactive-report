@@ -141,13 +141,12 @@ async function handler() {
 
         // Save signal
         const signalType = knownContact ? 'inbound_message' : 'unsolicited_message';
-        await db.query(
+        try { await db.query(
           'INSERT INTO signals' +
           ' (workspace_id, type, actor_contact_id, actor_provider_id, actor_name,' +
           '  actor_li_url, actor_headline, subject_li_account_id, content, raw_data,' +
           '  is_known, ai_priority, ai_action, ai_reason, ai_fit_score, occurred_at)' +
-          ' VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())' +
-          ' ON CONFLICT DO NOTHING',
+          ' VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())',
           [
             acc.workspace_id, signalType,
             knownContact ? knownContact.id : null,
@@ -164,7 +163,7 @@ async function handler() {
             (score && score.reason) || null,
             (score && typeof score.fit_score === 'number') ? score.fit_score : null,
           ]
-        );
+        ); } catch(insertErr) { console.error('[SyncSignals] INSERT ERROR:', insertErr.message, 'for', person.name||otherProviderId); continue; }
 
         console.log('[SyncSignals] ✅ ' + signalType + ': ' + (person.name || otherProviderId) + ' → ' + ((score && score.priority) || 'unscored'));
         totalNew++;
