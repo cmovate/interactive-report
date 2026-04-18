@@ -88,82 +88,13 @@ router.get('/', async (req, res) => {
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 
-    // If no real signals yet, synthesize from enrollment history
-    let synthesized = [];
-    if (realSignals.length === 0 && (!type || type === 'all' || ['invite_accepted','message_received','positive_reply'].includes(type))) {
-      const typeFilter = type && type !== 'all'
-        ? `AND e.status = '${type === 'invite_accepted' ? 'approved' : type === 'positive_reply' ? 'positive_reply' : 'replied'}'`
-        : `AND e.status IN ('approved','messaged','replied','positive_reply')`;
-
-      const { rows: synth } = await db.query(`
-        SELECT
-          e.id AS enrollment_id,
-          e.status,
-          e.invite_approved_at,
-          e.updated_at,
-          c.id AS contact_id,
-          c.first_name, c.last_name, c.company, c.title,
-          c.li_profile_url, c.chat_id,
-          camp.name AS campaign_name,
-          camp.account_id,
-          ua.display_name AS account_name,
-          (SELECT LEFT(m.content,200) FROM inbox_messages m
-           JOIN inbox_threads t ON t.id = m.thread_id
-           WHERE t.thread_id = COALESCE(e.chat_id, c.chat_id)
-             AND m.direction = 'received'
-           ORDER BY m.sent_at DESC LIMIT 1) AS last_reply
-        FROM enrollments e
-        JOIN contacts c ON c.id = e.contact_id
-        JOIN campaigns camp ON camp.id = e.campaign_id
-        LEFT JOIN unipile_accounts ua ON ua.account_id = camp.account_id AND ua.workspace_id = $1
-        WHERE camp.workspace_id = $1
-          ${typeFilter}
-        ORDER BY
-          CASE e.status
-            WHEN 'positive_reply' THEN 1
-            WHEN 'replied'        THEN 2
-            WHEN 'messaged'       THEN 3
-            ELSE 4
-          END,
-          e.updated_at DESC
-        LIMIT $2 OFFSET $3
-      `, [wsId, limit, offset]);
-
-      synthesized = synth.map(r => {
-        let signalType = 'invite_accepted';
-        if (r.status === 'positive_reply') signalType = 'positive_reply';
-        else if (r.status === 'replied') signalType = 'message_received';
-        else if (r.status === 'messaged') signalType = 'invite_accepted';
-        return {
-          id: `synth_${r.enrollment_id}`,
-          type: signalType,
-          actor_name: [r.first_name, r.last_name].filter(Boolean).join(' '),
-          actor_li_url: r.li_profile_url,
-          contact_li_url: r.li_profile_url,
-          contact_company: r.company,
-          contact_title: r.title,
-          is_known: true,
-          content: r.last_reply || null,
-          occurred_at: r.updated_at,
-          enrollment_id: r.enrollment_id,
-          enrollment_status: r.status,
-          campaign_name: r.campaign_name,
-          account_name: r.account_name,
-          chat_id: r.chat_id,
-          source: 'derived',
-          first_name: r.first_name,
-          last_name: r.last_name,
-        };
-      });
-    }
-
-    const items = realSignals.length > 0 ? realSignals : synthesized;
+    const items = realSignals;
     const { rows: countRows } = await db.query(
       `SELECT COUNT(*) FROM signals s WHERE ${where}`, params
     );
-    const total = parseInt(countRows[0]?.count || 0) || items.length;
+    const total = parseInt(countRows[0]?.count || 0);
 
-    res.json({ items, total, page, limit, source: realSignals.length > 0 ? 'real' : 'derived' });
+    res.json({ items, total, page, limit, source: 'real' });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
