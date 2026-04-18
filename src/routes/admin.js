@@ -2422,3 +2422,53 @@ router.get('/debug-sync-signals', async (req, res) => {
   }
   res.json(results);
 });
+
+// POST /api/admin/classify-signals — AI-score all unclassified signals
+router.post('/classify-signals', async (req, res) => {
+  const { workspace_id, limit = 50 } = req.body;
+  res.json({ status: 'started' });
+  (async () => {
+    const https = require('https');
+    const wsFilter = workspace_id ? 'AND workspace_id = $1' : '';
+    const p = workspace_id ? [workspace_id] : [];
+    const { rows } = await db.query(
+      `SELECT id, actor_name, actor_headline, content, type,
+              LEFT(actor_li_url,80) as li_url
+       FROM signals
+       WHERE ai_priority IS NULL AND content IS NOT NULL
+         ${wsFilter}
+       ORDER BY created_at DESC LIMIT ${parseInt(limit)||50}`,
+      p
+    );
+    console.log(`[ClassifySignals] ${rows.length} unscored signals`);
+    let done = 0;
+    for (const sig of rows) {
+      const person = { name: sig.actor_name, title: sig.actor_headline, li_url: sig.li_url };
+      const body = JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 120,
+        system: 'B2B LinkedIn signal classifier. Return JSON only: {"priority":"HOT"|"WARM"|"COLD","action":"reply_now"|"add_to_campaign"|"ignore","reason":"one sentence","fit_score":1}. HOT=decision maker who wrote to us first with clear interest. WARM=relevant professional, some intent. COLD=reaction/generic/spam.',
+        messages: [{ role:'user', content:`Person: ${JSON.stringify(person)}\nMessage: "${(sig.content||'').slice(0,300)}"` }]
+      });
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
+            headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','Content-Length':Buffer.byteLength(body)}
+          }, (res2) => { let d=''; res2.on('data',c=>d+=c); res2.on('end',()=>{try{resolve(JSON.parse(d))}catch(e){reject(e)}}); });
+          r.on('error',reject); r.write(body); r.end();
+        });
+        const score = JSON.parse((result.content?.[0]?.text||'{}').trim());
+        await db.query(
+          `UPDATE signals SET ai_priority=$1, ai_action=$2, ai_reason=$3, ai_fit_score=$4 WHERE id=$5`,
+          [score.priority||null, score.action||null, score.reason||null,
+           typeof score.fit_score==='number'?score.fit_score:null, sig.id]
+        );
+        if (score.priority) {
+          console.log(`[ClassifySignals] ${sig.actor_name}: ${score.priority} — ${score.reason?.slice(0,60)}`);
+          done++;
+        }
+      } catch(e) { console.warn(`[ClassifySignals] ${sig.id}: ${e.message}`); }
+      await new Promise(r => setTimeout(r, 300));
+    }
+    console.log(`[ClassifySignals] Done — ${done}/${rows.length} classified`);
+  })();
+});
