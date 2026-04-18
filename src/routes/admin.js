@@ -2256,6 +2256,41 @@ router.get('/debug-unipile', async (req, res) => {
 
 // POST /api/admin/run-sync-signals — trigger syncSignals job immediately
 router.post('/run-sync-signals', async (req, res) => {
+  const dryRun = req.body?.dry_run === true;
+  if (dryRun) {
+    // Dry-run: return what would be saved without saving
+    try {
+      const { request: uRequest } = require('../unipile');
+      const wsId = parseInt(req.body?.workspace_id) || 2;
+      const { rows: accounts } = await db.query(
+        `SELECT ua.account_id, ua.display_name, ua.workspace_id
+         FROM unipile_accounts ua WHERE ua.workspace_id=$1`, [wsId]
+      );
+      const found = [];
+      for (const acc of accounts) {
+        const chatsData = await uRequest(`/api/v1/chats?account_id=${acc.account_id}&limit=100`);
+        const chats = chatsData?.items || [];
+        for (const chat of chats) {
+          if (chat.type !== 0) continue;
+          const otherPid = chat.attendee_provider_id;
+          if (!otherPid) continue;
+          const msgsData = await uRequest(`/api/v1/chats/${chat.id}/messages?account_id=${acc.account_id}&limit=3`);
+          const msgs = msgsData?.items || [];
+          if (!msgs.length) continue;
+          const last = msgs[0];
+          const fromThem = last.is_sender === 0 || last.is_sender === false;
+          if (!fromThem) continue;
+          const text = (last.text || '').trim();
+          if (!text) continue;
+          const ts = new Date(last.timestamp || chat.timestamp || 0).getTime();
+          if (Date.now() - ts > 30*24*60*60*1000) continue;
+          found.push({ account: acc.display_name, chat_id: chat.id, provider_id: otherPid?.slice(0,20), text: text.slice(0,80), age_days: Math.round((Date.now()-ts)/86400000) });
+        }
+      }
+      return res.json({ dry_run: true, found });
+    } catch(e) { return res.json({ error: e.message }); }
+  }
+
   res.json({ status: 'started' });
   (async () => {
     try {

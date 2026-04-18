@@ -106,6 +106,7 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; 
   <div class="header-right">
     <span class="ts" id="ts-label">—</span>
     <button class="btn btn-ghost" onclick="load()">↻ Refresh</button>
+    <button class="btn btn-ghost" id="scan-btn" onclick="runScan()" title="Scan LinkedIn chats for new inbound signals">🔍 Scan Now</button>
   </div>
 </div>
 
@@ -319,6 +320,22 @@ function dismiss(sigId) {
   const card = document.getElementById(`sig-${sigId}`);
   if (card) card.style.opacity = '0.3';
   fetch(`/api/signals/${sigId}/dismiss`, { method: 'POST' }).catch(()=>{});
+}
+
+async function runScan() {
+  const btn = document.getElementById('scan-btn');
+  if (btn) { btn.textContent = '⏳ Scanning…'; btn.disabled = true; }
+  try {
+    await fetch('/api/admin/run-sync-signals', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    // Wait a bit then reload
+    setTimeout(async () => {
+      await loadStats();
+      await load();
+      if (btn) { btn.textContent = '🔍 Scan Now'; btn.disabled = false; }
+    }, 8000);
+  } catch(e) {
+    if (btn) { btn.textContent = '🔍 Scan Now'; btn.disabled = false; }
+  }
 }
 
 // Init
