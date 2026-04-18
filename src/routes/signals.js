@@ -50,7 +50,9 @@ router.get('/', async (req, res) => {
     const conds  = ['s.workspace_id = $1'];
     const params = [wsId];
     if (type && type !== 'all') { params.push(type); conds.push(`s.type = $${params.length}`); }
-    if (is_known === 'true')    { conds.push('s.is_known = true'); }
+    const aiPriority = req.query.ai_priority || null;
+    if (aiPriority) { params.push(aiPriority); conds.push(`s.ai_priority = $${params.length}`); }
+    if (is_known === 'true') { conds.push('s.is_known = true'); }
     const where = conds.join(' AND ');
 
     // Real signals from signals table
@@ -165,14 +167,22 @@ router.get('/stats', async (req, res) => {
     if (!workspace_id) return res.status(400).json({ error: 'workspace_id required' });
     const wsId = parseInt(workspace_id);
 
-    // Real signal stats
+    // Real signal stats (all types including inbound_message, unsolicited_message)
     const { rows: signalStats } = await db.query(`
-      SELECT type, COUNT(*) as n, COUNT(*) FILTER (WHERE is_known) as known_n
+      SELECT type, COUNT(*) as n, COUNT(*) FILTER (WHERE is_known) as known_n,
+             COUNT(*) FILTER (WHERE ai_priority='HOT') as hot_n
       FROM signals WHERE workspace_id = $1
       GROUP BY type ORDER BY n DESC
     `, [wsId]);
 
     // Derived stats from enrollments
+    // Count real inbound signals
+    const totalReal = signalStats.reduce((s,r) => s + parseInt(r.n), 0);
+    const hotCount  = signalStats.reduce((s,r) => s + parseInt(r.hot_n||0), 0);
+    const inboundCount = signalStats.filter(r => ['inbound_message','unsolicited_message'].includes(r.type))
+      .reduce((s,r) => s+parseInt(r.n),0);
+
+    // Derived from enrollments (shown when no real signals)
     const { rows: enrollStats } = await db.query(`
       SELECT
         COUNT(*) FILTER (WHERE e.status IN ('approved','messaged','replied','positive_reply')) AS total_activity,
@@ -185,16 +195,17 @@ router.get('/stats', async (req, res) => {
     `, [wsId]);
 
     const stats = enrollStats[0] || {};
-    const total = parseInt(stats.total_activity) || 0;
 
     res.json({
       real_signals: signalStats,
-      total_real: signalStats.reduce((s,r) => s + parseInt(r.n), 0),
+      total_real: totalReal,
+      hot_count: hotCount,
+      inbound_count: inboundCount,
       derived: {
         connections: parseInt(stats.connections) || 0,
         replies: parseInt(stats.replies) || 0,
         positive_replies: parseInt(stats.positive_replies) || 0,
-        total: total,
+        total: totalReal > 0 ? totalReal : (parseInt(stats.total_activity) || 0),
       }
     });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -193,12 +193,12 @@ async function loadStats() {
     const strip = document.getElementById('stats-strip');
     const d = data.derived || {};
     const types = [
-      { type: 'all',            icon: '⚡', label: 'All',          val: d.total || data.total_real || 0 },
-      { type: 'positive_reply', icon: '⭐', label: 'Positive',     val: d.positive_replies || 0, c: '#F59E0B' },
-      { type: 'message_received',icon:'💬',  label: 'Replied',      val: d.replies || 0, c: '#3B82F6' },
-      { type: 'invite_accepted', icon: '🤝', label: 'Connections',  val: d.connections || 0, c: '#1D9E75' },
-      ...data.real_signals.filter(s => !['positive_reply','message_received','invite_accepted','new_relation'].includes(s.type))
-        .map(s => ({ type: s.type, icon: SIGNAL_META[s.type]?.icon||'📌', label: SIGNAL_META[s.type]?.label||s.type, val: parseInt(s.n), c: SIGNAL_META[s.type]?.color }))
+      { type: 'all',              icon: '⚡', label: 'All Signals',  val: d.total || data.total_real || 0 },
+      { type: 'inbound_message',  icon: '💌', label: 'Wrote to Us',  val: (data.real_signals||[]).filter(s=>['inbound_message','unsolicited_message'].includes(s.type)).reduce((a,s)=>a+parseInt(s.n),0), c: '#EC4899' },
+      { type: 'positive_reply',   icon: '⭐', label: 'Positive',     val: d.positive_replies || 0, c: '#F59E0B' },
+      { type: 'message_received', icon: '💬', label: 'Replied',      val: d.replies || 0, c: '#3B82F6' },
+      { type: 'invite_accepted',  icon: '🤝', label: 'Connections',  val: d.connections || 0, c: '#1D9E75' },
+      ...(data.hot_count > 0 ? [{ type: 'hot', icon: '🔥', label: 'HOT leads', val: data.hot_count, c: '#EF4444' }] : []),
     ].filter(t => t.val > 0 || t.type === 'all');
 
     strip.innerHTML = types.map((t,i) => `
@@ -219,7 +219,9 @@ async function load() {
   document.getElementById('signal-list').innerHTML = '<div class="loading">Loading signals…</div>';
 
   let url = `/api/signals?workspace_id=${WS_ID}&page=${currentPage}&limit=${limit}`;
-  if (currentType !== 'all') url += `&type=${currentType}`;
+  if (currentType === 'hot') url += '&ai_priority=HOT';
+  else if (currentType === 'inbound_message') url += '&type=inbound_message&type2=unsolicited_message';
+  else if (currentType !== 'all') url += `&type=${currentType}`;
   if (knownOnly) url += '&is_known=true';
 
   try {
@@ -351,17 +353,52 @@ async function triggerSync() {
 
 async function runSync() {
   const btn = document.getElementById('sync-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing...'; }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Scanning inbox…'; }
+
+  // Show scanning overlay
+  const list = document.getElementById('signal-list');
+  list.innerHTML = '<div class="loading">⏳ Scanning Unipile inbox for inbound signals…<br><small style="color:#475569">This may take 30-60 seconds</small></div>';
+
   try {
     const r = await fetch('/api/admin/run-sync-signals', {
-      method: 'POST', headers: {'Content-Type': 'application/json'}
-    }).then(r => r.json());
-    console.log('Sync triggered:', r);
-    // Reload after delay
-    setTimeout(() => { loadStats(); load(); }, 5000);
-    if (btn) { btn.textContent = '✅ Synced'; setTimeout(() => { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }, 6000); }
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ workspace_id: WS_ID })
+    }).then(res => res.json());
+
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }
+
+    if (r.ok) {
+      const savedCount = r.saved || 0;
+      const foundCount = r.found || 0;
+
+      // Show inline result summary before reloading
+      if (foundCount === 0) {
+        list.innerHTML = `<div class="empty">
+          <div class="empty-icon">📡</div>
+          <div class="empty-text">No new inbound signals found</div>
+          <div class="empty-sub" style="max-width:500px;margin:8px auto 0">
+            Scanned ${r.logs?.filter(l=>l.includes('chats')).join(' · ') || 'all chats'}<br>
+            All recent chats have you as the last sender, or messages are older than 30 days.
+          </div>
+        </div>`;
+      } else {
+        list.innerHTML = `<div style="background:#0d2a1f;border:1px solid #1D9E75;border-radius:10px;padding:16px;margin-bottom:12px;">
+          <div style="color:#1D9E75;font-weight:600;font-size:14px;">✅ Sync complete — ${savedCount} signal${savedCount!==1?'s':''} saved</div>
+          <div style="color:#475569;font-size:12px;margin-top:6px;">${r.results?.map(r2=>`${r2.name}: ${r2.priority||'?'} — "${r2.text?.slice(0,60)}"`).join('<br>') || ''}</div>
+        </div>`;
+        setTimeout(() => { loadStats(); load(); }, 1500);
+      }
+
+      // Log details
+      console.log('[SyncSignals]', r);
+      if (r.logs) r.logs.forEach(l => console.log(l));
+    } else {
+      list.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Sync error: ${esc(r.error||'unknown')}</div></div>`;
+    }
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }
+    list.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Error: ${esc(e.message)}</div></div>`;
   }
 }
 
