@@ -2254,50 +2254,133 @@ router.get('/debug-unipile', async (req, res) => {
   } catch(e) { res.json({ ok: false, path: uPath, error: e.message.slice(0,200) }); }
 });
 
-// POST /api/admin/run-sync-signals — trigger syncSignals job immediately
+// POST /api/admin/run-sync-signals — trigger syncSignals, synchronous with detailed output
 router.post('/run-sync-signals', async (req, res) => {
+  const { request: uRequest } = require('../unipile');
+  const https = require('https');
+  const wsId = parseInt(req.body?.workspace_id) || 2;
   const dryRun = req.body?.dry_run === true;
-  if (dryRun) {
-    // Dry-run: return what would be saved without saving
-    try {
-      const { request: uRequest } = require('../unipile');
-      const wsId = parseInt(req.body?.workspace_id) || 2;
-      const { rows: accounts } = await db.query(
-        `SELECT ua.account_id, ua.display_name, ua.workspace_id
-         FROM unipile_accounts ua WHERE ua.workspace_id=$1`, [wsId]
-      );
-      const found = [];
-      for (const acc of accounts) {
-        const chatsData = await uRequest(`/api/v1/chats?account_id=${acc.account_id}&limit=100`);
-        const chats = chatsData?.items || [];
-        for (const chat of chats) {
-          if (chat.type !== 0) continue;
-          const otherPid = chat.attendee_provider_id;
-          if (!otherPid) continue;
-          const msgsData = await uRequest(`/api/v1/chats/${chat.id}/messages?account_id=${acc.account_id}&limit=3`);
-          const msgs = msgsData?.items || [];
-          if (!msgs.length) continue;
-          const last = msgs[0];
-          const fromThem = last.is_sender === 0 || last.is_sender === false;
-          if (!fromThem) continue;
-          const text = (last.text || '').trim();
-          if (!text) continue;
-          const ts = new Date(last.timestamp || chat.timestamp || 0).getTime();
-          if (Date.now() - ts > 30*24*60*60*1000) continue;
-          found.push({ account: acc.display_name, chat_id: chat.id, provider_id: otherPid?.slice(0,20), text: text.slice(0,80), age_days: Math.round((Date.now()-ts)/86400000) });
-        }
-      }
-      return res.json({ dry_run: true, found });
-    } catch(e) { return res.json({ error: e.message }); }
-  }
 
-  res.json({ status: 'started' });
-  (async () => {
-    try {
-      const { handler } = require('../jobs/syncSignals');
-      await handler();
-    } catch(e) { console.error('[run-sync-signals] error:', e.message); }
-  })();
+  const logs = [];
+  const log = (msg) => { logs.push(msg); console.log(msg); };
+
+  try {
+    const { rows: accounts } = await db.query(
+      `SELECT ua.account_id, ua.display_name, ua.workspace_id, w.name AS workspace_name
+       FROM unipile_accounts ua JOIN workspaces w ON w.id = ua.workspace_id
+       WHERE ua.workspace_id = $1`, [wsId]
+    );
+    log(`[SyncSignals] ${accounts.length} accounts in ws${wsId}`);
+
+    let totalSaved = 0;
+    const results = [];
+
+    for (const acc of accounts) {
+      const chatsData = await uRequest(`/api/v1/chats?account_id=${acc.account_id}&limit=100`);
+      const chats = chatsData?.items || [];
+      log(`[SyncSignals] ${acc.display_name}: ${chats.length} chats`);
+
+      for (const chat of chats) {
+        if (chat.type !== 0) continue;
+        const pid = chat.attendee_provider_id;
+        if (!pid) continue;
+
+        const msgsData = await uRequest(`/api/v1/chats/${chat.id}/messages?account_id=${acc.account_id}&limit=3`).catch(()=>null);
+        const msgs = msgsData?.items || [];
+        if (!msgs.length) continue;
+
+        const last = msgs[0];
+        const fromThem = last.is_sender === 0 || last.is_sender === false;
+        if (!fromThem) continue;
+
+        const msgText = (last.text || '').trim();
+        if (!msgText) continue;
+
+        const ts = new Date(last.timestamp || chat.timestamp || Date.now()).getTime();
+        const ageDays = Math.round((Date.now() - ts) / 86400000);
+        if (ageDays > 30) { log(`skip: old (${ageDays}d)`); continue; }
+
+        // Check duplicate
+        const { rows: dup } = await db.query(
+          `SELECT id FROM signals WHERE workspace_id=$1 AND actor_provider_id=$2
+           AND created_at > NOW() - INTERVAL '30 days' LIMIT 1`,
+          [acc.workspace_id, pid]
+        );
+        if (dup.length) { log(`skip: dup for ${pid.slice(0,15)}`); continue; }
+
+        // Known contact?
+        const { rows: known } = await db.query(
+          `SELECT c.id, c.first_name, c.last_name, c.title, c.company, c.li_profile_url
+           FROM contacts c JOIN enrollments e ON e.contact_id = c.id
+           JOIN campaigns camp ON camp.id = e.campaign_id
+           WHERE camp.workspace_id=$1 AND c.provider_id=$2 LIMIT 1`,
+          [acc.workspace_id, pid]
+        );
+        const kc = known[0] || null;
+
+        const person = kc ? {
+          name: [kc.first_name, kc.last_name].filter(Boolean).join(' '),
+          title: kc.title, company: kc.company,
+          li_url: kc.li_profile_url || `https://www.linkedin.com/in/${pid}`,
+        } : { li_url: `https://www.linkedin.com/in/${pid}`, provider_id: pid };
+
+        // AI score
+        let score = null;
+        if (process.env.ANTHROPIC_API_KEY) {
+          const body = JSON.stringify({
+            model: 'claude-haiku-4-5-20251001', max_tokens: 150,
+            system: 'Analyze LinkedIn inbound signal for B2B. Return JSON only: {"priority":"HOT"|"WARM"|"COLD","action":"reply_now"|"add_to_campaign"|"ignore","reason":"one sentence","fit_score":1}. HOT=decision maker initiated. WARM=relevant unclear intent. COLD=spam.',
+            messages: [{ role:'user', content:`Person: ${JSON.stringify(person)}\nMessage: "${msgText.slice(0,300)}"` }]
+          });
+          try {
+            const aiRes = await new Promise((resolve, reject) => {
+              const r = https.request({ hostname:'api.anthropic.com', path:'/v1/messages', method:'POST',
+                headers:{'Content-Type':'application/json','x-api-key':process.env.ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','Content-Length':Buffer.byteLength(body)}
+              }, (res2) => { let d=''; res2.on('data',c=>d+=c); res2.on('end',()=>{try{resolve(JSON.parse(d))}catch(e){reject(e)}}); });
+              r.on('error',reject); r.write(body); r.end();
+            });
+            score = JSON.parse((aiRes.content?.[0]?.text||'').trim());
+          } catch(e) { log(`AI error: ${e.message}`); }
+        }
+
+        const entry = {
+          account: acc.display_name, chat_id: chat.id,
+          name: person.name || pid.slice(0,15),
+          text: msgText.slice(0,80), age_days: ageDays,
+          known: !!kc, priority: score?.priority || null,
+          reason: score?.reason || null, saved: false
+        };
+
+        if (!dryRun) {
+          await db.query(
+            `INSERT INTO signals (workspace_id,type,actor_contact_id,actor_provider_id,actor_name,
+             actor_li_url,actor_headline,subject_li_account_id,content,raw_data,is_known,
+             ai_priority,ai_action,ai_reason,ai_fit_score,occurred_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())`,
+            [acc.workspace_id, kc ? 'inbound_message' : 'unsolicited_message',
+             kc?.id || null, pid, person.name || null, person.li_url || null,
+             person.title || null, acc.account_id, msgText.slice(0,500),
+             JSON.stringify({chat_id:chat.id,score,person}), !!kc,
+             score?.priority||null, score?.action||null, score?.reason||null,
+             typeof score?.fit_score==='number'?score.fit_score:null]
+          );
+          entry.saved = true;
+          totalSaved++;
+          log(`✅ SAVED: ${entry.name} → ${entry.priority||'unscored'}`);
+        } else {
+          entry.saved = 'dry_run';
+          log(`🔍 WOULD SAVE: ${entry.name} → ${entry.priority||'unscored'}`);
+        }
+        results.push(entry);
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+    log(`[SyncSignals] Done — ${totalSaved} saved, ${results.length} found`);
+    res.json({ ok: true, dry_run: dryRun, saved: totalSaved, found: results.length, results, logs });
+  } catch(e) {
+    log(`ERROR: ${e.message}`);
+    res.json({ ok: false, error: e.message, logs });
+  }
 });
 
 // GET /api/admin/debug-sync-signals — dry run syncSignals to see what it finds
