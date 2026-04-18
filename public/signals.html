@@ -170,16 +170,11 @@ async function loadStats() {
     const d=data.derived||{}, rs=data.real_signals||[];
     const inbound=rs.filter(s=>['inbound_message','unsolicited_message'].includes(s.type)).reduce((a,s)=>a+parseInt(s.n),0);
     const types=[
-      {type:'all',icon:'⚡',label:'All',val:d.total||data.total_real||0},
-      ...(inbound>0?[{type:'inbound',icon:'💌',label:'Wrote to Us',val:inbound,c:'#EC4899'}]:[]),
+      {type:'all',icon:'⚡',label:'All',val:data.total_real||0},
       ...(data.hot_count>0?[{type:'hot',icon:'🔥',label:'HOT',val:data.hot_count,c:'#EF4444'}]:[]),
-      {type:'positive_reply',icon:'⭐',label:'Positive',val:d.positive_replies||0,c:'#F59E0B'},
-      {type:'message_received',icon:'💬',label:'Replied',val:d.replies||0,c:'#3B82F6'},
-      {type:'invite_accepted',icon:'🤝',label:'Connected',val:d.connections||0,c:'#1D9E75'},
-      ...rs.filter(s=>!['inbound_message','unsolicited_message','positive_reply',
-          'message_received','invite_accepted','new_relation'].includes(s.type)&&parseInt(s.n)>0)
-        .map(s=>({type:s.type,icon:SIGNAL_META[s.type]?.icon||'📌',
-          label:SIGNAL_META[s.type]?.label||s.type,val:parseInt(s.n),c:SIGNAL_META[s.type]?.color})),
+      ...(data.warm_count>0?[{type:'warm',icon:'🌡️',label:'WARM',val:data.warm_count,c:'#F59E0B'}]:[]),
+      ...(inbound>0?[{type:'inbound',icon:'💌',label:'Wrote to Us',val:inbound,c:'#EC4899'}]:[]),
+      ...(data.cold_count>0?[{type:'cold',icon:'❄️',label:'COLD',val:data.cold_count,c:'#64748b'}]:[]),
     ].filter(t=>t.val>0||t.type==='all');
     document.getElementById('stats-strip').innerHTML=types.map((t,i)=>`
       <div class="stat-card ${(i===0&&currentType==='all')||currentType===t.type?'active':''}"
@@ -196,7 +191,9 @@ async function load() {
   const knownOnly=document.getElementById('known-only')?.checked;
   document.getElementById('signal-list').innerHTML='<div class="loading">Loading…</div>';
   let url=`/api/signals?workspace_id=${WS_ID}&page=${currentPage}&limit=${limit}`;
-  if(currentType==='hot')    url+='&ai_priority=HOT';
+  if(currentType==='hot')     url+='&ai_priority=HOT';
+  else if(currentType==='warm')    url+='&ai_priority=WARM';
+  else if(currentType==='cold')    url+='&ai_priority=COLD';
   else if(currentType==='inbound') url+='&type=inbound_message';
   else if(currentType!=='all') url+=`&type=${currentType}`;
   if(knownOnly) url+='&is_known=true';
@@ -318,14 +315,15 @@ async function runSync(){
       </div>`;
     } else {
       list.innerHTML=`<div style="background:#0d2a1f;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px;">
-        <div style="color:#1D9E75;font-weight:600;font-size:14px;margin-bottom:8px;">✅ ${saved} signal${saved!==1?'s':''} saved</div>
+        <div style="color:#1D9E75;font-weight:600;font-size:14px;margin-bottom:8px;">✅ ${saved} signal${saved!==1?'s':''} saved — running AI scoring…</div>
         ${(r.results||[]).map(res=>`<div style="padding:4px 0;border-bottom:1px solid #1e2a3a;font-size:12px;">
-          <span style="color:${res.priority==='HOT'?'#f87171':res.priority==='WARM'?'#fb923c':'#94a3b8'}">${res.priority||'?'}</span>
-          <span style="color:#e2e8f0;margin-left:8px">${esc(res.name||'Unknown')}</span>
+          <span style="color:#475569">${esc(res.name||'Unknown')}</span>
           <span style="color:#475569;margin-left:6px">"${esc((res.text||'').slice(0,60))}"</span>
         </div>`).join('')}
       </div>`;
-      setTimeout(()=>{loadStats();load();},1200);
+      // Auto-classify new signals
+      await fetch('/api/admin/classify-signals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({workspace_id:WS_ID,limit:saved+5})});
+      setTimeout(()=>{loadStats();load();},4000);
     }
     if(r.logs) r.logs.forEach(l=>console.log('[Scan]',l));
   } catch(e){

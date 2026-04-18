@@ -84,7 +84,14 @@ router.get('/', async (req, res) => {
       LEFT JOIN campaigns      camp ON camp.id = e.campaign_id
       LEFT JOIN unipile_accounts ua ON ua.account_id = s.subject_li_account_id AND ua.workspace_id = $1
       WHERE ${where}
-      ORDER BY s.occurred_at DESC NULLS LAST
+      ORDER BY
+        CASE s.ai_priority
+          WHEN 'HOT'  THEN 1
+          WHEN 'WARM' THEN 2
+          WHEN 'COLD' THEN 4
+          ELSE 3
+        END,
+        s.occurred_at DESC NULLS LAST
       LIMIT $${params.length + 1} OFFSET $${params.length + 2}
     `, [...params, limit, offset]);
 
@@ -134,11 +141,18 @@ router.get('/stats', async (req, res) => {
 
     const stats = enrollStats[0] || {};
 
+    // Counts from real signals only
+    const warmCount = signalStats.filter(r => r.ai_priority === 'WARM').reduce((s,r) => s+parseInt(r.n),0);
+    const coldCount = signalStats.filter(r => r.ai_priority === 'COLD').reduce((s,r) => s+parseInt(r.n),0);
+
     res.json({
       real_signals: signalStats,
       total_real: totalReal,
       hot_count: hotCount,
+      warm_count: warmCount,
+      cold_count: coldCount,
       inbound_count: inboundCount,
+      // Enrollment-based derived stats (for context, clearly labeled)
       derived: {
         connections: parseInt(stats.connections) || 0,
         replies: parseInt(stats.replies) || 0,
