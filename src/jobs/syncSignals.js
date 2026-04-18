@@ -81,25 +81,32 @@ async function handler() {
       const chats = await fetchChats(acc.account_id, 50);
       console.log('[SyncSignals] ' + acc.display_name + ': ' + chats.length + ' chats');
 
+      let chatsSeen = 0, chatsSkippedType = 0, chatsNoMsg = 0, chatsWeSent = 0, chatsOld = 0;
       for (const chat of chats) {
-        if (chat.type !== 0) continue;
+        chatsSeen++;
+        if (chat.type !== 0) { chatsSkippedType++; continue; }
         const otherProviderId = chat.attendee_provider_id;
         if (!otherProviderId) continue;
 
         // Get messages — check if last message is FROM THEM
         const msgs = await fetchMessages(acc.account_id, chat.id);
-        if (!msgs.length) continue;
+        if (!msgs.length) { chatsNoMsg++; continue; }
 
         const lastMsg = msgs[0]; // newest first
         const fromThem = lastMsg.is_sender === 0 || lastMsg.is_sender === false;
-        if (!fromThem) continue;
+        if (!fromThem) { chatsWeSent++; continue; }
 
         const msgText = (lastMsg.text || '').trim();
         if (!msgText) continue;
 
-        // Message must be within 30 days
-        const ts = new Date(lastMsg.timestamp || chat.timestamp || 0).getTime();
-        if (Date.now() - ts > 30 * 24 * 60 * 60 * 1000) continue;
+        // Message must be within 30 days (use chat.timestamp as fallback, then now)
+        const rawTs = lastMsg.timestamp || chat.timestamp;
+        const ts = rawTs ? new Date(rawTs).getTime() : Date.now();
+        const ageMs = Date.now() - ts;
+        if (ageMs > 30 * 24 * 60 * 60 * 1000) {
+          console.log('[SyncSignals] skip old message: ' + Math.round(ageMs/86400000) + ' days');
+          continue;
+        }
 
         // Skip if already saved
         const { rows: dup } = await db.query(
@@ -161,6 +168,7 @@ async function handler() {
         console.log('[SyncSignals] ✅ ' + signalType + ': ' + (person.name || otherProviderId) + ' → ' + ((score && score.priority) || 'unscored'));
         totalNew++;
       }
+      console.log('[SyncSignals] ' + acc.display_name + ' scan done — seen:' + chatsSeen + ' type_skip:' + chatsSkippedType + ' no_msg:' + chatsNoMsg + ' we_sent:' + chatsWeSent + ' old:' + chatsOld);
     } catch(e) {
       console.warn('[SyncSignals] Error for ' + acc.display_name + ': ' + e.message);
     }

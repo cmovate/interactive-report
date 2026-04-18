@@ -106,6 +106,7 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; 
   <div class="header-right">
     <span class="ts" id="ts-label">—</span>
     <button class="btn btn-ghost" onclick="load()">↻ Refresh</button>
+    <button class="btn btn-green" id="sync-btn" onclick="runSync()">⚡ Sync Now</button>
     <button class="btn btn-green" onclick="triggerSync()" id="sync-btn">⚡ Sync Now</button>
     <button class="btn btn-ghost" id="scan-btn" onclick="runScan()" title="Scan LinkedIn chats for new inbound signals">🔍 Scan Now</button>
   </div>
@@ -346,6 +347,22 @@ async function triggerSync() {
     await fetch('/api/admin/run-sync-signals', { method: 'POST', headers: {'Content-Type':'application/json'} });
     setTimeout(() => { loadStats(); load(); btn.textContent = '⚡ Sync Now'; btn.disabled = false; }, 8000);
   } catch(e) { btn.textContent = '⚡ Sync Now'; btn.disabled = false; }
+}
+
+async function runSync() {
+  const btn = document.getElementById('sync-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing...'; }
+  try {
+    const r = await fetch('/api/admin/run-sync-signals', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}
+    }).then(r => r.json());
+    console.log('Sync triggered:', r);
+    // Reload after delay
+    setTimeout(() => { loadStats(); load(); }, 5000);
+    if (btn) { btn.textContent = '✅ Synced'; setTimeout(() => { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }, 6000); }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }
+  }
 }
 
 // Init
