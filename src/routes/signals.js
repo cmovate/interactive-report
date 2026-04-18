@@ -49,7 +49,13 @@ router.get('/', async (req, res) => {
     // Build WHERE for real signals
     const conds  = ['s.workspace_id = $1'];
     const params = [wsId];
-    if (type && type !== 'all') { params.push(type); conds.push(`s.type = $${params.length}`); }
+    if (type && type !== 'all') {
+      if (type === 'inbound_message') {
+        conds.push(`s.type IN ('inbound_message','unsolicited_message')`);
+      } else {
+        params.push(type); conds.push(`s.type = \$${params.length}`);
+      }
+    }
     const aiPriority = req.query.ai_priority || null;
     if (aiPriority) { params.push(aiPriority); conds.push(`s.ai_priority = $${params.length}`); }
     if (is_known === 'true') { conds.push('s.is_known = true'); }
@@ -61,6 +67,7 @@ router.get('/', async (req, res) => {
         s.id, s.type, s.actor_name, s.actor_li_url, s.actor_provider_id,
         s.actor_headline, s.is_known, s.content, s.post_url,
         s.occurred_at, s.created_at, s.subject_li_account_id,
+        (s.raw_data->>'chat_id') AS chat_id,
         s.ai_priority, s.ai_action, s.ai_reason, s.ai_fit_score,
         c.first_name, c.last_name, c.company AS contact_company,
         c.title AS contact_title, c.li_profile_url AS contact_li_url,

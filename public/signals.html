@@ -7,93 +7,73 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; }
-
-/* ── Header ── */
 .header { padding: 18px 24px 0; display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .header-left h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; }
 .header-left p  { font-size: 12px; color: #475569; margin-top: 3px; }
 .header-right   { display: flex; gap: 8px; align-items: center; }
 .btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 7px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
-.btn-ghost  { background: #1a2035; color: #94a3b8; border: 1px solid #253047; }
-.btn-ghost:hover { background: #1e2845; color: #e2e8f0; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-ghost { background: #1a2035; color: #94a3b8; border: 1px solid #253047; }
+.btn-ghost:hover:not(:disabled) { background: #1e2845; color: #e2e8f0; }
 .btn-green { background: #1D9E75; color: #fff; }
-.btn-green:hover { background: #188a65; }
+.btn-green:hover:not(:disabled) { background: #188a65; }
 .ts { font-size: 11px; color: #334155; }
-
-/* ── Stats strip ── */
 .stats-strip { display: flex; gap: 8px; padding: 14px 24px 0; flex-wrap: wrap; }
-.stat-card { background: #141928; border: 1px solid #1e2a3a; border-radius: 10px; padding: 12px 16px; cursor: pointer; transition: all .15s; min-width: 80px; }
+.stat-card { background: #141928; border: 1px solid #1e2a3a; border-radius: 10px; padding: 10px 14px; cursor: pointer; transition: all .15s; min-width: 75px; }
 .stat-card:hover { border-color: #2a3f5f; }
-.stat-card.active { border-color: var(--c); background: #0d1624; }
-.stat-icon { font-size: 15px; margin-bottom: 5px; }
-.stat-val  { font-size: 22px; font-weight: 700; color: #f1f5f9; line-height: 1; }
-.stat-label{ font-size: 10px; color: #475569; margin-top: 3px; text-transform: uppercase; letter-spacing: .5px; }
-.stat-known{ font-size: 10px; color: #1D9E75; margin-top: 2px; }
-
-/* ── Toolbar ── */
-.toolbar { display: flex; gap: 8px; padding: 14px 24px 0; align-items: center; flex-wrap: wrap; }
-.filter-pill { background: #141928; border: 1px solid #1e2a3a; border-radius: 20px; padding: 5px 13px; font-size: 12px; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
-.filter-pill:hover { border-color: #2a3f5f; color: #e2e8f0; }
-.filter-pill.active { background: #0d2a1f; border-color: #1D9E75; color: #1D9E75; }
+.stat-card.active { border-color: var(--c,#1D9E75); background: #0d1624; }
+.stat-icon { font-size: 14px; margin-bottom: 4px; }
+.stat-val  { font-size: 20px; font-weight: 700; color: #f1f5f9; line-height: 1; }
+.stat-label{ font-size: 10px; color: #475569; margin-top: 2px; text-transform: uppercase; letter-spacing: .5px; }
+.toolbar { display: flex; gap: 8px; padding: 12px 24px 0; align-items: center; flex-wrap: wrap; }
 .toolbar-spacer { flex: 1; }
 select.filter-sel { background: #141928; border: 1px solid #1e2a3a; border-radius: 7px; color: #94a3b8; font-size: 12px; padding: 5px 10px; cursor: pointer; }
 select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; }
 .known-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; cursor: pointer; }
 .known-toggle input { accent-color: #1D9E75; }
-
-/* ── Signal list ── */
 .content { padding: 12px 24px 24px; }
-.signal-list { display: flex; flex-direction: column; gap: 6px; }
-
-/* ── Signal card ── */
-.sig-card { background: #141928; border: 1px solid #1e2a3a; border-radius: 10px; padding: 14px 16px; display: flex; align-items: flex-start; gap: 14px; transition: border-color .15s; position: relative; }
+.signal-list { display: flex; flex-direction: column; gap: 5px; }
+.sig-card { background: #141928; border: 1px solid #1e2a3a; border-radius: 10px; padding: 13px 15px; display: flex; align-items: flex-start; gap: 12px; transition: border-color .15s; }
 .sig-card:hover { border-color: #2a3f5f; }
 .sig-card.known { border-left: 3px solid #1D9E75; }
-.sig-card.positive { border-left: 3px solid #F59E0B; background: #13160e; }
-.sig-card.derived-badge::after { content: 'DERIVED'; position: absolute; top: 8px; right: 10px; font-size: 9px; color: #334155; letter-spacing: .5px; }
-
-.sig-type-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; background: #1a2035; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-top: 1px; }
-
-.sig-body { flex: 1; min-width: 0; }
-.sig-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.sig-name { font-size: 14px; font-weight: 600; color: #f1f5f9; }
-.sig-name a { color: #1D9E75; text-decoration: none; }
-.sig-name a:hover { text-decoration: underline; }
-.sig-type-label { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
-.sig-sub  { font-size: 12px; color: #64748b; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sig-msg  { font-size: 12px; color: #94a3b8; margin-top: 6px; background: #1a2035; border-radius: 6px; padding: 7px 10px; border-left: 2px solid #253047; font-style: italic; max-width: 600px; }
-.sig-meta { font-size: 11px; color: #334155; margin-top: 6px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.sig-camp { color: #2563EB; font-size: 11px; }
-.sig-acct { color: #475569; font-size: 11px; }
-
-.known-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #1D9E75; background: #0d2a1f; border: 1px solid #1a4a30; border-radius: 10px; padding: 1px 7px; }
-
-/* ── Actions ── */
-.ai-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; }
-.ai-hot  { background: #450a0a; color: #f87171; border: 1px solid #991b1b; }
-.ai-warm { background: #451a03; color: #fb923c; border: 1px solid #9a3412; }
-.ai-cold { background: #1a1a2e; color: #475569; border: 1px solid #253047; }
-.sig-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: flex-start; margin-top: 2px; flex-wrap: wrap; max-width: 160px; justify-content: flex-end; }
-.act-btn { padding: 5px 11px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; white-space: nowrap; }
-.act-primary { background: #1D9E75; color: #fff; }
-.act-primary:hover { background: #188a65; }
-.act-secondary { background: #1a2035; color: #94a3b8; border: 1px solid #253047; }
-.act-secondary:hover { background: #1e2845; color: #e2e8f0; }
-.act-dismiss { background: transparent; color: #334155; border: 1px solid #1a2035; }
-.act-dismiss:hover { color: #64748b; border-color: #253047; }
-
-/* ── Empty / Loading ── */
-.empty { text-align: center; padding: 60px 20px; color: #334155; }
-.empty-icon { font-size: 48px; margin-bottom: 12px; }
-.empty-text { font-size: 15px; color: #475569; margin-bottom: 6px; }
-.empty-sub  { font-size: 12px; color: #2d3a52; }
-.loading { text-align: center; padding: 40px; color: #475569; font-size: 13px; }
-
-/* ── Pagination ── */
-.pager { display: flex; gap: 6px; justify-content: center; margin-top: 16px; }
-.page-btn { background: #141928; border: 1px solid #1e2a3a; border-radius: 6px; color: #64748b; font-size: 12px; padding: 5px 12px; cursor: pointer; transition: all .15s; }
-.page-btn:hover { border-color: #2a3f5f; color: #e2e8f0; }
-.page-btn.active { background: #1D9E75; border-color: #1D9E75; color: #fff; }
+.sig-card.hot   { border-left: 3px solid #EF4444; background: #150a0a; }
+.sig-card.warm  { border-left: 3px solid #F59E0B; }
+.sig-icon { flex-shrink:0; width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:16px; margin-top:1px; }
+.sig-body { flex:1; min-width:0; }
+.sig-top  { display:flex; align-items:baseline; gap:7px; flex-wrap:wrap; }
+.sig-name { font-size:13px; font-weight:600; color:#f1f5f9; }
+.sig-name a { color:#1D9E75; text-decoration:none; }
+.sig-name a:hover { text-decoration:underline; }
+.sig-type { font-size:10px; font-weight:600; padding:2px 7px; border-radius:20px; }
+.sig-sub  { font-size:11px; color:#64748b; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sig-reason { font-size:11px; color:#475569; margin-top:4px; font-style:italic; }
+.sig-msg  { font-size:12px; color:#94a3b8; margin-top:6px; background:#1a2035; border-radius:6px; padding:6px 10px; border-left:2px solid #253047; max-width:560px; }
+.sig-msg.rtl { direction:rtl; text-align:right; }
+.sig-meta { font-size:11px; color:#334155; margin-top:5px; display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+.badge-known { font-size:10px; color:#1D9E75; background:#0d2a1f; border:1px solid #1a4a30; border-radius:10px; padding:1px 7px; }
+.badge-hot  { font-size:11px; font-weight:700; background:#450a0a; color:#f87171; border:1px solid #991b1b; border-radius:6px; padding:2px 8px; }
+.badge-warm { font-size:11px; font-weight:700; background:#451a03; color:#fb923c; border:1px solid #9a3412; border-radius:6px; padding:2px 8px; }
+.badge-cold { font-size:11px; color:#475569; background:#1a1a2e; border:1px solid #253047; border-radius:6px; padding:2px 8px; }
+.sig-actions { display:flex; gap:5px; flex-shrink:0; align-items:flex-start; flex-wrap:wrap; max-width:150px; justify-content:flex-end; }
+.act-btn { padding:5px 10px; border-radius:6px; font-size:11px; font-weight:500; cursor:pointer; border:none; transition:all .15s; white-space:nowrap; }
+.act-primary { background:#1D9E75; color:#fff; }
+.act-primary:hover { background:#188a65; }
+.act-hot { background:#dc2626; color:#fff; }
+.act-hot:hover { background:#b91c1c; }
+.act-secondary { background:#1a2035; color:#94a3b8; border:1px solid #253047; }
+.act-secondary:hover { background:#1e2845; color:#e2e8f0; }
+.act-dismiss { background:transparent; color:#334155; border:1px solid #1e2a3a; font-size:12px; }
+.act-dismiss:hover { color:#64748b; }
+.source-banner { background:#1a2035; border:1px solid #253047; border-radius:8px; padding:8px 14px; margin-bottom:10px; font-size:11px; color:#475569; }
+.empty { text-align:center; padding:60px 20px; }
+.empty-icon { font-size:44px; margin-bottom:12px; }
+.empty-text { font-size:15px; color:#475569; margin-bottom:6px; }
+.empty-sub  { font-size:12px; color:#2d3a52; max-width:420px; margin:0 auto; line-height:1.6; }
+.loading    { text-align:center; padding:40px; color:#475569; font-size:13px; line-height:1.6; }
+.pager { display:flex; gap:5px; justify-content:center; margin-top:14px; }
+.page-btn { background:#141928; border:1px solid #1e2a3a; border-radius:6px; color:#64748b; font-size:12px; padding:5px 12px; cursor:pointer; transition:all .15s; }
+.page-btn:hover { border-color:#2a3f5f; color:#e2e8f0; }
+.page-btn.active { background:#1D9E75; border-color:#1D9E75; color:#fff; }
 </style>
 </head>
 <body>
@@ -101,22 +81,20 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; 
 <div class="header">
   <div class="header-left">
     <h1>⚡ Signals</h1>
-    <p>LinkedIn intent events — who engaged, when, and what to do next</p>
+    <p>Inbound intent — who reached out, when, and what to do next</p>
   </div>
   <div class="header-right">
     <span class="ts" id="ts-label">—</span>
     <button class="btn btn-ghost" onclick="load()">↻ Refresh</button>
-    <button class="btn btn-green" id="sync-btn" onclick="runSync()">⚡ Sync Now</button>
-    <button class="btn btn-green" onclick="triggerSync()" id="sync-btn">⚡ Sync Now</button>
-    <button class="btn btn-ghost" id="scan-btn" onclick="runScan()" title="Scan LinkedIn chats for new inbound signals">🔍 Scan Now</button>
+    <button class="btn btn-green" id="sync-btn" onclick="runSync()">⚡ Scan Inbox</button>
   </div>
 </div>
 
 <div class="stats-strip" id="stats-strip">
   <div class="stat-card active" style="--c:#1D9E75" data-type="all" onclick="setType('all',this)">
     <div class="stat-icon">⚡</div>
-    <div class="stat-val" id="stat-all">—</div>
-    <div class="stat-label">All Signals</div>
+    <div class="stat-val">—</div>
+    <div class="stat-label">All</div>
   </div>
 </div>
 
@@ -126,63 +104,62 @@ select.filter-sel:focus { outline: none; border-color: #1D9E75; color: #e2e8f0; 
   </label>
   <div class="toolbar-spacer"></div>
   <select class="filter-sel" id="limit-sel" onchange="load()">
-    <option value="25">25 per page</option>
-    <option value="50" selected>50 per page</option>
-    <option value="100">100 per page</option>
+    <option value="25">25 / page</option>
+    <option value="50" selected>50 / page</option>
+    <option value="100">100 / page</option>
   </select>
 </div>
 
 <div class="content">
-  <div id="signal-list" class="signal-list">
-    <div class="loading">Loading signals…</div>
-  </div>
+  <div id="signal-list" class="signal-list"><div class="loading">Loading signals…</div></div>
   <div id="pager" class="pager"></div>
 </div>
 
 <script>
-const WS_ID = parseInt(new URLSearchParams(location.search).get('workspace_id')) || 1;
+const WS_ID   = parseInt(new URLSearchParams(location.search).get('workspace_id')) || 1;
 const WS_NAME = new URLSearchParams(location.search).get('workspace_name') || '';
-let currentType = 'all';
-let currentPage = 1;
-let signalSource = 'real';
+let currentType = 'all', currentPage = 1;
 
 const SIGNAL_META = {
-  invite_accepted:    { icon: '🤝', label: 'Accepted Invite',    color: '#1D9E75' },
-  message_received:   { icon: '💬', label: 'Replied',            color: '#3B82F6' },
-  positive_reply:     { icon: '⭐', label: 'Positive Reply',     color: '#F59E0B' },
-  profile_view:       { icon: '👁️', label: 'Viewed Profile',    color: '#8B5CF6' },
-  invitation_received:{ icon: '🔔', label: 'Sent Us Invite',     color: '#EC4899' },
-  reaction_received:  { icon: '👍', label: 'Liked Post',         color: '#F97316' },
-  comment_received:   { icon: '💭', label: 'Commented',          color: '#06B6D4' },
-  company_follow:     { icon: '🏢', label: 'Followed Company',   color: '#6366F1' },
-  new_relation:       { icon: '✅', label: 'Connected',          color: '#10B981' },
+  inbound_message:     { icon:'💌', label:'Wrote to Us',      color:'#EC4899' },
+  unsolicited_message: { icon:'📩', label:'New Message',       color:'#EC4899' },
+  new_relation:        { icon:'✅', label:'Connected',         color:'#10B981' },
+  invite_accepted:     { icon:'🤝', label:'Accepted Invite',   color:'#1D9E75' },
+  message_received:    { icon:'💬', label:'Replied',           color:'#3B82F6' },
+  positive_reply:      { icon:'⭐', label:'Positive Reply',    color:'#F59E0B' },
+  profile_view:        { icon:'👁️', label:'Viewed Profile',   color:'#8B5CF6' },
+  invitation_received: { icon:'🔔', label:'Sent Us Invite',    color:'#F97316' },
+  reaction_received:   { icon:'👍', label:'Liked Our Post',    color:'#06B6D4' },
+  comment_received:    { icon:'💭', label:'Commented',         color:'#6366F1' },
+  company_follow:      { icon:'🏢', label:'Followed Our Page', color:'#8B5CF6' },
 };
 
 const ACTION_FOR = {
-  invite_accepted:    { label: '💬 Send Message', action: 'send_message' },
-  message_received:   { label: '↗ Open Chat',    action: 'open_chat'    },
-  positive_reply:     { label: '↗ Open Chat',    action: 'open_chat'    },
-  profile_view:       { label: '➕ Send Invite',  action: 'send_invite'  },
-  invitation_received:{ label: '✅ Accept',       action: 'accept_invite'},
-  reaction_received:  { label: '➕ Send Invite',  action: 'send_invite'  },
-  comment_received:   { label: '💬 Reply',        action: 'send_message' },
-  company_follow:     { label: '➕ Send Invite',  action: 'send_invite'  },
-  new_relation:       { label: '💬 Send Message', action: 'send_message' },
+  inbound_message:     'open_chat',    unsolicited_message: 'open_chat',
+  new_relation:        'send_message', invite_accepted:     'send_message',
+  message_received:    'open_chat',    positive_reply:      'open_chat',
+  profile_view:        'send_invite',  invitation_received: 'accept_invite',
+  reaction_received:   'send_invite',  comment_received:    'send_message',
+  company_follow:      'send_invite',
+};
+
+const ACTION_LABEL = {
+  open_chat:'↗ Open Chat', send_message:'💬 Send Message',
+  send_invite:'➕ Connect', accept_invite:'✅ Accept',
 };
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function ago(ts) {
   if (!ts) return '';
-  const d = Math.round((Date.now() - new Date(ts)) / 1000);
-  if (d < 60)   return `${d}s ago`;
-  if (d < 3600) return `${Math.round(d/60)}m ago`;
-  if (d < 86400)return `${Math.round(d/3600)}h ago`;
-  return `${Math.round(d/86400)}d ago`;
+  const s = Math.round((Date.now()-new Date(ts))/1000);
+  if (s<60) return s+'s ago'; if (s<3600) return Math.round(s/60)+'m ago';
+  if (s<86400) return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago';
 }
+function isHebrew(t) { return /[\u0590-\u05FF]/.test(t||''); }
 
-function setType(t, el) {
-  currentType = t; currentPage = 1;
-  document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active'));
+function setType(t,el) {
+  currentType=t; currentPage=1;
+  document.querySelectorAll('.stat-card').forEach(c=>c.classList.remove('active'));
   el?.classList.add('active');
   load();
 }
@@ -190,222 +167,174 @@ function setType(t, el) {
 async function loadStats() {
   try {
     const data = await fetch(`/api/signals/stats?workspace_id=${WS_ID}`).then(r=>r.json());
-    const strip = document.getElementById('stats-strip');
-    const d = data.derived || {};
-    const types = [
-      { type: 'all',              icon: '⚡', label: 'All Signals',  val: d.total || data.total_real || 0 },
-      { type: 'inbound_message',  icon: '💌', label: 'Wrote to Us',  val: (data.real_signals||[]).filter(s=>['inbound_message','unsolicited_message'].includes(s.type)).reduce((a,s)=>a+parseInt(s.n),0), c: '#EC4899' },
-      { type: 'positive_reply',   icon: '⭐', label: 'Positive',     val: d.positive_replies || 0, c: '#F59E0B' },
-      { type: 'message_received', icon: '💬', label: 'Replied',      val: d.replies || 0, c: '#3B82F6' },
-      { type: 'invite_accepted',  icon: '🤝', label: 'Connections',  val: d.connections || 0, c: '#1D9E75' },
-      ...(data.hot_count > 0 ? [{ type: 'hot', icon: '🔥', label: 'HOT leads', val: data.hot_count, c: '#EF4444' }] : []),
-    ].filter(t => t.val > 0 || t.type === 'all');
-
-    strip.innerHTML = types.map((t,i) => `
-      <div class="stat-card ${i===0?'active':''}" style="--c:${t.c||'#1D9E75'}"
-           data-type="${t.type}" onclick="setType('${t.type}',this)">
+    const d=data.derived||{}, rs=data.real_signals||[];
+    const inbound=rs.filter(s=>['inbound_message','unsolicited_message'].includes(s.type)).reduce((a,s)=>a+parseInt(s.n),0);
+    const types=[
+      {type:'all',icon:'⚡',label:'All',val:d.total||data.total_real||0},
+      ...(inbound>0?[{type:'inbound',icon:'💌',label:'Wrote to Us',val:inbound,c:'#EC4899'}]:[]),
+      ...(data.hot_count>0?[{type:'hot',icon:'🔥',label:'HOT',val:data.hot_count,c:'#EF4444'}]:[]),
+      {type:'positive_reply',icon:'⭐',label:'Positive',val:d.positive_replies||0,c:'#F59E0B'},
+      {type:'message_received',icon:'💬',label:'Replied',val:d.replies||0,c:'#3B82F6'},
+      {type:'invite_accepted',icon:'🤝',label:'Connected',val:d.connections||0,c:'#1D9E75'},
+      ...rs.filter(s=>!['inbound_message','unsolicited_message','positive_reply',
+          'message_received','invite_accepted','new_relation'].includes(s.type)&&parseInt(s.n)>0)
+        .map(s=>({type:s.type,icon:SIGNAL_META[s.type]?.icon||'📌',
+          label:SIGNAL_META[s.type]?.label||s.type,val:parseInt(s.n),c:SIGNAL_META[s.type]?.color})),
+    ].filter(t=>t.val>0||t.type==='all');
+    document.getElementById('stats-strip').innerHTML=types.map((t,i)=>`
+      <div class="stat-card ${(i===0&&currentType==='all')||currentType===t.type?'active':''}"
+           style="--c:${t.c||'#1D9E75'}" onclick="setType('${t.type}',this)">
         <div class="stat-icon">${t.icon}</div>
         <div class="stat-val">${t.val.toLocaleString()}</div>
         <div class="stat-label">${t.label}</div>
-      </div>
-    `).join('');
-    document.getElementById('stat-all')?.replaceWith?.();
-  } catch(e) { console.warn('stats error', e); }
+      </div>`).join('');
+  } catch(e){console.warn('stats',e);}
 }
 
 async function load() {
-  const limit = parseInt(document.getElementById('limit-sel')?.value||50);
-  const knownOnly = document.getElementById('known-only')?.checked;
-  document.getElementById('signal-list').innerHTML = '<div class="loading">Loading signals…</div>';
-
-  let url = `/api/signals?workspace_id=${WS_ID}&page=${currentPage}&limit=${limit}`;
-  if (currentType === 'hot') url += '&ai_priority=HOT';
-  else if (currentType === 'inbound_message') url += '&type=inbound_message&type2=unsolicited_message';
-  else if (currentType !== 'all') url += `&type=${currentType}`;
-  if (knownOnly) url += '&is_known=true';
-
+  const limit=parseInt(document.getElementById('limit-sel')?.value||50);
+  const knownOnly=document.getElementById('known-only')?.checked;
+  document.getElementById('signal-list').innerHTML='<div class="loading">Loading…</div>';
+  let url=`/api/signals?workspace_id=${WS_ID}&page=${currentPage}&limit=${limit}`;
+  if(currentType==='hot')    url+='&ai_priority=HOT';
+  else if(currentType==='inbound') url+='&type=inbound_message';
+  else if(currentType!=='all') url+=`&type=${currentType}`;
+  if(knownOnly) url+='&is_known=true';
   try {
-    const data = await fetch(url).then(r=>r.json());
-    signalSource = data.source || 'real';
-    document.getElementById('ts-label').textContent = `Updated ${new Date().toLocaleTimeString()}`;
-    renderList(data.items || [], data.total, limit);
-    renderPager(data.total, limit, data.page);
+    const data=await fetch(url).then(r=>r.json());
+    document.getElementById('ts-label').textContent=`Updated ${new Date().toLocaleTimeString()}`;
+    renderList(data.items||[],data.total,limit,data.source);
+    renderPager(data.total,limit,data.page);
   } catch(e) {
-    document.getElementById('signal-list').innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Error loading signals</div><div class="empty-sub">${esc(e.message)}</div></div>`;
+    document.getElementById('signal-list').innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Error: ${esc(e.message)}</div></div>`;
   }
 }
 
-function renderList(items, total, limit) {
-  const list = document.getElementById('signal-list');
-  if (!items.length) {
-    list.innerHTML = `<div class="empty">
+function renderList(items,total,limit,source) {
+  const list=document.getElementById('signal-list');
+  if(!items.length){
+    list.innerHTML=`<div class="empty">
       <div class="empty-icon">📡</div>
       <div class="empty-text">No signals yet</div>
-      <div class="empty-sub">LinkedIn events will appear here as they arrive via webhooks</div>
+      <div class="empty-sub">Click <strong>⚡ Scan Inbox</strong> to scan Unipile chats for inbound messages.<br>Webhooks for new_relation + message_received are active and will populate this feed automatically.</div>
     </div>`;
     return;
   }
-
-  list.innerHTML = items.map(s => {
-    const meta   = SIGNAL_META[s.type] || { icon: '📌', label: s.type, color: '#64748b' };
-    const action = ACTION_FOR[s.type];
-    const name   = s.actor_name || [s.first_name, s.last_name].filter(Boolean).join(' ') || 'Unknown';
-    const liUrl  = s.actor_li_url || s.contact_li_url || '';
-    const company= s.contact_company || '';
-    const title  = s.contact_title || s.actor_headline || '';
-    const sub    = [title, company].filter(Boolean).join(' @ ');
-    const isPositive = s.type === 'positive_reply' || s.ai_priority === 'HOT';
-    const chatId = s.chat_id || null;
-    const enrId  = s.enrollment_id || null;
-
-    // AI priority badge
-    const aiPri = s.ai_priority;
-    const aiBadge = aiPri === 'HOT'  ? `<span class="ai-badge ai-hot">🔥 HOT</span>`
-                  : aiPri === 'WARM' ? `<span class="ai-badge ai-warm">🌡️ WARM</span>`
-                  : aiPri === 'COLD' ? `<span class="ai-badge ai-cold">❄️ COLD</span>`
-                  : '';
-
-    return `<div class="sig-card ${s.is_known?'known':''} ${isPositive?'positive':''}" id="sig-${s.id}">
-      <div class="sig-type-icon" style="background:${meta.color}22;color:${meta.color}">${meta.icon}</div>
+  let html='';
+  if(source==='derived') html+=`<div class="source-banner">📋 <strong>Derived signals</strong> — showing enrollment activity. Run <strong>⚡ Scan Inbox</strong> to fetch real inbound signals.</div>`;
+  html+=items.map(sig=>{
+    const meta=SIGNAL_META[sig.type]||{icon:'📌',label:sig.type||'Signal',color:'#64748b'};
+    const act=ACTION_FOR[sig.type];
+    const name=sig.actor_name||[sig.first_name,sig.last_name].filter(Boolean).join(' ')||'Unknown';
+    const liUrl=sig.actor_li_url||sig.contact_li_url||'';
+    const sub=[sig.contact_title||sig.actor_headline,sig.contact_company].filter(Boolean).join(' @ ');
+    const pri=sig.ai_priority;
+    const isHot=pri==='HOT', isWarm=pri==='WARM';
+    const msg=sig.content||'';
+    let chatId=sig.chat_id;
+    if(!chatId&&sig.raw_data){try{chatId=(typeof sig.raw_data==='string'?JSON.parse(sig.raw_data):sig.raw_data)?.chat_id;}catch(e){}}
+    const sc=(chatId||'').replace(/'/g,''), su=liUrl.replace(/'/g,''), sn=name.replace(/'/g,'');
+    const badge=isHot?`<span class="badge-hot">🔥 HOT</span>`:isWarm?`<span class="badge-warm">🌡️ WARM</span>`:pri==='COLD'?`<span class="badge-cold">❄️ COLD</span>`:'';
+    const actionLabel=ACTION_LABEL[act]||'View';
+    return `<div class="sig-card ${sig.is_known?'known':''} ${isHot?'hot':isWarm?'warm':''}" id="sig-${sig.id}">
+      <div class="sig-icon" style="background:${meta.color}20;color:${meta.color}">${meta.icon}</div>
       <div class="sig-body">
         <div class="sig-top">
-          <div class="sig-name">
-            ${liUrl ? `<a href="${esc(liUrl)}" target="_blank">${esc(name)}</a>` : esc(name)}
-          </div>
-          <span class="sig-type-label" style="background:${meta.color}22;color:${meta.color}">${meta.label}</span>
-          ${aiBadge}
-          ${s.is_known ? `<span class="known-badge">✓ Known</span>` : ''}
+          <span class="sig-name">${liUrl?`<a href="${esc(liUrl)}" target="_blank">${esc(name)}</a>`:esc(name)}</span>
+          <span class="sig-type" style="background:${meta.color}20;color:${meta.color}">${meta.label}</span>
+          ${badge}${sig.is_known?'<span class="badge-known">✓ Known</span>':''}
         </div>
-        ${sub ? `<div class="sig-sub">${esc(sub)}</div>` : ''}
-        ${s.ai_reason ? `<div style="font-size:11px;color:#64748b;margin-top:4px;font-style:italic">🤖 ${esc(s.ai_reason)}</div>` : ''}
-        ${s.content ? `<div class="sig-msg">${esc(s.content.slice(0,200))}</div>` : ''}
+        ${sub?`<div class="sig-sub">${esc(sub)}</div>`:''}
+        ${sig.ai_reason?`<div class="sig-reason">🤖 ${esc(sig.ai_reason)}</div>`:''}
+        ${msg?`<div class="sig-msg ${isHebrew(msg)?'rtl':''}">${esc(msg.slice(0,220))}</div>`:''}
         <div class="sig-meta">
-          <span>${ago(s.occurred_at || s.created_at)}</span>
-          ${s.account_name  ? `<span class="sig-acct">via ${esc(s.account_name)}</span>` : ''}
-          ${s.ai_fit_score ? `<span style="color:#475569">fit: ${s.ai_fit_score}/10</span>` : ''}
+          <span>${ago(sig.occurred_at||sig.created_at)}</span>
+          ${sig.account_name?`<span>via ${esc(sig.account_name)}</span>`:''}
+          ${sig.ai_fit_score?`<span>fit ${sig.ai_fit_score}/10</span>`:''}
+          ${sig.campaign_name?`<span style="color:#2563EB">📋 ${esc(sig.campaign_name)}</span>`:''}
         </div>
       </div>
       <div class="sig-actions">
-        ${aiPri === 'HOT' ? `<button class="act-btn act-primary" style="background:#dc2626" onclick="handleAction('reply_now','${esc(String(s.id))}','${esc(chatId||'')}','${esc(liUrl)}','${esc(name)}')">🔥 Reply Now</button>` : ''}
-        ${action && aiPri !== 'HOT' ? `<button class="act-btn act-primary" onclick="handleAction('${action.action}','${esc(String(s.id))}','${esc(chatId||'')}','${esc(liUrl)}','${esc(name)}')">${action.label}</button>` : ''}
-        ${s.enrollment_id ? `<button class="act-btn act-secondary" onclick="goToEnrollment(${enrId})">View</button>` : ''}
-        <button class="act-btn act-dismiss" onclick="dismiss('${s.id}')">✕</button>
+        ${isHot&&(sc||su)?`<button class="act-btn act-hot" onclick="openChat('${sc}','${su}','${sn}')">🔥 Reply Now</button>`:''}
+        ${!isHot&&act?`<button class="act-btn act-primary" onclick="doAction('${act}','${sc}','${su}','${sn}')">${actionLabel}</button>`:''}
+        ${sig.enrollment_id?`<button class="act-btn act-secondary" onclick="goEnrollment(${sig.enrollment_id})">View</button>`:''}
+        <button class="act-btn act-dismiss" onclick="dismiss('${sig.id}')">✕</button>
       </div>
     </div>`;
   }).join('');
+  list.innerHTML=html;
 }
 
-function renderPager(total, limit, page) {
-  const pages = Math.ceil(total / limit);
-  const pager = document.getElementById('pager');
-  if (pages <= 1) { pager.innerHTML = ''; return; }
-  pager.innerHTML = Array.from({length: Math.min(pages,10)}, (_,i) => i+1)
-    .map(p => `<button class="page-btn ${p===page?'active':''}" onclick="goPage(${p})">${p}</button>`)
-    .join('');
+function renderPager(total,limit,page){
+  const pages=Math.ceil(total/limit), pager=document.getElementById('pager');
+  if(pages<=1){pager.innerHTML='';return;}
+  pager.innerHTML=Array.from({length:Math.min(pages,10)},(_,i)=>i+1)
+    .map(p=>`<button class="page-btn ${p===page?'active':''}" onclick="goPage(${p})">${p}</button>`).join('');
+}
+function goPage(p){currentPage=p;load();}
+
+function openChat(chatId,liUrl,name){
+  const msg={type:'open-inbox-contact',action:'open_inbox_contact',name};
+  if(chatId) msg.chat_id=chatId; else msg.li_profile_url=liUrl;
+  window.parent?.postMessage(msg,'*');
+}
+function doAction(action,chatId,liUrl,name){
+  if(action==='open_chat') return openChat(chatId,liUrl,name);
+  alert(`Action "${action}" for ${name}`);
+}
+function goEnrollment(id){window.parent?.postMessage({type:'show-enrollment',enrollment_id:id},'*');}
+function dismiss(sigId){
+  const c=document.getElementById(`sig-${sigId}`);
+  if(c){c.style.opacity='0.3';c.style.pointerEvents='none';}
+  fetch(`/api/signals/${sigId}/dismiss`,{method:'POST'}).catch(()=>{});
 }
 
-function goPage(p) { currentPage = p; load(); }
-
-function handleAction(action, sigId, chatId, liUrl, name) {
-  if (action === 'open_chat' && chatId) {
-    window.parent?.postMessage({ type: 'open-inbox-contact', action: 'open_inbox_contact', chat_id: chatId, name }, '*');
-  } else if (action === 'open_chat') {
-    window.parent?.postMessage({ type: 'open-inbox-contact', action: 'open_inbox_contact', li_profile_url: liUrl, name }, '*');
-  } else {
-    alert(`Action "${action}" for ${name} — coming soon`);
-  }
-}
-
-function goToEnrollment(enrId) {
-  window.parent?.postMessage({ type: 'show-enrollment', enrollment_id: enrId }, '*');
-}
-
-function dismiss(sigId) {
-  const card = document.getElementById(`sig-${sigId}`);
-  if (card) card.style.opacity = '0.3';
-  fetch(`/api/signals/${sigId}/dismiss`, { method: 'POST' }).catch(()=>{});
-}
-
-async function runScan() {
-  const btn = document.getElementById('scan-btn');
-  if (btn) { btn.textContent = '⏳ Scanning…'; btn.disabled = true; }
+async function runSync(){
+  const btn=document.getElementById('sync-btn');
+  const list=document.getElementById('signal-list');
+  btn.disabled=true; btn.textContent='⏳ Scanning…';
+  list.innerHTML=`<div class="loading">⏳ Scanning LinkedIn inbox for inbound messages…<br><small style="color:#475569;display:block;margin-top:4px">Checking all 1-on-1 chats. May take up to 60 seconds.</small></div>`;
   try {
-    await fetch('/api/admin/run-sync-signals', { method: 'POST', headers: {'Content-Type':'application/json'} });
-    // Wait a bit then reload
-    setTimeout(async () => {
-      await loadStats();
-      await load();
-      if (btn) { btn.textContent = '🔍 Scan Now'; btn.disabled = false; }
-    }, 8000);
-  } catch(e) {
-    if (btn) { btn.textContent = '🔍 Scan Now'; btn.disabled = false; }
-  }
-}
-
-async function triggerSync() {
-  const btn = document.getElementById('sync-btn');
-  btn.textContent = '⏳ Syncing…'; btn.disabled = true;
-  try {
-    await fetch('/api/admin/run-sync-signals', { method: 'POST', headers: {'Content-Type':'application/json'} });
-    setTimeout(() => { loadStats(); load(); btn.textContent = '⚡ Sync Now'; btn.disabled = false; }, 8000);
-  } catch(e) { btn.textContent = '⚡ Sync Now'; btn.disabled = false; }
-}
-
-async function runSync() {
-  const btn = document.getElementById('sync-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Scanning inbox…'; }
-
-  // Show scanning overlay
-  const list = document.getElementById('signal-list');
-  list.innerHTML = '<div class="loading">⏳ Scanning Unipile inbox for inbound signals…<br><small style="color:#475569">This may take 30-60 seconds</small></div>';
-
-  try {
-    const r = await fetch('/api/admin/run-sync-signals', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ workspace_id: WS_ID })
-    }).then(res => res.json());
-
-    if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }
-
-    if (r.ok) {
-      const savedCount = r.saved || 0;
-      const foundCount = r.found || 0;
-
-      // Show inline result summary before reloading
-      if (foundCount === 0) {
-        list.innerHTML = `<div class="empty">
-          <div class="empty-icon">📡</div>
-          <div class="empty-text">No new inbound signals found</div>
-          <div class="empty-sub" style="max-width:500px;margin:8px auto 0">
-            Scanned ${r.logs?.filter(l=>l.includes('chats')).join(' · ') || 'all chats'}<br>
-            All recent chats have you as the last sender, or messages are older than 30 days.
-          </div>
-        </div>`;
-      } else {
-        list.innerHTML = `<div style="background:#0d2a1f;border:1px solid #1D9E75;border-radius:10px;padding:16px;margin-bottom:12px;">
-          <div style="color:#1D9E75;font-weight:600;font-size:14px;">✅ Sync complete — ${savedCount} signal${savedCount!==1?'s':''} saved</div>
-          <div style="color:#475569;font-size:12px;margin-top:6px;">${r.results?.map(r2=>`${r2.name}: ${r2.priority||'?'} — "${r2.text?.slice(0,60)}"`).join('<br>') || ''}</div>
-        </div>`;
-        setTimeout(() => { loadStats(); load(); }, 1500);
-      }
-
-      // Log details
-      console.log('[SyncSignals]', r);
-      if (r.logs) r.logs.forEach(l => console.log(l));
-    } else {
-      list.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Sync error: ${esc(r.error||'unknown')}</div></div>`;
+    const r=await fetch('/api/admin/run-sync-signals',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({workspace_id:WS_ID})
+    }).then(res=>res.json());
+    btn.disabled=false; btn.textContent='⚡ Scan Inbox';
+    if(!r.ok&&r.error){
+      list.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Scan error</div><div class="empty-sub">${esc(r.error)}</div></div>`;
+      return;
     }
-  } catch(e) {
-    if (btn) { btn.disabled = false; btn.textContent = '⚡ Sync Now'; }
-    list.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Error: ${esc(e.message)}</div></div>`;
+    const saved=r.saved||0,found=r.found||0;
+    const chatLogs=(r.logs||[]).filter(l=>l.includes('chats')||l.includes('accounts'));
+    if(found===0){
+      list.innerHTML=`<div class="empty">
+        <div class="empty-icon">📡</div>
+        <div class="empty-text">No new inbound signals found</div>
+        <div class="empty-sub">
+          ${chatLogs.map(l=>`<span style="display:block;color:#334155;margin:2px 0">${esc(l)}</span>`).join('')}
+          <br>Most recent chats have <em>you</em> as the last sender, or messages are older than 30 days.
+          <br><br><span style="color:#1D9E75">Tip: Send messages to people so they can reply — those replies will appear here automatically via webhook.</span>
+        </div>
+      </div>`;
+    } else {
+      list.innerHTML=`<div style="background:#0d2a1f;border:1px solid #1D9E75;border-radius:10px;padding:14px;margin-bottom:10px;">
+        <div style="color:#1D9E75;font-weight:600;font-size:14px;margin-bottom:8px;">✅ ${saved} signal${saved!==1?'s':''} saved</div>
+        ${(r.results||[]).map(res=>`<div style="padding:4px 0;border-bottom:1px solid #1e2a3a;font-size:12px;">
+          <span style="color:${res.priority==='HOT'?'#f87171':res.priority==='WARM'?'#fb923c':'#94a3b8'}">${res.priority||'?'}</span>
+          <span style="color:#e2e8f0;margin-left:8px">${esc(res.name||'Unknown')}</span>
+          <span style="color:#475569;margin-left:6px">"${esc((res.text||'').slice(0,60))}"</span>
+        </div>`).join('')}
+      </div>`;
+      setTimeout(()=>{loadStats();load();},1200);
+    }
+    if(r.logs) r.logs.forEach(l=>console.log('[Scan]',l));
+  } catch(e){
+    btn.disabled=false; btn.textContent='⚡ Scan Inbox';
+    list.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-text">Error: ${esc(e.message)}</div></div>`;
   }
 }
 
-// Init
-loadStats();
-load();
-setInterval(load, 60000);
+loadStats(); load(); setInterval(load,60000);
 </script>
 </body>
 </html>
